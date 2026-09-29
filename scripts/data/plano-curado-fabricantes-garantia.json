@@ -1,0 +1,1249 @@
+{
+  "geradoEm": "2026-09-29T08:05:37.301Z",
+  "geradoDe": {
+    "branch": "catalog/normalizacao-fabricantes-garantia",
+    "commit": "0d39253",
+    "ficheiro": "scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json"
+  },
+  "totalGruposFonte": 557,
+  "totalGruposExcluidosDoNotMerge": 0,
+  "totalGruposSemFonteUtilizavel": 464,
+  "groups": [
+    {
+      "canonical_id": "cmu6bf6c80obi01qmrbm4pbmz",
+      "canonical_name_before": "ALFASIGMA PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "ALFASIGMA LDA"
+        },
+        {
+          "source_name": "ALFASIGMA PORTUGAL"
+        },
+        {
+          "source_name": "ALFA WASSERMANN- PROD FARM LDA"
+        },
+        {
+          "source_name": "ALFA WASSERMANN - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "ALFA WASSERMAN - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "BIOSAUDE - PROD FARM LDA"
+        },
+        {
+          "source_name": "BIOSAUDE - PRODUTOS FARMACEUTICOS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0rcl1k6q01th9l5zkuvc",
+      "canonical_name_before": "ALFASIGMA S.P.A.",
+      "sources": [
+        {
+          "source_name": "SIGMA-TAU INDUSTRIE FARMACEUTICHE RIUNITE SOCIETA PER AZIONI"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bfidf0psy01qmcfa0xwsj",
+      "canonical_name_before": "ALLIANCE HEALTHCARE S A",
+      "sources": [
+        {
+          "source_name": "ALLIANCE HEALTHCAR"
+        },
+        {
+          "source_name": "ALLIANCE HEALTHCARE SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw54pg1ug501thunhg3nwp",
+      "canonical_name_before": "ALTER S.A.",
+      "sources": [
+        {
+          "source_name": "ALTER SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw5tky1x5401thm74p1oy0",
+      "canonical_name_before": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "ANGELINI FARMACEUTICA LDA"
+        },
+        {
+          "source_name": "ANGELINI FARMACEUTICA"
+        },
+        {
+          "source_name": "ANGELINI FARMACEUT"
+        },
+        {
+          "source_name": "ANGELINI FARMACEUTICA L DA"
+        },
+        {
+          "source_name": "ANGELINI FARMACEUTICA L.DA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0qds1k4o01thz4xlkn41",
+      "canonical_name_before": "ARISTO PHARMA IBERIA SL",
+      "sources": [
+        {
+          "source_name": "ARISTO PHARMA IBERIA S L"
+        },
+        {
+          "source_name": "ARISTO PHARMA IBERIA S.L."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtlewhrln1h601nyzpf3io56",
+      "canonical_name_before": "ARTSANA PORTUGAL S.A.",
+      "sources": [
+        {
+          "source_name": "ARTSANA PORTUGAL"
+        },
+        {
+          "source_name": "ARTSANA PORTUGAL - COMERCIO E INDUSTRIA SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw391q1oz601thdpovbvoa",
+      "canonical_name_before": "BALDACCI PORTUGAL SA",
+      "sources": [
+        {
+          "source_name": "BALDACCI PORTUGAL S A"
+        },
+        {
+          "source_name": "BALDACCI PORTUGAL S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw3wfa1qo701thxktag7p2",
+      "canonical_name_before": "BASTOS VIEGAS S.A.",
+      "sources": [
+        {
+          "source_name": "BASTOS VIEGAS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw201u1ml301th5lqxb31n",
+      "canonical_name_before": "BAYER PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "BAYER PORTUGAL SA"
+        },
+        {
+          "source_name": "BAYER PORTUGAL"
+        },
+        {
+          "source_name": "BAYER PORTUGAL S A"
+        },
+        {
+          "source_name": "BAYER PORTUGAL S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw542z1ue801th94qskyij",
+      "canonical_name_before": "BEBE INNOVA SL",
+      "sources": [
+        {
+          "source_name": "BEBEINNOVA SL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtlew36xn07101nyt2eiu7n3",
+      "canonical_name_before": "BEIERSDORF A.G.",
+      "sources": [
+        {
+          "source_name": "BEIERSDORF AG"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4kcg1sp301thj66um08q",
+      "canonical_name_before": "BEIERSDORF PORTUGUESA LDA.",
+      "sources": [
+        {
+          "source_name": "BEIERSDORF PORTUGUESA L DA"
+        },
+        {
+          "source_name": "BEIERSDORF PORTUGUESA L.DA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5i4cu09n701nyxm3i1j15",
+      "canonical_name_before": "BIOIBERICA S.A.",
+      "sources": [
+        {
+          "source_name": "BIOIBERICA SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw66741yft01thz2dr17zr",
+      "canonical_name_before": "BLUEPHARMA GENERICOS - COMERCIO DE MEDICAMENTOS S.A.",
+      "sources": [
+        {
+          "source_name": "BLUEPHARMA GENERICOS - COMERCIO DE MEDICAMENTOS"
+        },
+        {
+          "source_name": "BLUEPHARMA GENERICOS C. M. SA"
+        },
+        {
+          "source_name": "BLUEPHARMA GENERICOS - COMERCIO DE MEDICAMENTOS S."
+        },
+        {
+          "source_name": "BLUEPHARMA GENERICOS C M SA"
+        },
+        {
+          "source_name": "BLUEPHARMA GENERICOS - COMERCIO DE MEDICAMENTOS S"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw57my1uqz01th6q5n7f1g",
+      "canonical_name_before": "BOEHRINGER INGELHEIM ANIMAL HEALTH PORTUGAL UNIPE",
+      "sources": [
+        {
+          "source_name": "BOEHRINGER INGELHEIM ANIMAL HE"
+        },
+        {
+          "source_name": "MERIAL PORTUGUESA"
+        },
+        {
+          "source_name": "MERIAL PORTUGUESA - SAUDE ANIMAL LDA"
+        },
+        {
+          "source_name": "MERIAL PORTUGUESA - SAUDE ANIMAL LDA."
+        },
+        {
+          "source_name": "MERIAL PORTUGUESA SAUDE ANIMAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6enr7f91zp01qmguqas4ho",
+      "canonical_name_before": "BOEHRINGER INGELHEIM PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "BOEHRINGER INGELHEIM"
+        },
+        {
+          "source_name": "BOEHRINGER INGELHEIM LDA"
+        },
+        {
+          "source_name": "BOEHRINGER INGELHEIM LDA."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw14k41kze01th63731xtz",
+      "canonical_name_before": "COUTO SA",
+      "sources": [
+        {
+          "source_name": "COUTO S A"
+        },
+        {
+          "source_name": "COUTO S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bfeen0pbg01qmtryi1i23",
+      "canonical_name_before": "CREFAR - REPRESENTACOES LDA",
+      "sources": [
+        {
+          "source_name": "CREFAR REPRESENT LDA"
+        },
+        {
+          "source_name": "CREFAR - REPRESENTACOES"
+        },
+        {
+          "source_name": "CREFAR REPRESENT L"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw54351uea01thvmtvvbkm",
+      "canonical_name_before": "DAVI II - FARMACEUTICA S.A.",
+      "sources": [
+        {
+          "source_name": "DAVI II - FARMACEUTICA SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw5eu01vgb01thawjsgizk",
+      "canonical_name_before": "DIETIMPORT S.A",
+      "sources": [
+        {
+          "source_name": "DIETIMPORT SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw2rbs1o1j01thgtqq6no5",
+      "canonical_name_before": "DIMOR LUSITANA - COMERCIO DE PRODUTOS DE SAUDE E HIGIENE",
+      "sources": [
+        {
+          "source_name": "DIMOR LUSITANA - COMERCIO DE PRODUTOS DE SAUDE E H"
+        },
+        {
+          "source_name": "DIMOR LUSITANA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5hm3907df01nyftmeegcs",
+      "canonical_name_before": "EMPIFARMA - PRODUTOS FARMACEUTICOS S.A",
+      "sources": [
+        {
+          "source_name": "EMPIFARMA - PRODUTOS FARMACEUTICOS SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5gon703p801nyr5h8r7pf",
+      "canonical_name_before": "FARMAXMP LDA",
+      "sources": [
+        {
+          "source_name": "FARMA XMP LDA"
+        },
+        {
+          "source_name": "FARMA XMP LDA."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw6plu20nu01thuarp2dkl",
+      "canonical_name_before": "FARMODIETICA S.A.",
+      "sources": [
+        {
+          "source_name": "FARMODIETICA"
+        },
+        {
+          "source_name": "FARMODIETICA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6eln948pdg01qm9t6zkm7m",
+      "canonical_name_before": "FARMOZ - SOCIEDADE TECNICO MEDICINAL S A",
+      "sources": [
+        {
+          "source_name": "FARMOZ - SOC. T. MEDICINAL SA"
+        },
+        {
+          "source_name": "FARMOZ - SOC T MEDICINAL SA"
+        },
+        {
+          "source_name": "FARMOZ - SOCIEDADE TECNICO MEDICINAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bfcr40p2l01qmg28f5zaa",
+      "canonical_name_before": "FILORGA PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "FILORGA PORTUGAL UNIP. LDA"
+        },
+        {
+          "source_name": "FILORGA PORTUGAL UNIP LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw56in1umk01thg17lbef0",
+      "canonical_name_before": "FRESENIUS KABI PHARMA PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "FRESENIUS KABI P PORTUGAL LDA"
+        },
+        {
+          "source_name": "FRESENIUS KABI PHARMA PORTUGAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw5o5m1whx01thzncz9d0v",
+      "canonical_name_before": "GENERIS FARMACEUTICA S.A.",
+      "sources": [
+        {
+          "source_name": "GENERIS FARMACEUTICA"
+        },
+        {
+          "source_name": "GENERIS FARMACEUTICA S.A. PORTUGAL"
+        },
+        {
+          "source_name": "GENERIS FARMACEUTICA SA"
+        },
+        {
+          "source_name": "GENERIS FARMACEUTICA S A PORTUGAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4cyt1s1501thj6ekl3s7",
+      "canonical_name_before": "GOLD FARMA - COMERCIO DE PRODUTOS FARMACEUTICOS",
+      "sources": [
+        {
+          "source_name": "GOLDFARMA COMERCIO DE PRODUTOS FARMACEUTICOS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4r7z1t9001thzoslm892",
+      "canonical_name_before": "GROEN PHARMA LDA.",
+      "sources": [
+        {
+          "source_name": "GROENPHARMA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0pbu1k2m01thn6o3lxj2",
+      "canonical_name_before": "HALEON PORTUGAL",
+      "sources": [
+        {
+          "source_name": "GLAXOSMITHKLINE CONSUMER HEALT"
+        },
+        {
+          "source_name": "GLAXOSMITHKLINE CONSUMER HEALTHCARE PRODUTOS PARA"
+        },
+        {
+          "source_name": "GLAXOSMITHKLINE CONSUMER HEALTHCARE S A"
+        },
+        {
+          "source_name": "GLAXOSMITHKLINE CONSUMER HEALTHCARE S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0w771kgs01thy5ydog53",
+      "canonical_name_before": "HASSE SA",
+      "sources": [
+        {
+          "source_name": "HASSE S A"
+        },
+        {
+          "source_name": "HASSE S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw53j51ubv01thoxq8ttac",
+      "canonical_name_before": "HOLON S.A.",
+      "sources": [
+        {
+          "source_name": "HOLON SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4ivm1slg01thi2l69mmq",
+      "canonical_name_before": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "sources": [
+        {
+          "source_name": "IFC SKINCARE PORTUGAL"
+        },
+        {
+          "source_name": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS UNIP."
+        },
+        {
+          "source_name": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS UNIP"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0sdv1k8r01thgobwov8u",
+      "canonical_name_before": "JABA RECORDATI SA",
+      "sources": [
+        {
+          "source_name": "JABA RECORDATI S A"
+        },
+        {
+          "source_name": "JABA RECORDATI S. A."
+        },
+        {
+          "source_name": "JABA RECORDATI S.A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtlewmgqn1z501nyi9qlw5ca",
+      "canonical_name_before": "JANSSEN CILAG FARMACEUT. LDA",
+      "sources": [
+        {
+          "source_name": "JANSSEN-CILAG FARMACEUTICA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6b9pvz08is01qmil1qa0li",
+      "canonical_name_before": "JOHNSON & JOHNSON LDA",
+      "sources": [
+        {
+          "source_name": "JOHNSON E JOHNSON"
+        },
+        {
+          "source_name": "JOHNSON & JOHNSON"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6ba3st09i801qmci9iu1mx",
+      "canonical_name_before": "L OREAL PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "COSMETICA ACTIVA PORTUGAL LDA"
+        },
+        {
+          "source_name": "COSMETICA ACTIVA PORTUGAL LDA."
+        },
+        {
+          "source_name": "COSMETICA ACTIVA ROCHE POSAY"
+        },
+        {
+          "source_name": "COSMETICA ACTIVA ROCHE POSAY SOLARES"
+        },
+        {
+          "source_name": "COSMETICA ACTIVA VICHY"
+        },
+        {
+          "source_name": "L OREAL COSMETICA ACTIVA"
+        },
+        {
+          "source_name": "L OREAL COSMETICA ACTIVA - CERAVE"
+        },
+        {
+          "source_name": "L OREAL COSMETICA ACTIVA ROCHE POSAY"
+        },
+        {
+          "source_name": "L OREAL COSMETICA ROCHE POSAY"
+        },
+        {
+          "source_name": "L OREAL COSMETICA VICHY"
+        },
+        {
+          "source_name": "L OREAL PORTUGAL LDA"
+        },
+        {
+          "source_name": "L OREAL PORTUGAL LDA."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5fqvv00e501nydqt7jcyz",
+      "canonical_name_before": "LABESFAL GENERICOS SA",
+      "sources": [
+        {
+          "source_name": "LABESFAL GENERICOS S A"
+        },
+        {
+          "source_name": "LABESFAL GENERICOS S.A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw3nwo1q1001thkj7b24br",
+      "canonical_name_before": "LABORATOIRES BAILLEUL PORTUGAL S.A.",
+      "sources": [
+        {
+          "source_name": "LABORATOIRES BAILLEUL PORTUGAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw516z1u3t01thuig2e6y4",
+      "canonical_name_before": "LABORATOIRES BOIRON SA",
+      "sources": [
+        {
+          "source_name": "LABORATOIRES BOIRON S A"
+        },
+        {
+          "source_name": "LABORATOIRES BOIRON S.A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4psd1t4z01thgr4jan4p",
+      "canonical_name_before": "LABORATORIO EDOL - PRODUTOS FARMACEUTICOS S.A.",
+      "sources": [
+        {
+          "source_name": "LABORATORIO EDOL P. FARM. SA"
+        },
+        {
+          "source_name": "LABORATORIO EDOL - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "LABORATORIO EDOL P FARM SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4uri1tiq01thaizsz8ow",
+      "canonical_name_before": "LABORATORIO MEDINFAR - PRODUTOS FARMACEUTICOS S.A.",
+      "sources": [
+        {
+          "source_name": "LABORATORIO MEDINFAR - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "LABORATORIO MEDINFAR - P F SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bdikv0frz01qmhaan38eb",
+      "canonical_name_before": "LABORATORIOS ATRAL S A",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS ATRAL"
+        },
+        {
+          "source_name": "LABORATORIOS ATRAL SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0w6w1kgo01thvc537tl5",
+      "canonical_name_before": "LABORATORIOS AZEVEDOS - INDUSTRIA FARMACEUTICA",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS AZEVEDOS-IND F SA"
+        },
+        {
+          "source_name": "LABORATORIOS AZEVEDOS - INDUSTRIA FARMACEUTICA S."
+        },
+        {
+          "source_name": "LABORATORIOS AZEVEDOS - INDUSTRIA FARMACEUTICA S"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6b9vqr095w01qm6h5mngn6",
+      "canonical_name_before": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S A",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS BASI IND. F. SA"
+        },
+        {
+          "source_name": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA"
+        },
+        {
+          "source_name": "LABORATORIOS BASI IND F SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0yuq1kmg01th1bd0r0x5",
+      "canonical_name_before": "LABORATORIOS EXPANSCIENCE - PRODUTOS DE HIGIENE S",
+      "sources": [
+        {
+          "source_name": "LAB EXPANSCIENCE LDA"
+        },
+        {
+          "source_name": "LAB EXPANSCIENCE L"
+        },
+        {
+          "source_name": "LABORATOIRES EXPANSCIENCE"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw388t1oxh01thzuh4qifl",
+      "canonical_name_before": "LABORATORIOS IBERPOS S.A",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS IBERPOS SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4jlx1sn601thhz469nim",
+      "canonical_name_before": "LABORATORIOS NIAM S.L.",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS NIAM SL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4ps81t4x01th7m044vws",
+      "canonical_name_before": "LABORATORIOS SALVAT S.A.",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS SALVAT SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5fnrn006z01nyh6vbdc9c",
+      "canonical_name_before": "LABORATORIOS VITORIA SA",
+      "sources": [
+        {
+          "source_name": "LABORATORIOS VITORIA S A"
+        },
+        {
+          "source_name": "LABORATORIOS VITORIA S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtkasc3j574l01ny2k8gew3s",
+      "canonical_name_before": "LACER S.A.",
+      "sources": [
+        {
+          "source_name": "LACER SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtlewnj2n22v01ny45uec23x",
+      "canonical_name_before": "LEITE DE COLONIA S.A.",
+      "sources": [
+        {
+          "source_name": "LEITE DE COLONIA SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4ps61t4w01thvslmwxzm",
+      "canonical_name_before": "LIFEWELL PHARMACEUTICAL & HEALTHCARE",
+      "sources": [
+        {
+          "source_name": "LIFEWELL - PHARMACEUTICAL & HEALTHCARE"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4t8d1tes01thw5z5h3i1",
+      "canonical_name_before": "LUBEFAR - PRODUTOS FARMACEUTICOS LDA.",
+      "sources": [
+        {
+          "source_name": "LUBEFAR PRODUTOS FARMACEUTICOS LDA"
+        },
+        {
+          "source_name": "LUBEFAR PRODUTOS FARMACEUTICOS LDA."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5g2zl01m101nyw06idnsj",
+      "canonical_name_before": "MACIEL&FERREIRA LDA",
+      "sources": [
+        {
+          "source_name": "MACIEL & FERREIRA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw3som1qh501thupplq6gb",
+      "canonical_name_before": "MERCK SA",
+      "sources": [
+        {
+          "source_name": "MERCK S A"
+        },
+        {
+          "source_name": "MERCK S.A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtkasv0159sv01nycf5jmge4",
+      "canonical_name_before": "MERUS LABS LUXCO II S.A.R.L.",
+      "sources": [
+        {
+          "source_name": "MERUS LABS LUXCO II SARL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw26921mx301thug2voz9u",
+      "canonical_name_before": "MMCARMO UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "MM CARMO UNIPESSOAL LDA"
+        },
+        {
+          "source_name": "MM CARMO UNIPESSOAL LDA."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw1i9r1lpe01thwo8c8i2y",
+      "canonical_name_before": "MUNDIPHARMA FARMACEUTICA LDA",
+      "sources": [
+        {
+          "source_name": "MUNDIPHARMA - FARMACEUTICA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5hnfe07ig01nyld2gojex",
+      "canonical_name_before": "MYLAN LDA",
+      "sources": [
+        {
+          "source_name": "MYLAN GENERICOS"
+        },
+        {
+          "source_name": "MYLAN MARCAS"
+        },
+        {
+          "source_name": "MYLAN"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bab7j09uq01qmbsbnj8w8",
+      "canonical_name_before": "NAOS PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "NAOS PORTUGAL UNIP LDA"
+        },
+        {
+          "source_name": "LABORATOIRE BIODERMA PORTUGAL"
+        },
+        {
+          "source_name": "LABORATOIRE BIODER"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0zn21kod01thu4y83fx6",
+      "canonical_name_before": "NESTLE HEALTHCARE NUTRITION SA",
+      "sources": [
+        {
+          "source_name": "NESTLE HEALTHCARE NUTRITION S A"
+        },
+        {
+          "source_name": "NESTLE HEALTHCARE NUTRITION S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtkat4hu5b7w01nyl3jeg7g3",
+      "canonical_name_before": "NESTLE PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "NESTLE PORTUGAL"
+        },
+        {
+          "source_name": "NESTLE PORTUGAL S.A."
+        },
+        {
+          "source_name": "NESTLE PORTUGAL S A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4rt51tb101thtfy910ml",
+      "canonical_name_before": "NOREVA PORTUGAL - UNIPESSOAL LDA.",
+      "sources": [
+        {
+          "source_name": "NOREVA PORTUGAL-UNIP. LDA"
+        },
+        {
+          "source_name": "NOREVA PORTUGAL - UNIPESSOAL"
+        },
+        {
+          "source_name": "NOREVA PORTUGAL-UNIP LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4ps41t4v01thfn3fmodq",
+      "canonical_name_before": "NOVARTIS EUROPHARM LIMITED",
+      "sources": [
+        {
+          "source_name": "NOVARTIS EUROPHARM"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0se01k8t01th1a12vteb",
+      "canonical_name_before": "OPELLA HEALTHCARE PORTUGAL UNIPESSOAL LDA",
+      "sources": [
+        {
+          "source_name": "SANOFI - OTC S"
+        },
+        {
+          "source_name": "SANOFI OTC S"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6b9t1t08yp01qmg17sgjh0",
+      "canonical_name_before": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S A",
+      "sources": [
+        {
+          "source_name": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0pcc1k2t01thu6c1oxb6",
+      "canonical_name_before": "PERRIGO PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "PERRIGO PORTUGAL"
+        },
+        {
+          "source_name": "OMEGA PHARMA PORTUGUESA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6b9vqu095x01qmsw0pwmf7",
+      "canonical_name_before": "PHD - ESPECIALIDADES FARMACEUTICAS LDA",
+      "sources": [
+        {
+          "source_name": "PHD-ESPECIALIDADES FARMACEUTIC"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bgt9f0yoh01qml8ehw1aq",
+      "canonical_name_before": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "PIERRE FABRE AVENE"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM. LDA"
+        },
+        {
+          "source_name": "PIERRE FABRE HIGIENE ORAL"
+        },
+        {
+          "source_name": "PIERRE FABRE KLORANE"
+        },
+        {
+          "source_name": "PIERRE FABRE DUCRAY"
+        },
+        {
+          "source_name": "PIERRE FABRE A-DERMA"
+        },
+        {
+          "source_name": "PIERRE FABRE HIG. ORAL"
+        },
+        {
+          "source_name": "PIERRE FABRE RENE"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM. LDA - KLORANE RENE A-DERMA"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM. LDA - DUCRAY AVENE"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM. LDA - HIGIENE ORAL MYCOSTER DEXERYL"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO - COSMETIQUE PORTUGAL L DA"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO - COSMETIQUE PORTUGAL L.DA"
+        },
+        {
+          "source_name": "PIERRE FABRE - AVENE"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM LDA"
+        },
+        {
+          "source_name": "PIERRE FABRE - HIGIENE ORAL"
+        },
+        {
+          "source_name": "PIERRE FABRE HIG ORAL"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM LDA - KLORANE RENE A-DERMA"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM LDA - DUCRAY AVENE"
+        },
+        {
+          "source_name": "PIERRE FABRE DERMO-COSM LDA - HIGIENE ORAL MYCOSTER DEXERYL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bgexr0vkf01qmc094a370",
+      "canonical_name_before": "PIERRE FABRE MEDICAMENT PORTUGAL LDA",
+      "sources": [
+        {
+          "source_name": "PIERRE FABRE MEDICAMENT PORTUGAL"
+        },
+        {
+          "source_name": "PIERRE FABRE MEDICAMENT"
+        },
+        {
+          "source_name": "PIERRE FABRE MEDIC"
+        },
+        {
+          "source_name": "PIERRE FABRE MEDIC PORT LDA"
+        },
+        {
+          "source_name": "PIERRE FABRE MEDIC. PORT. LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5ieag0azs01nypoycunoj",
+      "canonical_name_before": "PROSPA - LABORATORIOS FARMACEUTICOS S.A.",
+      "sources": [
+        {
+          "source_name": "PROSPA-LABORATORIOS FARMACEUTICOS S A"
+        },
+        {
+          "source_name": "PROSPA-LABORATORIOS FARMACEUTICOS S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw56ig1umh01thc3uddioy",
+      "canonical_name_before": "RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARMACEUTICOS",
+      "sources": [
+        {
+          "source_name": "RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARM"
+        },
+        {
+          "source_name": "RATIOPHARM COM PROD FARM LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw5o5s1whz01thd1w2c99g",
+      "canonical_name_before": "RECKITT BENCKISER HEALTHCARE LDA",
+      "sources": [
+        {
+          "source_name": "RECKITT BENCKISER HEALTHCARE"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtkas7kq56hu01nyi2hrwci1",
+      "canonical_name_before": "ROCHE REGISTRATION GMBH",
+      "sources": [
+        {
+          "source_name": "ROCHE REGISTRATION"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw0x0i1kiw01thck7oo0q4",
+      "canonical_name_before": "ROCHE SISTEMAS DE DIAGNOSTICO SOCIEDADE UNIPESSOAL",
+      "sources": [
+        {
+          "source_name": "ROCHE SISTEMAS DE DIAGNOSTICO"
+        },
+        {
+          "source_name": "ROCHE SISTEMAS DE DIAGNOSTICOS SOCIEDADE UNIPESS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5h913062j01nyphcervf1",
+      "canonical_name_before": "SANDOZ FARMACEUTICA LDA",
+      "sources": [
+        {
+          "source_name": "SANDOZ FARMACEUTICA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6ccbph1lcb01qm7lgfcpm3",
+      "canonical_name_before": "SANOFI - PRODUTOS FARMACEUTICOS LDA",
+      "sources": [
+        {
+          "source_name": "SANOFI - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "SANOFI-AVENTIS - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "SANOFI-AVENTIS - PRODUTOS FARMACEUTICOS LDA"
+        },
+        {
+          "source_name": "SANOFI-AVENTIS - PRODUTOS FARMACEUTICOS LDA."
+        },
+        {
+          "source_name": "SANOFI-SYNTHELABO - PRODUTOS FARMACEUTICOS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5i8wp0a9s01ny8mf76dr3",
+      "canonical_name_before": "SANTOS CARVALHO S.A.",
+      "sources": [
+        {
+          "source_name": "SANTOS CARVALHO SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bfs8p0r9z01qmwyx8lg5y",
+      "canonical_name_before": "SMITH & NEPHEW LDA",
+      "sources": [
+        {
+          "source_name": "SMITH E NEPHEW LDA"
+        },
+        {
+          "source_name": "SMITH & NEPHEW"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw3g041pgx01thi8ez2oso",
+      "canonical_name_before": "SOCIEL-SOCIEDADE DE REP. DE OPTICA L.DA",
+      "sources": [
+        {
+          "source_name": "SOCIEL-SOCIEDADE DE REP DE OPTICA LDA"
+        },
+        {
+          "source_name": "SOCIEL-SOCIEDADE DE REP. DE OPTICA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5hxz608tr01nykwh8h7i6",
+      "canonical_name_before": "SORIA NATURAL S.A.",
+      "sources": [
+        {
+          "source_name": "SORIA NATURAL SA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw1nc21lxx01thtfgl5gyq",
+      "canonical_name_before": "TAKEDA - FARMACEUTICOS PORTUGAL",
+      "sources": [
+        {
+          "source_name": "NYCOMED PORTUGAL"
+        },
+        {
+          "source_name": "NYCOMED PORTUGAL - PRODUTOS FARMACEUTICOS"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw28rt1n2601thoj7rfjlg",
+      "canonical_name_before": "TARGETWAY FARMACEUTICA LDA",
+      "sources": [
+        {
+          "source_name": "TARGETWAY - FARMACEUTICA LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw4xcd1tr901th8ek2j1gc",
+      "canonical_name_before": "TECNIFAR - INDUSTRIA TECNICA FARMACEUTICA S.A.",
+      "sources": [
+        {
+          "source_name": "TECNIFAR - INDUSTRIA TECNICA FARMACEUTICA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw2oli1nwk01th70pzk150",
+      "canonical_name_before": "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S.A.",
+      "sources": [
+        {
+          "source_name": "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw5nio1wdf01th4xipdcrf",
+      "canonical_name_before": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
+      "sources": [
+        {
+          "source_name": "TEVA PHARMA - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "TEVA PHARMA - PROD FARM. LDA"
+        },
+        {
+          "source_name": "TEVA PHARMA - PROD FARM LDA"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw6uh421ab01thk74amrl1",
+      "canonical_name_before": "TOWA PHARMACEUTICAL S.A.",
+      "sources": [
+        {
+          "source_name": "TOWA PHARMACEUTICAL"
+        },
+        {
+          "source_name": "TOLIFE - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "TOLIFE - PRODUTOS FARMACEUTICOS S.A."
+        },
+        {
+          "source_name": "TOLIFE- PROD FARMACEUTICOS SA"
+        },
+        {
+          "source_name": "TOLIFE - PRODUTOS FARMACEUTICOS S A"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtjw119m1ks201thw86590vh",
+      "canonical_name_before": "TRADE MEDIC SA",
+      "sources": [
+        {
+          "source_name": "TRADE MEDIC S A"
+        },
+        {
+          "source_name": "TRADE MEDIC S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmtk5g9z2029m01ny844z4814",
+      "canonical_name_before": "VEMEDIA PHARMA HISPANIA SA",
+      "sources": [
+        {
+          "source_name": "VEMEDIA PHARMA HISPANIA S A"
+        },
+        {
+          "source_name": "VEMEDIA PHARMA HISPANIA S.A."
+        }
+      ]
+    },
+    {
+      "canonical_id": "cmu6bfiwe0pw801qmwfj5elf6",
+      "canonical_name_before": "ZAMBON PRODUTOS FARMACEUTICOS LDA",
+      "sources": [
+        {
+          "source_name": "ZAMBON PRODUTOS FARMACEUT LDA"
+        },
+        {
+          "source_name": "ZAMBON - PRODUTOS FARMACEUTICOS"
+        },
+        {
+          "source_name": "ZAMBON PRODUTOS FA"
+        }
+      ]
+    }
+  ]
+}

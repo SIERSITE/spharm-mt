@@ -110,7 +110,7 @@ export type ReconciliacaoFabricantesSummary = {
    * de uma vez se produtos diferentes o partilham — agregação por
    * titularAim é responsabilidade do relatório (CLI), não deste serviço.
    */
-  ambiguidadesDetalhe: Array<{ motivo: MotivoAmbiguidade; nomeNormalizado: string; candidatos: readonly CandidatoAmbiguo[] }>;
+  ambiguidadesDetalhe: Array<{ cnp: number; motivo: MotivoAmbiguidade; nomeNormalizado: string; candidatos: readonly CandidatoAmbiguo[] }>;
   semFonte: Record<MotivoSemFonte, number>;
   /** Contagem por `estadoAim` bruto, só dos produtos efectivamente resolvidos (existente ou criado) — Autorizado/Ativo/Anulado/Revogado/... */
   estadosAim: Record<string, number>;
@@ -124,6 +124,24 @@ export type ReconciliacaoFabricantesSummary = {
    * Revogado) nunca conta aqui, mesmo sem fabricante.
    */
   aindaSemFabricanteAtual: number;
+  /**
+   * Detalhe PRODUTO A PRODUTO de `aindaSemFabricanteAtual` — nunca
+   * inventa um motivo: `origem: "ambiguo"` repete o `nomeNormalizado`/
+   * `motivo` já reportado em `ambiguidadesDetalhe` para este CNP;
+   * `origem: "sem_fonte"` repete o motivo de `semFonte` (sem nome
+   * interpretável — o resolver não devolve um para este caminho).
+   * Único sítio com o CNP INDIVIDUAL de cada um destes casos — a CLI usa
+   * isto para o "motivo individual" pedido por produto (nunca só o
+   * agregado).
+   */
+  aindaSemFabricanteDetalhe: Array<
+    | { cnp: number; origem: "ambiguo"; motivo: MotivoAmbiguidade; nomeNormalizado: string }
+    | { cnp: number; origem: "sem_fonte"; motivo: MotivoSemFonte; nomeNormalizado: null }
+  >;
+  /** Nome normalizado de cada Fabricante NOVO criado por este lote — uma entrada por criação real (nunca duplica: uma segunda resolução para o MESMO nome reutiliza, ver `aplicarResolucao`). */
+  fabricantesCriadosDetalhe: string[];
+  /** Cada FabricanteAlias novo, com o nome do Fabricante canónico a que fica associado — para o relatório poder agrupar por fabricante (nunca só a contagem total). */
+  aliasesCriadosDetalhe: Array<{ aliasNormalizado: string; fabricanteNomeNormalizado: string }>;
   erros: number;
   durationMs: number;
 };
@@ -191,6 +209,9 @@ function novoSummary(): ReconciliacaoFabricantesSummary {
     semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 },
     estadosAim: {},
     aindaSemFabricanteAtual: 0,
+    aindaSemFabricanteDetalhe: [],
+    fabricantesCriadosDetalhe: [],
+    aliasesCriadosDetalhe: [],
     erros: 0, durationMs: 0,
   };
 }
@@ -381,6 +402,7 @@ async function aplicarResolucao(
       fabricantesPorNomeNormalizado.set(sintetico.nomeNormalizado, sintetico);
       fabricanteId = sintetico.id;
       summary.fabricantesCriados++;
+      summary.fabricantesCriadosDetalhe.push(sintetico.nomeNormalizado);
     } else {
       const novo = await prisma.fabricante.create({
         data: { nomeNormalizado: resultado.nomeCanonicoNormalizado },
@@ -390,6 +412,7 @@ async function aplicarResolucao(
       fabricantesPorNomeNormalizado.set(novo.nomeNormalizado, novo);
       fabricanteId = novo.id;
       summary.fabricantesCriados++;
+      summary.fabricantesCriadosDetalhe.push(novo.nomeNormalizado);
     }
   }
 
@@ -409,6 +432,8 @@ async function aplicarResolucao(
     if (jaExiste.length === 0) {
       if (!dryRun) await prisma.fabricanteAlias.create({ data: { fabricanteId, aliasNome: resultado.criarAliasNormalizado } });
       summary.aliasesCriados++;
+      const nomeFabricante = fabricantesPorId.get(fabricanteId)?.nomeNormalizado ?? fabricanteId;
+      summary.aliasesCriadosDetalhe.push({ aliasNormalizado: resultado.criarAliasNormalizado, fabricanteNomeNormalizado: nomeFabricante });
     }
   }
 
@@ -557,12 +582,18 @@ async function classificar(
           break;
         case "ambiguo":
           summary.ambiguidades++;
-          summary.ambiguidadesDetalhe.push({ motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado, candidatos: resultado.candidatos });
-          if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) summary.aindaSemFabricanteAtual++;
+          summary.ambiguidadesDetalhe.push({ cnp: p.cnp, motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado, candidatos: resultado.candidatos });
+          if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) {
+            summary.aindaSemFabricanteAtual++;
+            summary.aindaSemFabricanteDetalhe.push({ cnp: p.cnp, origem: "ambiguo", motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado });
+          }
           break;
         case "sem_fonte":
           summary.semFonte[resultado.motivo]++;
-          if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) summary.aindaSemFabricanteAtual++;
+          if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) {
+            summary.aindaSemFabricanteAtual++;
+            summary.aindaSemFabricanteDetalhe.push({ cnp: p.cnp, origem: "sem_fonte", motivo: resultado.motivo, nomeNormalizado: null });
+          }
           break;
         case "resolvido_existente":
           pendentes.push({ produtoId: p.id, resultado });

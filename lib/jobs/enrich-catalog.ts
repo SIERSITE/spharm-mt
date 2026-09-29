@@ -651,7 +651,9 @@ export async function runEnrichCycle(opts: {
         resolvidosPorPrefixo: 0, resolvidosPorEvidenciaPortfolio: 0,
         fabricantesCriados: 0, aliasesCriados: 0, ambiguidades: 0, ambiguidadesDetalhe: [],
         semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 },
-        estadosAim: {}, aindaSemFabricanteAtual: 0, erros: 0, durationMs: 0,
+        estadosAim: {}, aindaSemFabricanteAtual: 0,
+        aindaSemFabricanteDetalhe: [], fabricantesCriadosDetalhe: [], aliasesCriadosDetalhe: [],
+        erros: 0, durationMs: 0,
         erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
       };
     }

@@ -1,30 +1,39 @@
 /**
  * lib/catalog/plano-normalizacao-fabricantes-garantia.ts
  *
- * Leitor OPCIONAL do plano curado de normalização de fabricantes
- * (557 grupos, investigação empresarial externa — winner/loser por
- * entidade legal, ex.: "Alfa Wassermann" → "Alfasigma Portugal" após
- * rebranding). Esse plano existe noutra iniciativa (branch
- * `catalog/normalizacao-fabricantes-garantia`, ainda não aplicado —
- * `scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json`)
- * e é uma fonte de mapeamento OPCIONAL aqui: a reconciliação de
- * fabricantes por CNP funciona por completo sem ele (cai para "criar um
- * Fabricante novo" quando não há nenhuma correspondência), mas quando o
- * ficheiro existir e for apontado (`--plano-curado=<path>` na CLI, ou o
- * parâmetro `planoPath` do serviço), as suas decisões winner/loser
- * evitam criar um Fabricante novo para um titular que o plano já saiba
- * ser o MESMO que um canónico existente — e sem nunca EXECUTAR nenhum
- * merge desse plano aqui (isso é responsabilidade exclusiva do executor
- * próprio dessa outra iniciativa; ler o plano para consulta é seguro e
- * não corre esse risco).
+ * Leitor OPCIONAL do plano curado de normalização de fabricantes.
  *
- * Nunca copiado para este branch: o ficheiro real (10 000+ linhas,
- * proveniência de uma investigação empresarial externa) pertence à
- * iniciativa que o produziu. Este módulo só sabe **ler** o formato
- * "achatado" que essa iniciativa já documenta — puro, sem Prisma, sem
- * side-effects — para poder ser usado assim que esse ficheiro estiver
- * disponível no ambiente onde este serviço corre (dev, CI, ou a própria
- * VPS, uma vez as duas iniciativas integradas).
+ * A fonte original (557 grupos, investigação empresarial externa —
+ * winner/loser por entidade legal, ex.: "Merial Portuguesa" → "Boehringer
+ * Ingelheim Animal Health Portugal" após a entidade ter mudado de
+ * estrutura) existe noutra iniciativa (branch `catalog/normalizacao-
+ * fabricantes-garantia`, ficheiro de 10 000+ linhas `scripts/data/plano-
+ * normalizacao-garantia-achatado-checkpoint.json`, ainda `DRY_RUN_DO_NOT_
+ * APPLY` nessa branch) e NUNCA é copiada para aqui inteira — pertence à
+ * iniciativa que a produziu.
+ *
+ * O QUE ESTE MÓDULO LÊ, de facto, É O DERIVADO versionado NESTE branch:
+ * `scripts/data/plano-curado-fabricantes-garantia.json`, gerado por
+ * `scripts/gerar-plano-curado-fabricantes-garantia.ts` a partir da fonte
+ * acima (ver a doc desse gerador para a análise de compatibilidade —
+ * quais das 557 decisões são seguras para atribuir `Produto.
+ * fabricanteId` e quais foram excluídas). Formato aceite (o do
+ * derivado, não o da fonte de 10 000 linhas):
+ *   { groups: [ { canonical_id, canonical_name_before, sources: [{ source_name }] } ] }
+ * `canonical_name_before` é usado deliberadamente (nunca `canonical_
+ * name_after`, ausente do derivado) — é o nome do Fabricante EXACTAMENTE
+ * como existe hoje na base (a fonte ainda não tem nenhuma renomeação
+ * aplicada); ver o gerador para a justificação completa.
+ *
+ * Fonte de mapeamento OPCIONAL: a reconciliação de fabricantes por CNP
+ * funciona por completo sem este ficheiro (cai para "criar um Fabricante
+ * novo" quando não há nenhuma correspondência). Quando apontado
+ * (`--plano-curado=<path>` na CLI, ou o parâmetro `planoPath` do
+ * serviço), as suas decisões evitam criar um Fabricante novo para um
+ * titular que o plano já saiba ser o MESMO que um canónico existente —
+ * sem nunca EXECUTAR nenhum merge (isso continua a ser responsabilidade
+ * exclusiva do executor da outra iniciativa; ler para consulta é seguro
+ * e não corre esse risco).
  */
 import { readFileSync, existsSync } from "node:fs";
 import { normalizarTitularAimGarantia } from "./fabricante-normalizacao-garantia";
@@ -32,36 +41,32 @@ import { normalizarTitularAimGarantia } from "./fabricante-normalizacao-garantia
 /** nomeOrigemNormalizado → nomeCanonicoNormalizado. */
 export type MapeamentoCuradoFabricantes = ReadonlyMap<string, string>;
 
-type GrupoPlanoOrigemMinimo = {
-  canonical_id: string;
-  canonical_name?: string;
-};
 type FontePlanoMinima = { source_name?: string } | string;
-type GrupoPlanoAchatadoMinimo = {
-  origin: GrupoPlanoOrigemMinimo;
+type GrupoPlanoCuradoMinimo = {
+  canonical_id: string;
+  canonical_name_before?: string;
   sources: readonly FontePlanoMinima[];
 };
-type PlanoAchatadoMinimo = {
-  tenant?: string;
-  groups?: readonly GrupoPlanoAchatadoMinimo[];
+type PlanoCuradoMinimo = {
+  groups?: readonly GrupoPlanoCuradoMinimo[];
 };
 
 /**
- * Traduz o formato "achatado" (ver o cabeçalho do ficheiro) para um
- * simples mapa nome-fonte→nome-canónico, já normalizado com a MESMA
- * função usada pelo resolvedor (`normalizarTitularAimGarantia`) — para
- * que uma consulta por `titularAim` normalizado encontre exactamente a
- * mesma chave que este mapa produz a partir do plano.
+ * Traduz o formato curado (ver o cabeçalho do ficheiro) para um simples
+ * mapa nome-fonte→nome-canónico, já normalizado com a MESMA função usada
+ * pelo resolvedor (`normalizarTitularAimGarantia`) — para que uma
+ * consulta por `titularAim` normalizado encontre exactamente a mesma
+ * chave que este mapa produz a partir do plano.
  *
  * Nunca lança: um grupo malformado é ignorado (o plano é uma fonte
  * OPCIONAL — um erro de parsing nunca pode impedir a reconciliação de
  * correr sem ele).
  */
-export function construirMapeamentoCuradoDoPlano(plano: PlanoAchatadoMinimo): MapeamentoCuradoFabricantes {
+export function construirMapeamentoCuradoDoPlano(plano: PlanoCuradoMinimo): MapeamentoCuradoFabricantes {
   const mapa = new Map<string, string>();
   for (const grupo of plano.groups ?? []) {
     try {
-      const nomeCanonico = normalizarTitularAimGarantia(grupo.origin.canonical_name ?? null);
+      const nomeCanonico = normalizarTitularAimGarantia(grupo.canonical_name_before ?? null);
       if (!nomeCanonico) continue;
       for (const fonte of grupo.sources ?? []) {
         const nomeFonte = typeof fonte === "string" ? fonte : fonte.source_name;
@@ -85,7 +90,7 @@ export function construirMapeamentoCuradoDoPlano(plano: PlanoAchatadoMinimo): Ma
 export function carregarMapeamentoCuradoDoPlano(planoPath: string | undefined | null): MapeamentoCuradoFabricantes {
   if (!planoPath || !existsSync(planoPath)) return new Map();
   try {
-    const bruto = JSON.parse(readFileSync(planoPath, "utf8")) as PlanoAchatadoMinimo;
+    const bruto = JSON.parse(readFileSync(planoPath, "utf8")) as PlanoCuradoMinimo;
     return construirMapeamentoCuradoDoPlano(bruto);
   } catch {
     return new Map();

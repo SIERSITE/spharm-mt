@@ -63,7 +63,12 @@
  * Opções:
  *   --tenant=<slug>              Obrigatório — resolvido via resolverAlvo (control plane), nunca DATABASE_URL genérico.
  *   --relatorio=<path>           Obrigatório.
- *   --plano-curado=<path>        Opcional — ver lib/catalog/plano-normalizacao-fabricantes-garantia.ts. Omitido: reconciliação funciona sem ele.
+ *   --plano-curado=<path>        Opcional — ver lib/catalog/plano-normalizacao-fabricantes-garantia.ts. Omitido:
+ *                                reconciliação funciona sem ele (cai sempre para "criar novo"/"ambíguo", nunca
+ *                                inventa). Derivado real disponível nesta branch, incluído na imagem migrator em
+ *                                /app/scripts/data/plano-curado-fabricantes-garantia.json — 93 grupos, 226 aliases,
+ *                                gerado por scripts/gerar-plano-curado-fabricantes-garantia.ts a partir da
+ *                                investigação de 557 grupos da branch catalog/normalizacao-fabricantes-garantia.
  *   --apply                      Escreve — só com --confirmar-tenant= a acompanhar.
  *   --confirmar-tenant=garantia  Segunda confirmação explícita, exigida junto com --apply.
  *   --permitir-externo           Necessário se o tenant não for a VPS de produção.
@@ -146,16 +151,30 @@ export function confirmarAlvoGarantia(alvo: Pick<AlvoDb, "tenant" | "base">): vo
  * com quantos produtos a partilham.
  */
 function agruparAmbiguidades(summary: ReconciliacaoFabricantesSummary) {
-  const porNome = new Map<string, { nomeNormalizado: string; motivo: string; candidatos: { fabricanteId: string; nomeNormalizado: string }[]; produtosAfectados: number }>();
+  const porNome = new Map<string, { nomeNormalizado: string; motivo: string; candidatos: { fabricanteId: string; nomeNormalizado: string }[]; produtosAfectados: number; cnps: number[] }>();
   for (const a of summary.ambiguidadesDetalhe) {
     const existente = porNome.get(a.nomeNormalizado);
     if (existente) {
       existente.produtosAfectados++;
+      existente.cnps.push(a.cnp);
     } else {
-      porNome.set(a.nomeNormalizado, { nomeNormalizado: a.nomeNormalizado, motivo: a.motivo, candidatos: [...a.candidatos], produtosAfectados: 1 });
+      porNome.set(a.nomeNormalizado, { nomeNormalizado: a.nomeNormalizado, motivo: a.motivo, candidatos: [...a.candidatos], produtosAfectados: 1, cnps: [a.cnp] });
     }
   }
   return [...porNome.values()].sort((a, b) => b.produtosAfectados - a.produtosAfectados);
+}
+
+/** Regra 8/9 (relatório) — os "ainda sem fabricante Autorizado/Ativo" agrupados por Fabricante canónico proposto para os aliases (regra 7: "240 aliases agrupados por fabricante"). */
+function agruparAliasesPorFabricante(summary: ReconciliacaoFabricantesSummary) {
+  const porFabricante = new Map<string, string[]>();
+  for (const a of summary.aliasesCriadosDetalhe) {
+    const lista = porFabricante.get(a.fabricanteNomeNormalizado) ?? [];
+    lista.push(a.aliasNormalizado);
+    porFabricante.set(a.fabricanteNomeNormalizado, lista);
+  }
+  return [...porFabricante.entries()]
+    .map(([fabricanteNomeNormalizado, aliases]) => ({ fabricanteNomeNormalizado, aliases: aliases.sort(), total: aliases.length }))
+    .sort((a, b) => b.total - a.total);
 }
 
 function calcularDerivados(summary: ReconciliacaoFabricantesSummary) {
@@ -170,7 +189,8 @@ function calcularDerivados(summary: ReconciliacaoFabricantesSummary) {
     .reduce((soma, [, n]) => soma + n, 0);
   const totalAindaSemFabricante = semFonteTotal + summary.ambiguidades;
   const ambiguidadesAgrupadas = agruparAmbiguidades(summary);
-  return { resolvidosAutomaticamente, semFonteTotal, resolvidosHistoricos, totalAindaSemFabricante, ambiguidadesAgrupadas };
+  const aliasesAgrupados = agruparAliasesPorFabricante(summary);
+  return { resolvidosAutomaticamente, semFonteTotal, resolvidosHistoricos, totalAindaSemFabricante, ambiguidadesAgrupadas, aliasesAgrupados };
 }
 
 function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolean): void {
@@ -186,7 +206,11 @@ function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolea
   console.log(`Resolvidos — evidência de portefólio:           ${summary.resolvidosPorEvidenciaPortfolio}`);
   console.log(`Resolvidos automaticamente (total):             ${d.resolvidosAutomaticamente}`);
   console.log(`Novos fabricantes a criar:                      ${summary.fabricantesCriados}`);
+  for (const nome of summary.fabricantesCriadosDetalhe) console.log(`  · "${nome}"`);
   console.log(`Aliases/mapeamentos criados:                    ${summary.aliasesCriados}`);
+  for (const g of d.aliasesAgrupados) {
+    console.log(`  · "${g.fabricanteNomeNormalizado}" — ${g.total} alias(es): ${g.aliases.map((a) => `"${a}"`).join(", ")}`);
+  }
   console.log(`Históricos resolvidos (Anulado/Revogado/etc.):  ${d.resolvidosHistoricos}`);
   console.log(`CNP abaixo de 2.000.000:                        ${summary.semFonte.FORA_UNIVERSO_INFARMED}`);
   console.log(`Sem registo no catálogo:                        ${summary.semFonte.SEM_REGISTO_CATALOGO}`);
@@ -194,11 +218,15 @@ function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolea
   console.log(`Titular inválido:                               ${summary.semFonte.TITULAR_INVALIDO}`);
   console.log(`Ambiguidades finais (produtos):                 ${summary.ambiguidades}  (${d.ambiguidadesAgrupadas.length} titularAim distinto(s))`);
   for (const amb of d.ambiguidadesAgrupadas.slice(0, 20)) {
-    console.log(`  · "${amb.nomeNormalizado}" [${amb.motivo}] — ${amb.produtosAfectados} produto(s), candidatos: ${amb.candidatos.map((c) => `${c.nomeNormalizado} (${c.fabricanteId})`).join(" vs ")}`);
+    console.log(`  · "${amb.nomeNormalizado}" [${amb.motivo}] — ${amb.produtosAfectados} produto(s) [CNP ${amb.cnps.join(", ")}], candidatos: ${amb.candidatos.map((c) => `${c.nomeNormalizado} (${c.fabricanteId})`).join(" vs ")}`);
   }
   if (d.ambiguidadesAgrupadas.length > 20) console.log(`  · … e mais ${d.ambiguidadesAgrupadas.length - 20} titularAim distinto(s) — ver o relatório completo em disco.`);
   console.log(`Estados AIM dos resolvidos:                     ${JSON.stringify(summary.estadosAim)}`);
   console.log(`Ainda sem fabricante e Autorizado/Ativo (#10):  ${summary.aindaSemFabricanteAtual}`);
+  for (const d2 of summary.aindaSemFabricanteDetalhe.slice(0, 50)) {
+    console.log(`  · CNP ${d2.cnp} — ${d2.origem}:${d2.motivo}${d2.nomeNormalizado ? ` ("${d2.nomeNormalizado}")` : ""}`);
+  }
+  if (summary.aindaSemFabricanteDetalhe.length > 50) console.log(`  · … e mais ${summary.aindaSemFabricanteDetalhe.length - 50} CNP(s) — ver o relatório completo em disco.`);
   console.log(`Erros (isolados por produto):                   ${summary.erros}`);
   console.log(`Duração:                                        ${summary.durationMs}ms`);
 
@@ -223,7 +251,7 @@ Uso:
 Opções:
   --tenant=<slug>              Obrigatório — só "garantia" é aceite.
   --relatorio=<path>           Obrigatório.
-  --plano-curado=<path>        Opcional.
+  --plano-curado=<path>        Opcional. Na imagem migrator: /app/scripts/data/plano-curado-fabricantes-garantia.json
   --apply                      Escreve — só com --confirmar-tenant= a acompanhar.
   --confirmar-tenant=garantia  Segunda confirmação explícita, exigida junto com --apply.
   --permitir-externo           Necessário se o tenant não for a VPS de produção.
@@ -313,7 +341,9 @@ async function main(): Promise<void> {
       resolvidosAutomaticamenteTotal: d.resolvidosAutomaticamente,
       resolvidosHistoricos: d.resolvidosHistoricos,
       fabricantesCriados: summary.fabricantesCriados,
+      fabricantesCriadosNomes: summary.fabricantesCriadosDetalhe,
       aliasesCriados: summary.aliasesCriados,
+      aliasesCriadosPorFabricante: d.aliasesAgrupados,
       fabricantesExistentesPreservados: summary.jaTinhaFabricante,
       cnpAbaixoDe2Milhoes: summary.semFonte.FORA_UNIVERSO_INFARMED,
       semRegistoNoCatalogo: summary.semFonte.SEM_REGISTO_CATALOGO,
@@ -326,6 +356,7 @@ async function main(): Promise<void> {
       estadosAim: summary.estadosAim,
       naoResolvidosTotal: d.totalAindaSemFabricante,
       aindaSemFabricanteAutorizadoOuAtivo: summary.aindaSemFabricanteAtual,
+      aindaSemFabricanteAutorizadoOuAtivoDetalhe: summary.aindaSemFabricanteDetalhe,
       erros: summary.erros,
       durationMs: summary.durationMs,
     };

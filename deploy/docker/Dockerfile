@@ -344,6 +344,9 @@ COPY scripts/data/grupos-laboratoriais-iniciais-garantia.json scripts/data/regra
 # lógica de negócio inteira vive em lib/catalog/, já coberta pelo COPY
 # de `lib` acima; esta CLI é só orquestração de argumentos/alvo/relatório).
 COPY scripts/reconciliar-fabricantes-por-cnp-garantia.ts ./scripts/reconciliar-fabricantes-por-cnp-garantia.ts
+# Plano curado (opcional, --plano-curado=) — derivado versionado neste
+# branch, ver lib/catalog/plano-normalizacao-fabricantes-garantia.ts.
+COPY scripts/data/plano-curado-fabricantes-garantia.json ./scripts/data/plano-curado-fabricantes-garantia.json
 # De `generator`, NUNCA de `builder` — ver o cabeçalho desse estágio:
 # construir `migrator` nunca pode obrigar a correr `npm run build`.
 COPY --from=generator /app/generated ./generated
