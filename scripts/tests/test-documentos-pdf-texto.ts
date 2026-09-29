@@ -186,7 +186,14 @@ async function main() {
   }
 
   console.log(`\n${passed} ok, ${failed} falhas`);
-  if (failed > 0) process.exit(1);
+  // `buildReportPdfBuffer` (lib/reporting/report-pdf-server.ts) mantém um
+  // browser Puppeteer singleton a nível de módulo, deliberadamente NUNCA
+  // fechado (amortiza o custo de arranque do Chromium para o servidor
+  // real, que corre indefinidamente) — mas isso significa que qualquer
+  // SCRIPT que chame esta função fica com o processo vivo para sempre
+  // sem um process.exit explícito, mesmo depois de "X ok, Y falhas" já
+  // impresso.
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 main().catch((e) => {

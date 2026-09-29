@@ -114,6 +114,11 @@ async function main() {
     writeFileSync(path, pdf.buffer);
     console.log(`Transferência: ${r.title} → ${path}`);
   }
+
+  // `buildReportPdfBuffer` mantém um browser Puppeteer singleton a nível
+  // de módulo (ver lib/reporting/report-pdf-server.ts), nunca fechado —
+  // sem process.exit explícito este script nunca terminaria sozinho.
+  process.exit(0);
 }
 
 main().catch((e) => {
