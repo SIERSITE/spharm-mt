@@ -20,6 +20,8 @@ import {
   podeEliminarListaEncomenda,
   type OutboxExportInfo,
 } from "../../lib/encomendas/eliminacao";
+import { podeAnularListaEncomenda } from "../../lib/encomendas/anulacao";
+import { podeAnularTransferencia } from "../../lib/transferencias/anulacao";
 
 let ok = 0;
 let ko = 0;
@@ -122,6 +124,28 @@ console.log("\nB · podeEliminarListaEncomenda decide entre eliminar livre e exi
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// B-bis · podeAnularListaEncomenda / podeAnularTransferencia (2026-09-29)
+// ═════════════════════════════════════════════════════════════════════
+console.log("\nB-bis · podeAnular* — Anular só depois de sair de RASCUNHO, motivo obrigatório\n");
+
+{
+  const semMotivo = podeAnularListaEncomenda("FINALIZADA", "");
+  check(semMotivo.podeAnular === false, "encomenda FINALIZADA sem motivo: bloqueado");
+  const comMotivo = podeAnularListaEncomenda("FINALIZADA", "Erro de fornecedor");
+  check(comMotivo.podeAnular === true, "encomenda FINALIZADA com motivo: permitido");
+  check(podeAnularListaEncomenda("EXPORTADA", "motivo").podeAnular === true, "encomenda EXPORTADA com motivo: permitido");
+  check(podeAnularListaEncomenda("RASCUNHO", "motivo").podeAnular === false, "encomenda RASCUNHO: bloqueado (usa Eliminar)");
+  check(podeAnularListaEncomenda("ANULADA", "motivo").podeAnular === false, "encomenda já ANULADA: bloqueado");
+  check(podeAnularListaEncomenda("ELIMINADA", "motivo").podeAnular === false, "encomenda já ELIMINADA: bloqueado");
+}
+{
+  check(podeAnularTransferencia("FINALIZADA", "Produto trocado").podeAnular === true, "transferência FINALIZADA com motivo: permitido");
+  check(podeAnularTransferencia("FINALIZADA", "   ").podeAnular === false, "transferência FINALIZADA com motivo em branco: bloqueado");
+  check(podeAnularTransferencia("RASCUNHO", "motivo").podeAnular === false, "transferência RASCUNHO: bloqueado (usa Eliminar)");
+  check(podeAnularTransferencia("ANULADA", "motivo").podeAnular === false, "transferência já ANULADA: bloqueado");
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // C · As server actions de eliminação existem, com a gate certa
 // ═════════════════════════════════════════════════════════════════════
 console.log("\nC · deleteListaEncomendaAction / deleteTransferenciaAction — existência e gate\n");
@@ -154,6 +178,20 @@ console.log("\nC · deleteListaEncomendaAction / deleteTransferenciaAction — e
     !/deleteListaEncomendaAction[\s\S]{0,2000}listaEncomenda\.delete\(/.test(listaActions),
     "…nunca apaga a row (prisma.listaEncomenda.delete)"
   );
+  check(
+    /export async function deleteListaEncomendaAction[\s\S]{0,900}estado !== "RASCUNHO"/.test(listaActions),
+    "…desde 2026-09-29 só elimina um RASCUNHO (finalizada anula-se)"
+  );
+  check(listaActions.includes("export async function anularListaEncomendaAction"), "anularListaEncomendaAction existe");
+  check(
+    listaActions.includes("podeAnularListaEncomenda(lista.estado, motivo)"),
+    "…usa a lógica pura de anulação, não uma cópia"
+  );
+  check(listaActions.includes('estado: "ANULADA"'), "…transita para ANULADA (nunca apaga row/linhas)");
+  check(
+    listaActions.includes("anuladoPorId: session.sub") && listaActions.includes("anuladoEm: new Date()"),
+    "…regista quem e quando"
+  );
 }
 {
   const transfActions = src("app/transferencias/actions.ts");
@@ -175,6 +213,22 @@ console.log("\nC · deleteListaEncomendaAction / deleteTransferenciaAction — e
     !/deleteTransferenciaAction[\s\S]{0,1500}transferencia\.delete\(/.test(transfActions),
     "…nunca apaga a row (prisma.transferencia.delete)"
   );
+  check(
+    /export async function deleteTransferenciaAction[\s\S]{0,900}estado !== "RASCUNHO"/.test(transfActions),
+    "…desde 2026-09-29 só elimina um RASCUNHO (finalizada anula-se)"
+  );
+  check(transfActions.includes("export async function anularTransferenciaAction"), "anularTransferenciaAction existe");
+  check(
+    transfActions.includes("podeAnularTransferencia(transferencia.estado, motivo)"),
+    "…usa a lógica pura de anulação, não uma cópia"
+  );
+  check(transfActions.includes('estado: "ANULADA"'), "…transita para ANULADA (nunca apaga row/linhas)");
+  check(
+    transfActions.includes("canAccessFarmaciaSync(session, transferencia.farmaciaOrigemId)") &&
+      transfActions.includes("canAccessFarmaciaSync(session, transferencia.farmaciaDestinoId)"),
+    "…verifica acesso a AMBAS as farmácias (origem e destino) antes de anular"
+  );
+  check(transfActions.includes("export async function duplicarTransferenciaAction"), "duplicarTransferenciaAction existe");
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -209,12 +263,17 @@ console.log("\nE · createInternalTransferAction já não cria ListaEncomenda/Or
   const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\r?\n\}\r?\n/);
   check(match !== null, "a função existe e tem um corpo isolável");
   const corpo = match ? match[0] : "";
-  check(corpo.includes("tx.transferencia.create"), "cria uma Transferencia real");
+  // Desde 2026-09-29 a criação passa por `criarTransferenciaComLinhas`
+  // (lib/transferencias/criar-transferencia.ts) — o mesmo caminho único e
+  // idempotente que também serve `gerarPlanoGrupoAction`. Já não chama
+  // `tx.transferencia.create` directamente.
+  check(corpo.includes("criarTransferenciaComLinhas("), "cria a Transferencia real via o módulo único de criação");
   check(corpo.includes("linhas:"), "…com a sua LinhaTransferencia");
+  check(corpo.includes("finalize: true"), "…nasce já FINALIZADA (não fica presa em RASCUNHO)");
   check(!corpo.includes("createEncomendaWithOutbox"), "…sem passar pelo caminho de ListaEncomenda+Outbox");
   check(!corpo.includes("OrderOutbox"), "…nenhum OrderOutbox nasce daqui");
   check(
-    corpo.includes('return { ok: true, transferenciaId: transferencia.id }'),
+    corpo.includes("return { ok: true, transferenciaId };"),
     "…devolve transferenciaId, não listaEncomendaId"
   );
 }

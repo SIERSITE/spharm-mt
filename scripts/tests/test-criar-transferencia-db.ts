@@ -157,6 +157,50 @@ async function main() {
     check(fin1.numero === fin2.numero, "F3: 2ª finalização (no-op) devolve o MESMO número real, não atribui outro");
 
     await prisma.$disconnect();
+    console.log("\nG · concorrência REAL — numeração nunca colide sob corridas em paralelo (Promise.all, não sequencial)");
+    {
+      const N = 8;
+      const resultados = await Promise.all(
+        Array.from({ length: N }, (_, i) =>
+          criarTransferenciaComLinhas(prisma, {
+            farmaciaOrigemId: origem.id,
+            farmaciaDestinoId: destino.id,
+            criadoPorId: utilizador.id,
+            finalize: true,
+            linhas: [{ produtoId: produto.id, quantidade: i + 1 }],
+          })
+        )
+      );
+      const numeros = resultados.map((r) => r.numero);
+      const numerosUnicos = new Set(numeros);
+      check(numerosUnicos.size === N, `G1: ${N} criações REALMENTE em paralelo (Promise.all) geram ${N} números distintos — zero colisão`, JSON.stringify(numeros));
+      check(numeros.every((n) => /^TR-\d{6}$/.test(n ?? "")), "G2: todos no formato TR-######");
+    }
+
+    console.log("\nH · duas operações simultâneas com a MESMA chave — corrida real, não dois chamadas sequenciais");
+    {
+      const chaveCorrida = `corrida-real-${Date.now()}`;
+      const payload = {
+        farmaciaOrigemId: origem.id,
+        farmaciaDestinoId: destino.id,
+        criadoPorId: utilizador.id,
+        finalize: true,
+        linhas: [{ produtoId: produto.id, quantidade: 42 }],
+        clientIdempotencyKey: chaveCorrida,
+      };
+      // As DUAS chamadas arrancam ao mesmo tempo (sem await entre elas) —
+      // isto é o que reproduz de facto um duplo-clique real, ao contrário
+      // de duas chamadas sequenciais (uma só depois da outra já ter
+      // commitado, que nunca exercitaria o retry em P2002).
+      const [rA, rB] = await Promise.all([
+        criarTransferenciaComLinhas(prisma, payload),
+        criarTransferenciaComLinhas(prisma, payload),
+      ]);
+      check(rA.transferenciaId === rB.transferenciaId, "H1: as DUAS chamadas em corrida real resolvem para a MESMA transferência", `${rA.transferenciaId} vs ${rB.transferenciaId}`);
+      const totalComChave = await prisma.transferencia.count({ where: { clientIdempotencyKey: chaveCorrida } });
+      check(totalComChave === 1, "H2: só existe 1 row real na base apesar da corrida genuína", String(totalComChave));
+    }
+
   } finally {
     await admin.query(`DROP DATABASE IF EXISTS ${dbNome} WITH (FORCE)`);
     await admin.end();

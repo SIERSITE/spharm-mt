@@ -14,12 +14,16 @@
  *
  *   A. Estática — confirma, no código-fonte, que a função chama
  *      `createEncomendaWithOutbox` com `finalize: true` e cria a
- *      `Transferencia` com `estado: "FINALIZADA"` (mesmo padrão de
- *      `test-vendas-stock-sempre-ativo.ts`/`test-task-bar.ts`).
+ *      `Transferencia` via `criarTransferenciaComLinhas(..., finalize: true)`
+ *      (mesmo padrão de `test-vendas-stock-sempre-ativo.ts`/`test-task-bar.ts`).
+ *      Desde 2026-09-29 já não cria a `Transferencia` com um
+ *      `tx.transferencia.create` directo — passa pelo módulo único e
+ *      idempotente `lib/transferencias/criar-transferencia.ts` (o mesmo
+ *      que `createInternalTransferAction` usa).
  *   B. Integração REAL em Postgres descartável — reproduz exactamente o
  *      mesmo padrão de escrita que a acção agora usa (`createEncomenda-
- *      WithOutbox(..., finalize:true)` + `transferencia.create({estado:
- *      "FINALIZADA"})`) usando as MESMAS funções puras de agrupamento
+ *      WithOutbox(..., finalize:true)` + `criarTransferenciaComLinhas(...,
+ *      finalize:true)`) usando as MESMAS funções puras de agrupamento
  *      (`agruparParaGeracao`) e confirma o estado final na base.
  *
  *   docker run -d --name spharm-ws-test-pg -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:16-alpine
@@ -55,8 +59,10 @@ console.log("\nA · gerarPlanoGrupoAction finaliza directamente (estático)");
   const encomendaBlock = fnBody.slice(fnBody.indexOf("createEncomendaWithOutbox"), fnBody.indexOf("resultadoListas.push"));
   check(/finalize:\s*true/.test(encomendaBlock), "A2: a criação de cada ListaEncomenda do grupo usa finalize:true (nunca RASCUNHO à espera de um 2º passo)");
   check(!/finalize:\s*false/.test(encomendaBlock), "A3: já não passa finalize:false nesta chamada");
-  const transferBlock = fnBody.slice(fnBody.indexOf("tx.transferencia.create"), fnBody.indexOf("resultadoTransferencias.push"));
-  check(/estado:\s*"FINALIZADA"/.test(transferBlock), "A4: a Transferencia do grupo nasce FINALIZADA (antes ficava presa em RASCUNHO para sempre)");
+  const transferBlock = fnBody.slice(fnBody.indexOf("criarTransferenciaComLinhas("), fnBody.indexOf("resultadoTransferencias.push"));
+  check(transferBlock.length > 0 && fnBody.indexOf("criarTransferenciaComLinhas(") > 0, "A4a: a Transferencia do grupo passa pelo módulo único de criação (criarTransferenciaComLinhas), não um tx.transferencia.create directo");
+  check(/finalize:\s*true/.test(transferBlock), "A4b: a Transferencia do grupo nasce FINALIZADA (antes ficava presa em RASCUNHO para sempre)");
+  check(!/tx\.transferencia\.create/.test(fnBody), "A4c: gerarPlanoGrupoAction já não abre uma transacção manual para criar a Transferencia");
 }
 
 const ADMIN_URL = process.env.TEST_PG_ADMIN_URL ?? "postgresql://postgres:test@localhost:55432/postgres";
@@ -78,6 +84,7 @@ async function main() {
     const { PrismaClient } = await import("../../generated/prisma/client");
     const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDe(db) }) });
     const { createEncomendaWithOutbox } = await import("../../lib/ingest/orders");
+    const { criarTransferenciaComLinhas } = await import("../../lib/transferencias/criar-transferencia");
     const { agruparParaGeracao } = await import("../../lib/encomendas/decisao-grupo");
 
     console.log("\nB · integração real — mesmo padrão de escrita, Postgres descartável");
@@ -111,16 +118,14 @@ async function main() {
 
     const transferenciaIds: string[] = [];
     for (const [, linhas] of porDirecao) {
-      const t = await prisma.transferencia.create({
-        data: {
-          farmaciaOrigemId: linhas[0].farmaciaOrigemId!,
-          farmaciaDestinoId: linhas[0].farmaciaDestinoId!,
-          criadoPorId: u.id,
-          estado: "FINALIZADA", // ← o mesmo que gerarPlanoGrupoAction agora usa
-          linhas: { create: linhas.map((l) => ({ produtoId: l.produtoId, quantidade: l.quantidadeTransferir })) },
-        },
+      const { transferenciaId } = await criarTransferenciaComLinhas(prisma, {
+        farmaciaOrigemId: linhas[0].farmaciaOrigemId!,
+        farmaciaDestinoId: linhas[0].farmaciaDestinoId!,
+        criadoPorId: u.id,
+        finalize: true, // ← o mesmo que gerarPlanoGrupoAction agora usa
+        linhas: linhas.map((l) => ({ produtoId: l.produtoId, quantidade: l.quantidadeTransferir })),
       });
-      transferenciaIds.push(t.id);
+      transferenciaIds.push(transferenciaId);
     }
 
     const listas = await prisma.listaEncomenda.findMany({ where: { id: { in: listaIds } }, include: { outbox: true } });
@@ -131,6 +136,7 @@ async function main() {
     const transferencias = await prisma.transferencia.findMany({ where: { id: { in: transferenciaIds } } });
     check(transferencias.length === 1, "B4: 1 Transferencia criada (1 direcção com TRANSFERIR)");
     check(transferencias.every((t) => t.estado === "FINALIZADA"), "B5: nasce FINALIZADA — corrige o bug de ficar presa em RASCUNHO para sempre");
+    check(transferencias.every((t) => /^TR-\d{6}$/.test(t.numero ?? "")), "B6: recebe número real (TR-######) ao nascer já finalizada — via lib/documentos/numeracao.ts");
 
     await prisma.$disconnect();
   } finally {
