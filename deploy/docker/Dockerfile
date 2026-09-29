@@ -11,7 +11,10 @@
 #   migrator             → só para `prisma migrate deploy` e scripts de
 #                          tenancy. Leva a toolchain completa porque
 #                          precisa dela; nunca serve tráfego.
-#   builder / deps       → intermédios.
+#   deps / generator /
+#   builder              → intermédios. `migrator` depende só de `deps` e
+#                          `generator` (prisma generate) — nunca de
+#                          `builder`, que só o `runner` usa.
 #
 # Porquê duas imagens: as migrations NÃO correm durante o build (era o
 # que o script `build` fazia) nem no arranque do servidor web. Um build
@@ -47,9 +50,26 @@ COPY package.json package-lock.json ./
 RUN npm ci --include=dev --no-audit --no-fund
 
 # ═════════════════════════════════════════════════════════════════════
-# builder — prisma generate + next build
+# generator — prisma generate, SÓ ISTO
 # ═════════════════════════════════════════════════════════════════════
-FROM deps AS builder
+#
+# Estágio próprio, separado de `builder`, para que `/app/generated`
+# exista SEM depender de `npm run build`. Antes desta separação,
+# `migrator` (abaixo) fazia `COPY --from=builder /app/generated`, e
+# copiar UM directório do estágio `builder` obriga o Docker a executar
+# TODAS as instruções anteriores DESSE estágio até ao fim — incluindo o
+# `RUN npm run build` várias linhas abaixo, que exige
+# SERVER_ACTIONS_ALLOWED_ORIGINS/PUBLIC_APP_URL mesmo numa imagem que
+# nunca serve tráfego nem lê essas variáveis.
+#
+# Sintoma real disto: `docker build --target migrator` sem os dois
+# args falha em "SERVER_ACTIONS_ALLOWED_ORIGINS não está definida" —
+# um erro do Next.js, não das migrations, que confundiu mais de um
+# diagnóstico. `docker compose build migrate` já contornava isto
+# passando os dois valores (ver docker-compose.yml, serviço `migrate`),
+# mas um `docker build` directo, fora do compose, continuava a exigi-los
+# sem nenhuma razão — o migrator nunca lê nenhum dos dois.
+FROM deps AS generator
 
 COPY . .
 
@@ -57,6 +77,11 @@ COPY . .
 # portanto não é preciso base de dados para construir a imagem.
 RUN npx prisma generate --config prisma.config.ts \
  && npx prisma generate --config prisma-control.config.ts
+
+# ═════════════════════════════════════════════════════════════════════
+# builder — next build (a partir de `generator`, nunca refaz o generate)
+# ═════════════════════════════════════════════════════════════════════
+FROM generator AS builder
 
 # Revisão do código, visível em /api/health. Passada pelo install-stack.sh
 # a partir do git.
@@ -319,7 +344,9 @@ COPY scripts/data/grupos-laboratoriais-iniciais-garantia.json scripts/data/regra
 # lógica de negócio inteira vive em lib/catalog/, já coberta pelo COPY
 # de `lib` acima; esta CLI é só orquestração de argumentos/alvo/relatório).
 COPY scripts/reconciliar-fabricantes-por-cnp-garantia.ts ./scripts/reconciliar-fabricantes-por-cnp-garantia.ts
-COPY --from=builder /app/generated ./generated
+# De `generator`, NUNCA de `builder` — ver o cabeçalho desse estágio:
+# construir `migrator` nunca pode obrigar a correr `npm run build`.
+COPY --from=generator /app/generated ./generated
 
 # Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro
 # de entrada AQUI. Falhar agora custa um build; não falhar custa
