@@ -28,12 +28,16 @@ import { useAutosaveEncomenda } from "@/lib/encomendas/use-autosave-encomenda";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 
-type Props = { detail: OrderDetail };
+type Props = { detail: OrderDetail; fornecedores: { id: string; nome: string }[] };
 
 const ESTADO_LABEL: Record<string, string> = {
   RASCUNHO: "Rascunho",
   FINALIZADA: "Finalizada",
   EXPORTADA: "Exportada",
+  ANULADA: "Anulada",
+  ELIMINADA: "Eliminada",
+  /** O rascunho original de uma finalização dividida por fornecedor — ver `LinhaEncomenda.loteOrigemId`. */
+  PREPARADA: "Preparação (dividida)",
 };
 
 function fmtNum(v: number | null, digits = 0): string {
@@ -66,7 +70,7 @@ const TIMELINE_STATUS_STYLE: Record<string, string> = {
   MANUAL_CANCEL: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
-export function OrderDetailClient({ detail }: Props) {
+export function OrderDetailClient({ detail, fornecedores }: Props) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err" | "info"; msg: string } | null>(
@@ -164,6 +168,44 @@ export function OrderDetailClient({ detail }: Props) {
     if (line) autosave.marcarSujo(line.produtoId, { notas: value });
   }
 
+  /**
+   * Fornecedor DECIDIDO para esta linha — `fornecedorId === ""` limpa
+   * (`null` = sem fornecedor). Mesmo caminho de autosave de
+   * `handleQtyChange`/`handleNotasChange`.
+   */
+  function handleFornecedorChange(linhaId: string, fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nome = valor ? fornecedores.find((f) => f.id === valor)?.nome ?? null : null;
+    setLinhas((prev) =>
+      prev.map((l) => (l.id === linhaId ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l))
+    );
+    const line = linhas.find((l) => l.id === linhaId);
+    if (line) {
+      autosave.marcarSujo(line.produtoId, { fornecedorSugeridoId: valor });
+      void autosave.guardarAgora();
+    }
+  }
+
+  /** Bulk "Definir fornecedor nas linhas seleccionadas" — mesmo caminho de autosave, em loop. */
+  const [linhasSeleccionadas, setLinhasSeleccionadas] = useState<Set<string>>(new Set());
+  const [bulkFornecedorId, setBulkFornecedorId] = useState("");
+  function handleBulkFornecedorChange(fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nome = valor ? fornecedores.find((f) => f.id === valor)?.nome ?? null : null;
+    setLinhas((prev) =>
+      prev.map((l) =>
+        linhasSeleccionadas.has(l.id) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l
+      )
+    );
+    for (const l of linhas) {
+      if (!linhasSeleccionadas.has(l.id)) continue;
+      autosave.marcarSujo(l.produtoId, { fornecedorSugeridoId: valor });
+    }
+    void autosave.guardarAgora();
+    setLinhasSeleccionadas(new Set());
+    setBulkFornecedorId("");
+  }
+
   // "Guardar também no blur de campos críticos" — força o flush
   // imediato (ignora o debounce) em vez de esperar o temporizador. O
   // autosave já sabe quais produtos estão sujos (marcarSujo), por isso
@@ -221,15 +263,20 @@ export function OrderDetailClient({ detail }: Props) {
         return;
       }
       const r = await finalizeFromDetailAction(detail.id, autosave.versaoAtual);
-      if (r.ok) {
+      if (r.ok && r.tipo === "unico") {
         setFlash({ type: "ok", msg: `Finalizada. Outbox: ${r.outboxId}` });
         router.refresh();
-      } else if (r.conflito) {
+      } else if (r.ok && r.tipo === "multi_fornecedor") {
+        setFlash({ type: "ok", msg: r.resumoTexto });
+        router.refresh();
+      } else if (!r.ok && "conflito" in r && r.conflito) {
         setFlash({
           type: "err",
           msg: "Esta encomenda foi alterada por outra sessão entretanto — actualiza a página para ver os dados mais recentes antes de finalizar.",
         });
-      } else {
+      } else if (!r.ok && "semFornecedor" in r && r.semFornecedor) {
+        setFlash({ type: "err", msg: r.error });
+      } else if (!r.ok) {
         setFlash({ type: "err", msg: r.error });
       }
     });
@@ -264,6 +311,7 @@ export function OrderDetailClient({ detail }: Props) {
           produtoId: l.produtoId,
           quantidadeSugerida: l.quantidadeSugerida,
           quantidadeAjustada: l.quantidadeAjustada,
+          fornecedorSugeridoId: l.fornecedorSugeridoId,
           notas: l.notas,
           origem: l.origem,
         })),
@@ -415,7 +463,7 @@ export function OrderDetailClient({ detail }: Props) {
 
       {flash && (
         <div
-          className={`rounded-xl border px-4 py-3 text-[13px] ${
+          className={`whitespace-pre-line rounded-xl border px-4 py-3 text-[13px] ${
             flash.type === "ok"
               ? "border-emerald-200 bg-emerald-50 text-emerald-800"
               : flash.type === "info"
@@ -427,7 +475,36 @@ export function OrderDetailClient({ detail }: Props) {
         </div>
       )}
 
-      {!detail.editable && (
+      {detail.loteOrigemId && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] text-violet-800">
+          Este documento foi gerado a partir de uma preparação com vários fornecedores
+          {detail.loteOrigemNome ? ` ("${detail.loteOrigemNome}")` : ""} —{" "}
+          <Link href={`/encomendas/${detail.loteOrigemId}`} className="font-medium underline hover:text-violet-900">
+            ver a preparação original
+          </Link>
+          .
+        </div>
+      )}
+
+      {detail.estado === "PREPARADA" && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] text-violet-800">
+          <p className="font-medium">
+            Esta preparação foi dividida em {detail.documentosGerados.length} documento
+            {detail.documentosGerados.length === 1 ? "" : "s"}, um por fornecedor — já não é editável.
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {detail.documentosGerados.map((d) => (
+              <li key={d.id}>
+                <Link href={`/encomendas/${d.id}`} className="underline hover:text-violet-900">
+                  {d.fornecedorNome} — {d.numero ?? d.id} ({ESTADO_LABEL[d.estado] ?? d.estado})
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!detail.editable && detail.estado !== "PREPARADA" && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
           <span>
             Esta encomenda já não é editável (estado: {ESTADO_LABEL[detail.estado] ?? detail.estado}).
@@ -465,6 +542,27 @@ export function OrderDetailClient({ detail }: Props) {
           </div>
         </div>
 
+        {editable && linhasSeleccionadas.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-[12px]">
+            <span className="text-slate-600">{linhasSeleccionadas.size} seleccionada{linhasSeleccionadas.size === 1 ? "" : "s"}</span>
+            <select
+              value={bulkFornecedorId}
+              onChange={(e) => setBulkFornecedorId(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">— Fornecedor —</option>
+              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+            <button type="button" disabled={!bulkFornecedorId} onClick={() => handleBulkFornecedorChange(bulkFornecedorId)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40">
+              Definir fornecedor
+            </button>
+            <button type="button" onClick={() => handleBulkFornecedorChange("")}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] text-slate-500 hover:border-rose-300 hover:text-rose-700">
+              Limpar
+            </button>
+          </div>
+        )}
         {linhas.length === 0 ? (
           <div className="px-4 py-10 text-center text-[12px] text-slate-400">
             Nenhuma linha — adicione produtos abaixo.
@@ -474,11 +572,23 @@ export function OrderDetailClient({ detail }: Props) {
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-400">
+                  {editable && (
+                    <th className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={linhas.length > 0 && linhas.every((l) => linhasSeleccionadas.has(l.id))}
+                        onChange={(e) => setLinhasSeleccionadas(e.target.checked ? new Set(linhas.map((l) => l.id)) : new Set())}
+                        aria-label="Seleccionar todas as linhas"
+                      />
+                    </th>
+                  )}
                   <th className="px-3 py-2">Produto</th>
                   <th className="px-3 py-2 text-right">Stock</th>
                   <th className="px-3 py-2 text-right">Sugerida</th>
                   <th className="px-3 py-2 text-right">Final</th>
                   <th className="px-3 py-2">Notas</th>
+                  <th className="px-3 py-2">Fornecedor</th>
                   <th className="px-3 py-2" />
                   {editable && <th className="px-3 py-2"></th>}
                 </tr>
@@ -486,6 +596,24 @@ export function OrderDetailClient({ detail }: Props) {
               <tbody>
                 {linhas.map((l, rowIndex) => (
                   <tr key={l.id} className="border-b border-slate-50">
+                    {editable && (
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={linhasSeleccionadas.has(l.id)}
+                          onChange={(e) =>
+                            setLinhasSeleccionadas((prev) => {
+                              const novo = new Set(prev);
+                              if (e.target.checked) novo.add(l.id);
+                              else novo.delete(l.id);
+                              return novo;
+                            })
+                          }
+                          aria-label={`Seleccionar linha ${l.designacao}`}
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <div className="flex items-baseline gap-1.5">
                         <ArtigoLink cnp={l.cnp} className="font-medium text-slate-900 hover:text-emerald-600 hover:underline">
@@ -568,6 +696,23 @@ export function OrderDetailClient({ detail }: Props) {
                         />
                       ) : (
                         <span className="text-slate-600">{l.notas ?? "—"}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editable ? (
+                        <select
+                          value={l.fornecedorSugeridoId ?? ""}
+                          onChange={(e) => handleFornecedorChange(l.id, e.target.value)}
+                          disabled={busy}
+                          className={`w-full rounded-lg border px-2 py-1 text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50 ${
+                            l.fornecedorSugeridoId ? "border-slate-200 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          <option value="">— Sem fornecedor —</option>
+                          {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-slate-600">{l.fornecedorSugeridoNome ?? "—"}</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">

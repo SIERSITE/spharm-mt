@@ -100,6 +100,16 @@ type Line = {
   designacao: string;
   fabricante: string | null;
   fornecedor: string | null;
+  /**
+   * Fornecedor DECIDIDO para esta linha — nasce da sugestão inicial de
+   * `ProposalRow.fornecedorSugeridoId` (ver `lib/encomendas/proposal.ts`)
+   * mas é a partir daí editável por linha ou em massa. Distinto de
+   * `fornecedor` acima (esse é só o histórico informativo). Persistido em
+   * `LinhaEncomenda.fornecedorSugeridoId` pelo MESMO caminho de autosave
+   * que já grava quantidade/notas.
+   */
+  fornecedorSugeridoId: string | null;
+  fornecedorSugeridoNome: string | null;
   farmaciaNome: string | null;
   farmaciaId: string | null;
   salesQty: number | null;
@@ -171,6 +181,8 @@ type Props = {
   latestDataMonth?: { ano: number; mes: number } | null;
   userPerfil: string;
   userFarmaciaId: string | null;
+  /** Fornecedores ACTIVOS, para o picker por linha (ver `LinhaEncomenda.fornecedorSugeridoId`). */
+  fornecedores: { id: string; nome: string }[];
 };
 
 let lineKeyCounter = 0;
@@ -241,6 +253,7 @@ export function OrderCreateClient({
   latestDataMonth,
   userPerfil,
   userFarmaciaId,
+  fornecedores,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -323,6 +336,15 @@ export function OrderCreateClient({
   const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useState("");
   const [filterRuturas, setFilterRuturas] = useState(false);
   const [filterStockBaixo, setFilterStockBaixo] = useState(false);
+  /** "Só linhas sem fornecedor" — ver painel de resumo de fornecedores, mais abaixo. */
+  const [filterSemFornecedor, setFilterSemFornecedor] = useState(false);
+  // ─── Selecção de linhas (bulk "Definir fornecedor") ────────────────────────
+  //
+  // Um `Set<Line["key"]>` — nunca produtoId, porque em modo grupo o mesmo
+  // produtoId pode aparecer em várias sub-linhas (uma por farmácia); a
+  // `key` é sempre única por linha renderizada.
+  const [linhasSeleccionadas, setLinhasSeleccionadas] = useState<Set<number>>(new Set());
+  const [bulkFornecedorId, setBulkFornecedorId] = useState("");
   // ── Ordenação ────────────────────────────────────────────────────
   //
   // Esta tabela era a ÚNICA da aplicação com ordenação por cabeçalho, e
@@ -369,7 +391,11 @@ export function OrderCreateClient({
   const draftPromiseRef = useRef<Promise<string | null> | null>(null);
   const pedidoCongeladoRef = useRef<{ chave: string; input: Parameters<typeof createOrderAction>[0] } | null>(null);
   const pendentesPosCriacaoRef = useRef<
-    Array<{ produtoId: string; patch?: { quantidadeAjustada?: number | null; notas?: string | null; origem?: OrigemLinha }; remover?: boolean }>
+    Array<{
+      produtoId: string;
+      patch?: { quantidadeAjustada?: number | null; notas?: string | null; fornecedorSugeridoId?: string | null; origem?: OrigemLinha };
+      remover?: boolean;
+    }>
   >([]);
   // Consolidação: operação de criação pendente/recuperada (ver lib/encomendas/operacao-consolidacao.ts).
   const [operacaoConsolidacao, setOperacaoConsolidacao] = useState<OperacaoConsolidacao | null>(null);
@@ -662,6 +688,7 @@ export function OrderCreateClient({
             produtoId: l.produtoId,
             quantidadeSugerida: l.suggestedQty ?? null,
             quantidadeAjustada: Number(l.finalQty),
+            fornecedorSugeridoId: l.fornecedorSugeridoId,
             notas: l.notas.trim() || null,
             origem: l.origem,
           })),
@@ -691,10 +718,20 @@ export function OrderCreateClient({
         for (const l of validas) {
           const antes = noServidor.get(l.produtoId);
           const notasAgora = l.notas.trim() || null;
-          if (!antes || antes.quantidadeAjustada !== Number(l.finalQty) || (antes.notas ?? null) !== notasAgora) {
+          if (
+            !antes ||
+            antes.quantidadeAjustada !== Number(l.finalQty) ||
+            (antes.notas ?? null) !== notasAgora ||
+            (antes.fornecedorSugeridoId ?? null) !== (l.fornecedorSugeridoId ?? null)
+          ) {
             pendentesPosCriacaoRef.current.push({
               produtoId: l.produtoId,
-              patch: { quantidadeAjustada: Number(l.finalQty), notas: notasAgora, origem: l.origem },
+              patch: {
+                quantidadeAjustada: Number(l.finalQty),
+                notas: notasAgora,
+                fornecedorSugeridoId: l.fornecedorSugeridoId,
+                origem: l.origem,
+              },
             });
           }
         }
@@ -732,7 +769,12 @@ export function OrderCreateClient({
    */
   async function persistLineChange(
     produtoId: string,
-    patch: { quantidadeAjustada?: number | null; notas?: string | null; origem?: OrigemLinha },
+    patch: {
+      quantidadeAjustada?: number | null;
+      notas?: string | null;
+      fornecedorSugeridoId?: string | null;
+      origem?: OrigemLinha;
+    },
     linhasActuais: Line[]
   ) {
     if (mode !== "farmacia") return;
@@ -798,6 +840,7 @@ export function OrderCreateClient({
           produtoId: l.produtoId,
           quantidadeSugerida: l.suggestedQty ?? null,
           quantidadeAjustada: Number(l.finalQty),
+          fornecedorSugeridoId: l.fornecedorSugeridoId,
           notas: l.notas.trim() || null,
           origem: l.origem,
         })),
@@ -872,11 +915,48 @@ export function OrderCreateClient({
       list = list.filter(
         (l) => l.currentStock != null && l.currentStock > 0 && l.suggestedQty != null && l.suggestedQty > 0
       );
+    if (filterSemFornecedor) list = list.filter((l) => l.fornecedorSugeridoId == null);
 
     // A ordenação vem DEPOIS dos filtros, sobre a lista já filtrada:
     // o utilizador ordena o que está a ver.
     return ordenarLinhas(list, ordenacao, acessorEncomenda);
-  }, [linhas, tableSearch, filterFarmaciaTabela, filterEstado, filterRuturas, filterStockBaixo, ordenacao]);
+  }, [
+    linhas,
+    tableSearch,
+    filterFarmaciaTabela,
+    filterEstado,
+    filterRuturas,
+    filterStockBaixo,
+    filterSemFornecedor,
+    ordenacao,
+  ]);
+
+  /**
+   * Resumo de fornecedores por linha — total, sem fornecedor, distintos e
+   * repartição por fornecedor (+ valor estimado, quando há PUC). Sobre
+   * TODAS as linhas (não só as visíveis): o resumo tem de responder
+   * sempre pela encomenda inteira, mesmo com um filtro/pesquisa activo.
+   */
+  const resumoFornecedores = useMemo(() => {
+    let semFornecedor = 0;
+    const porFornecedor = new Map<string, { nome: string; nLinhas: number }>();
+    for (const l of linhas) {
+      if (l.fornecedorSugeridoId == null) {
+        semFornecedor++;
+        continue;
+      }
+      const nome = l.fornecedorSugeridoNome ?? fornecedores.find((f) => f.id === l.fornecedorSugeridoId)?.nome ?? "Fornecedor";
+      const actual = porFornecedor.get(l.fornecedorSugeridoId) ?? { nome, nLinhas: 0 };
+      actual.nLinhas += 1;
+      porFornecedor.set(l.fornecedorSugeridoId, actual);
+    }
+    return {
+      total: linhas.length,
+      semFornecedor,
+      distintos: porFornecedor.size,
+      porFornecedor: [...porFornecedor.values()].sort((a, b) => b.nLinhas - a.nLinhas),
+    };
+  }, [linhas, fornecedores]);
 
   // ─── Ponto 2 — consolidação por produto (SÓ modo grupo) ────────────────────
   //
@@ -1333,6 +1413,7 @@ export function OrderCreateClient({
     return {
       key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
       fabricante: r.fabricante, fornecedor: r.fornecedor,
+      fornecedorSugeridoId: r.fornecedorSugeridoId, fornecedorSugeridoNome: null,
       farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
       salesQty: r.salesQty, avgDailySales: r.avgDailySales,
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
@@ -1355,6 +1436,7 @@ export function OrderCreateClient({
     return {
       key: nextKey(), produtoId: p.id, cnp: p.cnp, designacao: p.designacao,
       fabricante: p.fabricante, fornecedor: null,
+      fornecedorSugeridoId: null, fornecedorSugeridoNome: null,
       farmaciaNome: isGroupMode ? null : (farmaciasVisiveis.find((f) => f.id === farmaciaId)?.nome ?? null),
       farmaciaId: isGroupMode ? null : farmaciaId,
       salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
@@ -1387,6 +1469,7 @@ export function OrderCreateClient({
     return {
       key: nextKey(), produtoId: l.produtoId, cnp: l.cnp, designacao: l.designacao,
       fabricante: l.fabricante, fornecedor: l.fornecedor,
+      fornecedorSugeridoId: l.fornecedorSugeridoId, fornecedorSugeridoNome: l.fornecedorSugeridoNome,
       farmaciaNome: farmaciasVisiveis.find((f) => f.id === farmId)?.nome ?? null,
       farmaciaId: farmId,
       salesQty: null, avgDailySales: null, currentStock: l.currentStock,
@@ -1753,6 +1836,39 @@ export function OrderCreateClient({
     void persistLineChange(l.produtoId, { notas: value.trim() || null }, linhasActuais);
   }
 
+  /**
+   * Fornecedor DECIDIDO para uma linha — `fornecedorId === ""` limpa (ver
+   * `LinhaEncomenda.fornecedorSugeridoId`, `null` = sem fornecedor).
+   * Mesmo caminho de gravação de `handleFinalQtyChange`/
+   * `handleNotasFieldChange`: `persistLineChange` → autosave.
+   */
+  function handleFornecedorChange(l: Line, fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nome = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
+    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome });
+    if (mode !== "farmacia") return;
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, fornecedorSugeridoId: valor } : x));
+    void persistLineChange(l.produtoId, { fornecedorSugeridoId: valor }, linhasActuais);
+  }
+
+  /**
+   * Bulk "Definir fornecedor nas linhas seleccionadas" — mesmo caminho de
+   * gravação por linha (loop de `persistLineChange`), nunca um segundo
+   * motor de escrita em lote. `keys` é o conjunto de `Line.key`
+   * seleccionadas (ou filtradas) no ecrã.
+   */
+  function handleBulkFornecedorChange(keys: ReadonlySet<number>, fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nome = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
+    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l)));
+    if (mode !== "farmacia") return;
+    const linhasActuais = linhas.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor } : l));
+    for (const l of linhasActuais) {
+      if (!keys.has(l.key)) continue;
+      void persistLineChange(l.produtoId, { fornecedorSugeridoId: valor }, linhasActuais);
+    }
+  }
+
   function handleRemoveLine(l: Line) {
     removeLine(l.key);
     if (mode === "farmacia") persistLineRemoval(l.produtoId);
@@ -1812,15 +1928,23 @@ export function OrderCreateClient({
           return;
         }
         const result = await finalizeFromDetailAction(id, autosave.versaoAtual);
-        if (result.ok) {
+        if (result.ok && result.tipo === "unico") {
           setFlash(null);
           mostrarResultadoFinalizacao({ listaEncomendaIds: [id], transferenciaIds: [] });
-        } else if (result.conflito) {
+        } else if (result.ok && result.tipo === "multi_fornecedor") {
+          // N documentos, um por fornecedor — o painel de resultado já
+          // sabe construir um Report por `listaEncomendaId` (ver
+          // `buildDocumentosFinalizacaoAction`/`buildEncomendaDocumentoReport`);
+          // como cada documento gerado aqui já tem um único fornecedor
+          // por construção, isto produz exactamente um PDF por documento.
+          setFlash(null);
+          mostrarResultadoFinalizacao({ listaEncomendaIds: result.listaEncomendaIds, transferenciaIds: [] });
+        } else if (!result.ok && "conflito" in result && result.conflito) {
           setFlash({
             type: "err",
             msg: "Esta encomenda foi alterada por outra sessão entretanto — recarrega a página antes de finalizar.",
           });
-        } else {
+        } else if (!result.ok) {
           setFlash({ type: "err", msg: result.error });
         }
       });
@@ -1831,14 +1955,15 @@ export function OrderCreateClient({
 
   const totalFinalVisible = visibleLinhas.reduce((s, l) => s + (Number(l.finalQty || "0") || 0), 0);
   const totalFinalAll = linhas.reduce((s, l) => s + (Number(l.finalQty || "0") || 0), 0);
-  const hasTableFilters = !!tableSearch || !!filterEstado || filterRuturas || filterStockBaixo || !!filterFarmaciaTabela;
+  const hasTableFilters =
+    !!tableSearch || !!filterEstado || filterRuturas || filterStockBaixo || filterSemFornecedor || !!filterFarmaciaTabela;
 
   // Total de colunas da tabela — usado pelo `colSpan` da linha de
   // histórico inline (Ponto 1) e do cabeçalho de grupo (Ponto 2).
   // Estado, Produto, Vendas, Média/d, Stock, Cobert., Pendente, Sugerida,
   // Final, Notas/Motivo, Ações = 11 colunas fixas; + Farmácia (isGroupMode)
-  // + Decisão (mode === "grupo").
-  const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0);
+  // + Decisão (mode === "grupo"); + Seleccionar + Fornecedor (!isGroupMode).
+  const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0) + (!isGroupMode ? 2 : 0);
 
   // ─── Ponto 1 — tabela nunca ultrapassa o ecrã sem dependência de scroll
   // horizontal escondido ────────────────────────────────────────────────
@@ -1885,6 +2010,24 @@ export function OrderCreateClient({
         key={l.key}
         className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""} ${isSubLinha ? "bg-slate-50/20" : ""}`}
       >
+        {!isGroupMode && (
+          <td className="px-2 py-1.5">
+            <input
+              type="checkbox"
+              className="rounded"
+              checked={linhasSeleccionadas.has(l.key)}
+              onChange={(e) =>
+                setLinhasSeleccionadas((prev) => {
+                  const novo = new Set(prev);
+                  if (e.target.checked) novo.add(l.key);
+                  else novo.delete(l.key);
+                  return novo;
+                })
+              }
+              aria-label={`Seleccionar linha ${l.designacao}`}
+            />
+          </td>
+        )}
         <td className="px-2 py-1.5">
           {l.estado && (
             <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(l.estado)}`}>
@@ -1959,6 +2102,21 @@ export function OrderCreateClient({
               className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
           )}
         </td>
+        {!isGroupMode && (
+          <td className="min-w-[160px] px-2 py-1.5">
+            <select
+              value={l.fornecedorSugeridoId ?? ""}
+              onChange={(e) => handleFornecedorChange(l, e.target.value)}
+              disabled={busy}
+              className={`w-full rounded-lg border px-2 py-1 text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50 ${
+                l.fornecedorSugeridoId ? "border-slate-200 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              <option value="">— Sem fornecedor —</option>
+              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </td>
+        )}
         <td className={`${stickyDireitaCls} border-l border-slate-200 bg-white px-2 py-1.5`} style={{ right: rightFinal }}>
           <input type="number" min="0" value={l.finalQty}
             ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
@@ -2361,6 +2519,12 @@ export function OrderCreateClient({
                 <input type="checkbox" checked={filterStockBaixo} onChange={(e) => { setFilterStockBaixo(e.target.checked); if (e.target.checked) setFilterRuturas(false); }} className="rounded" />
                 Stock baixo
               </label>
+              {!isGroupMode && (
+                <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
+                  <input type="checkbox" checked={filterSemFornecedor} onChange={(e) => setFilterSemFornecedor(e.target.checked)} className="rounded" />
+                  Só sem fornecedor{resumoFornecedores.semFornecedor > 0 ? ` (${resumoFornecedores.semFornecedor})` : ""}
+                </label>
+              )}
               {filterEstado && (
                 <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${estadoColors(filterEstado)}`}>
                   {estadoLabel(filterEstado)} ×
@@ -2368,11 +2532,54 @@ export function OrderCreateClient({
               )}
               {hasTableFilters && (
                 <button type="button"
-                  onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterFarmaciaTabela(""); }}
+                  onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterSemFornecedor(false); setFilterFarmaciaTabela(""); }}
                   className="ml-auto text-[11px] text-slate-500 hover:text-slate-700">
                   Limpar filtros
                 </button>
               )}
+            </div>
+          )}
+
+          {!isGroupMode && linhas.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-white px-4 py-2.5 text-[12px]">
+              <span className="font-medium text-slate-700">Fornecedores:</span>
+              <span className="text-slate-500">
+                {resumoFornecedores.total} linha{resumoFornecedores.total === 1 ? "" : "s"} ·{" "}
+                {resumoFornecedores.distintos} fornecedor{resumoFornecedores.distintos === 1 ? "" : "es"} distinto{resumoFornecedores.distintos === 1 ? "" : "s"}
+                {resumoFornecedores.semFornecedor > 0 && (
+                  <span className="ml-1 font-medium text-amber-600">· {resumoFornecedores.semFornecedor} sem fornecedor</span>
+                )}
+              </span>
+              {resumoFornecedores.porFornecedor.length > 0 && (
+                <span className="text-slate-400">
+                  ({resumoFornecedores.porFornecedor.map((f) => `${f.nome}: ${f.nLinhas}`).join(" · ")})
+                </span>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                {linhasSeleccionadas.size > 0 && (
+                  <>
+                    <span className="text-slate-500">{linhasSeleccionadas.size} seleccionada{linhasSeleccionadas.size === 1 ? "" : "s"}</span>
+                    <select
+                      value={bulkFornecedorId}
+                      onChange={(e) => setBulkFornecedorId(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
+                    >
+                      <option value="">— Fornecedor —</option>
+                      {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                    </select>
+                    <button type="button" disabled={!bulkFornecedorId}
+                      onClick={() => { handleBulkFornecedorChange(linhasSeleccionadas, bulkFornecedorId); setBulkFornecedorId(""); setLinhasSeleccionadas(new Set()); }}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40">
+                      Definir fornecedor
+                    </button>
+                    <button type="button"
+                      onClick={() => { handleBulkFornecedorChange(linhasSeleccionadas, ""); setLinhasSeleccionadas(new Set()); }}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] text-slate-500 hover:border-rose-300 hover:text-rose-700">
+                      Limpar
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -2389,6 +2596,21 @@ export function OrderCreateClient({
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
+                    {!isGroupMode && (
+                      <th className="w-8 px-2 py-1.5">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={visibleLinhas.length > 0 && visibleLinhas.every((l) => linhasSeleccionadas.has(l.key))}
+                          onChange={(e) =>
+                            setLinhasSeleccionadas(
+                              e.target.checked ? new Set(visibleLinhas.map((l) => l.key)) : new Set()
+                            )
+                          }
+                          aria-label="Seleccionar todas as linhas visíveis"
+                        />
+                      </th>
+                    )}
                     <th className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="designacao" className={`${stickyEsquerdaCls} min-w-[190px] border-r border-slate-100 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`}>Produto</CabecalhoOrdenavel>
                     {isGroupMode && <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmaciaNome" className="w-24 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Farmácia</CabecalhoOrdenavel>}
@@ -2399,6 +2621,9 @@ export function OrderCreateClient({
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
                     <th className="min-w-[150px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
+                    {!isGroupMode && (
+                      <th className="min-w-[160px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Fornecedor</th>
+                    )}
                     <th className={`${stickyDireitaCls} w-20 border-l border-slate-200 px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightFinal }}>Final</th>
                     {mode === "grupo" && (
                       <th className={`${stickyDireitaCls} w-[152px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightDecisao }}>Decisão</th>

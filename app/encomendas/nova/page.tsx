@@ -33,7 +33,7 @@ export default async function NovaEncomendaPage() {
   const session = await requirePermission("reports.write");
 
   const prisma = await getPrisma();
-  const [farmacias, filterOptions, productTypes, latestDataMonth] = await Promise.all([
+  const [farmacias, filterOptions, productTypes, latestDataMonth, fornecedores] = await Promise.all([
     prisma.farmacia.findMany({
       where: { estado: "ATIVO" },
       select: { id: true, nome: true },
@@ -42,6 +42,16 @@ export default async function NovaEncomendaPage() {
     getReportingFilterOptions(),
     getProductTypes(prisma),
     getLatestDataMonth(prisma),
+    // Lista de fornecedores REAIS (id+nome) para o picker por linha — ver
+    // LinhaEncomenda.fornecedorSugeridoId. `estado: ATIVO` só: um
+    // fornecedor inactivo não deve ser escolhível numa encomenda nova
+    // (uma linha existente que já o tenha continua a mostrá-lo, só não
+    // aparece na lista de escolha).
+    prisma.fornecedor.findMany({
+      where: { estado: "ATIVO" },
+      select: { id: true, nome: true, nomeNormalizado: true },
+      orderBy: { nomeNormalizado: "asc" },
+    }),
   ]);
 
   return (
@@ -60,6 +70,7 @@ export default async function NovaEncomendaPage() {
             latestDataMonth={latestDataMonth}
             userPerfil={session.perfil}
             userFarmaciaId={session.farmaciaId ?? null}
+            fornecedores={fornecedores.map((f) => ({ id: f.id, nome: f.nome ?? f.nomeNormalizado }))}
           />
         </div>
       </div>
