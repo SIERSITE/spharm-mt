@@ -1,40 +1,40 @@
-﻿/**
+/**
  * lib/catalogo/manutencao-massa.ts
  *
- * ManutenÃ§Ã£o em massa do catÃ¡logo â€” EXCLUSIVO do tenant silveira (gate no
+ * Manutenção em massa do catálogo — EXCLUSIVO do tenant silveira (gate no
  * caller, ver `TENANT_CATALOGO_MASSA` em `lib/tenant-context.ts`; este
- * mÃ³dulo nÃ£o lÃª o tenant sozinho, confia em quem o chama).
+ * módulo não lê o tenant sozinho, confia em quem o chama).
  *
- * Dois tipos de operaÃ§Ã£o:
- *   FABRICANTE  â€” escreve `Produto.fabricanteId` (catÃ¡logo partilhado do
- *                 tenant, NÃƒO por farmÃ¡cia).
- *   FORNECEDOR  â€” escreve `ProdutoFarmacia.fornecedorHabitualId` (por
- *                 farmÃ¡cia â€” `farmaciaId` Ã© obrigatÃ³rio no filtro).
+ * Dois tipos de operação:
+ *   FABRICANTE  — escreve `Produto.fabricanteId` (catálogo partilhado do
+ *                 tenant, NÃO por farmácia).
+ *   FORNECEDOR  — escreve `ProdutoFarmacia.fornecedorHabitualId` (por
+ *                 farmácia — `farmaciaId` é obrigatório no filtro).
  *
  * Fluxo esperado pelo caller (server actions em app/catalogo/manutencao/actions.ts):
- *   1. `validarFiltro` â€” validaÃ§Ã£o pura, sem BD.
- *   2. `listarProdutosPagina` / `listarIdsCorrespondentes` â€” para a grelha
+ *   1. `validarFiltro` — validação pura, sem BD.
+ *   2. `listarProdutosPagina` / `listarIdsCorrespondentes` — para a grelha
  *      e para "seleccionar todos os N que correspondem ao filtro".
- *   3. `previewOperacao` â€” ecrÃ£ de confirmaÃ§Ã£o obrigatÃ³rio antes de gravar.
- *   4. `aplicarManutencaoMassa` â€” sÃ³ depois de confirmaÃ§Ã£o explÃ­cita.
- *   5. `reverterOperacao` â€” a partir do histÃ³rico.
+ *   3. `previewOperacao` — ecrã de confirmação obrigatório antes de gravar.
+ *   4. `aplicarManutencaoMassa` — só depois de confirmação explícita.
+ *   5. `reverterOperacao` — a partir do histórico.
  *
  * Nunca apaga/funde Fabricante/Fornecedor/aliases/grupos laboratoriais.
- * Nunca escreve fora do Ã¢mbito validado do pedido (farmÃ¡cia/tenant).
+ * Nunca escreve fora do âmbito validado do pedido (farmácia/tenant).
  *
- * â”€â”€ Nota sobre tipos Prisma usados aqui â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- * FunÃ§Ãµes que sÃ³ fazem leitura/escrita simples (sem resolver nomes) sÃ£o
- * tipadas com `Prisma.TransactionClient` â€” um PrismaClient real satisfaz
- * essa interface (Ã© um sobre-conjunto), por isso servem tanto fora como
- * dentro de `prisma.$transaction`. FunÃ§Ãµes que chamam
+ * ── Nota sobre tipos Prisma usados aqui ──────────────────────────────
+ * Funções que só fazem leitura/escrita simples (sem resolver nomes) são
+ * tipadas com `Prisma.TransactionClient` — um PrismaClient real satisfaz
+ * essa interface (é um sobre-conjunto), por isso servem tanto fora como
+ * dentro de `prisma.$transaction`. Funções que chamam
  * `resolverOuCriarFornecedor`/`resolverOuCriarFabricante` (que exigem
- * `PrismaClient` completo) sÃ³ correm FORA da transacÃ§Ã£o principal â€” ver
+ * `PrismaClient` completo) só correm FORA da transacção principal — ver
  * `resolverDestinoParaAplicar`. Isto evita criar Fabricante/Fornecedor
- * dentro da transacÃ§Ã£o de aplicaÃ§Ã£o (que exigiria um tipo incompatÃ­vel),
- * ao custo de, num cenÃ¡rio raro de falha a meio da transacÃ§Ã£o, deixar um
- * Fabricante/Fornecedor novo criado mas nÃ£o referenciado por nenhum
- * produto â€” nunca um duplicado (nome canÃ³nico Ã© `@unique`), apenas uma
- * entidade extra inofensiva. Documentado tambÃ©m no relatÃ³rio da tarefa.
+ * dentro da transacção de aplicação (que exigiria um tipo incompatível),
+ * ao custo de, num cenário raro de falha a meio da transacção, deixar um
+ * Fabricante/Fornecedor novo criado mas não referenciado por nenhum
+ * produto — nunca um duplicado (nome canónico é `@unique`), apenas uma
+ * entidade extra inofensiva. Documentado também no relatório da tarefa.
  */
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { temFabricanteDivergenteEntreFarmacias } from "@/lib/ingest/catalog-from-erp";
@@ -47,17 +47,17 @@ type Tx = Prisma.TransactionClient;
 export type TipoManutencaoMassa = "FABRICANTE" | "FORNECEDOR";
 
 /**
- * Filtros da manutenÃ§Ã£o em massa.
+ * Filtros da manutenção em massa.
  *
- * `observacaoErp`: pedido na especificaÃ§Ã£o, mas NÃƒO existe nenhum campo em
- * `Produto`/`ProdutoFarmacia` que guarde uma observaÃ§Ã£o de texto livre
- * vinda do ERP (confirmado por leitura de `prisma/schema.prisma` â€” o mais
- * prÃ³ximo Ã© `ProdutoFarmacia.fornecedorOrigem`/`categoriaOrigem`, que sÃ£o
+ * `observacaoErp`: pedido na especificação, mas NÃO existe nenhum campo em
+ * `Produto`/`ProdutoFarmacia` que guarde uma observação de texto livre
+ * vinda do ERP (confirmado por leitura de `prisma/schema.prisma` — o mais
+ * próximo é `ProdutoFarmacia.fornecedorOrigem`/`categoriaOrigem`, que são
  * outra coisa). Filtro DELIBERADAMENTE omitido em vez de inventar um
- * campo ou uma migraÃ§Ã£o fora do Ã¢mbito desta tarefa.
+ * campo ou uma migração fora do âmbito desta tarefa.
  */
 export type ManutencaoMassaFiltro = {
-  /** ObrigatÃ³rio para FORNECEDOR; ignorado para FABRICANTE. */
+  /** Obrigatório para FORNECEDOR; ignorado para FABRICANTE. */
   farmaciaId?: string | null;
   cnp?: number | null;
   designacao?: string | null;
@@ -68,7 +68,7 @@ export type ManutencaoMassaFiltro = {
   semFabricante?: boolean;
   fornecedorAtualId?: string | null;
   semFornecedor?: boolean;
-  /** SÃ³ FABRICANTE â€” sinal informativo, nunca resolve nada sozinho. */
+  /** Só FABRICANTE — sinal informativo, nunca resolve nada sozinho. */
   fabricanteDivergente?: boolean;
   pesquisaTextual?: string | null;
 };
@@ -78,32 +78,32 @@ export type DestinoInput =
   | { modo: "novo"; nome: string };
 
 /**
- * ValidaÃ§Ã£o pura do filtro â€” sem BD. Devolve uma mensagem de erro, ou
- * `null` quando vÃ¡lido.
+ * Validação pura do filtro — sem BD. Devolve uma mensagem de erro, ou
+ * `null` quando válido.
  */
 export function validarFiltro(tipo: TipoManutencaoMassa, filtro: ManutencaoMassaFiltro): string | null {
   if (tipo === "FORNECEDOR") {
     if (!filtro.farmaciaId) {
-      return "FarmÃ¡cia Ã© obrigatÃ³ria para manutenÃ§Ã£o de fornecedor preferencial.";
+      return "Farmácia é obrigatória para manutenção de fornecedor preferencial.";
     }
     if (filtro.fabricanteDivergente) {
-      return "\"Fabricante divergente\" sÃ³ Ã© aplicÃ¡vel ao tipo Fabricante.";
+      return "\"Fabricante divergente\" só é aplicável ao tipo Fabricante.";
     }
   } else {
     if (filtro.fornecedorAtualId || filtro.semFornecedor) {
-      return "Filtros de fornecedor sÃ³ sÃ£o aplicÃ¡veis ao tipo Fornecedor.";
+      return "Filtros de fornecedor só são aplicáveis ao tipo Fornecedor.";
     }
   }
   if (filtro.semFabricante && filtro.fabricanteAtualId) {
-    return "\"Sem fabricante\" e \"fabricante actual\" sÃ£o mutuamente exclusivos.";
+    return "\"Sem fabricante\" e \"fabricante actual\" são mutuamente exclusivos.";
   }
   if (filtro.semFornecedor && filtro.fornecedorAtualId) {
-    return "\"Sem fornecedor\" e \"fornecedor actual\" sÃ£o mutuamente exclusivos.";
+    return "\"Sem fornecedor\" e \"fornecedor actual\" são mutuamente exclusivos.";
   }
   return null;
 }
 
-/** Parte do filtro que se aplica sempre ao nÃ­vel de `Produto`. */
+/** Parte do filtro que se aplica sempre ao nível de `Produto`. */
 export function buildProdutoLevelWhere(filtro: ManutencaoMassaFiltro): Prisma.ProdutoWhereInput {
   const AND: Prisma.ProdutoWhereInput[] = [];
   if (filtro.cnp != null) AND.push({ cnp: filtro.cnp });
@@ -123,7 +123,7 @@ export function buildProdutoLevelWhere(filtro: ManutencaoMassaFiltro): Prisma.Pr
   return AND.length > 0 ? { AND } : {};
 }
 
-/** Where completo para FABRICANTE â€” directamente sobre `Produto`. */
+/** Where completo para FABRICANTE — directamente sobre `Produto`. */
 export function buildFabricanteWhere(
   filtro: ManutencaoMassaFiltro,
   divergentIds?: Set<string>
@@ -141,7 +141,7 @@ export function buildFabricanteWhere(
   return { AND };
 }
 
-/** Where completo para FORNECEDOR â€” sobre `ProdutoFarmacia`, farmÃ¡cia fixa. */
+/** Where completo para FORNECEDOR — sobre `ProdutoFarmacia`, farmácia fixa. */
 export function buildFornecedorWhere(filtro: ManutencaoMassaFiltro): Prisma.ProdutoFarmaciaWhereInput {
   const AND: Prisma.ProdutoFarmaciaWhereInput[] = [{ farmaciaId: filtro.farmaciaId! }];
   if (filtro.semFornecedor) {
@@ -157,13 +157,13 @@ export function buildFornecedorWhere(filtro: ManutencaoMassaFiltro): Prisma.Prod
 }
 
 /**
- * Produtos com `fabricanteErpAtual` divergente entre farmÃ¡cias do tenant.
- * Sinal informativo â€” nunca resolve nada sozinho (ver
+ * Produtos com `fabricanteErpAtual` divergente entre farmácias do tenant.
+ * Sinal informativo — nunca resolve nada sozinho (ver
  * `temFabricanteDivergenteEntreFarmacias`, lib/ingest/catalog-from-erp.ts).
  *
- * Varre `ProdutoFarmacia` inteira do tenant (tenant-scoped, nÃ£o Ã© global):
- * aceitÃ¡vel para o volume de uma farmÃ¡cia/grupo, mas nÃ£o escala
- * indefinidamente â€” ver limitaÃ§Ã£o conhecida no relatÃ³rio da tarefa.
+ * Varre `ProdutoFarmacia` inteira do tenant (tenant-scoped, não é global):
+ * aceitável para o volume de uma farmácia/grupo, mas não escala
+ * indefinidamente — ver limitação conhecida no relatório da tarefa.
  */
 export async function resolverProdutosComFabricanteDivergente(prisma: Tx): Promise<Set<string>> {
   const rows = await prisma.produtoFarmacia.findMany({
@@ -221,7 +221,7 @@ export type ItemManutencaoMassaPreview = {
   valorAtualNome: string | null;
 };
 
-/** PÃ¡gina (para a grelha) â€” sempre com contagem total exacta. */
+/** Página (para a grelha) — sempre com contagem total exacta. */
 export async function listarProdutosPagina(
   prisma: Tx,
   tipo: TipoManutencaoMassa,
@@ -294,8 +294,8 @@ export type DestinoResolvido =
   | { status: "invalido" };
 
 /**
- * Resolve o destino SEM criar nada â€” usado no preview, para poder mostrar
- * "este nome nÃ£o existe, vai ser criado" sem jÃ¡ ter criado.
+ * Resolve o destino SEM criar nada — usado no preview, para poder mostrar
+ * "este nome não existe, vai ser criado" sem já ter criado.
  */
 export async function resolverDestinoPreview(
   prisma: PrismaClient,
@@ -319,7 +319,7 @@ export async function resolverDestinoPreview(
     return { status: "existente", id: f.id, nome: f.nome ?? f.nomeNormalizado };
   }
 
-  // modo "novo": nome cru vindo do utilizador â€” resolve exacto/alias, nunca cria.
+  // modo "novo": nome cru vindo do utilizador — resolve exacto/alias, nunca cria.
   if (tipo === "FABRICANTE") {
     const r = await resolverOuCriarFabricante(prisma, destino.nome, { criarSeInexistente: false });
     if (r.status === "resolvido") {
@@ -341,7 +341,7 @@ export async function resolverDestinoPreview(
   return canonico ? { status: "novo", nomeCanonico: canonico } : { status: "invalido" };
 }
 
-/** Resolve o destino PARA APLICAR â€” cria quando `modo:"novo"` e nÃ£o existir ainda. */
+/** Resolve o destino PARA APLICAR — cria quando `modo:"novo"` e não existir ainda. */
 async function resolverDestinoParaAplicar(
   prisma: PrismaClient,
   tipo: TipoManutencaoMassa,
@@ -349,19 +349,19 @@ async function resolverDestinoParaAplicar(
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (destino.modo === "existente") {
     const check = await resolverDestinoPreview(prisma, tipo, destino);
-    if (check.status !== "existente") return { ok: false, error: "Destino invÃ¡lido." };
+    if (check.status !== "existente") return { ok: false, error: "Destino inválido." };
     return { ok: true, id: check.id };
   }
   if (tipo === "FABRICANTE") {
     const r = await resolverOuCriarFabricante(prisma, destino.nome, { criarSeInexistente: true });
     if (r.status !== "resolvido") {
-      return { ok: false, error: r.status === "ambiguo" ? "Nome de fabricante ambÃ­guo." : "Nome de fabricante invÃ¡lido." };
+      return { ok: false, error: r.status === "ambiguo" ? "Nome de fabricante ambíguo." : "Nome de fabricante inválido." };
     }
     return { ok: true, id: r.fabricanteId };
   }
   const r = await resolverOuCriarFornecedor(prisma, destino.nome, { criarSeInexistente: true });
   if (r.status !== "resolvido") {
-    return { ok: false, error: r.status === "ambiguo" ? "Nome de fornecedor ambÃ­guo." : "Nome de fornecedor invÃ¡lido." };
+    return { ok: false, error: r.status === "ambiguo" ? "Nome de fornecedor ambíguo." : "Nome de fornecedor inválido." };
   }
   return { ok: true, id: r.fornecedorId };
 }
@@ -388,8 +388,8 @@ export type PreviewOperacaoResultado =
 const AMOSTRA_LIMITE = 200;
 
 /**
- * Preview obrigatÃ³rio antes de aplicar. Contagens sÃ£o sempre exactas
- * (nunca estimadas); sÃ³ a amostra devolvida Ã© capada.
+ * Preview obrigatório antes de aplicar. Contagens são sempre exactas
+ * (nunca estimadas); só a amostra devolvida é capada.
  */
 export async function previewOperacao(
   prisma: PrismaClient,
@@ -401,9 +401,9 @@ export async function previewOperacao(
   if (erroFiltro) return { ok: false, error: erroFiltro };
 
   const destino = await resolverDestinoPreview(prisma, tipo, destinoInput);
-  if (destino.status === "invalido") return { ok: false, error: "Nome de destino invÃ¡lido." };
+  if (destino.status === "invalido") return { ok: false, error: "Nome de destino inválido." };
   if (destino.status === "ambiguo") {
-    return { ok: false, error: "Nome de destino ambÃ­guo â€” corresponde a mais do que um registo existente." };
+    return { ok: false, error: "Nome de destino ambíguo — corresponde a mais do que um registo existente." };
   }
   const destinoId = destino.status === "existente" ? destino.id : null;
 
@@ -503,10 +503,10 @@ export type AplicarManutencaoMassaInput = {
   filtro: ManutencaoMassaFiltro;
   destino: DestinoInput;
   /**
-   * Subconjunto explÃ­cito escolhido pelo utilizador (ex.: depois de
+   * Subconjunto explícito escolhido pelo utilizador (ex.: depois de
    * desseleccionar alguns itens de "seleccionar todos"). NUNCA tratado
-   * como super-conjunto â€” Ã© sempre intersectado com o que o filtro
-   * confirma server-side dentro da transacÃ§Ã£o. `undefined` = todos os
+   * como super-conjunto — é sempre intersectado com o que o filtro
+   * confirma server-side dentro da transacção. `undefined` = todos os
    * que correspondem ao filtro.
    */
   produtoIdsSubconjunto?: string[];
@@ -525,10 +525,10 @@ export type AplicarManutencaoMassaResultado =
   | { ok: false; error: string };
 
 /**
- * Aplica a operaÃ§Ã£o, totalmente transaccional. Revalida o filtro
- * SERVER-SIDE dentro da transacÃ§Ã£o â€” nunca confia num id de produto vindo
- * do cliente como autoritÃ¡rio; um subconjunto explÃ­cito Ã© intersectado
- * com os matches reais, nunca alarga a selecÃ§Ã£o.
+ * Aplica a operação, totalmente transaccional. Revalida o filtro
+ * SERVER-SIDE dentro da transacção — nunca confia num id de produto vindo
+ * do cliente como autoritário; um subconjunto explícito é intersectado
+ * com os matches reais, nunca alarga a selecção.
  */
 export async function aplicarManutencaoMassa(
   prisma: PrismaClient,
@@ -619,11 +619,11 @@ export async function aplicarManutencaoMassa(
     if (err instanceof Error && err.message === "NENHUM_PRODUTO_CORRESPONDE") {
       return { ok: false, error: "Nenhum produto corresponde aos filtros indicados." };
     }
-    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido ao aplicar manutenÃ§Ã£o em massa." };
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido ao aplicar manutenção em massa." };
   }
 }
 
-/** Moda (valor mais frequente) â€” sÃ³ usado como resumo informativo no cabeÃ§alho da reversÃ£o. */
+/** Moda (valor mais frequente) — só usado como resumo informativo no cabeçalho da reversão. */
 export function modaValorNovoId(itens: Array<{ valorNovoId: string }>): string {
   const counts = new Map<string, number>();
   for (const i of itens) counts.set(i.valorNovoId, (counts.get(i.valorNovoId) ?? 0) + 1);
@@ -649,29 +649,29 @@ export type ReverterOperacaoResultado =
   | { ok: false; error: string };
 
 /**
- * Reverte uma operaÃ§Ã£o: cada item sÃ³ Ã© revertido se (a) tiver um valor
- * anterior registado â€” restaurar para "vazio" nÃ£o Ã© representÃ¡vel neste
- * esquema, ver nota abaixo â€” (b) nenhuma operaÃ§Ã£o POSTERIOR do mesmo tipo
- * (e mesma farmÃ¡cia, quando aplicÃ¡vel) tocou o mesmo produto, e (c) o
- * valor ao vivo do produto ainda for exactamente o que esta operaÃ§Ã£o
- * escreveu. Cria uma NOVA operaÃ§Ã£o (`origem: "REVERSAO"`,
- * `operacaoOrigemId` a apontar para a original) â€” a original nunca Ã©
+ * Reverte uma operação: cada item só é revertido se (a) tiver um valor
+ * anterior registado — restaurar para "vazio" não é representável neste
+ * esquema, ver nota abaixo — (b) nenhuma operação POSTERIOR do mesmo tipo
+ * (e mesma farmácia, quando aplicável) tocou o mesmo produto, e (c) o
+ * valor ao vivo do produto ainda for exactamente o que esta operação
+ * escreveu. Cria uma NOVA operação (`origem: "REVERSAO"`,
+ * `operacaoOrigemId` a apontar para a original) — a original nunca é
  * apagada nem alterada.
  *
- * â”€â”€ LimitaÃ§Ã£o conhecida do esquema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- * `CatalogoManutencaoOperacaoItem.valorNovoId` Ã© `String` (NOT NULL).
- * Um item cujo `valorAnteriorId` original era `null` (o produto nÃ£o tinha
- * fabricante/fornecedor antes da operaÃ§Ã£o) nÃ£o pode ser revertido: a
- * reversÃ£o teria de escrever `valorNovoId = null` nesse item, o que o
- * esquema (jÃ¡ aplicado por uma migraÃ§Ã£o anterior, fora do Ã¢mbito desta
- * tarefa) nÃ£o permite. Esses itens sÃ£o sempre reportados como
- * "ignorados" com o motivo correspondente â€” nunca silenciosamente.
+ * ── Limitação conhecida do esquema ───────────────────────────────────
+ * `CatalogoManutencaoOperacaoItem.valorNovoId` é `String` (NOT NULL).
+ * Um item cujo `valorAnteriorId` original era `null` (o produto não tinha
+ * fabricante/fornecedor antes da operação) não pode ser revertido: a
+ * reversão teria de escrever `valorNovoId = null` nesse item, o que o
+ * esquema (já aplicado por uma migração anterior, fora do âmbito desta
+ * tarefa) não permite. Esses itens são sempre reportados como
+ * "ignorados" com o motivo correspondente — nunca silenciosamente.
  *
- * O `valorNovoId` do CABEÃ‡ALHO da reversÃ£o Ã© sÃ³ um resumo informativo
- * (a moda dos valores restaurados nos itens) â€” a fonte de verdade Ã©
- * sempre `item.valorNovoId` por item, nunca o campo do cabeÃ§alho, porque
- * uma reversÃ£o restaura um valor DIFERENTE por produto, nÃ£o um valor
- * Ãºnico.
+ * O `valorNovoId` do CABEÇALHO da reversão é só um resumo informativo
+ * (a moda dos valores restaurados nos itens) — a fonte de verdade é
+ * sempre `item.valorNovoId` por item, nunca o campo do cabeçalho, porque
+ * uma reversão restaura um valor DIFERENTE por produto, não um valor
+ * único.
  */
 export async function reverterOperacao(
   prisma: PrismaClient,
@@ -683,7 +683,7 @@ export async function reverterOperacao(
     where: { id: operacaoOrigemId },
     include: { itens: true },
   });
-  if (!original) return { ok: false, error: "OperaÃ§Ã£o nÃ£o encontrada." };
+  if (!original) return { ok: false, error: "Operação não encontrada." };
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
@@ -710,12 +710,12 @@ export async function reverterOperacao(
         if (item.valorAnteriorId === null) {
           ignorados.push({
             produtoId: item.produtoId,
-            motivo: "Sem valor anterior registado â€” reversÃ£o para vazio nÃ£o suportada.",
+            motivo: "Sem valor anterior registado — reversão para vazio não suportada.",
           });
           continue;
         }
         if (tocadosDepois.has(item.produtoId)) {
-          ignorados.push({ produtoId: item.produtoId, motivo: "Produto alterado por uma operaÃ§Ã£o posterior." });
+          ignorados.push({ produtoId: item.produtoId, motivo: "Produto alterado por uma operação posterior." });
           continue;
         }
 
@@ -733,7 +733,7 @@ export async function reverterOperacao(
         if (valorAtual !== item.valorNovoId) {
           ignorados.push({
             produtoId: item.produtoId,
-            motivo: "Valor actual jÃ¡ nÃ£o corresponde ao valor aplicado por esta operaÃ§Ã£o.",
+            motivo: "Valor actual já não corresponde ao valor aplicado por esta operação.",
           });
           continue;
         }
@@ -786,7 +786,7 @@ export async function reverterOperacao(
     };
   } catch (err) {
     if (err instanceof Error && err.message === "NENHUM_ELEGIVEL") {
-      return { ok: false, error: "Nenhum produto elegÃ­vel para reversÃ£o â€” todos foram alterados desde entÃ£o." };
+      return { ok: false, error: "Nenhum produto elegível para reversão — todos foram alterados desde então." };
     }
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido ao reverter." };
   }
