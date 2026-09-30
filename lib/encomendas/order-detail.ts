@@ -69,6 +69,20 @@ export type OrderDetail = {
   anuladoEm: Date | null;
   /** Bloqueio optimista do autosave — ver lib/encomendas/autosave.ts. */
   versao: number;
+  /**
+   * Aponta para a `ListaEncomenda` PREPARADA que originou este documento
+   * numa finalização por fornecedor (ver `lib/encomendas/
+   * finalizar-multi-fornecedor.ts`) — `null` para qualquer encomenda
+   * "normal" (criada directamente, nunca dividida).
+   */
+  loteOrigemId: string | null;
+  loteOrigemNome: string | null;
+  /**
+   * Preenchido SÓ numa `ListaEncomenda` PREPARADA — os N documentos
+   * FINALIZADA que esta preparação gerou (um por fornecedor). Vazio para
+   * todos os outros estados.
+   */
+  documentosGerados: Array<{ id: string; numero: string | null; fornecedorNome: string; estado: EstadoListaEncomenda }>;
   linhas: OrderDetailLine[];
   outbox: {
     id: string;
@@ -104,6 +118,19 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
       farmacia: { select: { id: true, nome: true, morada: true, nif: true, contacto: true } },
       criadoPor: { select: { nome: true } },
       anuladoPor: { select: { nome: true } },
+      loteOrigem: { select: { nome: true } },
+      documentosGerados: {
+        orderBy: { dataCriacao: "asc" },
+        select: {
+          id: true,
+          numero: true,
+          estado: true,
+          linhas: {
+            take: 1,
+            select: { fornecedorSugerido: { select: { nome: true, nomeNormalizado: true } } },
+          },
+        },
+      },
       linhas: {
         orderBy: { id: "asc" },
         include: {
@@ -190,12 +217,27 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
     anuladoPorNome: lista.anuladoPor?.nome ?? null,
     anuladoEm: lista.anuladoEm,
     versao: lista.versao,
+    loteOrigemId: lista.loteOrigemId,
+    loteOrigemNome: lista.loteOrigem?.nome ?? null,
+    documentosGerados: lista.documentosGerados.map((d) => ({
+      id: d.id,
+      numero: d.numero,
+      estado: d.estado,
+      fornecedorNome:
+        d.linhas[0]?.fornecedorSugerido?.nome ?? d.linhas[0]?.fornecedorSugerido?.nomeNormalizado ?? "Fornecedor não definido",
+    })),
     linhas: lista.linhas.map((l) => ({
       id: l.id,
       produtoId: l.produtoId,
       origem: l.origem,
       cnp: l.produto.cnp,
-      designacao: l.produto.designacao,
+      // Snapshot capturado na finalização (ver lib/ingest/orders.ts) tem
+      // sempre prioridade — garante que uma reimpressão futura mostra o
+      // MESMO texto mesmo que o produto tenha sido renomeado entretanto.
+      // `null` em RASCUNHO/PREPARADA (ainda editável — mostra a
+      // designação ao vivo) ou em linhas criadas antes desta coluna
+      // existir.
+      designacao: l.designacaoSnapshot ?? l.produto.designacao,
       fabricante: l.produto.fabricante?.nomeNormalizado ?? null,
       fornecedor: stockByProduto.get(l.produtoId)?.fornecedor ?? null,
       fornecedorSugeridoId: l.fornecedorSugeridoId,

@@ -6,15 +6,43 @@ import { requirePermission } from "@/lib/permissions";
 import { canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
-import { finalizeAndQueueOrder, createEncomendaWithOutbox } from "@/lib/ingest/orders";
+import { finalizeAndQueueOrder, createEncomendaWithOutbox, IdempotencyConflictError } from "@/lib/ingest/orders";
 import {
   salvarAutosaveEncomenda,
   ConflitoVersaoError,
   RascunhoNaoEditavelError,
   type LinhaAutosavePatch,
 } from "@/lib/encomendas/autosave";
+import {
+  finalizarEncomendaMultiFornecedor,
+  deveUsarFinalizacaoMultiFornecedor,
+  LinhasSemFornecedorError,
+  type DocumentoGerado,
+} from "@/lib/encomendas/finalizar-multi-fornecedor";
 import { logAudit } from "@/lib/audit";
 import { retryOutboxRow, cancelOutboxRow } from "@/lib/integracao/outbox-admin";
+
+/**
+ * Valida que TODOS os `fornecedorSugeridoId` não-nulos pedidos numa
+ * gravação (linha única ou lote) correspondem a um `Fornecedor` REAL —
+ * nunca confia num id vindo do cliente sem o confirmar na base de dados.
+ * Devolve `null` quando tudo é válido, ou a mensagem de erro a devolver.
+ */
+async function validarFornecedoresExistem(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  fornecedorIds: ReadonlyArray<string | null | undefined>
+): Promise<string | null> {
+  const ids = [...new Set(fornecedorIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return null;
+  const existentes = await prisma.fornecedor.findMany({
+    where: { id: { in: ids } },
+    select: { id: true },
+  });
+  if (existentes.length === ids.length) return null;
+  const encontrados = new Set(existentes.map((f) => f.id));
+  const emFalta = ids.filter((id) => !encontrados.has(id));
+  return `Fornecedor inválido: ${emFalta.join(", ")}.`;
+}
 
 const AUTOSAVE_MAX_LINHAS = 1000;
 
@@ -47,6 +75,8 @@ export async function updateLineAction(input: {
   linhaId: string;
   quantidadeAjustada?: number | null;
   notas?: string | null;
+  /** `null` = limpar/sem fornecedor; `undefined` = não alterar. Validado contra `Fornecedor` real. */
+  fornecedorSugeridoId?: string | null;
 }): Promise<ActionResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
@@ -62,9 +92,15 @@ export async function updateLineAction(input: {
       return { ok: false, error: "Linha não pertence a esta encomenda." };
     }
 
+    if (input.fornecedorSugeridoId !== undefined) {
+      const erroFornecedor = await validarFornecedoresExistem(prisma, [input.fornecedorSugeridoId]);
+      if (erroFornecedor) return { ok: false, error: erroFornecedor };
+    }
+
     const data: {
       quantidadeAjustada?: number | null;
       notas?: string | null;
+      fornecedorSugeridoId?: string | null;
     } = {};
     if (input.quantidadeAjustada !== undefined) {
       if (input.quantidadeAjustada !== null && !Number.isFinite(input.quantidadeAjustada)) {
@@ -77,6 +113,9 @@ export async function updateLineAction(input: {
     }
     if (input.notas !== undefined) {
       data.notas = input.notas?.trim() ? input.notas.trim() : null;
+    }
+    if (input.fornecedorSugeridoId !== undefined) {
+      data.fornecedorSugeridoId = input.fornecedorSugeridoId;
     }
 
     if (Object.keys(data).length === 0) return { ok: true };
@@ -264,10 +303,37 @@ export async function cancelOutboxAction(outboxId: string): Promise<ActionResult
   }
 }
 
+export type FinalizeFromDetailResult =
+  | { ok: true; tipo: "unico"; outboxId: string; numero: string | null }
+  | {
+      ok: true;
+      tipo: "multi_fornecedor";
+      loteOrigemId: string;
+      listaEncomendaIds: string[];
+      documentos: DocumentoGerado[];
+      resumoTexto: string;
+    }
+  | { ok: false; error: string; conflito?: true; versaoAtual?: number }
+  | { ok: false; error: string; semFornecedor: true; produtoIdsSemFornecedor: string[] };
+
 /**
- * Finaliza um rascunho a partir do detalhe — mesmo invariante que
- * o caminho da lista: passa por `finalizeAndQueueOrder`, que cria o
- * outbox em transação na primeira chamada e é idempotente em replays.
+ * Finaliza um rascunho a partir do detalhe.
+ *
+ * Decide o caminho pela COMPOSIÇÃO REAL das linhas no momento da
+ * chamada (nunca um parâmetro vindo do cliente): um único fornecedor
+ * distinto entre as linhas (ou nenhum — o fluxo legado) segue sempre
+ * `finalizeAndQueueOrder`, o caminho de sempre, sem qualquer mudança de
+ * comportamento; mais de um fornecedor distinto usa
+ * `finalizarEncomendaMultiFornecedor` (ver esse ficheiro para o desenho
+ * completo — divide em N documentos, um por fornecedor, mantém o
+ * rascunho original como "lote" em `PREPARADA`).
+ *
+ * A `batchKey` da operação multi-fornecedor é derivada do PRÓPRIO
+ * `listaEncomendaId` — não precisa de vir do cliente: o rascunho é único
+ * por natureza (cuid), e uma vez `PREPARADA` é terminal, por isso
+ * qualquer chamada repetida encontra sempre o mesmo resultado já
+ * persistido. Ver o comentário sobre idempotência em
+ * `lib/encomendas/finalizar-multi-fornecedor.ts`.
  *
  * `versaoEsperada`, quando fornecida (o ecrã de detalhe fornece sempre),
  * força a validação de versão ANTES de finalizar — "força a gravação
@@ -278,12 +344,42 @@ export async function cancelOutboxAction(outboxId: string): Promise<ActionResult
 export async function finalizeFromDetailAction(
   listaEncomendaId: string,
   versaoEsperada?: number
-): Promise<{ ok: true; outboxId: string } | { ok: false; error: string; conflito?: true; versaoAtual?: number }> {
+): Promise<FinalizeFromDetailResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
   try {
+    const linhas = await prisma.linhaEncomenda.findMany({
+      where: { listaEncomendaId },
+      select: { fornecedorSugeridoId: true },
+    });
+
+    if (deveUsarFinalizacaoMultiFornecedor(linhas)) {
+      const resultado = await finalizarEncomendaMultiFornecedor(prisma, tenantSlug, {
+        listaEncomendaId,
+        batchKey: listaEncomendaId,
+        versaoEsperada,
+      });
+      await logAudit({
+        actorId: session.sub,
+        action: "order.finalized_multi_fornecedor",
+        entity: "ListaEncomenda",
+        entityId: listaEncomendaId,
+        meta: { reutilizado: resultado.reutilizado, documentos: resultado.documentos.map((d) => d.listaEncomendaId) },
+      });
+      revalidateDetail(listaEncomendaId);
+      revalidatePath("/configuracoes/integracao");
+      return {
+        ok: true,
+        tipo: "multi_fornecedor",
+        loteOrigemId: resultado.loteOrigemId,
+        listaEncomendaIds: resultado.documentos.map((d) => d.listaEncomendaId),
+        documentos: resultado.documentos,
+        resumoTexto: resultado.resumoTexto,
+      };
+    }
+
     const result = await finalizeAndQueueOrder(prisma, tenantSlug, listaEncomendaId, versaoEsperada);
     await logAudit({
       actorId: session.sub,
@@ -294,10 +390,21 @@ export async function finalizeFromDetailAction(
     });
     revalidateDetail(listaEncomendaId);
     revalidatePath("/configuracoes/integracao");
-    return { ok: true, outboxId: result.outboxId };
+    return { ok: true, tipo: "unico", outboxId: result.outboxId, numero: result.numero };
   } catch (err) {
     if (err instanceof ConflitoVersaoError) {
       return { ok: false, error: err.message, conflito: true, versaoAtual: err.versaoAtual };
+    }
+    if (err instanceof LinhasSemFornecedorError) {
+      return {
+        ok: false,
+        error: err.message,
+        semFornecedor: true,
+        produtoIdsSemFornecedor: err.produtoIdsSemFornecedor,
+      };
+    }
+    if (err instanceof IdempotencyConflictError) {
+      return { ok: false, error: err.message };
     }
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
@@ -423,6 +530,13 @@ export async function autosaveEncomendaAction(input: {
   }
 
   const prisma = await getPrisma();
+
+  const erroFornecedor = await validarFornecedoresExistem(
+    prisma,
+    linhas.map((l) => l.fornecedorSugeridoId)
+  );
+  if (erroFornecedor) return { ok: false, error: erroFornecedor };
+
   try {
     const resultado = await salvarAutosaveEncomenda(prisma, {
       listaEncomendaId: input.listaEncomendaId,

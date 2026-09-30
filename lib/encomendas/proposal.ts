@@ -101,6 +101,15 @@ export type ProposalRow = {
   designacao: string;
   fabricante: string | null;
   fornecedor: string | null;
+  /**
+   * Sugestão INICIAL de fornecedor para esta linha — vem de
+   * `ProdutoFarmacia.fornecedorHabitualId` (por produto+farmácia), quando
+   * existe. É só a semente: uma vez que a linha exista num rascunho, o
+   * que decide é `LinhaEncomenda.fornecedorSugeridoId` (editável por
+   * linha/em massa), nunca recalculado a partir daqui ao reabrir. Ver
+   * lib/encomendas/finalizar-multi-fornecedor.ts.
+   */
+  fornecedorSugeridoId: string | null;
   categoria: string;
   productType: string | null;
   salesQty: number;
@@ -282,6 +291,7 @@ type RawRow = {
   fabricante: string | null;
   stockAtual: number | null;
   fornecedorOrigem: string | null;
+  fornecedorHabitualId: string | null;
   categoriaOrigem: string | null;
   subcategoriaOrigem: string | null;
   canonN1: string | null;
@@ -374,6 +384,7 @@ export async function generateOrderProposal(
       fab."nomeNormalizado"                       AS fabricante,
       pf."stockAtual"::float                      AS "stockAtual",
       pf."fornecedorOrigem"                       AS "fornecedorOrigem",
+      pf."fornecedorHabitualId"                   AS "fornecedorHabitualId",
       pf."categoriaOrigem"                        AS "categoriaOrigem",
       pf."subcategoriaOrigem"                     AS "subcategoriaOrigem",
       c1.nome                                     AS "canonN1",
@@ -485,6 +496,7 @@ export async function generateOrderProposal(
       designacao: r.designacao,
       fabricante: r.fabricante,
       fornecedor: r.fornecedorOrigem,
+      fornecedorSugeridoId: r.fornecedorHabitualId,
       categoria,
       productType: r.productType,
       salesQty: Math.round(salesQty * 1000) / 1000,

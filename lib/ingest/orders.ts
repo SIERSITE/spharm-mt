@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
+import { proximoNumeroDocumento } from "@/lib/documentos/numeracao";
 
 /**
  * lib/ingest/orders.ts
@@ -165,15 +166,28 @@ export function deriveFarmaciaIdempotencyKey(batchKey: string, farmaciaId: strin
 
 type Tx = Prisma.TransactionClient;
 
-type ResultadoCriacao = { listaEncomendaId: string; outboxId: string | null; reutilizado: boolean };
+type ResultadoCriacao = {
+  listaEncomendaId: string;
+  outboxId: string | null;
+  reutilizado: boolean;
+  /** Número de documento (ex.: "EN-000123") — não nulo quando `finalize=true` e a criação é nova. */
+  numero: string | null;
+};
 
 /**
  * Cria lista + linhas (+ outbox se finalize) DENTRO de uma transacção
  * já aberta. Se a chave de cliente já existir: mesmo pedido (hash igual,
  * mesmo utilizador/farmácia) devolve o existente; qualquer outra coisa
  * lança `IdempotencyConflictError`.
+ *
+ * Exportada (e não mais um detalhe interno do ficheiro) porque
+ * `lib/encomendas/finalizar-multi-fornecedor.ts` reutiliza-a, dentro da
+ * SUA própria `$transaction`, para criar cada um dos N documentos
+ * FINALIZADA (um por fornecedor) com a MESMA disciplina de numeração,
+ * idempotência e outbox que qualquer outro caminho de finalização —
+ * nunca um segundo motor de criação de `ListaEncomenda`.
  */
-async function criarListaNaTransaccao(
+export async function criarListaNaTransaccao(
   tx: Tx,
   tenantSlug: string,
   input: CreateOrderInput,
@@ -202,6 +216,7 @@ async function criarListaNaTransaccao(
         farmaciaId: true,
         criadoPorId: true,
         clientRequestHash: true,
+        numero: true,
         outbox: { select: { id: true } },
       },
     });
@@ -214,8 +229,28 @@ async function criarListaNaTransaccao(
           "Esta chave de idempotência já foi usada com um pedido diferente — o pedido actual não foi aplicado."
         );
       }
-      return { listaEncomendaId: existente.id, outboxId: existente.outbox?.id ?? null, reutilizado: true };
+      return {
+        listaEncomendaId: existente.id,
+        outboxId: existente.outbox?.id ?? null,
+        reutilizado: true,
+        numero: existente.numero,
+      };
     }
+  }
+
+  // Número de documento + snapshot da designação: SÓ atribuídos quando a
+  // lista nasce já FINALIZADA — nunca a um RASCUNHO (ver comentário no
+  // campo `numero`/`designacaoSnapshot` em prisma/schema.prisma). Ambos
+  // decididos ANTES do `create`, porque `designacaoSnapshot` precisa de
+  // ir dentro do próprio `create` das linhas (não há um 2.º write).
+  const numero = input.finalize ? await proximoNumeroDocumento(tx, "ENC") : null;
+  const designacaoPorProduto = new Map<string, string>();
+  if (input.finalize) {
+    const produtos = await tx.produto.findMany({
+      where: { id: { in: input.linhas.map((l) => l.produtoId) } },
+      select: { id: true, designacao: true },
+    });
+    for (const p of produtos) designacaoPorProduto.set(p.id, p.designacao);
   }
 
   const lista = await tx.listaEncomenda.create({
@@ -225,6 +260,7 @@ async function criarListaNaTransaccao(
       nome: input.nome,
       estado: input.finalize ? "FINALIZADA" : "RASCUNHO",
       estadoExport: "PENDENTE",
+      numero,
       ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
       ...(chaveCliente ? { clientIdempotencyKey: chaveCliente, clientRequestHash: hash } : {}),
       linhas: {
@@ -235,6 +271,7 @@ async function criarListaNaTransaccao(
           fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
           notas: l.notas ?? null,
           origem: l.origem ?? "PROPOSTA",
+          designacaoSnapshot: input.finalize ? designacaoPorProduto.get(l.produtoId) ?? null : null,
         })),
       },
     },
@@ -242,7 +279,7 @@ async function criarListaNaTransaccao(
   });
 
   if (!input.finalize) {
-    return { listaEncomendaId: lista.id, outboxId: null, reutilizado: false };
+    return { listaEncomendaId: lista.id, outboxId: null, reutilizado: false, numero: null };
   }
 
   const payload: FrozenOrderPayload = {
@@ -277,7 +314,7 @@ async function criarListaNaTransaccao(
     },
   });
 
-  return { listaEncomendaId: lista.id, outboxId: outbox.id, reutilizado: false };
+  return { listaEncomendaId: lista.id, outboxId: outbox.id, reutilizado: false, numero };
 }
 
 function exigirTenantELinhas(tenantSlug: string, nLinhas: number) {
@@ -322,10 +359,10 @@ export async function createEncomendaWithOutbox(
   tenantSlug: string,
   input: CreateOrderInput,
   modo: string = "farmacia"
-): Promise<{ listaEncomendaId: string; outboxId: string | null }> {
+): Promise<{ listaEncomendaId: string; outboxId: string | null; numero: string | null }> {
   exigirTenantELinhas(tenantSlug, input.linhas.length);
   const r = await transaccaoIdempotente(prisma, (tx) => criarListaNaTransaccao(tx, tenantSlug, input, modo));
-  return { listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId };
+  return { listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId, numero: r.numero };
 }
 
 export type ConsolidatedOrdersInput = {
@@ -351,7 +388,7 @@ export async function createConsolidatedOrdersWithOutbox(
   input: ConsolidatedOrdersInput
 ): Promise<{
   reutilizado: boolean;
-  listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null }>;
+  listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null; numero: string | null }>;
 }> {
   exigirTenantELinhas(tenantSlug, input.lotes.length);
   const ids = input.lotes.map((l) => l.farmaciaId);
@@ -359,7 +396,7 @@ export async function createConsolidatedOrdersWithOutbox(
   for (const l of input.lotes) exigirTenantELinhas(tenantSlug, l.linhas.length);
 
   return transaccaoIdempotente(prisma, async (tx) => {
-    const listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null }> = [];
+    const listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null; numero: string | null }> = [];
     let reutilizados = 0;
     for (const lote of input.lotes) {
       const r = await criarListaNaTransaccao(
@@ -378,7 +415,7 @@ export async function createConsolidatedOrdersWithOutbox(
         ids
       );
       if (r.reutilizado) reutilizados++;
-      listas.push({ farmaciaId: lote.farmaciaId, listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId });
+      listas.push({ farmaciaId: lote.farmaciaId, listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId, numero: r.numero });
     }
     // Lote misto (parte já existia, parte nova) nunca é aceite como sucesso:
     // seria um conjunto parcial de uma operação anterior.
@@ -409,7 +446,7 @@ export async function finalizeAndQueueOrder(
    * (compatibilidade com chamadores que não gerem versão).
    */
   versaoEsperada?: number
-): Promise<{ outboxId: string }> {
+): Promise<{ outboxId: string; numero: string | null }> {
   if (!tenantSlug) {
     throw new Error("[ingest/orders] tenantSlug em falta.");
   }
@@ -423,7 +460,7 @@ export async function finalizeAndQueueOrder(
     if (lista.outbox) {
       // Já tem outbox. Se a lista já tinha sido finalizada antes, isto
       // é um replay idempotente; devolvemos o outbox existente.
-      return { outboxId: lista.outbox.id };
+      return { outboxId: lista.outbox.id, numero: lista.numero };
     }
 
     if (versaoEsperada !== undefined && lista.versao !== versaoEsperada) {
@@ -435,9 +472,29 @@ export async function finalizeAndQueueOrder(
       throw new Error("[ingest/orders] lista sem linhas não é exportável.");
     }
 
+    // Número de documento + snapshot da designação: atribuídos SÓ agora,
+    // no momento exacto em que a lista deixa de ser um RASCUNHO editável
+    // — mesma disciplina de `criarListaNaTransaccao` (finalize directo) e
+    // de `criarTransferenciaComLinhas`/`finalizarTransferencia`. Antes
+    // desta revisão, este caminho (rascunho guardado e finalizado depois)
+    // era o único que NUNCA atribuía número — `numero` ficava `null` para
+    // sempre em qualquer encomenda finalizada por aqui.
+    const numero = await proximoNumeroDocumento(tx, "ENC");
+    const produtos = await tx.produto.findMany({
+      where: { id: { in: lista.linhas.map((l) => l.produtoId) } },
+      select: { id: true, designacao: true },
+    });
+    const designacaoPorProduto = new Map(produtos.map((p) => [p.id, p.designacao]));
+    for (const l of lista.linhas) {
+      await tx.linhaEncomenda.update({
+        where: { id: l.id },
+        data: { designacaoSnapshot: designacaoPorProduto.get(l.produtoId) ?? null },
+      });
+    }
+
     await tx.listaEncomenda.update({
       where: { id: lista.id },
-      data: { estado: "FINALIZADA", estadoExport: "PENDENTE", versao: { increment: 1 } },
+      data: { estado: "FINALIZADA", estadoExport: "PENDENTE", versao: { increment: 1 }, numero },
     });
 
     const payload: FrozenOrderPayload = {
@@ -472,6 +529,6 @@ export async function finalizeAndQueueOrder(
       },
     });
 
-    return { outboxId: outbox.id };
+    return { outboxId: outbox.id, numero };
   });
 }

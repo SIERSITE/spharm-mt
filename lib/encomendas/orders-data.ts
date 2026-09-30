@@ -29,6 +29,14 @@ export type OrderRow = {
   spharmDocumentId: string | null;
   exportedAt: Date | null;
   /**
+   * Aponta para a `ListaEncomenda` PREPARADA que originou este documento
+   * numa finalização por fornecedor — `null` para qualquer encomenda
+   * "normal". Ver `lib/encomendas/finalizar-multi-fornecedor.ts`.
+   */
+  loteOrigemId: string | null;
+  /** Só > 0 numa `ListaEncomenda` PREPARADA — quantos documentos ela gerou. */
+  documentosGeradosCount: number;
+  /**
    * Estimativa de custo — SUM(quantidadeAjustada × ProdutoFarmacia.puc)
    * das linhas com ambos os valores disponíveis. `null` quando NENHUMA
    * linha tinha PUC conhecido (nunca finge um valor a partir de zero
@@ -111,7 +119,7 @@ export async function loadOrderListData(
       include: {
         farmacia: { select: { nome: true } },
         criadoPor: { select: { nome: true } },
-        _count: { select: { linhas: true } },
+        _count: { select: { linhas: true, documentosGerados: true } },
         outbox: {
           select: { id: true, spharmDocumentId: true, exportedAt: true },
         },
@@ -178,6 +186,8 @@ export async function loadOrderListData(
       outboxId: l.outbox?.id ?? null,
       spharmDocumentId: l.outbox?.spharmDocumentId ?? null,
       exportedAt: l.outbox?.exportedAt ?? null,
+      loteOrigemId: l.loteOrigemId,
+      documentosGeradosCount: l._count.documentosGerados,
       valorEstimado,
     };
   });

@@ -7,6 +7,12 @@ import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import { canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { createEncomendaWithOutbox, finalizeAndQueueOrder } from "@/lib/ingest/orders";
+import {
+  finalizarEncomendaMultiFornecedor,
+  deveUsarFinalizacaoMultiFornecedor,
+  LinhasSemFornecedorError,
+  type DocumentoGerado,
+} from "@/lib/encomendas/finalizar-multi-fornecedor";
 import { logAudit } from "@/lib/audit";
 import { podeEliminarListaEncomenda } from "@/lib/encomendas/eliminacao";
 import { podeAnularListaEncomenda } from "@/lib/encomendas/anulacao";
@@ -15,15 +21,46 @@ type ActionResult =
   | { ok: true; outboxId?: string }
   | { ok: false; error: string };
 
+export type FinalizeOrderResult =
+  | { ok: true; tipo: "unico"; outboxId: string }
+  | { ok: true; tipo: "multi_fornecedor"; documentos: DocumentoGerado[]; resumoTexto: string }
+  | { ok: false; error: string };
+
 /**
- * Finaliza um rascunho existente — cria o OrderOutbox na mesma transacção.
+ * Finaliza um rascunho existente — cria o OrderOutbox na mesma transacção,
+ * OU (linhas com mais de um fornecedor distinto) divide em N documentos
+ * por fornecedor — ver `finalizeFromDetailAction` em
+ * `app/encomendas/[id]/actions.ts` para o mesmo desenho de routing,
+ * documentado lá em detalhe.
  */
-export async function finalizeOrderAction(listaEncomendaId: string): Promise<ActionResult> {
+export async function finalizeOrderAction(listaEncomendaId: string): Promise<FinalizeOrderResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
   try {
+    const linhas = await prisma.linhaEncomenda.findMany({
+      where: { listaEncomendaId },
+      select: { fornecedorSugeridoId: true },
+    });
+
+    if (deveUsarFinalizacaoMultiFornecedor(linhas)) {
+      const resultado = await finalizarEncomendaMultiFornecedor(prisma, tenantSlug, {
+        listaEncomendaId,
+        batchKey: listaEncomendaId,
+      });
+      await logAudit({
+        actorId: session.sub,
+        action: "order.finalized_multi_fornecedor",
+        entity: "ListaEncomenda",
+        entityId: listaEncomendaId,
+        meta: { reutilizado: resultado.reutilizado, documentos: resultado.documentos.map((d) => d.listaEncomendaId) },
+      });
+      revalidatePath("/encomendas");
+      revalidatePath("/configuracoes/integracao");
+      return { ok: true, tipo: "multi_fornecedor", documentos: resultado.documentos, resumoTexto: resultado.resumoTexto };
+    }
+
     const result = await finalizeAndQueueOrder(prisma, tenantSlug, listaEncomendaId);
     await logAudit({
       actorId: session.sub,
@@ -34,8 +71,11 @@ export async function finalizeOrderAction(listaEncomendaId: string): Promise<Act
     });
     revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
-    return { ok: true, outboxId: result.outboxId };
+    return { ok: true, tipo: "unico", outboxId: result.outboxId };
   } catch (err) {
+    if (err instanceof LinhasSemFornecedorError) {
+      return { ok: false, error: err.message };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
 }
