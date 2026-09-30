@@ -182,3 +182,22 @@ export function deriveGrupoDraftIdempotencyKey(batchKey: string, farmaciaId: str
 export function deriveGrupoFinalizacaoBatchKey(batchKey: string, farmaciaId: string): string {
   return createHash("sha256").update(`${batchKey}:grupo-fin:${farmaciaId}`).digest("hex");
 }
+
+/**
+ * Chave de idempotência (batchKey) da divisão por fornecedor de UM
+ * rascunho de CONSOLIDAÇÃO (um por farmácia, já persistente — ao
+ * contrário do rascunho transitório do modo grupo, este é o rascunho
+ * real que o utilizador esteve a editar, com autosave próprio). Passada
+ * como `batchKey` a `finalizarNaTransaccao`
+ * (lib/encomendas/finalizar-multi-fornecedor.ts, exportada
+ * precisamente para este reaproveitamento) — como esta chave já é
+ * namespaced por farmácia, as chaves dos documentos filhos que essa
+ * função deriva internamente (`deriveFornecedorIdempotencyKey`) saem
+ * automaticamente únicas por (farmácia, fornecedor), sem essa função
+ * saber nada sobre farmácias. Salt distinto de
+ * `deriveGrupoFinalizacaoBatchKey` — modos diferentes, nunca a mesma
+ * chave para a mesma farmácia+batchKey por coincidência de propósito.
+ */
+export function deriveConsolidacaoFinalizacaoBatchKey(batchKey: string, farmaciaId: string): string {
+  return createHash("sha256").update(`${batchKey}:consolidacao-fin:${farmaciaId}`).digest("hex");
+}

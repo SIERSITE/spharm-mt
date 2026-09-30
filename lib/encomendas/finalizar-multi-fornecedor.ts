@@ -89,8 +89,14 @@ export class LinhasSemFornecedorError extends Error {
   }
 }
 
-/** Lançado quando outra chamada concorrente já mudou o rascunho entretanto — apanhado internamente e retentado. */
-class PreparacaoConcorrenteError extends Error {
+/**
+ * Lançado quando outra chamada concorrente já mudou o rascunho entretanto
+ * — apanhado e retentado pelo caller (aqui mesmo, em
+ * `finalizarEncomendaMultiFornecedor`, e por
+ * `lib/encomendas/consolidacao-multi-fornecedor.ts`, que reutiliza
+ * `finalizarNaTransaccao` para várias farmácias na MESMA transacção).
+ */
+export class PreparacaoConcorrenteError extends Error {
   constructor() {
     super("[finalizar-multi-fornecedor] outra operação concorrente alterou o rascunho — a repetir.");
     this.name = "PreparacaoConcorrenteError";
@@ -159,7 +165,23 @@ async function replayDocumentosGerados(tx: Tx, loteOrigemId: string): Promise<Do
   }));
 }
 
-async function finalizarNaTransaccao(
+/**
+ * Divide UM rascunho (uma `ListaEncomenda` RASCUNHO) por fornecedor,
+ * dentro da transacção `tx` já aberta pelo CALLER — nunca abre a sua
+ * própria transacção (isso é `finalizarEncomendaMultiFornecedor`, abaixo,
+ * para o caso de UM rascunho isolado).
+ *
+ * Exportada porque `lib/encomendas/consolidacao-multi-fornecedor.ts`
+ * reutiliza-a directamente, chamando-a UMA VEZ POR FARMÁCIA dentro de UMA
+ * ÚNICA transacção que cobre a consolidação inteira — nunca uma segunda
+ * implementação da divisão por fornecedor. `input.batchKey` já vem
+ * namespaced por farmácia nesse caso (ver
+ * `deriveConsolidacaoFarmaciaBatchKey`), por isso as chaves de
+ * idempotência dos documentos filhos (`deriveFornecedorIdempotencyKey`,
+ * chamada aqui dentro sem alterações) saem naturalmente únicas por
+ * (farmácia, fornecedor) sem esta função saber nada sobre farmácias.
+ */
+export async function finalizarNaTransaccao(
   tx: Tx,
   tenantSlug: string,
   input: FinalizarMultiFornecedorInput
