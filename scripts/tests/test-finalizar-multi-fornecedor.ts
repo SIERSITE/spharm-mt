@@ -14,6 +14,8 @@ import {
   contarFornecedoresDistintos,
   deveUsarFinalizacaoMultiFornecedor,
   deriveFornecedorIdempotencyKey,
+  deriveGrupoDraftIdempotencyKey,
+  deriveGrupoFinalizacaoBatchKey,
   formatarResumoFinalizacaoMultiFornecedor,
   validarLinhasParaFinalizacaoMultiFornecedor,
 } from "../../lib/encomendas/finalizar-multi-fornecedor-regras";
@@ -173,6 +175,37 @@ console.log("\n=== deriveFornecedorIdempotencyKey ===");
   check(k1 !== k3, "fornecedores diferentes sob o mesmo batchKey produzem chaves diferentes");
   check(k1 !== k4, "batchKeys diferentes produzem chaves diferentes para o mesmo fornecedor");
   check(/^[0-9a-f]{64}$/.test(k1), "formato SHA-256 hex (64 caracteres)");
+}
+
+console.log("\n=== deriveGrupoDraftIdempotencyKey / deriveGrupoFinalizacaoBatchKey ===");
+{
+  const batch = "grupo-batch-1";
+  const fA = "farmacia-a";
+  const fB = "farmacia-b";
+
+  const draftA1 = deriveGrupoDraftIdempotencyKey(batch, fA);
+  const draftA2 = deriveGrupoDraftIdempotencyKey(batch, fA);
+  const draftB = deriveGrupoDraftIdempotencyKey(batch, fB);
+  check(draftA1 === draftA2, "deriveGrupoDraftIdempotencyKey é determinística (mesmo batchKey+farmácia)");
+  check(draftA1 !== draftB, "farmácias diferentes sob o mesmo batchKey produzem chaves de rascunho diferentes");
+  check(/^[0-9a-f]{64}$/.test(draftA1), "deriveGrupoDraftIdempotencyKey: formato SHA-256 hex (64 caracteres)");
+
+  const finA1 = deriveGrupoFinalizacaoBatchKey(batch, fA);
+  const finA2 = deriveGrupoFinalizacaoBatchKey(batch, fA);
+  const finB = deriveGrupoFinalizacaoBatchKey(batch, fB);
+  check(finA1 === finA2, "deriveGrupoFinalizacaoBatchKey é determinística (mesmo batchKey+farmácia)");
+  check(finA1 !== finB, "farmácias diferentes sob o mesmo batchKey produzem batchKeys de finalização diferentes");
+  check(/^[0-9a-f]{64}$/.test(finA1), "deriveGrupoFinalizacaoBatchKey: formato SHA-256 hex (64 caracteres)");
+
+  // Nunca a MESMA chave para os dois papéis (criar o rascunho vs. o
+  // batchKey da sua divisão) — salts distintos, mesmo com o mesmo
+  // batchKey+farmácia de entrada. Ver comentário no módulo de regras.
+  check(draftA1 !== finA1, "o salt distingue os dois papéis — chave de rascunho ≠ batchKey de finalização, mesma entrada");
+
+  // E nenhuma das duas colide com deriveFornecedorIdempotencyKey (que
+  // não usa salt nenhum) para a mesma combinação de strings.
+  const chaveSemSalt = deriveFornecedorIdempotencyKey(batch, fA);
+  check(chaveSemSalt !== draftA1 && chaveSemSalt !== finA1, "nenhuma das chaves de grupo colide com deriveFornecedorIdempotencyKey para a mesma entrada");
 }
 
 console.log(`\n${pass} ok, ${fail} falhas`);
