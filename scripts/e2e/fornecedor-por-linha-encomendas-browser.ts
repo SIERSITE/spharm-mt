@@ -284,35 +284,29 @@ async function passo1e2(page: Page, tenant: string, seedData: SeedSilveiraResult
   check(nLinhas >= 12, `Passo 1 (${tenant}): a proposta gerou pelo menos 12 linhas`, `obtido=${nLinhas}`);
 
   console.log(`\nPasso 2 (${tenant}) · sugestão inicial de fornecedor por linha`);
-  // ── BUG REAL ENCONTRADO (não corrigido aqui — ver relatório final) ─────
+  // ── BUG REAL que existia aqui, ENCONTRADO nesta ronda e CORRIGIDO numa
+  // ronda de correcção seguinte (ver relatório final) ─────────────────────
   //
-  // `buildProposalLine` (components/encomendas/order-create-client.tsx,
-  // ~linha 1460) cria cada `Line` gerada por proposta com
-  // `fornecedorSugeridoId: r.fornecedorSugeridoId` (correcto, vem de
-  // `ProdutoFarmacia.fornecedorHabitualId`) MAS `fornecedorSugeridoNome:
-  // null`, SEMPRE — nunca preenchido a partir de `fornecedores`/da própria
-  // proposta. `SearchableSelect` (components/ui/searchable-select.tsx)
-  // recebe esse `null` como `selectedLabel` e, como `selectedLabel !==
-  // undefined` (é `null`, não `undefined`), usa-o literalmente em vez de
-  // cair no fallback `items.find(i => i.id === value)?.label` — por isso
-  // TODA linha recém-gerada por proposta mostra o texto "— Sem
-  // fornecedor —" no botão fechado, mesmo quando `fornecedorSugeridoId`
-  // está correctamente preenchido (o valor real, usado na finalização, é
-  // o correcto — só o RÓTULO visível está errado). A única forma visível
-  // de distinguir uma linha com valor de uma sem é o botão "Limpar
-  // selecção" (✕), que só aparece quando `value != null` — é o que se usa
-  // abaixo, em vez do texto do botão (que este ensaio não pode assumir
-  // como correcto). Confirmado por leitura de código, não é suposição: o
-  // problema desaparece depois de um refresh real (Passo 8), porque aí a
-  // linha vem de `loadOrderDetail` (lib/encomendas/order-detail.ts), que
-  // faz o JOIN a `Fornecedor.nome` correctamente.
+  // `buildProposalLine` (components/encomendas/order-create-client.tsx)
+  // criava cada `Line` gerada por proposta com `fornecedorSugeridoId`
+  // correcto mas `fornecedorSugeridoNome: null` SEMPRE; `SearchableSelect`
+  // tratava esse `null` literalmente como "mostra vazio" em vez de cair no
+  // fallback `items.find(...)`, por isso toda linha recém-gerada por
+  // proposta mostrava "— Sem fornecedor —" mesmo com um valor real por
+  // trás. Corrigido em dois sítios (defesa em profundidade): (1)
+  // `buildProposalLine` agora resolve o nome a partir de `fornecedores` no
+  // momento da criação da linha; (2) `SearchableSelect` agora trata
+  // `selectedLabel == null` (undefined OU null) da mesma forma — cai
+  // sempre no fallback por `items`. O texto visível do botão já é a
+  // asserção correcta abaixo (antes desta correcção só o botão "Limpar
+  // selecção" (✕) era fiável).
   const linha1 = page.locator("tbody tr").filter({ hasText: "FL E2E Produto 01" });
-  check(await linha1.getByRole("button", { name: "Limpar selecção" }).isVisible(), `Passo 2 (${tenant}): linha 1 (fornecedorHabitual=Alfa) TEM um fornecedor sugerido já seleccionado (botão ✕ presente — ver nota sobre o bug do rótulo acima)`);
+  check(await botaoComTexto(linha1, /Fornecedor Alfa/).isVisible(), `Passo 2 (${tenant}): linha 1 (fornecedorHabitual=Alfa) mostra "Fornecedor Alfa" no botão (rótulo correcto, bug corrigido)`);
   const linha6 = page.locator("tbody tr").filter({ hasText: "FL E2E Produto 06" });
-  check(await linha6.getByRole("button", { name: "Limpar selecção" }).isVisible(), `Passo 2 (${tenant}): linha 6 (fornecedorHabitual=Beta) TEM um fornecedor sugerido já seleccionado (botão ✕ presente)`);
+  check(await botaoComTexto(linha6, /Fornecedor Beta/).isVisible(), `Passo 2 (${tenant}): linha 6 (fornecedorHabitual=Beta) mostra "Fornecedor Beta" no botão (rótulo correcto, bug corrigido)`);
   const linha10 = page.locator("tbody tr").filter({ hasText: "FL E2E Produto 10" });
   check((await linha10.getByRole("button", { name: "Limpar selecção" }).count()) === 0, `Passo 2 (${tenant}): linha 10 (sem fornecedorHabitual) não tem nenhum fornecedor seleccionado (sem botão ✕)`);
-  check(await botaoComTexto(linha10, /Sem fornecedor/i).isVisible(), `Passo 2 (${tenant}): linha 10 mostra "— Sem fornecedor —" (aqui correctamente, ao contrário das linhas 1/6 — ver nota do bug)`);
+  check(await botaoComTexto(linha10, /Sem fornecedor/i).isVisible(), `Passo 2 (${tenant}): linha 10 mostra "— Sem fornecedor —" (correctamente, sem sugestão)`);
 
   // Encontra o draftId real através do URL (?rascunho=<id>), atribuído
   // eagerly assim que a primeira alteração persistir — aqui força-se logo
@@ -416,47 +410,50 @@ async function passo8(page: Page, tenant: string): Promise<string> {
 
 // ─── Passo 9 — finalizar ─────────────────────────────────────────────────────
 //
-// ── BUG REAL ENCONTRADO em `/encomendas/nova?rascunho=<id>` (não corrigido
-// aqui — ver relatório final; ficheiros fora de âmbito) ──────────────────
+// ── BUG REAL que existia aqui, ENCONTRADO nesta ronda e CORRIGIDO numa
+// ronda de correcção seguinte (ver relatório final) ───────────────────────
 //
 // `lib/encomendas/use-autosave-encomenda.ts`: `versaoRef = useRef(opts.
-// versaoInicial)` (linha ~108) só recebe `opts.versaoInicial` na PRIMEIRA
-// renderização do hook — `useRef` ignora o argumento em renderizações
-// seguintes, e não há NENHUM `useEffect` no ficheiro a ressincronizar
-// `versaoRef.current` quando `opts.versaoInicial` muda depois. Em
-// `components/encomendas/order-create-client.tsx`, a restauração de um
-// rascunho via `?rascunho=<id>` (linha ~1536, o `useEffect` que chama
-// `carregarRascunhoNovaEncomendaAction`) só conhece a versão real
-// DEPOIS de montar — chama `setDraftVersaoInicial(d.versao)`
-// ASSINCRONAMENTE, numa renderização POSTERIOR à primeira (que já criou o
-// hook com `versaoInicial=0`, o valor por omissão de
-// `useState(0)`). Resultado: depois de QUALQUER refresh real de
-// `/encomendas/nova?rascunho=<id>` cujo rascunho já tenha sido gravado
-// mais do que 0 vezes (exactamente o caso do Passo 8 acima, depois dos
-// Passos 3/4/7), `versaoRef.current` fica preso em `0` PARA SEMPRE nessa
-// sessão — todo o autosave/finalização seguinte envia `versaoEsperada: 0`
-// contra uma BD que já está, por exemplo, na versão 3, e o servidor
-// rejeita correctamente com "Esta encomenda foi alterada por outra sessão
-// entretanto" — um FALSO conflito, porque NINGUÉM mais tocou no rascunho.
-// Confirmado empiricamente: nem esperar o autosave assentar nem recarregar
-// e repetir resolve (o mesmo mount stub reproduz-se sempre); só a página
-// `/encomendas/[id]` escapa, porque essa lê `detail.versao` SINCRONAMENTE
-// a partir de props vindas do Server Component (nunca por um `useEffect`
-// assíncrono) — por isso o hook aí nasce já com o valor certo.
+// versaoInicial)` só recebia `opts.versaoInicial` na PRIMEIRA renderização
+// do hook — `useRef` ignora o argumento em renderizações seguintes, e não
+// havia nenhum `useEffect` a ressincronizar `versaoRef.current` quando
+// `opts.versaoInicial` mudava depois. Em `order-create-client.tsx`, a
+// restauração de um rascunho via `?rascunho=<id>` só conhece a versão real
+// DEPOIS de montar (`setDraftVersaoInicial(d.versao)` assíncrono, numa
+// renderização posterior à que já criou o hook com `versaoInicial=0`).
+// Resultado: depois de QUALQUER refresh real de `/encomendas/nova?
+// rascunho=<id>` cujo rascunho já tivesse sido gravado mais do que 0
+// vezes (exactamente o caso do Passo 8 acima), `versaoRef.current` ficava
+// preso em `0` PARA SEMPRE nessa sessão — toda a finalização seguinte
+// enviava `versaoEsperada: 0` contra uma BD já noutra versão, e o servidor
+// rejeitava com um FALSO "conflito de versão".
 //
-// Para não ficar bloqueado sem poder cobrir os Passos 9-16 (que dependem
-// de uma finalização bem sucedida), este ensaio usa exactamente essa
-// segunda rota real e válida — `/encomendas/{id}` — para finalizar, em
-// vez de ficar preso em `/encomendas/nova?rascunho=`. Não é um workaround
-// silencioso do bug: o bug fica documentado aqui E no relatório final, e
-// nenhum ficheiro de produção foi tocado.
+// Corrigido em `use-autosave-encomenda.ts` com um `useEffect` que
+// ressincroniza `versaoRef.current` sempre que a IDENTIDADE do rascunho
+// (`listaEncomendaId`) muda — exactamente o momento em que
+// `versaoInicial` chega tardiamente com o valor real. Este passo finaliza
+// agora DIRECTAMENTE em `/encomendas/nova?rascunho=<id>` (a mesma página
+// onde o bug se manifestava, depois do MESMO refresh do Passo 8) — já não
+// precisa de rodear pelo caminho `/encomendas/{id}`.
 async function passo9(page: Page, tenant: string, draftId: string) {
-  console.log(`\nPasso 9 (${tenant}) · finalizar (via /encomendas/{id} — ver nota grande no código sobre o bug de versão em /encomendas/nova)`);
-  await page.goto(`${baseFor(tenant)}/encomendas/${draftId}`, { waitUntil: "networkidle" });
+  console.log(`\nPasso 9 (${tenant}) · finalizar directamente em /encomendas/nova?rascunho=<id> (prova da correcção do bug de versão)`);
+  await page.goto(`${baseFor(tenant)}/encomendas/nova?rascunho=${draftId}`, { waitUntil: "networkidle" });
+  await page.locator("tbody tr").first().waitFor({ timeout: 15000 });
   await esperarAutosave(page).catch(() => {});
   await page.getByRole("button", { name: /Finalizar e enviar para fila/ }).click();
-  await page.getByText(/\d+ encomendas? criadas?/).waitFor({ timeout: 20000 });
-  check(true, `Passo 9 (${tenant}): a finalização multi-fornecedor devolveu um resumo com sucesso`);
+  const semConflito = await page
+    .getByText(/alterada por outra sessão/)
+    .waitFor({ timeout: 3000 })
+    .then(() => false)
+    .catch(() => true);
+  check(semConflito, `Passo 9 (${tenant}): finalizar em /encomendas/nova?rascunho= NÃO dispara o falso "conflito de versão" (bug corrigido)`);
+  // `/encomendas/nova` substitui o ecrã inteiro por `PainelResultadoFinalizacao`
+  // (título "Encomenda finalizada" + "N encomenda(s)") em vez do flash de
+  // texto simples que `/encomendas/{id}` usa ("N encomendas criadas\n...",
+  // via `resumoTexto`) — são dois mecanismos de apresentação distintos e
+  // igualmente correctos para o mesmo resultado, não um bug.
+  await page.getByRole("heading", { name: "Encomenda finalizada" }).waitFor({ timeout: 20000 });
+  check(true, `Passo 9 (${tenant}): a finalização multi-fornecedor devolveu o painel de resultado com sucesso`);
 }
 
 // ─── Passo 10 — 3 documentos, numero reais, PDFs isolados por fornecedor ───

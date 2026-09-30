@@ -106,6 +106,26 @@ export function useAutosaveEncomenda(opts: {
 
   const [estado, setEstado] = useState<EstadoAutosave>({ tipo: "limpo" });
   const versaoRef = useRef(opts.versaoInicial);
+  /**
+   * Ressincroniza `versaoRef` quando a IDENTIDADE do rascunho muda —
+   * nunca noutro render. `useRef(opts.versaoInicial)` só capta o valor no
+   * PRIMEIRO render deste hook; num fluxo em que `listaEncomendaId`
+   * nasce `null` e só recebe o id real (com `versaoInicial` a chegar
+   * junto, ex.: `/encomendas/nova?rascunho=<id>` a restaurar
+   * assincronamente) DEPOIS da montagem, o ref ficava preso na versão
+   * inicial (tipicamente 0) para sempre — todo o autosave/finalização
+   * seguinte era rejeitado com um falso "conflito de versão", mesmo sem
+   * qualquer edição concorrente real. `/encomendas/[id]` não sofre disto
+   * (a versão chega sincronamente via props do servidor, nunca muda de
+   * identidade depois de montado).
+   */
+  const ultimoListaIdRef = useRef(opts.listaEncomendaId);
+  useEffect(() => {
+    if (ultimoListaIdRef.current !== opts.listaEncomendaId) {
+      ultimoListaIdRef.current = opts.listaEncomendaId;
+      versaoRef.current = opts.versaoInicial;
+    }
+  }, [opts.listaEncomendaId, opts.versaoInicial]);
   const pendentesRef = useRef<Map<string, AutosaveLinhaInput>>(new Map());
   /** produtoIds marcados para remoção no próximo flush — ver `marcarRemovido`. */
   const pendentesRemocaoRef = useRef<Set<string>>(new Set());

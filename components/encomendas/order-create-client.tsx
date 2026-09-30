@@ -1457,7 +1457,10 @@ export function OrderCreateClient({
     return {
       key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
       fabricante: r.fabricante, fornecedor: r.fornecedor,
-      fornecedorSugeridoId: r.fornecedorSugeridoId, fornecedorSugeridoNome: null,
+      fornecedorSugeridoId: r.fornecedorSugeridoId,
+      fornecedorSugeridoNome: r.fornecedorSugeridoId
+        ? (fornecedores.find((f) => f.id === r.fornecedorSugeridoId)?.nome ?? null)
+        : null,
       farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
       salesQty: r.salesQty, avgDailySales: r.avgDailySales,
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,

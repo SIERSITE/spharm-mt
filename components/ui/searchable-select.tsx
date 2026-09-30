@@ -68,8 +68,15 @@ type Props = {
   /**
    * Rótulo do valor seleccionado a mostrar quando fechado, mesmo que
    * `value` não esteja (já não esteja, ou nunca tenha estado) presente
-   * em `items` — ex.: uma lista truncada/paginada no chamador. Quando
-   * omitido, cai para `items.find(i => i.id === value)?.label`.
+   * em `items` — ex.: uma lista truncada/paginada no chamador. Omitido
+   * OU `null` caem ambos para `items.find(i => i.id === value)?.label`
+   * — um chamador que ainda não sabe o nome (ex.: uma linha de proposta
+   * acabada de gerar, com `fornecedorSugeridoId` já resolvido mas o nome
+   * só disponível via `items`) passa `null` com frequência; tratar isso
+   * como "mostra vazio à força" em vez de "ainda não sei, resolve
+   * sozinho" já causou uma linha a mostrar "Sem fornecedor" com um
+   * `value` real por trás — nunca dar a um `null` o poder de esconder um
+   * valor real que os `items` sabiam resolver.
    */
   selectedLabel?: string | null;
   disabled?: boolean;
@@ -107,7 +114,7 @@ export function SearchableSelect({
   const optionRefs = useRef<Array<HTMLLIElement | null>>([]);
 
   const resolvedSelectedLabel =
-    selectedLabel !== undefined
+    selectedLabel != null
       ? selectedLabel
       : value != null
         ? (items.find((i) => i.id === value)?.label ?? null)
