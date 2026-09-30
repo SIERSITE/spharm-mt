@@ -201,3 +201,45 @@ export function deriveGrupoFinalizacaoBatchKey(batchKey: string, farmaciaId: str
 export function deriveConsolidacaoFinalizacaoBatchKey(batchKey: string, farmaciaId: string): string {
   return createHash("sha256").update(`${batchKey}:consolidacao-fin:${farmaciaId}`).digest("hex");
 }
+
+/**
+ * ── Preview (pré-finalização) da consolidação por fornecedor ──────────
+ *
+ * Formato EXACTO pedido para a pré-visualização mostrada antes de um
+ * "Criar encomendas" irreversível:
+ *
+ *   Farmácia A
+ *     Fornecedor X — 120 linhas
+ *     Fornecedor Y — 35 linhas
+ *
+ *   Farmácia B
+ *     Fornecedor X — 80 linhas
+ *     Fornecedor Z — 22 linhas
+ *
+ *   Total: 4 encomendas
+ *
+ * É o MESMO formato que `finalizarConsolidacaoMultiFornecedor`
+ * (lib/encomendas/consolidacao-multi-fornecedor.ts) produz em
+ * `resumoTexto` depois de escrever — esta função pura permite calcular o
+ * MESMO texto ANTES de escrever nada (client-side, a partir do estado em
+ * memória do ecrã), sem chamar o servidor. Deliberadamente uma função
+ * própria, não reaproveitada daquele ficheiro (que é `server-only` e cuja
+ * lógica interna não deve ser tocada) — pequena, pura, e simétrica.
+ */
+export function formatarResumoConsolidacaoPreview(
+  porFarmacia: readonly { farmaciaNome: string; porFornecedor: readonly { fornecedorNome: string; nLinhas: number }[] }[]
+): string {
+  const linhas: string[] = [];
+  let total = 0;
+  for (const f of porFarmacia) {
+    if (f.porFornecedor.length === 0) continue;
+    linhas.push(f.farmaciaNome);
+    for (const d of f.porFornecedor) {
+      linhas.push(`  ${d.fornecedorNome} — ${d.nLinhas} linha${d.nLinhas === 1 ? "" : "s"}`);
+      total++;
+    }
+    linhas.push("");
+  }
+  linhas.push(`Total: ${total} encomenda${total === 1 ? "" : "s"}`);
+  return linhas.join("\n");
+}

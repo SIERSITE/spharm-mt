@@ -9,15 +9,27 @@ import { LEGACY_TENANT } from "@/lib/auth";
 import {
   criarConsolidacaoServico,
   obterEstadoConsolidacaoServico,
+  ensureRascunhoConsolidacaoFarmaciaServico,
+  obterRascunhosConsolidacaoServico,
+  autorizarConsolidacao,
   type CriarConsolidacaoInput,
   type CriarConsolidacaoResultado,
   type EstadoConsolidacaoServidor,
+  type EnsureRascunhoConsolidacaoFarmaciaResultado,
+  type ObterRascunhosConsolidacaoResultado,
 } from "@/lib/encomendas/consolidacao-servico";
 import {
   createEncomendaWithOutbox,
+  deriveFarmaciaIdempotencyKey,
   IdempotencyConflictError,
   type OrderLineInput,
 } from "@/lib/ingest/orders";
+import {
+  finalizarConsolidacaoMultiFornecedor,
+  LinhasSemFornecedorError as LinhasSemFornecedorErrorConsolidacao,
+  type DocumentoConsolidacaoGerado,
+} from "@/lib/encomendas/consolidacao-multi-fornecedor";
+import { ConflitoVersaoError } from "@/lib/encomendas/autosave";
 import { loadOrderDetail } from "@/lib/encomendas/order-detail";
 import { loadTransferenciasDetail } from "@/lib/transferencias/transferencia-detail";
 import { buildEncomendaDocumentoReport } from "@/lib/reporting/adapters/encomenda-documento";
@@ -203,6 +215,189 @@ export async function obterEstadoConsolidacaoPorChaveAction(input: {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
   return obterEstadoConsolidacaoServico({ prisma, sessao: session }, input);
+}
+
+// ─── Consolidação · fornecedor por linha (rascunho real por farmácia) ───
+//
+// (2026-09-30) Ao contrário do lote atómico acima (`createConsolidatedOrdersAction`
+// — continua a existir, inalterada, para quem precisar do caminho simples
+// sem fornecedor por linha), estas três acções servem o novo fluxo com
+// fornecedor por linha: um rascunho REAL e persistente por farmácia
+// (autosave próprio, uma instância por farmácia no cliente — ver
+// `useAutosaveEncomenda`), recuperável por `batchKey`, finalizado
+// agrupando PRIMEIRO por farmácia, DEPOIS por fornecedor.
+
+export type EnsureRascunhoConsolidacaoInput = {
+  batchKey: string;
+  farmaciaId: string;
+  nome: string;
+  linhas: OrderLineInput[];
+  contexto?: string | null;
+};
+
+/**
+ * Cria (ou obtém, idempotente) o rascunho REAL de UMA farmácia da
+ * consolidação — chamada independentemente por farmácia, no primeiro
+ * toque significativo dessa farmácia (mesmo desenho de `ensureDraft` em
+ * `order-create-client.tsx`, um nível acima: uma farmácia de cada vez,
+ * nunca uma criação atómica das N farmácias).
+ */
+export async function ensureRascunhoConsolidacaoAction(
+  input: EnsureRascunhoConsolidacaoInput
+): Promise<EnsureRascunhoConsolidacaoFarmaciaResultado> {
+  const session = await requirePermission("reports.write");
+  const prisma = await getPrisma();
+  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+  return ensureRascunhoConsolidacaoFarmaciaServico(
+    {
+      prisma,
+      tenantSlug,
+      sessao: session,
+      auditar: (e) => logAudit({ actorId: session.sub, action: e.action, entity: "ListaEncomenda", entityId: e.entityId, meta: e.meta }),
+    },
+    input
+  );
+}
+
+/**
+ * Recuperação de uma consolidação por `batchKey` — devolve o conteúdo
+ * COMPLETO (produto, quantidade, fornecedor DECIDIDO, notas, origem) do
+ * rascunho de cada farmácia pedida, ou `null` por farmácia ainda sem
+ * rascunho. Chamada ao montar `/encomendas/nova?consolidacao=<batchKey>`
+ * (refresh, navegação de volta, ou o mesmo link noutro computador) para
+ * repopular o ecrã sem recalcular nem voltar a sugerir nada.
+ */
+export async function carregarRascunhosConsolidacaoAction(input: {
+  batchKey: string;
+  farmaciaIds: string[];
+}): Promise<ObterRascunhosConsolidacaoResultado> {
+  const session = await requirePermission("reports.write");
+  const prisma = await getPrisma();
+  return obterRascunhosConsolidacaoServico({ prisma, sessao: session }, input);
+}
+
+export type FinalizarConsolidacaoFornecedorInput = {
+  batchKey: string;
+  farmaciaIds: string[];
+  /** Bloqueio optimista por farmácia — omitida = sem verificação amigável para essa farmácia. */
+  versaoEsperadaPorFarmacia?: Record<string, number>;
+};
+
+export type FinalizarConsolidacaoFornecedorResultado =
+  | {
+      ok: true;
+      reutilizado: boolean;
+      porFarmacia: Array<{ farmaciaId: string; loteOrigemId: string; documentos: DocumentoConsolidacaoGerado[] }>;
+      documentos: DocumentoConsolidacaoGerado[];
+      resumoTexto: string;
+    }
+  | { ok: false; error: string; code?: "IDEMPOTENCY_CONFLICT" }
+  | { ok: false; error: string; conflito: true; versaoAtual?: number }
+  | { ok: false; error: string; semFornecedor: true; produtoIdsSemFornecedor: string[]; farmaciaId?: string };
+
+/**
+ * Finaliza a consolidação inteira, agrupando PRIMEIRO por farmácia,
+ * DEPOIS por fornecedor — delega toda a lógica de divisão/transacção em
+ * `finalizarConsolidacaoMultiFornecedor` (lib/encomendas/
+ * consolidacao-multi-fornecedor.ts), nunca uma segunda implementação.
+ *
+ * Três camadas de defesa, por esta ordem:
+ *   1. Autorização por farmácia (`autorizarConsolidacao`) — ANTES de
+ *      qualquer leitura/escrita.
+ *   2. Pré-validação "amigável": lê as linhas actuais de cada rascunho e
+ *      corre `validarLinhasParaFinalizacaoMultiFornecedor` — um erro aqui
+ *      identifica a farmácia e os produtos exactos, sem ter aberto
+ *      nenhuma transacção de escrita.
+ *   3. A validação REAL, dentro da transacção do motor — nunca confia só
+ *      na pré-validação (uma corrida entre o passo 2 e a chamada ao
+ *      motor, ex.: outra sessão a editar a mesma farmácia em simultâneo,
+ *      é sempre possível); ver o comentário do motor sobre o âmbito da
+ *      transacção (uma falha em qualquer farmácia reverte o LOTE INTEIRO
+ *      — ver `finalizarConsolidacaoMultiFornecedor`).
+ */
+export async function finalizarConsolidacaoFornecedorAction(
+  input: FinalizarConsolidacaoFornecedorInput
+): Promise<FinalizarConsolidacaoFornecedorResultado> {
+  const session = await requirePermission("reports.write");
+
+  if (!Array.isArray(input.farmaciaIds) || input.farmaciaIds.length === 0) {
+    return { ok: false, error: "Sem farmácias na consolidação." };
+  }
+  const recusa = autorizarConsolidacao(session, input.farmaciaIds);
+  if (recusa) return { ok: false, error: recusa };
+
+  const prisma = await getPrisma();
+  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+
+  // Pré-validação amigável — ver o comentário da função.
+  for (const farmaciaId of input.farmaciaIds) {
+    const draft = await prisma.listaEncomenda.findFirst({
+      where: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(input.batchKey, farmaciaId) },
+      select: { linhas: { select: { produtoId: true, fornecedorSugeridoId: true } } },
+    });
+    if (!draft) {
+      return { ok: false, error: `Farmácia sem linhas para finalizar (${farmaciaId}).` };
+    }
+    const validacao = validarLinhasParaFinalizacaoMultiFornecedor(draft.linhas);
+    if (!validacao.ok) {
+      return {
+        ok: false,
+        error: validacao.error,
+        semFornecedor: true,
+        produtoIdsSemFornecedor: validacao.produtoIdsSemFornecedor,
+        farmaciaId,
+      };
+    }
+  }
+
+  try {
+    const versaoMap = input.versaoEsperadaPorFarmacia
+      ? new Map(Object.entries(input.versaoEsperadaPorFarmacia))
+      : undefined;
+    const resultado = await finalizarConsolidacaoMultiFornecedor(prisma, tenantSlug, {
+      batchKey: input.batchKey,
+      farmaciaIds: input.farmaciaIds,
+      versaoEsperadaPorFarmacia: versaoMap,
+    });
+
+    if (!resultado.reutilizado) {
+      for (const doc of resultado.documentos) {
+        await logAudit({
+          actorId: session.sub,
+          action: "order.finalized_multi_fornecedor",
+          entity: "ListaEncomenda",
+          entityId: doc.listaEncomendaId,
+          meta: { mode: "consolidacao", farmaciaId: doc.farmaciaId, fornecedorId: doc.fornecedorId, nLinhas: doc.nLinhas },
+        });
+      }
+    }
+
+    revalidatePath("/encomendas");
+    revalidatePath("/configuracoes/integracao");
+    return {
+      ok: true,
+      reutilizado: resultado.reutilizado,
+      porFarmacia: resultado.porFarmacia,
+      documentos: resultado.documentos,
+      resumoTexto: resultado.resumoTexto,
+    };
+  } catch (err) {
+    if (err instanceof LinhasSemFornecedorErrorConsolidacao) {
+      return {
+        ok: false,
+        error: err.message,
+        semFornecedor: true,
+        produtoIdsSemFornecedor: err.produtoIdsSemFornecedor,
+      };
+    }
+    if (err instanceof ConflitoVersaoError) {
+      return { ok: false, error: err.message, conflito: true, versaoAtual: err.versaoAtual };
+    }
+    if (err instanceof IdempotencyConflictError) {
+      return { ok: false, error: err.message, code: "IDEMPOTENCY_CONFLICT" };
+    }
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
 }
 
 // ─── Carregar rascunho (retomar em /encomendas/nova?rascunho=<id>) ──────────

@@ -1,6 +1,6 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
-import type { OrderExportState, EstadoListaEncomenda } from "@/generated/prisma/client";
+import type { OrderExportState, EstadoListaEncomenda, PrismaClient } from "@/generated/prisma/client";
 import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
 
 export type OrderDetailLine = {
@@ -119,10 +119,26 @@ function toF(v: unknown): number | null {
  * (server component → client). Devolve null se a lista não existir
  * — caller deve responder com 404. Os dados de stock por linha vêm
  * do ProdutoFarmacia da farmácia da lista.
+ *
+ * Delega em `loadOrderDetailComPrisma` com o cliente do tenant corrente
+ * (via `getPrisma()`) — ver esse comentário para o porquê da divisão.
  */
 export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
   const prisma = await getPrisma();
+  return loadOrderDetailComPrisma(prisma, id);
+}
 
+/**
+ * Mesma coisa, mas com o `PrismaClient` INJECTADO em vez de resolvido por
+ * `getPrisma()` (que depende do contexto de pedido do Next — cookies/
+ * AsyncLocalStorage — indisponível em serviços com dependências
+ * injectadas, testados fora de um pedido real, ex.:
+ * `lib/encomendas/consolidacao-servico.ts` a recuperar o conteúdo
+ * completo de um rascunho de consolidação por farmácia). Extraída desta
+ * função em vez de duplicar a query — nunca um segundo motor de leitura
+ * do detalhe de uma encomenda.
+ */
+export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string): Promise<OrderDetail | null> {
   const lista = await prisma.listaEncomenda.findUnique({
     where: { id },
     include: {

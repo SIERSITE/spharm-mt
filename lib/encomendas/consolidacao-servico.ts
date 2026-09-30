@@ -22,10 +22,12 @@ import { canAccessFarmaciaSync } from "@/lib/permissions-core";
 import type { SessionUser } from "@/lib/session-claims";
 import {
   createConsolidatedOrdersWithOutbox,
+  createEncomendaWithOutbox,
   deriveFarmaciaIdempotencyKey,
   IdempotencyConflictError,
   type OrderLineInput,
 } from "@/lib/ingest/orders";
+import { loadOrderDetailComPrisma, type OrderDetailLine } from "@/lib/encomendas/order-detail";
 
 export const CHAVE_IDEMPOTENCIA_RE = /^[A-Za-z0-9_-]{16,80}$/;
 /** Tecto do contexto serializado — igual ao das restantes actions de encomendas. */
@@ -204,6 +206,188 @@ export async function obterEstadoConsolidacaoServico(
         versao: l.versao,
         estadoLista: l.estado,
       })),
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido", code: "ERRO_SERVIDOR" };
+  }
+}
+
+// ─── Fornecedor por linha: rascunho REAL por farmácia ───────────────────
+//
+// (2026-09-30) Ao contrário do lote atómico acima (uma única transacção
+// com N `ListaEncomenda`, decidida de uma vez no fim), a consolidação com
+// fornecedor por linha precisa de um rascunho REAL e persistente por
+// farmácia — criado eagerly no primeiro toque significativo dessa
+// farmácia, com autosave próprio (`useAutosaveEncomenda`, UMA instância
+// por farmácia no cliente) — mesma disciplina do modo "farmacia"
+// (`ensureDraft` em order-create-client.tsx). `deriveFarmaciaIdempotencyKey`
+// é a MESMA função já usada pelo lote atómico: duas farmácias da mesma
+// `batchKey` nunca colidem, e duas `batchKey` diferentes para a MESMA
+// farmácia produzem sempre dois rascunhos independentes.
+//
+// A finalização por fornecedor (agrupa PRIMEIRO por farmácia, DEPOIS por
+// fornecedor) vive em `lib/encomendas/consolidacao-multi-fornecedor.ts`
+// (`finalizarConsolidacaoMultiFornecedor`) — chamada directamente pela
+// action do servidor (`app/encomendas/nova/actions.ts`), não daqui: esta
+// função só cria/obtém o rascunho de UMA farmácia, nunca decide sobre a
+// consolidação inteira.
+
+export type EnsureRascunhoConsolidacaoFarmaciaInput = {
+  batchKey: string;
+  farmaciaId: string;
+  nome: string;
+  linhas: OrderLineInput[];
+  contexto?: string | null;
+};
+
+export type EnsureRascunhoConsolidacaoFarmaciaResultado =
+  | { ok: true; listaEncomendaId: string; versao: number }
+  | { ok: false; error: string; code: "REJEITADO" | "IDEMPOTENCY_CONFLICT" | "ERRO_SERVIDOR" };
+
+/**
+ * Cria (ou obtém, se já existir sob a mesma `batchKey`+farmácia) o
+ * rascunho REAL dessa farmácia. Autorização e validação ANTES de
+ * qualquer escrita — mesmo padrão de `criarConsolidacaoServico` acima,
+ * só que para UMA farmácia de cada vez (o cliente chama isto
+ * independentemente por farmácia, no primeiro toque significativo).
+ */
+export async function ensureRascunhoConsolidacaoFarmaciaServico(
+  deps: ConsolidacaoDeps,
+  input: EnsureRascunhoConsolidacaoFarmaciaInput
+): Promise<EnsureRascunhoConsolidacaoFarmaciaResultado> {
+  if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
+    return { ok: false, error: "Chave de idempotência inválida.", code: "REJEITADO" };
+  }
+  if (!input.farmaciaId) return { ok: false, error: "Farmácia em falta.", code: "REJEITADO" };
+  if (!input.nome?.trim()) return { ok: false, error: "Nome da encomenda em falta.", code: "REJEITADO" };
+  if (!Array.isArray(input.linhas) || input.linhas.length === 0) {
+    return { ok: false, error: "Sem linhas para gravar.", code: "REJEITADO" };
+  }
+  if (input.contexto != null && input.contexto.length > CONTEXTO_MAX_CHARS) {
+    return { ok: false, error: "Contexto da proposta excede o tamanho máximo.", code: "REJEITADO" };
+  }
+  const recusa = autorizarConsolidacao(deps.sessao, [input.farmaciaId]);
+  if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
+
+  try {
+    const r = await createEncomendaWithOutbox(
+      deps.prisma,
+      deps.tenantSlug,
+      {
+        farmaciaId: input.farmaciaId,
+        criadoPorId: deps.sessao.sub,
+        nome: input.nome.slice(0, 180),
+        finalize: false,
+        linhas: input.linhas,
+        contexto: input.contexto,
+        clientIdempotencyKey: deriveFarmaciaIdempotencyKey(input.batchKey, input.farmaciaId),
+      },
+      "consolidacao"
+    );
+    const actual = await deps.prisma.listaEncomenda.findUniqueOrThrow({
+      where: { id: r.listaEncomendaId },
+      select: { versao: true },
+    });
+    if (deps.auditar) {
+      try {
+        await deps.auditar({
+          action: "order.created_draft",
+          entityId: r.listaEncomendaId,
+          meta: { mode: "consolidacao", farmaciaId: input.farmaciaId, linhasCount: input.linhas.length },
+        });
+      } catch {
+        // deliberadamente ignorado — auditoria pós-commit nunca transforma sucesso em erro
+      }
+    }
+    return { ok: true, listaEncomendaId: r.listaEncomendaId, versao: actual.versao };
+  } catch (err) {
+    if (err instanceof IdempotencyConflictError) {
+      return { ok: false, error: err.message, code: "IDEMPOTENCY_CONFLICT" };
+    }
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido", code: "ERRO_SERVIDOR" };
+  }
+}
+
+// ─── Recuperação: conteúdo COMPLETO dos rascunhos de uma consolidação ──
+
+export type RascunhoConsolidacaoFarmaciaConteudo = {
+  farmaciaId: string;
+  listaEncomendaId: string;
+  versao: number;
+  nome: string;
+  linhas: OrderDetailLine[];
+};
+
+export type ObterRascunhosConsolidacaoResultado =
+  | { ok: true; porFarmacia: Array<{ farmaciaId: string; draft: RascunhoConsolidacaoFarmaciaConteudo | null }> }
+  | { ok: false; error: string; code: "REJEITADO" | "ERRO_SERVIDOR" };
+
+/**
+ * Recuperação de um `batchKey` de consolidação: para CADA farmácia
+ * pedida, devolve o conteúdo COMPLETO do seu rascunho (produto,
+ * quantidade, fornecedor DECIDIDO — nunca recalculado — notas, origem),
+ * ou `null` se essa farmácia ainda não tem rascunho (nunca foi tocada
+ * nesta sessão de consolidação). Usa o MESMO carregador do ecrã de
+ * detalhe (`loadOrderDetailComPrisma`) — nunca uma segunda query a
+ * reconstruir a mesma coisa.
+ *
+ * Um rascunho encontrado que pertença a OUTRO utilizador (a mesma
+ * `batchKey`+farmácia coincidir, por azar ou má-fé, com um pedido
+ * alheio) é tratado como "sem rascunho" para este utilizador — nunca
+ * expõe conteúdo alheio; uma tentativa subsequente de criar um rascunho
+ * aí resolve-se, em segurança, como `IDEMPOTENCY_CONFLICT` em
+ * `ensureRascunhoConsolidacaoFarmaciaServico` (mesma protecção de
+ * `criarListaNaTransaccao`).
+ */
+export async function obterRascunhosConsolidacaoServico(
+  deps: Pick<ConsolidacaoDeps, "prisma" | "sessao">,
+  input: { batchKey: string; farmaciaIds: string[] }
+): Promise<ObterRascunhosConsolidacaoResultado> {
+  if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
+    return { ok: false, error: "Chave de idempotência inválida.", code: "REJEITADO" };
+  }
+  if (!Array.isArray(input.farmaciaIds) || input.farmaciaIds.length === 0) {
+    return { ok: false, error: "Sem farmácias na consolidação.", code: "REJEITADO" };
+  }
+  if (new Set(input.farmaciaIds).size !== input.farmaciaIds.length) {
+    return { ok: false, error: "Farmácia repetida na consolidação.", code: "REJEITADO" };
+  }
+  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds);
+  if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
+
+  try {
+    const chavePorFarmacia = new Map(input.farmaciaIds.map((f) => [deriveFarmaciaIdempotencyKey(input.batchKey, f), f]));
+    const listas = await deps.prisma.listaEncomenda.findMany({
+      where: { clientIdempotencyKey: { in: [...chavePorFarmacia.keys()] } },
+      select: { id: true, farmaciaId: true, criadoPorId: true, clientIdempotencyKey: true },
+    });
+
+    const porFarmaciaMap = new Map<string, RascunhoConsolidacaoFarmaciaConteudo | null>(
+      input.farmaciaIds.map((f) => [f, null])
+    );
+    for (const lista of listas) {
+      const farmaciaEsperada = chavePorFarmacia.get(lista.clientIdempotencyKey ?? "");
+      // Nunca deveria divergir (a chave já é derivada da farmácia), mas
+      // uma corrupção/colisão nunca deve expor o rascunho na farmácia
+      // errada — pula-o em vez de confiar cegamente na chave.
+      if (!farmaciaEsperada || farmaciaEsperada !== lista.farmaciaId) continue;
+      // Rascunho de outro utilizador sob a mesma chave derivada: nunca
+      // expõe o conteúdo — ver comentário da função.
+      if (lista.criadoPorId !== deps.sessao.sub) continue;
+      const detalhe = await loadOrderDetailComPrisma(deps.prisma, lista.id);
+      if (!detalhe) continue;
+      porFarmaciaMap.set(lista.farmaciaId, {
+        farmaciaId: lista.farmaciaId,
+        listaEncomendaId: detalhe.id,
+        versao: detalhe.versao,
+        nome: detalhe.nome,
+        linhas: detalhe.linhas,
+      });
+    }
+
+    return {
+      ok: true,
+      porFarmacia: input.farmaciaIds.map((farmaciaId) => ({ farmaciaId, draft: porFarmaciaMap.get(farmaciaId) ?? null })),
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido", code: "ERRO_SERVIDOR" };
