@@ -29,12 +29,21 @@ export type OrderRow = {
   spharmDocumentId: string | null;
   exportedAt: Date | null;
   /**
-   * Aponta para a `ListaEncomenda` PREPARADA que originou este documento
-   * numa finalização por fornecedor — `null` para qualquer encomenda
-   * "normal". Ver `lib/encomendas/finalizar-multi-fornecedor.ts`.
+   * Aponta para a `ListaEncomenda` original (o "lote", identificado por
+   * `loteDivididoEm != null`) que originou este documento numa
+   * finalização por fornecedor — `null` para qualquer encomenda "normal".
+   * Ver `lib/encomendas/finalizar-multi-fornecedor.ts`.
    */
   loteOrigemId: string | null;
-  /** Só > 0 numa `ListaEncomenda` PREPARADA — quantos documentos ela gerou. */
+  /**
+   * Data/hora em que este documento (se for um lote original) foi
+   * dividido por fornecedor — `null` = nunca dividido. NÃO é um valor de
+   * `EstadoListaEncomenda` (ver o comentário do campo homónimo em
+   * prisma/schema.prisma) — um lote dividido continua `estado ===
+   * "RASCUNHO"`.
+   */
+  loteDivididoEm: Date | null;
+  /** Só > 0 quando `loteDivididoEm != null` — quantos documentos o lote gerou. */
   documentosGeradosCount: number;
   /**
    * Estimativa de custo — SUM(quantidadeAjustada × ProdutoFarmacia.puc)
@@ -187,6 +196,7 @@ export async function loadOrderListData(
       spharmDocumentId: l.outbox?.spharmDocumentId ?? null,
       exportedAt: l.outbox?.exportedAt ?? null,
       loteOrigemId: l.loteOrigemId,
+      loteDivididoEm: l.loteDivididoEm,
       documentosGeradosCount: l._count.documentosGerados,
       valorEstimado,
     };

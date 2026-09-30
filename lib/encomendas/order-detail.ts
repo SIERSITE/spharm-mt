@@ -70,17 +70,28 @@ export type OrderDetail = {
   /** Bloqueio optimista do autosave — ver lib/encomendas/autosave.ts. */
   versao: number;
   /**
-   * Aponta para a `ListaEncomenda` PREPARADA que originou este documento
-   * numa finalização por fornecedor (ver `lib/encomendas/
+   * Aponta para a `ListaEncomenda` original (o "lote", identificado por
+   * `loteDivididoEm != null`) que originou este documento numa
+   * finalização por fornecedor (ver `lib/encomendas/
    * finalizar-multi-fornecedor.ts`) — `null` para qualquer encomenda
    * "normal" (criada directamente, nunca dividida).
    */
   loteOrigemId: string | null;
   loteOrigemNome: string | null;
   /**
-   * Preenchido SÓ numa `ListaEncomenda` PREPARADA — os N documentos
+   * Data/hora em que ESTE documento (se for um lote original) foi
+   * dividido por fornecedor — `null` = nunca foi dividido (o caso
+   * normal), incluindo qualquer encomenda finalizada por linha única.
+   * Deliberadamente NÃO um valor de `EstadoListaEncomenda` — ver o
+   * comentário do campo homónimo em `prisma/schema.prisma`. Um lote
+   * dividido continua com `estado === "RASCUNHO"`; é este campo, não
+   * `estado`, que decide `editable` abaixo.
+   */
+  loteDivididoEm: Date | null;
+  /**
+   * Preenchido SÓ quando `loteDivididoEm != null` — os N documentos
    * FINALIZADA que esta preparação gerou (um por fornecedor). Vazio para
-   * todos os outros estados.
+   * qualquer encomenda que nunca foi dividida.
    */
   documentosGerados: Array<{ id: string; numero: string | null; fornecedorNome: string; estado: EstadoListaEncomenda }>;
   linhas: OrderDetailLine[];
@@ -219,6 +230,7 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
     versao: lista.versao,
     loteOrigemId: lista.loteOrigemId,
     loteOrigemNome: lista.loteOrigem?.nome ?? null,
+    loteDivididoEm: lista.loteDivididoEm,
     documentosGerados: lista.documentosGerados.map((d) => ({
       id: d.id,
       numero: d.numero,
@@ -234,7 +246,7 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
       // Snapshot capturado na finalização (ver lib/ingest/orders.ts) tem
       // sempre prioridade — garante que uma reimpressão futura mostra o
       // MESMO texto mesmo que o produto tenha sido renomeado entretanto.
-      // `null` em RASCUNHO/PREPARADA (ainda editável — mostra a
+      // `null` num RASCUNHO ainda editável (dividido ou não — mostra a
       // designação ao vivo) ou em linhas criadas antes desta coluna
       // existir.
       designacao: l.designacaoSnapshot ?? l.produto.designacao,
@@ -258,6 +270,8 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
         }
       : null,
     timeline,
-    editable: lista.estado === "RASCUNHO",
+    // Um lote dividido continua `estado === "RASCUNHO"` (ver comentário
+    // de `loteDivididoEm` acima) mas nunca mais é editável.
+    editable: lista.estado === "RASCUNHO" && lista.loteDivididoEm === null,
   };
 }

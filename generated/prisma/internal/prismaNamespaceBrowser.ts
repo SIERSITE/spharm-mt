@@ -919,7 +919,8 @@ export const ListaEncomendaScalarFieldEnum = {
   motivoAnulacao: 'motivoAnulacao',
   anuladoPorId: 'anuladoPorId',
   anuladoEm: 'anuladoEm',
-  loteOrigemId: 'loteOrigemId'
+  loteOrigemId: 'loteOrigemId',
+  loteDivididoEm: 'loteDivididoEm'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]

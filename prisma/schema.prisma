@@ -128,16 +128,6 @@ enum EstadoListaEncomenda {
   /// tem de mostrar "ANULADO" com destaque (ver lib/reporting/adapters).
   /// Ver lib/encomendas/anulacao.ts.
   ANULADA
-  /// (2026-09-30) O rascunho original de uma preparação que foi
-  /// finalizada com linhas de MAIS DO QUE UM fornecedor — nesse caso
-  /// nunca fica FINALIZADA nem ANULADA nem ELIMINADA: a preparação em si
-  /// não é um documento externo (é dividida em N `ListaEncomenda`
-  /// FINALIZADA, uma por fornecedor, cada uma com o seu próprio número,
-  /// outbox e PDF — ver `loteOrigemId` abaixo e
-  /// lib/encomendas/finalizar-multi-fornecedor.ts). PREPARADA nunca é
-  /// apagada nem editável — existe só para "abrir a preparação" e ver
-  /// os documentos que gerou.
-  PREPARADA
 }
 
 /// Estado de uma transferência interna entre farmácias do grupo.
@@ -2157,11 +2147,37 @@ model ListaEncomenda {
   anuladoEm            DateTime?
   /// (2026-09-30) Preenchido SÓ nos documentos gerados por uma
   /// finalização com separação por fornecedor — aponta para a
-  /// `ListaEncomenda` PREPARADA que os originou (ver comentário em
-  /// PREPARADA, EstadoListaEncomenda). NULL para todas as encomendas
-  /// "normais" (um único fornecedor, ou nenhum). Nunca aponta para si
-  /// própria; a preparação original tem sempre `loteOrigemId = null`.
+  /// `ListaEncomenda` original (o "lote") que os originou, identificada
+  /// por `loteDivididoEm != null` (ver esse campo abaixo). NULL para
+  /// todas as encomendas "normais" (um único fornecedor, ou nenhum).
+  /// Nunca aponta para si própria; a preparação original tem sempre
+  /// `loteOrigemId = null`.
   loteOrigemId         String?
+  /// (2026-09-30) Preenchido SÓ no rascunho ORIGINAL de uma preparação
+  /// que foi dividida por fornecedor (ver
+  /// lib/encomendas/finalizar-multi-fornecedor.ts) — a data/hora exacta
+  /// dessa divisão. `null` = nunca foi dividido (o caso normal).
+  ///
+  /// DELIBERADAMENTE NÃO é um novo valor do enum `EstadoListaEncomenda`
+  /// (uma tentativa inicial usava um valor `PREPARADA` do enum, mas foi
+  /// revertida: um Prisma Client mais antigo, gerado ANTES deste valor
+  /// existir, lança `Value 'PREPARADA' not found in enum` em QUALQUER
+  /// query que toque numa row com esse valor — mesmo `findMany()` sem
+  /// filtro nenhum — tornando um rollback de app para uma revisão
+  /// anterior inseguro a partir da primeira preparação dividida,
+  /// confirmado empiricamente. Um campo aditivo NULLABLE como este é
+  /// invisível para um cliente antigo — nunca é seleccionado, nunca
+  /// lançado, apenas ignorado — e por isso não introduz esse risco).
+  ///
+  /// Continua a nascer/viver com `estado = "RASCUNHO"` mesmo depois de
+  /// dividida (nunca "FINALIZADA"/"ANULADA"/"ELIMINADA" — nenhum desses
+  /// descreve correctamente um lote sem outbox próprio); é
+  /// `loteDivididoEm != null`, não o `estado`, que decide que o lote deixou
+  /// de ser editável — ver `lib/encomendas/eliminacao.ts`,
+  /// `lib/encomendas/anulacao.ts` e `OrderDetail.editable`
+  /// (lib/encomendas/order-detail.ts), todos actualizados para verificar
+  /// este campo em conjunto com `estado`.
+  loteDivididoEm       DateTime?
 
   farmacia      Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor     Utilizador       @relation(fields: [criadoPorId], references: [id])
@@ -2176,6 +2192,7 @@ model ListaEncomenda {
   @@index([estado])
   @@index([estadoExport])
   @@index([loteOrigemId])
+  @@index([loteDivididoEm])
 }
 
 /// De onde veio uma linha de encomenda.
@@ -2213,8 +2230,8 @@ model LinhaEncomenda {
   fornecedorSugeridoId String?
   notas                String?
   /// Snapshot de `Produto.designacao` no momento em que a linha entrou
-  /// num documento FINALIZADO (nunca em RASCUNHO/PREPARADA, que continua
-  /// a mostrar a designação ao vivo enquanto é editável) — para uma
+  /// num documento FINALIZADO (nunca num RASCUNHO, dividido ou não, que
+  /// continua a mostrar a designação ao vivo enquanto é editável) — para uma
   /// reimpressão futura mostrar SEMPRE o mesmo texto, mesmo que o
   /// produto seja renomeado depois. NULL para linhas de rascunho ainda
   /// não finalizadas, ou criadas antes desta coluna existir (nesse caso

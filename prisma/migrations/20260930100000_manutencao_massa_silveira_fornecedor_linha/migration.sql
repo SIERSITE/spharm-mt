@@ -13,17 +13,22 @@
 -- CreateEnum
 CREATE TYPE "TipoManutencaoMassa" AS ENUM ('FABRICANTE', 'FORNECEDOR');
 
--- AlterEnum
--- EstadoListaEncomenda ganha PREPARADA — o rascunho original de uma
--- finalização com separação por fornecedor (ver lib/encomendas/
--- finalizar-multi-fornecedor.ts). Nunca fica FINALIZADA/ANULADA/ELIMINADA.
-ALTER TYPE "EstadoListaEncomenda" ADD VALUE 'PREPARADA';
-
 -- AlterTable
 ALTER TABLE "LinhaEncomenda" ADD COLUMN "designacaoSnapshot" TEXT;
 
 -- AlterTable
+-- loteDivididoEm marca o rascunho original de uma finalização com
+-- separação por fornecedor (ver lib/encomendas/finalizar-multi-fornecedor.ts).
+-- Deliberadamente um campo aditivo NULLABLE, NÃO um novo valor do enum
+-- EstadoListaEncomenda — uma tentativa inicial usava um valor de enum
+-- ("PREPARADA"), revertida depois de confirmar empiricamente que um
+-- Prisma Client mais antigo (gerado antes desse valor existir) lança
+-- "Value 'PREPARADA' not found in enum" em QUALQUER query sobre
+-- ListaEncomenda que toque numa row nesse estado, mesmo findMany() sem
+-- filtro nenhum. Um campo novo nullable é invisível para esse cliente
+-- antigo (nunca seleccionado, nunca lançado) e não tem esse risco.
 ALTER TABLE "ListaEncomenda" ADD COLUMN "loteOrigemId" TEXT;
+ALTER TABLE "ListaEncomenda" ADD COLUMN "loteDivididoEm" TIMESTAMP(3);
 
 -- CreateTable
 CREATE TABLE "CatalogoManutencaoOperacao" (
@@ -75,6 +80,9 @@ CREATE INDEX "CatalogoManutencaoOperacaoItem_produtoId_idx" ON "CatalogoManutenc
 
 -- CreateIndex
 CREATE INDEX "ListaEncomenda_loteOrigemId_idx" ON "ListaEncomenda"("loteOrigemId");
+
+-- CreateIndex
+CREATE INDEX "ListaEncomenda_loteDivididoEm_idx" ON "ListaEncomenda"("loteDivididoEm");
 
 -- AddForeignKey
 ALTER TABLE "CatalogoManutencaoOperacao" ADD CONSTRAINT "CatalogoManutencaoOperacao_utilizadorId_fkey" FOREIGN KEY ("utilizadorId") REFERENCES "Utilizador"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -990,8 +990,8 @@ export type $LinhaEncomendaPayload<ExtArgs extends runtime.Types.Extensions.Inte
     notas: string | null
     /**
      * Snapshot de `Produto.designacao` no momento em que a linha entrou
-     * num documento FINALIZADO (nunca em RASCUNHO/PREPARADA, que continua
-     * a mostrar a designação ao vivo enquanto é editável) — para uma
+     * num documento FINALIZADO (nunca num RASCUNHO, dividido ou não, que
+     * continua a mostrar a designação ao vivo enquanto é editável) — para uma
      * reimpressão futura mostrar SEMPRE o mesmo texto, mesmo que o
      * produto seja renomeado depois. NULL para linhas de rascunho ainda
      * não finalizadas, ou criadas antes desta coluna existir (nesse caso

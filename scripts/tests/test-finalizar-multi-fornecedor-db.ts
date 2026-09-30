@@ -17,7 +17,7 @@
  *       fornecedores distintos → exactamente 3 ListaEncomenda FINALIZADA,
  *       contagens de linha correctas, `numero` real (EN-######, todos
  *       distintos), `loteOrigemId` correcto nos 3, rascunho original em
- *       PREPARADA, continua legível com todas as linhas.
+ *       loteDivididoEm preenchido, continua legível com todas as linhas.
  *   C · idempotência: retry com a MESMA batchKey devolve o MESMO
  *       resultado; concorrência real (Promise.all) nunca duplica;
  *       payload diferente sob a mesma chave é um conflito explícito.
@@ -213,22 +213,22 @@ async function main() {
       check(outboxGerados === 3, "B13: as 3 têm o seu próprio OrderOutbox (finalize=true propagado a cada filho)");
 
       const draftDepois = await prisma.listaEncomenda.findUniqueOrThrow({ where: { id: loteId }, include: { linhas: true } });
-      check(draftDepois.estado === "PREPARADA", "B14: o rascunho original transitou para PREPARADA");
+      check(draftDepois.estado === "RASCUNHO" && draftDepois.loteDivididoEm !== null, "B14: o rascunho original ficou marcado como dividido (loteDivididoEm), estado continua RASCUNHO");
       check(draftDepois.linhas.length === 300, "B15: o rascunho original CONTINUA com as suas 300 linhas — nunca perde nada");
       check(draftDepois.versao === draftAntes.versao + 1, "B16: versão do rascunho incrementada pela transição");
 
       const detalheLote = await loadOrderDetail(loteId);
-      check(!!detalheLote && detalheLote.estado === "PREPARADA", "B17: o rascunho original continua legível via loadOrderDetail");
+      check(!!detalheLote && detalheLote.loteDivididoEm !== null, "B17: o rascunho original continua legível via loadOrderDetail");
       check(detalheLote?.documentosGerados.length === 3, "B18: loadOrderDetail expõe os 3 documentos gerados");
-      check(!detalheLote?.editable, "B19: o rascunho PREPARADA não é editável");
+      check(!detalheLote?.editable, "B19: o rascunho dividido não é editável");
     }
 
     // ── C · idempotência ─────────────────────────────────────────────────
     console.log("\nC · idempotência e concorrência");
     {
-      // C1: retry exacto sobre o MESMO lote já PREPARADA.
+      // C1: retry exacto sobre o MESMO lote já dividido.
       const replay = await finalizarEncomendaMultiFornecedor(prisma, "t", { listaEncomendaId: loteId, batchKey: loteId });
-      check(replay.reutilizado === true, "C1: retry sobre um lote já PREPARADA é reconhecido como replay");
+      check(replay.reutilizado === true, "C1: retry sobre um lote já dividido é reconhecido como replay");
       check(
         JSON.stringify([...replay.documentos].sort((a, b) => a.fornecedorId.localeCompare(b.fornecedorId))) ===
           JSON.stringify([...documentosB].sort((a, b) => a.fornecedorId.localeCompare(b.fornecedorId))),
@@ -252,7 +252,7 @@ async function main() {
       const filhosConcorrente = await prisma.listaEncomenda.count({ where: { loteOrigemId: loteConcorrente } });
       check(filhosConcorrente === 2, "C4: só 2 documentos filhos foram realmente criados na BD (nunca 12, nem duplicados) — um por fornecedor");
       const loteConcorrenteDepois = await prisma.listaEncomenda.findUniqueOrThrow({ where: { id: loteConcorrente } });
-      check(loteConcorrenteDepois.estado === "PREPARADA", "C5: o lote concorrente terminou PREPARADA de forma consistente");
+      check(loteConcorrenteDepois.estado === "RASCUNHO" && loteConcorrenteDepois.loteDivididoEm !== null, "C5: o lote concorrente terminou dividido de forma consistente");
 
       // C6: payload diferente sob a MESMA chave (aqui simulado com dois
       // lotes DIFERENTES a partilhar deliberadamente a mesma batchKey —
@@ -363,7 +363,7 @@ async function main() {
       }
 
       const loteOrigemDepois = await prisma.listaEncomenda.findUniqueOrThrow({ where: { id: loteId }, include: { linhas: true } });
-      check(loteOrigemDepois.estado === "PREPARADA" && loteOrigemDepois.linhas.length === 300, "E3: o lote original continua PREPARADA com as 300 linhas — cancelar um filho não o afecta");
+      check(loteOrigemDepois.loteDivididoEm !== null && loteOrigemDepois.linhas.length === 300, "E3: o lote original continua dividido com as 300 linhas — cancelar um filho não o afecta");
     }
 
     // ── F · PDF real — cada documento só menciona o SEU fornecedor/linhas ─

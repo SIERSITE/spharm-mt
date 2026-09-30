@@ -46,8 +46,6 @@ const ESTADO_LABEL: Record<string, string> = {
   FINALIZADA: "Finalizada",
   EXPORTADA: "Exportada",
   ANULADA: "Anulada",
-  /** O rascunho original de uma finalização dividida por fornecedor — ver `LinhaEncomenda.loteOrigemId`. */
-  PREPARADA: "Preparação (dividida)",
 };
 
 const ESTADO_OPTIONS = [
@@ -491,12 +489,12 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
                               ? "border-cyan-200 bg-cyan-50 text-cyan-700"
                               : o.estado === "ANULADA"
                                 ? "border-rose-200 bg-rose-50 text-rose-700"
-                                : o.estado === "PREPARADA"
+                                : o.loteDivididoEm !== null
                                   ? "border-violet-200 bg-violet-50 text-violet-700"
                                   : "border-emerald-200 bg-emerald-50 text-emerald-700"
                         }`}
                       >
-                        {ESTADO_LABEL[o.estado] ?? o.estado}
+                        {o.loteDivididoEm !== null ? "Preparação (dividida)" : (ESTADO_LABEL[o.estado] ?? o.estado)}
                       </span>
                       {o.loteOrigemId && (
                         <Link
@@ -507,7 +505,7 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
                           (do lote)
                         </Link>
                       )}
-                      {o.estado === "PREPARADA" && o.documentosGeradosCount > 0 && (
+                      {o.loteDivididoEm !== null && o.documentosGeradosCount > 0 && (
                         <span className="ml-1.5 text-[11px] text-slate-400">
                           → {o.documentosGeradosCount} documento{o.documentosGeradosCount === 1 ? "" : "s"}
                         </span>

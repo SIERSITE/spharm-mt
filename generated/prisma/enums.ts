@@ -130,8 +130,7 @@ export const EstadoListaEncomenda = {
   FINALIZADA: 'FINALIZADA',
   EXPORTADA: 'EXPORTADA',
   ELIMINADA: 'ELIMINADA',
-  ANULADA: 'ANULADA',
-  PREPARADA: 'PREPARADA'
+  ANULADA: 'ANULADA'
 } as const
 
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]

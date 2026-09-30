@@ -19,10 +19,14 @@ import {
  *
  * Divide uma `ListaEncomenda` em RASCUNHO, cujas linhas apontam para MAIS
  * DO QUE UM fornecedor, em N documentos `ListaEncomenda` FINALIZADA — um
- * por fornecedor — mantendo o rascunho original como "lote" (estado
- * `PREPARADA`, nunca apagado, nunca mais editável). Ver o comentário em
- * `EstadoListaEncomenda.PREPARADA`/`ListaEncomenda.loteOrigemId` em
- * `prisma/schema.prisma`, e as regras puras em
+ * por fornecedor — mantendo o rascunho original como "lote" (continua com
+ * `estado = "RASCUNHO"`, mas `loteDivididoEm` passa a ter uma data — nunca
+ * apagado, nunca mais editável). NÃO é um novo valor de
+ * `EstadoListaEncomenda` — ver o comentário de `loteDivididoEm` em
+ * `prisma/schema.prisma` para o porquê (um Prisma Client mais antigo
+ * lança em qualquer query sobre `ListaEncomenda` ao encontrar um valor de
+ * enum que não conhece; um campo aditivo nullable não tem esse risco).
+ * Ver também `ListaEncomenda.loteOrigemId` e as regras puras em
  * `lib/encomendas/finalizar-multi-fornecedor-regras.ts`.
  *
  * ── Âmbito da transacção: TUDO, all-or-nothing ────────────────────────
@@ -35,15 +39,16 @@ import {
  * resultado.
  *
  * Aqui é diferente: existe um ÚNICO rascunho original que TEM de acabar
- * num de dois estados — ainda RASCUNHO (nada aconteceu) ou PREPARADA com
- * os N documentos todos presentes (aconteceu tudo). Um resultado a meio
- * (2 de 3 documentos criados e o rascunho ainda em RASCUNHO, ou pior,
- * já PREPARADA sem os 3) deixaria a preparação num estado sem saída —
- * não se pode voltar a tentar (já não está em RASCUNHO) nem está
- * completa. Por isso esta função usa UMA `prisma.$transaction` para todo
- * o conjunto: os N `criarListaNaTransaccao` (cada um com a sua própria
+ * num de dois estados — ainda não dividido (`loteDivididoEm === null`,
+ * nada aconteceu) ou dividido com os N documentos todos presentes
+ * (`loteDivididoEm` preenchido, aconteceu tudo). Um resultado a meio (2 de
+ * 3 documentos criados e o rascunho ainda não marcado como dividido, ou
+ * pior, já marcado sem os 3) deixaria a preparação num estado sem saída —
+ * não se pode voltar a tentar (já não está "livre") nem está completa.
+ * Por isso esta função usa UMA `prisma.$transaction` para todo o
+ * conjunto: os N `criarListaNaTransaccao` (cada um com a sua própria
  * `ListaEncomenda`+linhas+`OrderOutbox`), o `loteOrigemId` de cada um, e
- * a transição do rascunho para `PREPARADA` — tudo ou nada.
+ * a marcação do rascunho como dividido — tudo ou nada.
  *
  * ── Idempotência ───────────────────────────────────────────────────────
  *
@@ -56,8 +61,8 @@ import {
  * conteúdo diferente sob a mesma chave lança `IdempotencyConflictError`
  * (nunca um duplicado silencioso).
  *
- * Uma vez que o rascunho original transita para `PREPARADA`, essa
- * transição é TERMINAL — o rascunho nunca mais tem linhas alteráveis, e
+ * Uma vez que o rascunho original recebe `loteDivididoEm`, essa transição
+ * é TERMINAL — o rascunho nunca mais tem linhas alteráveis, e
  * por isso qualquer chamada post-hoc (com a mesma `batchKey` ou não)
  * encontra sempre EXACTAMENTE o mesmo conjunto de documentos já gerados;
  * devolvê-los é sempre a resposta correcta, nunca uma criação nova.
@@ -67,10 +72,10 @@ import {
  * índice único + retry-uma-vez que já protege `createEncomendaWithOutbox`
  * — ver `transaccaoIdempotente` aqui em baixo. Concorrência com
  * `batchKey` DIFERENTES no MESMO rascunho é coberta por um
- * compare-and-swap explícito na transição para `PREPARADA`
- * (`updateMany` com `estado`+`versao` no WHERE) — se outra chamada já
- * tiver vencido a corrida, esta tentativa aborta e repete, encontrando
- * PREPARADA já feito.
+ * compare-and-swap explícito na marcação como dividido (`updateMany` com
+ * `estado`+`loteDivididoEm IS NULL`+`versao` no WHERE) — se outra chamada
+ * já tiver vencido a corrida, esta tentativa aborta e repete, encontrando
+ * a divisão já feita.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -168,7 +173,7 @@ async function finalizarNaTransaccao(
   // daqui, por isso qualquer chamada seguinte (com a mesma `batchKey` ou
   // não) encontra sempre o MESMO conjunto de documentos. Devolvê-los é a
   // resposta correcta, nunca uma tentativa de criar de novo.
-  if (draft.estado === "PREPARADA") {
+  if (draft.loteDivididoEm !== null) {
     const documentos = await replayDocumentosGerados(tx, draft.id);
     return {
       reutilizado: true,
@@ -244,15 +249,17 @@ async function finalizarNaTransaccao(
     });
   }
 
-  // Compare-and-swap explícito: só transita se o rascunho continuar
-  // EXACTAMENTE como foi lido no início desta transacção (mesmo estado,
-  // mesma versão). Protege contra duas finalizações concorrentes com
-  // `batchKey` DIFERENTES sobre o MESMO rascunho — a corrida entre duas
-  // chamadas com a MESMA `batchKey` já está coberta pelo índice único
-  // por documento filho, acima.
+  // Compare-and-swap explícito: só marca como dividido se o rascunho
+  // continuar EXACTAMENTE como foi lido no início desta transacção (mesmo
+  // estado, ainda não dividido, mesma versão). Protege contra duas
+  // finalizações concorrentes com `batchKey` DIFERENTES sobre o MESMO
+  // rascunho — a corrida entre duas chamadas com a MESMA `batchKey` já
+  // está coberta pelo índice único por documento filho, acima. `estado`
+  // NUNCA muda aqui (fica RASCUNHO) — ver `loteDivididoEm` em
+  // prisma/schema.prisma para o porquê de não ser um novo valor de enum.
   const cas = await tx.listaEncomenda.updateMany({
-    where: { id: draft.id, estado: "RASCUNHO", versao: draft.versao },
-    data: { estado: "PREPARADA", versao: { increment: 1 } },
+    where: { id: draft.id, estado: "RASCUNHO", loteDivididoEm: null, versao: draft.versao },
+    data: { loteDivididoEm: new Date(), versao: { increment: 1 } },
   });
   if (cas.count === 0) {
     throw new PreparacaoConcorrenteError();

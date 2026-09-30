@@ -36,8 +36,6 @@ const ESTADO_LABEL: Record<string, string> = {
   EXPORTADA: "Exportada",
   ANULADA: "Anulada",
   ELIMINADA: "Eliminada",
-  /** O rascunho original de uma finalização dividida por fornecedor — ver `LinhaEncomenda.loteOrigemId`. */
-  PREPARADA: "Preparação (dividida)",
 };
 
 function fmtNum(v: number | null, digits = 0): string {
@@ -389,14 +387,16 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                detail.estado === "RASCUNHO"
-                  ? "border-slate-200 bg-slate-50 text-slate-600"
-                  : detail.estado === "FINALIZADA"
-                    ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                detail.loteDivididoEm !== null
+                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                  : detail.estado === "RASCUNHO"
+                    ? "border-slate-200 bg-slate-50 text-slate-600"
+                    : detail.estado === "FINALIZADA"
+                      ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700"
               }`}
             >
-              {ESTADO_LABEL[detail.estado] ?? detail.estado}
+              {detail.loteDivididoEm !== null ? "Preparação (dividida)" : (ESTADO_LABEL[detail.estado] ?? detail.estado)}
             </span>
             <OrderExportBadge
               state={detail.estadoExport}
@@ -486,7 +486,7 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
         </div>
       )}
 
-      {detail.estado === "PREPARADA" && (
+      {detail.loteDivididoEm !== null && (
         <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] text-violet-800">
           <p className="font-medium">
             Esta preparação foi dividida em {detail.documentosGerados.length} documento
@@ -504,7 +504,7 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
         </div>
       )}
 
-      {!detail.editable && detail.estado !== "PREPARADA" && (
+      {!detail.editable && detail.loteDivididoEm === null && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
           <span>
             Esta encomenda já não é editável (estado: {ESTADO_LABEL[detail.estado] ?? detail.estado}).

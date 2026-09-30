@@ -326,12 +326,12 @@ export type FinalizeFromDetailResult =
  * comportamento; mais de um fornecedor distinto usa
  * `finalizarEncomendaMultiFornecedor` (ver esse ficheiro para o desenho
  * completo — divide em N documentos, um por fornecedor, mantém o
- * rascunho original como "lote" em `PREPARADA`).
+ * rascunho original como "lote" marcado por `loteDivididoEm`).
  *
  * A `batchKey` da operação multi-fornecedor é derivada do PRÓPRIO
  * `listaEncomendaId` — não precisa de vir do cliente: o rascunho é único
- * por natureza (cuid), e uma vez `PREPARADA` é terminal, por isso
- * qualquer chamada repetida encontra sempre o mesmo resultado já
+ * por natureza (cuid), e uma vez marcado `loteDivididoEm` é terminal, por
+ * isso qualquer chamada repetida encontra sempre o mesmo resultado já
  * persistido. Ver o comentário sobre idempotência em
  * `lib/encomendas/finalizar-multi-fornecedor.ts`.
  *

@@ -43,6 +43,7 @@ function encomenda(over: Partial<OrderDetail> & { farmaciaNome: string; linhas: 
     versao: 1,
     loteOrigemId: null,
     loteOrigemNome: null,
+    loteDivididoEm: null,
     documentosGerados: [],
     outbox: null,
     timeline: [],
