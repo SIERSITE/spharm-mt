@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -12,6 +12,7 @@ import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import { AutosaveStatusBadge } from "@/components/encomendas/autosave-status-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import {
   addManualLineAction,
@@ -84,6 +85,13 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   // de verdade). Em caso de erro, o flash mostra e o router refresh
   // restaura.
   const [linhas, setLinhas] = useState(detail.linhas);
+
+  // Forma que `SearchableSelect` espera ({id,label}) — derivada uma vez
+  // por mudança de `fornecedores`, nunca recalculada a cada tecla.
+  const fornecedoresItems = useMemo(
+    () => fornecedores.map((f) => ({ id: f.id, label: f.nome })),
+    [fornecedores]
+  );
 
   const utilizador = useUtilizador();
   const autosave = useAutosaveEncomenda({
@@ -545,14 +553,15 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
         {editable && linhasSeleccionadas.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-[12px]">
             <span className="text-slate-600">{linhasSeleccionadas.size} seleccionada{linhasSeleccionadas.size === 1 ? "" : "s"}</span>
-            <select
-              value={bulkFornecedorId}
-              onChange={(e) => setBulkFornecedorId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
-            >
-              <option value="">— Fornecedor —</option>
-              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select>
+            <div className="w-56">
+              <SearchableSelect
+                items={fornecedoresItems}
+                value={bulkFornecedorId || null}
+                onChange={(v) => setBulkFornecedorId(v ?? "")}
+                placeholder="— Fornecedor —"
+                ariaLabel="Fornecedor a definir nas linhas seleccionadas"
+              />
+            </div>
             <button type="button" disabled={!bulkFornecedorId} onClick={() => handleBulkFornecedorChange(bulkFornecedorId)}
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40">
               Definir fornecedor
@@ -700,17 +709,16 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
                     </td>
                     <td className="px-3 py-2">
                       {editable ? (
-                        <select
-                          value={l.fornecedorSugeridoId ?? ""}
-                          onChange={(e) => handleFornecedorChange(l.id, e.target.value)}
+                        <SearchableSelect
+                          items={fornecedoresItems}
+                          value={l.fornecedorSugeridoId}
+                          onChange={(v) => handleFornecedorChange(l.id, v ?? "")}
+                          placeholder="— Sem fornecedor —"
+                          selectedLabel={l.fornecedorSugeridoNome}
                           disabled={busy}
-                          className={`w-full rounded-lg border px-2 py-1 text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50 ${
-                            l.fornecedorSugeridoId ? "border-slate-200 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                          }`}
-                        >
-                          <option value="">— Sem fornecedor —</option>
-                          {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                        </select>
+                          emptyVariant="warning"
+                          ariaLabel={`Fornecedor de ${l.designacao}`}
+                        />
                       ) : (
                         <span className="text-slate-600">{l.fornecedorSugeridoNome ?? "—"}</span>
                       )}

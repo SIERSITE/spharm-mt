@@ -45,6 +45,16 @@ import {
   deriveDirectionIdempotencyKey,
   IdempotencyConflictError as TransferIdempotencyConflictError,
 } from "@/lib/transferencias/criar-transferencia";
+import {
+  finalizarEncomendaMultiFornecedor,
+  deveUsarFinalizacaoMultiFornecedor,
+} from "@/lib/encomendas/finalizar-multi-fornecedor";
+import {
+  validarLinhasParaFinalizacaoMultiFornecedor,
+  deriveGrupoDraftIdempotencyKey,
+  deriveGrupoFinalizacaoBatchKey,
+} from "@/lib/encomendas/finalizar-multi-fornecedor-regras";
+import { randomUUID } from "node:crypto";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────────
 
@@ -573,6 +583,13 @@ export type DecisaoLinhaGrupoInput = DecisaoLinha & {
   notas?: string | null;
   /** Proveniência da linha (MANUAL/SUGESTAO sobrevivem a recálculo). */
   origem?: OrigemLinha;
+  /**
+   * Fornecedor DECIDIDO para esta linha — ver
+   * `LinhaEncomenda.fornecedorSugeridoId`. Omitido/`undefined` é tratado
+   * como `null` (sem fornecedor) — compatibilidade com um cliente mais
+   * antigo que ainda não enviasse este campo.
+   */
+  fornecedorSugeridoId?: string | null;
 };
 
 export type GerarPlanoGrupoInput = {
@@ -589,12 +606,39 @@ export type GerarPlanoGrupoInput = {
    * contra duplo-clique/retry neste ramo (comportamento anterior).
    */
   transferenciaBatchKey?: string | null;
+  /**
+   * Chave de idempotência do LOTE de ENCOMENDAS deste plano de grupo.
+   * Só tem efeito real numa farmácia cujas linhas ENCOMENDAR acabem
+   * divididas por mais de um fornecedor (ver `deveUsarFinalizacaoMulti-
+   * Fornecedor` abaixo): dá a essa divisão a MESMA garantia de
+   * idempotência que `finalizarEncomendaMultiFornecedor` já dá ao fluxo
+   * manual (ver `deriveGrupoDraftIdempotencyKey`/
+   * `deriveGrupoFinalizacaoBatchKey`). Omitida = uma chave é gerada aqui
+   * (sem protecção contra duplo-clique/retry para essa farmácia
+   * específica) — mesma degradação graciosa que já existia para
+   * `transferenciaBatchKey`.
+   */
+  encomendaBatchKey?: string | null;
+};
+
+export type DocumentoEncomendaGrupoGerado = {
+  farmaciaId: string;
+  listaEncomendaId: string;
+  nLinhas: number;
+  numero: string | null;
+  /**
+   * Preenchidos apenas quando esta farmácia dividiu por mais de um
+   * fornecedor (ver `deveUsarFinalizacaoMultiFornecedor`) — `null`/
+   * omitido no caminho de sempre (0 ou 1 fornecedor entre as linhas).
+   */
+  fornecedorId?: string | null;
+  fornecedorNome?: string | null;
 };
 
 export type GerarPlanoGrupoResult =
   | {
       ok: true;
-      listasEncomenda: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[];
+      listasEncomenda: DocumentoEncomendaGrupoGerado[];
       transferencias: {
         farmaciaOrigemId: string;
         farmaciaDestinoId: string;
@@ -613,6 +657,12 @@ function validarDecisoes(decisoes: unknown): decisoes is DecisaoLinhaGrupoInput[
     if (!ehAcaoLinhaGrupo(r.acao)) return false;
     if (typeof r.acaoTocada !== "boolean") return false;
     if (r.origem !== undefined && !ehOrigemLinha(r.origem)) return false;
+    if (
+      r.fornecedorSugeridoId !== undefined &&
+      r.fornecedorSugeridoId !== null &&
+      typeof r.fornecedorSugeridoId !== "string"
+    )
+      return false;
     return true;
   });
 }
@@ -655,48 +705,148 @@ export async function gerarPlanoGrupoAction(
     140
   );
 
+  // `fornecedorSugeridoId` é opcional em `DecisaoLinhaGrupoInput`
+  // (compatibilidade com um cliente mais antigo) — as regras puras de
+  // `finalizar-multi-fornecedor-regras.ts` pedem sempre `string | null`
+  // (nunca `undefined`), por isso normaliza-se aqui uma única vez.
+  const semFornecedorUndefined = (
+    linhas: readonly DecisaoLinhaGrupoInput[]
+  ): { produtoId: string; fornecedorSugeridoId: string | null }[] =>
+    linhas.map((l) => ({ produtoId: l.produtoId, fornecedorSugeridoId: l.fornecedorSugeridoId ?? null }));
+
+  // Pré-validação de fornecedor — TODAS as farmácias são verificadas
+  // ANTES de qualquer escrita. Uma farmácia cujas linhas ENCOMENDAR
+  // apontam para mais de um fornecedor só pode prosseguir se TODAS
+  // tiverem fornecedor decidido (mesma regra de
+  // `validarLinhasParaFinalizacaoMultiFornecedor`, reutilizada e nunca
+  // reimplementada) — e isto corre para TODAS as farmácias primeiro,
+  // para uma farmácia inválida nunca deixar OUTRA já criada para trás
+  // (o cliente já faz a mesma verificação antes de chamar esta acção,
+  // ver `handleGerarPlano`; isto é defesa em profundidade do lado do
+  // servidor, nunca confia só na verificação do cliente).
+  for (const [farmaciaId, linhasFarmacia] of porFarmacia) {
+    const normalizadas = semFornecedorUndefined(linhasFarmacia);
+    if (!deveUsarFinalizacaoMultiFornecedor(normalizadas)) continue;
+    const validacao = validarLinhasParaFinalizacaoMultiFornecedor(normalizadas);
+    if (!validacao.ok) {
+      return { ok: false, error: `Farmácia ${farmaciaId}: ${validacao.error}` };
+    }
+  }
+
+  const encomendaBatchKeyEfetivo = input.encomendaBatchKey ?? randomUUID();
+
   try {
-    const resultadoListas: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[] = [];
+    const resultadoListas: DocumentoEncomendaGrupoGerado[] = [];
     for (const [farmaciaId, linhas] of porFarmacia) {
-      // `finalize: true` directo — nunca um RASCUNHO intermédio que
-      // obrigaria a reabrir a encomenda noutro ecrã para a finalizar
-      // (o mesmo problema que a consolidação já tinha resolvido). O
-      // "conceito de rascunho" continua a existir para o modo
-      // "farmacia" (`ensureDraft` — autosave incremental linha a linha,
-      // que aqui não se aplica: todas as linhas já vêm decididas de
-      // uma vez), mas deixa de ser um passo obrigatório desta operação.
-      const resultado = await createEncomendaWithOutbox(prisma, tenantSlug, {
-        farmaciaId,
-        criadoPorId: session.sub,
-        nome: `${nomePrefixo} · encomendar`.slice(0, 180),
-        finalize: true,
-        linhas: linhas.map((l) => ({
-          produtoId: l.produtoId,
-          quantidadeSugerida: l.quantidadeSugerida ?? null,
-          quantidadeAjustada: l.quantidadeFinal,
-          notas: l.notas ?? null,
-          origem: l.origem ?? "PROPOSTA",
-        })),
-        contexto: input.contexto ?? undefined,
-      });
-      resultadoListas.push({
-        farmaciaId,
-        listaEncomendaId: resultado.listaEncomendaId,
-        nLinhas: linhas.length,
-      });
-      await logAudit({
-        actorId: session.sub,
-        action: "group_plan.encomenda_created",
-        entity: "ListaEncomenda",
-        entityId: resultado.listaEncomendaId,
-        meta: {
-          mode: "grupo",
+      if (!deveUsarFinalizacaoMultiFornecedor(semFornecedorUndefined(linhas))) {
+        // `finalize: true` directo — nunca um RASCUNHO intermédio que
+        // obrigaria a reabrir a encomenda noutro ecrã para a finalizar
+        // (o mesmo problema que a consolidação já tinha resolvido). O
+        // "conceito de rascunho" continua a existir para o modo
+        // "farmacia" (`ensureDraft` — autosave incremental linha a linha,
+        // que aqui não se aplica: todas as linhas já vêm decididas de
+        // uma vez), mas deixa de ser um passo obrigatório desta operação.
+        const resultado = await createEncomendaWithOutbox(prisma, tenantSlug, {
           farmaciaId,
-          linhasCount: linhas.length,
-          outboxId: resultado.outboxId,
-          comContexto: input.contexto != null,
-        },
-      });
+          criadoPorId: session.sub,
+          nome: `${nomePrefixo} · encomendar`.slice(0, 180),
+          finalize: true,
+          linhas: linhas.map((l) => ({
+            produtoId: l.produtoId,
+            quantidadeSugerida: l.quantidadeSugerida ?? null,
+            quantidadeAjustada: l.quantidadeFinal,
+            fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
+            notas: l.notas ?? null,
+            origem: l.origem ?? "PROPOSTA",
+          })),
+          contexto: input.contexto ?? undefined,
+        });
+        resultadoListas.push({
+          farmaciaId,
+          listaEncomendaId: resultado.listaEncomendaId,
+          nLinhas: linhas.length,
+          numero: resultado.numero,
+          fornecedorId: linhas[0]?.fornecedorSugeridoId ?? null,
+        });
+        await logAudit({
+          actorId: session.sub,
+          action: "group_plan.encomenda_created",
+          entity: "ListaEncomenda",
+          entityId: resultado.listaEncomendaId,
+          meta: {
+            mode: "grupo",
+            farmaciaId,
+            linhasCount: linhas.length,
+            outboxId: resultado.outboxId,
+            comContexto: input.contexto != null,
+            multiFornecedor: false,
+          },
+        });
+      } else {
+        // Farmácia com linhas de mais de um fornecedor — reutiliza
+        // `finalizarEncomendaMultiFornecedor` (o MESMO motor do fluxo
+        // manual de `finalizar-multi-fornecedor.ts`), nunca uma segunda
+        // implementação da divisão por fornecedor. Como o modo grupo não
+        // tem noção de "rascunho editável", cria-se aqui um RASCUNHO
+        // TRANSITÓRIO — nasce e é dividido na MESMA chamada síncrona ao
+        // servidor, nunca devolvido ao cliente como algo editável — e
+        // fica como registo do "lote" desta farmácia, exactamente como o
+        // rascunho manual fica depois de dividido (loteDivididoEm
+        // preenchido, nunca apagado). Ver o comentário sobre esta
+        // decisão em `finalizar-multi-fornecedor-regras.ts`.
+        const draftKey = deriveGrupoDraftIdempotencyKey(encomendaBatchKeyEfetivo, farmaciaId);
+        const draft = await createEncomendaWithOutbox(
+          prisma,
+          tenantSlug,
+          {
+            farmaciaId,
+            criadoPorId: session.sub,
+            nome: `${nomePrefixo} · encomendar`.slice(0, 180),
+            finalize: false,
+            linhas: linhas.map((l) => ({
+              produtoId: l.produtoId,
+              quantidadeSugerida: l.quantidadeSugerida ?? null,
+              quantidadeAjustada: l.quantidadeFinal,
+              fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
+              notas: l.notas ?? null,
+              origem: l.origem ?? "PROPOSTA",
+            })),
+            contexto: input.contexto ?? undefined,
+            clientIdempotencyKey: draftKey,
+          },
+          "grupo-multi-fornecedor"
+        );
+        const finBatchKey = deriveGrupoFinalizacaoBatchKey(encomendaBatchKeyEfetivo, farmaciaId);
+        const divisao = await finalizarEncomendaMultiFornecedor(prisma, tenantSlug, {
+          listaEncomendaId: draft.listaEncomendaId,
+          batchKey: finBatchKey,
+        });
+        for (const doc of divisao.documentos) {
+          resultadoListas.push({
+            farmaciaId,
+            listaEncomendaId: doc.listaEncomendaId,
+            nLinhas: doc.nLinhas,
+            numero: doc.numero,
+            fornecedorId: doc.fornecedorId,
+            fornecedorNome: doc.fornecedorNome,
+          });
+          await logAudit({
+            actorId: session.sub,
+            action: "group_plan.encomenda_created",
+            entity: "ListaEncomenda",
+            entityId: doc.listaEncomendaId,
+            meta: {
+              mode: "grupo",
+              farmaciaId,
+              linhasCount: doc.nLinhas,
+              comContexto: input.contexto != null,
+              multiFornecedor: true,
+              fornecedorId: doc.fornecedorId,
+              loteOrigemId: divisao.loteOrigemId,
+            },
+          });
+        }
+      }
     }
 
     const resultadoTransferencias: {

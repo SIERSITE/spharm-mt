@@ -36,6 +36,7 @@ import {
 import { getHistoricoProdutosLoteAction } from "@/app/encomendas/actions";
 import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
 import { enriquecerLinhasRascunho } from "@/lib/encomendas/reconstruir-rascunho";
@@ -68,10 +69,15 @@ import {
   fundirDecisoesGrupo,
   mapaDecisoes,
   calcularResumoGrupo,
+  agruparParaGeracao,
   type AcaoLinhaGrupo,
   type DecisaoLinha,
   type ResumoGrupo,
 } from "@/lib/encomendas/decisao-grupo";
+import {
+  deveUsarFinalizacaoMultiFornecedor,
+  validarLinhasParaFinalizacaoMultiFornecedor,
+} from "@/lib/encomendas/finalizar-multi-fornecedor-regras";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 // Do modulo PURO, nao de `proposal.ts`: aquele tem `server-only` e um
 // import de VALOR daqui arrastava-o para o bundle do browser. O `tsc`
@@ -937,6 +943,13 @@ export function OrderCreateClient({
    * TODAS as linhas (não só as visíveis): o resumo tem de responder
    * sempre pela encomenda inteira, mesmo com um filtro/pesquisa activo.
    */
+  // Forma que `SearchableSelect` espera ({id,label}) — derivada uma vez
+  // por mudança de `fornecedores`, nunca recalculada a cada tecla.
+  const fornecedoresItems = useMemo(
+    () => fornecedores.map((f) => ({ id: f.id, label: f.nome })),
+    [fornecedores]
+  );
+
   const resumoFornecedores = useMemo(() => {
     let semFornecedor = 0;
     const porFornecedor = new Map<string, { nome: string; nLinhas: number }>();
@@ -1242,6 +1255,11 @@ export function OrderCreateClient({
     };
   }
 
+  /** Forma mínima usada só pela pré-validação de fornecedor abaixo — evita montar o `DecisaoLinhaGrupoInput` inteiro só para agrupar por farmácia. */
+  function linhaParaAgrupamentoFornecedor(l: Line): DecisaoLinha & { produtoId: string; fornecedorSugeridoId: string | null } {
+    return { ...linhaParaDecisao(l), fornecedorSugeridoId: l.fornecedorSugeridoId };
+  }
+
   function nomeFarmacia(id: string): string {
     return farmacias.find((f) => f.id === id)?.nome ?? id;
   }
@@ -1259,6 +1277,7 @@ export function OrderCreateClient({
       quantidadeSugerida: l.suggestedQty,
       notas: l.notas.trim() || null,
       origem: l.origem,
+      fornecedorSugeridoId: l.fornecedorSugeridoId,
     }));
 
     const resumo = calcularResumoGrupo(decisoes);
@@ -1270,11 +1289,36 @@ export function OrderCreateClient({
       return;
     }
 
+    // Pré-validação de fornecedor por linha (feedback imediato, sem
+    // round-trip): uma farmácia cujas linhas ENCOMENDAR vão dividir-se
+    // por mais de um fornecedor precisa de TODAS elas com fornecedor
+    // decidido — mesma regra de `validarLinhasParaFinalizacaoMultiFornecedor`
+    // que o servidor volta a aplicar como defesa em profundidade (nunca
+    // confia só nesta verificação do lado do cliente).
+    const linhasParaAgrupar = linhas.map((l) => linhaParaAgrupamentoFornecedor(l));
+    const { porFarmacia: bucketsFornecedor } = agruparParaGeracao(linhasParaAgrupar);
+    for (const [farmaciaId, bucket] of bucketsFornecedor) {
+      if (!deveUsarFinalizacaoMultiFornecedor(bucket)) continue;
+      const validacao = validarLinhasParaFinalizacaoMultiFornecedor(bucket);
+      if (!validacao.ok) {
+        setFlash({ type: "err", msg: `${nomeFarmacia(farmaciaId)}: ${validacao.error}` });
+        return;
+      }
+    }
+
     startGerarPlano(async () => {
+      // Uma chave por tentativa — dá a `finalizarEncomendaMultiFornecedor`
+      // (reutilizada internamente para qualquer farmácia com mais de um
+      // fornecedor) a mesma protecção de idempotência que já tem no
+      // fluxo manual. Sem retry automático neste botão (ver comentário em
+      // `gerarPlanoGrupoAction`) — protege sobretudo contra entrega
+      // duplicada ao nível da rede, não contra um segundo clique humano.
+      const encomendaBatchKey = crypto.randomUUID().replace(/-/g, "");
       const result = await gerarPlanoGrupoAction({
         nome: nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`,
         decisoes,
         contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
+        encomendaBatchKey,
       });
       if (!result.ok) {
         setFlash({ type: "err", msg: result.error });
@@ -1962,8 +2006,11 @@ export function OrderCreateClient({
   // histórico inline (Ponto 1) e do cabeçalho de grupo (Ponto 2).
   // Estado, Produto, Vendas, Média/d, Stock, Cobert., Pendente, Sugerida,
   // Final, Notas/Motivo, Ações = 11 colunas fixas; + Farmácia (isGroupMode)
-  // + Decisão (mode === "grupo"); + Seleccionar + Fornecedor (!isGroupMode).
-  const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0) + (!isGroupMode ? 2 : 0);
+  // + Decisão (mode === "grupo"); + Seleccionar + Fornecedor — agora em
+  // farmácia E grupo (fornecedor por linha é global ao modo grupo desde
+  // esta revisão — só "consolidação" continua sem esta tabela/colunas,
+  // tem a sua própria vista separada).
+  const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0) + (mode !== "consolidacao" ? 2 : 0);
 
   // ─── Ponto 1 — tabela nunca ultrapassa o ecrã sem dependência de scroll
   // horizontal escondido ────────────────────────────────────────────────
@@ -2010,7 +2057,7 @@ export function OrderCreateClient({
         key={l.key}
         className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""} ${isSubLinha ? "bg-slate-50/20" : ""}`}
       >
-        {!isGroupMode && (
+        {mode !== "consolidacao" && (
           <td className="px-2 py-1.5">
             <input
               type="checkbox"
@@ -2102,19 +2149,18 @@ export function OrderCreateClient({
               className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
           )}
         </td>
-        {!isGroupMode && (
+        {mode !== "consolidacao" && (
           <td className="min-w-[160px] px-2 py-1.5">
-            <select
-              value={l.fornecedorSugeridoId ?? ""}
-              onChange={(e) => handleFornecedorChange(l, e.target.value)}
+            <SearchableSelect
+              items={fornecedoresItems}
+              value={l.fornecedorSugeridoId}
+              onChange={(v) => handleFornecedorChange(l, v ?? "")}
+              placeholder="— Sem fornecedor —"
+              selectedLabel={l.fornecedorSugeridoNome}
               disabled={busy}
-              className={`w-full rounded-lg border px-2 py-1 text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50 ${
-                l.fornecedorSugeridoId ? "border-slate-200 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-700"
-              }`}
-            >
-              <option value="">— Sem fornecedor —</option>
-              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select>
+              emptyVariant="warning"
+              ariaLabel={`Fornecedor de ${l.designacao}`}
+            />
           </td>
         )}
         <td className={`${stickyDireitaCls} border-l border-slate-200 bg-white px-2 py-1.5`} style={{ right: rightFinal }}>
@@ -2519,12 +2565,10 @@ export function OrderCreateClient({
                 <input type="checkbox" checked={filterStockBaixo} onChange={(e) => { setFilterStockBaixo(e.target.checked); if (e.target.checked) setFilterRuturas(false); }} className="rounded" />
                 Stock baixo
               </label>
-              {!isGroupMode && (
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
-                  <input type="checkbox" checked={filterSemFornecedor} onChange={(e) => setFilterSemFornecedor(e.target.checked)} className="rounded" />
-                  Só sem fornecedor{resumoFornecedores.semFornecedor > 0 ? ` (${resumoFornecedores.semFornecedor})` : ""}
-                </label>
-              )}
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
+                <input type="checkbox" checked={filterSemFornecedor} onChange={(e) => setFilterSemFornecedor(e.target.checked)} className="rounded" />
+                Só sem fornecedor{resumoFornecedores.semFornecedor > 0 ? ` (${resumoFornecedores.semFornecedor})` : ""}
+              </label>
               {filterEstado && (
                 <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${estadoColors(filterEstado)}`}>
                   {estadoLabel(filterEstado)} ×
@@ -2540,7 +2584,7 @@ export function OrderCreateClient({
             </div>
           )}
 
-          {!isGroupMode && linhas.length > 0 && (
+          {linhas.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-white px-4 py-2.5 text-[12px]">
               <span className="font-medium text-slate-700">Fornecedores:</span>
               <span className="text-slate-500">
@@ -2559,14 +2603,15 @@ export function OrderCreateClient({
                 {linhasSeleccionadas.size > 0 && (
                   <>
                     <span className="text-slate-500">{linhasSeleccionadas.size} seleccionada{linhasSeleccionadas.size === 1 ? "" : "s"}</span>
-                    <select
-                      value={bulkFornecedorId}
-                      onChange={(e) => setBulkFornecedorId(e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
-                    >
-                      <option value="">— Fornecedor —</option>
-                      {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                    </select>
+                    <div className="w-56">
+                      <SearchableSelect
+                        items={fornecedoresItems}
+                        value={bulkFornecedorId || null}
+                        onChange={(v) => setBulkFornecedorId(v ?? "")}
+                        placeholder="— Fornecedor —"
+                        ariaLabel="Fornecedor a definir nas linhas seleccionadas"
+                      />
+                    </div>
                     <button type="button" disabled={!bulkFornecedorId}
                       onClick={() => { handleBulkFornecedorChange(linhasSeleccionadas, bulkFornecedorId); setBulkFornecedorId(""); setLinhasSeleccionadas(new Set()); }}
                       className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40">
@@ -2596,21 +2641,19 @@ export function OrderCreateClient({
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
-                    {!isGroupMode && (
-                      <th className="w-8 px-2 py-1.5">
-                        <input
-                          type="checkbox"
-                          className="rounded"
-                          checked={visibleLinhas.length > 0 && visibleLinhas.every((l) => linhasSeleccionadas.has(l.key))}
-                          onChange={(e) =>
-                            setLinhasSeleccionadas(
-                              e.target.checked ? new Set(visibleLinhas.map((l) => l.key)) : new Set()
-                            )
-                          }
-                          aria-label="Seleccionar todas as linhas visíveis"
-                        />
-                      </th>
-                    )}
+                    <th className="w-8 px-2 py-1.5">
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={visibleLinhas.length > 0 && visibleLinhas.every((l) => linhasSeleccionadas.has(l.key))}
+                        onChange={(e) =>
+                          setLinhasSeleccionadas(
+                            e.target.checked ? new Set(visibleLinhas.map((l) => l.key)) : new Set()
+                          )
+                        }
+                        aria-label="Seleccionar todas as linhas visíveis"
+                      />
+                    </th>
                     <th className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="designacao" className={`${stickyEsquerdaCls} min-w-[190px] border-r border-slate-100 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`}>Produto</CabecalhoOrdenavel>
                     {isGroupMode && <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmaciaNome" className="w-24 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Farmácia</CabecalhoOrdenavel>}
@@ -2621,9 +2664,7 @@ export function OrderCreateClient({
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
                     <th className="min-w-[150px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
-                    {!isGroupMode && (
-                      <th className="min-w-[160px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Fornecedor</th>
-                    )}
+                    <th className="min-w-[160px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Fornecedor</th>
                     <th className={`${stickyDireitaCls} w-20 border-l border-slate-200 px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightFinal }}>Final</th>
                     {mode === "grupo" && (
                       <th className={`${stickyDireitaCls} w-[152px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightDecisao }}>Decisão</th>

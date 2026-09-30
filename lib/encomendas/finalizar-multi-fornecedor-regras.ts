@@ -152,3 +152,33 @@ export function formatarResumoFinalizacaoMultiFornecedor(documentos: readonly Do
 export function deriveFornecedorIdempotencyKey(batchKey: string, fornecedorId: string): string {
   return createHash("sha256").update(`${batchKey}:${fornecedorId}`).digest("hex");
 }
+
+/**
+ * ── Modo grupo · fornecedor por linha (ver gerarPlanoGrupoAction) ──────
+ *
+ * O modo grupo não tem noção de "rascunho editável" (ver o comentário
+ * sobre isso em `app/encomendas/nova/actions.ts` e em
+ * `order-create-client.tsx`) — mas reutilizar `finalizarEncomendaMulti-
+ * Fornecedor` exige um `ListaEncomenda` já persistido para dividir. A
+ * solução é um RASCUNHO TRANSITÓRIO: criado e dividido na MESMA chamada
+ * do servidor, nunca devolvido ao cliente como um rascunho editável —
+ * fica como registo do "lote" dessa farmácia, exactamente como o
+ * rascunho manual de `finalizar-multi-fornecedor.ts` fica depois de
+ * dividido (loteDivididoEm preenchido, nunca apagado).
+ *
+ * As duas chaves abaixo derivam do MESMO `encomendaBatchKey` (uma vez
+ * por chamada a `gerarPlanoGrupoAction`) mas com SALTS distintos — nunca
+ * a mesma chave para dois papéis diferentes (criar o rascunho vs. o
+ * batchKey da sua própria divisão), mesmo que, coincidentemente, o
+ * `farmaciaId` usado em ambas seja o mesmo.
+ */
+
+/** Chave de idempotência do RASCUNHO TRANSITÓRIO por farmácia (criação). */
+export function deriveGrupoDraftIdempotencyKey(batchKey: string, farmaciaId: string): string {
+  return createHash("sha256").update(`${batchKey}:grupo-draft:${farmaciaId}`).digest("hex");
+}
+
+/** Chave de idempotência (batchKey) da DIVISÃO desse rascunho transitório, por farmácia. */
+export function deriveGrupoFinalizacaoBatchKey(batchKey: string, farmaciaId: string): string {
+  return createHash("sha256").update(`${batchKey}:grupo-fin:${farmaciaId}`).digest("hex");
+}
