@@ -23,18 +23,23 @@
  * Nunca escreve fora do âmbito validado do pedido (farmácia/tenant).
  *
  * ── Nota sobre tipos Prisma usados aqui ──────────────────────────────
- * Funções que só fazem leitura/escrita simples (sem resolver nomes) são
- * tipadas com `Prisma.TransactionClient` — um PrismaClient real satisfaz
- * essa interface (é um sobre-conjunto), por isso servem tanto fora como
- * dentro de `prisma.$transaction`. Funções que chamam
- * `resolverOuCriarFornecedor`/`resolverOuCriarFabricante` (que exigem
- * `PrismaClient` completo) só correm FORA da transacção principal — ver
- * `resolverDestinoParaAplicar`. Isto evita criar Fabricante/Fornecedor
- * dentro da transacção de aplicação (que exigiria um tipo incompatível),
- * ao custo de, num cenário raro de falha a meio da transacção, deixar um
- * Fabricante/Fornecedor novo criado mas não referenciado por nenhum
- * produto — nunca um duplicado (nome canónico é `@unique`), apenas uma
- * entidade extra inofensiva. Documentado também no relatório da tarefa.
+ * Todas as funções que leem/escrevem dentro de `aplicarManutencaoMassa` são
+ * tipadas com `Prisma.TransactionClient` (`Tx`, abaixo) — um `PrismaClient`
+ * real satisfaz essa interface (é gerada como
+ * `Omit<PrismaClient, ITXClientDenyList>`, um sobre-conjunto), por isso
+ * servem tanto fora como dentro de `prisma.$transaction`. Isto inclui
+ * `resolverOuCriarFornecedor`/`resolverOuCriarFabricante`
+ * (`lib/catalogo/resolver-fornecedor.ts`/`resolver-fabricante.ts`), que
+ * também foram retipadas para aceitar `Prisma.TransactionClient` — por
+ * isso `resolverDestinoParaAplicar` corre INTEIRAMENTE dentro da
+ * transacção de `aplicarManutencaoMassa`, incluindo a criação de um
+ * Fabricante/Fornecedor novo quando `destino.modo === "novo"`. Uma falha
+ * em qualquer passo posterior (produtos, cabeçalho de auditoria) reverte
+ * também essa criação — nunca fica uma entidade órfã por trás. Ver
+ * histórico do commit: antes desta revisão, `resolverDestinoParaAplicar`
+ * corria FORA da transacção (exigia `PrismaClient` completo), o que podia
+ * deixar um Fabricante/Fornecedor criado mas não referenciado se a
+ * transacção seguinte falhasse — bug de atomicidade corrigido aqui.
  */
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { temFabricanteDivergenteEntreFarmacias } from "@/lib/ingest/catalog-from-erp";
@@ -294,11 +299,14 @@ export type DestinoResolvido =
   | { status: "invalido" };
 
 /**
- * Resolve o destino SEM criar nada — usado no preview, para poder mostrar
- * "este nome não existe, vai ser criado" sem já ter criado.
+ * Resolve o destino SEM criar nada — usado no preview (fora de transacção,
+ * com o `PrismaClient` do pedido) e também DENTRO da transacção de
+ * `aplicarManutencaoMassa` (via `resolverDestinoParaAplicar`, com `tx`) para
+ * revalidar o destino "existente" em tempo real. `Tx` cobre ambos os casos
+ * — ver nota de tipos no topo do ficheiro.
  */
 export async function resolverDestinoPreview(
-  prisma: PrismaClient,
+  prisma: Tx,
   tipo: TipoManutencaoMassa,
   destino: DestinoInput
 ): Promise<DestinoResolvido> {
@@ -341,25 +349,34 @@ export async function resolverDestinoPreview(
   return canonico ? { status: "novo", nomeCanonico: canonico } : { status: "invalido" };
 }
 
-/** Resolve o destino PARA APLICAR — cria quando `modo:"novo"` e não existir ainda. */
+/**
+ * Resolve o destino PARA APLICAR — cria quando `modo:"novo"` e não existir
+ * ainda. Recebe SEMPRE o `tx` da transacção de `aplicarManutencaoMassa`
+ * (nunca o `PrismaClient` de fora dela): quando `modo === "existente"`,
+ * revalida por id em tempo real (nunca confia num destino resolvido antes
+ * de abrir a transacção — pode ter sido renomeado/fundido/desactivado
+ * entre o preview e esta chamada); quando `modo === "novo"`, a eventual
+ * CRIAÇÃO do Fabricante/Fornecedor acontece dentro da mesma transacção, de
+ * modo a que uma falha posterior (produtos, auditoria) a reverta também.
+ */
 async function resolverDestinoParaAplicar(
-  prisma: PrismaClient,
+  tx: Tx,
   tipo: TipoManutencaoMassa,
   destino: DestinoInput
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (destino.modo === "existente") {
-    const check = await resolverDestinoPreview(prisma, tipo, destino);
+    const check = await resolverDestinoPreview(tx, tipo, destino);
     if (check.status !== "existente") return { ok: false, error: "Destino inválido." };
     return { ok: true, id: check.id };
   }
   if (tipo === "FABRICANTE") {
-    const r = await resolverOuCriarFabricante(prisma, destino.nome, { criarSeInexistente: true });
+    const r = await resolverOuCriarFabricante(tx, destino.nome, { criarSeInexistente: true });
     if (r.status !== "resolvido") {
       return { ok: false, error: r.status === "ambiguo" ? "Nome de fabricante ambíguo." : "Nome de fabricante inválido." };
     }
     return { ok: true, id: r.fabricanteId };
   }
-  const r = await resolverOuCriarFornecedor(prisma, destino.nome, { criarSeInexistente: true });
+  const r = await resolverOuCriarFornecedor(tx, destino.nome, { criarSeInexistente: true });
   if (r.status !== "resolvido") {
     return { ok: false, error: r.status === "ambiguo" ? "Nome de fornecedor ambíguo." : "Nome de fornecedor inválido." };
   }
@@ -525,10 +542,23 @@ export type AplicarManutencaoMassaResultado =
   | { ok: false; error: string };
 
 /**
- * Aplica a operação, totalmente transaccional. Revalida o filtro
- * SERVER-SIDE dentro da transacção — nunca confia num id de produto vindo
- * do cliente como autoritário; um subconjunto explícito é intersectado
- * com os matches reais, nunca alarga a selecção.
+ * Erro interno usado só para transportar uma mensagem de erro "de negócio"
+ * (destino inválido/ambíguo) para fora de `prisma.$transaction` sem perder
+ * o texto original — ver o `catch` abaixo. Nunca exposto fora deste módulo.
+ */
+class DestinoInvalidoError extends Error {}
+
+/**
+ * Aplica a operação, totalmente transaccional — incluindo a resolução (e
+ * eventual criação) do destino. Revalida TUDO server-side dentro da MESMA
+ * transacção:
+ *   1. o destino (existente: revalidado por id em tempo real; novo:
+ *      resolvido/criado agora, nunca antes de abrir a transacção);
+ *   2. o filtro, contra os dados reais do tenant;
+ *   3. um subconjunto explícito de produtos, sempre intersectado com os
+ *      matches reais, nunca a alargar a selecção.
+ * Qualquer falha em qualquer um destes passos reverte TUDO — incluindo um
+ * Fabricante/Fornecedor que estivesse prestes a ser criado.
  */
 export async function aplicarManutencaoMassa(
   prisma: PrismaClient,
@@ -537,12 +567,19 @@ export async function aplicarManutencaoMassa(
   const erroFiltro = validarFiltro(input.tipo, input.filtro);
   if (erroFiltro) return { ok: false, error: erroFiltro };
 
-  const destinoResolvido = await resolverDestinoParaAplicar(prisma, input.tipo, input.destino);
-  if (!destinoResolvido.ok) return destinoResolvido;
-  const destinoId = destinoResolvido.id;
-
   try {
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(
+      async (tx) => {
+      // Resolução do destino DENTRO da transacção — nunca antes: um destino
+      // "existente" pode ter sido renomeado/fundido/desactivado entre o
+      // preview e esta chamada, e um destino "novo" só deve ser criado se
+      // o resto da operação (produtos + auditoria) for mesmo concluído.
+      const destinoResolvido = await resolverDestinoParaAplicar(tx, input.tipo, input.destino);
+      if (!destinoResolvido.ok) {
+        throw new DestinoInvalidoError(destinoResolvido.error);
+      }
+      const destinoId = destinoResolvido.id;
+
       let alvo: Array<{ produtoId: string; valorAnterior: string | null }>;
 
       if (input.tipo === "FABRICANTE") {
@@ -612,10 +649,20 @@ export async function aplicarManutencaoMassa(
         quantidadeAlterada: alterados,
         quantidadeIgnorada: ignorados,
       };
-    });
+      },
+      // maxWait/timeout alargados face ao default (2s/5s): a transacção
+      // agora também resolve (e, no modo "novo", pode CRIAR) o destino, e
+      // itera as escritas produto-a-produto — ver precedente idêntico em
+      // lib/aggregate/compras.ts e lib/aggregate/vendamensal.ts para
+      // transacções com passos extra antes do commit.
+      { maxWait: 10_000, timeout: 20_000 }
+    );
 
     return { ok: true, ...resultado };
   } catch (err) {
+    if (err instanceof DestinoInvalidoError) {
+      return { ok: false, error: err.message };
+    }
     if (err instanceof Error && err.message === "NENHUM_PRODUTO_CORRESPONDE") {
       return { ok: false, error: "Nenhum produto corresponde aos filtros indicados." };
     }

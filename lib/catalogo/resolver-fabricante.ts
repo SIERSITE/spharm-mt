@@ -21,8 +21,19 @@
  *   2. Match por `FabricanteAlias.aliasNome` — só se INEQUÍVOCO (exactamente
  *      um `fabricanteId` distinto). Ambíguo nunca resolve sozinho.
  *   3. Criação de um novo `Fabricante` (só quando `criarSeInexistente`).
+ *
+ * `prisma` é tipado como `Prisma.TransactionClient` em vez de `PrismaClient`
+ * de propósito: um `PrismaClient` real é estruturalmente um sobre-conjunto
+ * de `Prisma.TransactionClient` (este último é gerado como
+ * `Omit<PrismaClient, ITXClientDenyList>`), por isso é atribuível onde um
+ * `Prisma.TransactionClient` é esperado — mas o inverso não é verdade. Tipar
+ * pelo mais restrito permite chamar esta função tanto com o `PrismaClient`
+ * do pedido (fora de transacção) como com o `tx` dentro de
+ * `prisma.$transaction(async (tx) => ...)`, sem `as any`/type-casts — ver
+ * `resolverDestinoParaAplicar` em `lib/catalogo/manutencao-massa.ts`, que
+ * precisa de criar o Fabricante DENTRO da transacção de aplicação.
  */
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { normalizeFabricanteCanonico } from "@/lib/catalog-normalizers";
 
 export type ResolverFabricanteResult =
@@ -32,10 +43,12 @@ export type ResolverFabricanteResult =
 
 /**
  * Resolve (ou cria) um Fabricante a partir de um nome cru. `prisma` tem de
- * ser o cliente TENANT-SCOPED do pedido corrente (nunca `legacyPrisma`).
+ * ser o cliente TENANT-SCOPED do pedido corrente (nunca `legacyPrisma`) —
+ * um `PrismaClient` completo ou um `Prisma.TransactionClient` (dentro de
+ * `$transaction`), ver nota de tipos acima.
  */
 export async function resolverOuCriarFabricante(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
   nomeCru: string | null | undefined,
   opts?: {
     /** Nome a preservar como alias quando diferir do canónico. Default: o próprio `nomeCru`. */

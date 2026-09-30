@@ -21,8 +21,19 @@
  *      `null` e o chamador decide (tipicamente: não escreve, reporta).
  *   4. Criação de um novo `Fornecedor`, com o nome legível preservado como
  *      alias quando diferir do canónico.
+ *
+ * `prisma` é tipado como `Prisma.TransactionClient` em vez de `PrismaClient`
+ * de propósito: um `PrismaClient` real é estruturalmente um sobre-conjunto
+ * de `Prisma.TransactionClient` (este último é gerado como
+ * `Omit<PrismaClient, ITXClientDenyList>`), por isso é atribuível onde um
+ * `Prisma.TransactionClient` é esperado — mas o inverso não é verdade. Tipar
+ * pelo mais restrito permite chamar esta função tanto com o `PrismaClient`
+ * do pedido (fora de transacção) como com o `tx` dentro de
+ * `prisma.$transaction(async (tx) => ...)`, sem `as any`/type-casts — ver
+ * `resolverDestinoParaAplicar` em `lib/catalogo/manutencao-massa.ts`, que
+ * precisa de criar o Fornecedor DENTRO da transacção de aplicação.
  */
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { normalizeFornecedorCanonico } from "@/lib/catalog-normalizers";
 
 export type ResolverFornecedorResult =
@@ -33,10 +44,12 @@ export type ResolverFornecedorResult =
 /**
  * Resolve (ou cria) um Fornecedor a partir de um nome cru vindo do ERP ou
  * de input do utilizador. `prisma` tem de ser o cliente TENANT-SCOPED do
- * pedido corrente (nunca `legacyPrisma`).
+ * pedido corrente (nunca `legacyPrisma`) — um `PrismaClient` completo ou um
+ * `Prisma.TransactionClient` (dentro de `$transaction`), ver nota de tipos
+ * acima.
  */
 export async function resolverOuCriarFornecedor(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
   nomeCru: string | null | undefined,
   opts?: {
     /** Nome legível a preservar como alias quando diferir do canónico. Default: o próprio `nomeCru`. */
