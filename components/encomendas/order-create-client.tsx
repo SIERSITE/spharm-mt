@@ -7,13 +7,14 @@ import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import {
-  createConsolidatedOrdersAction,
-  obterEstadoConsolidacaoPorChaveAction,
   createOrderAction,
   generateProposalAction,
   gerarPlanoGrupoAction,
   carregarRascunhoNovaEncomendaAction,
   buildDocumentosFinalizacaoAction,
+  ensureRascunhoConsolidacaoAction,
+  carregarRascunhosConsolidacaoAction,
+  finalizarConsolidacaoFornecedorAction,
   type ProposalMode,
   type DecisaoLinhaGrupoInput,
   type RascunhoNovaEncomenda,
@@ -41,16 +42,10 @@ import { HistoricoProdutoButton } from "@/components/encomendas/historico-produt
 import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
 import { enriquecerLinhasRascunho } from "@/lib/encomendas/reconstruir-rascunho";
 import {
-  chaveArmazenamentoOperacao,
-  executarConsolidacao,
-  lerOperacao,
-  limparOperacao,
-  reconciliarPendente,
-  type ApiConsolidacao,
-  type OperacaoConsolidacao,
-  type ResultadoExecucao,
-  type SnapshotConsolidacao,
-} from "@/lib/encomendas/operacao-consolidacao";
+  ConsolidacaoFarmaciaAutosave,
+  type ConsolidacaoAutosaveHandle,
+} from "@/components/encomendas/consolidacao-farmacia-autosave";
+import type { EstadoAutosave } from "@/lib/encomendas/use-autosave-encomenda";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
@@ -77,6 +72,8 @@ import {
 import {
   deveUsarFinalizacaoMultiFornecedor,
   validarLinhasParaFinalizacaoMultiFornecedor,
+  agruparLinhasPorFornecedor,
+  formatarResumoConsolidacaoPreview,
 } from "@/lib/encomendas/finalizar-multi-fornecedor-regras";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 // Do modulo PURO, nao de `proposal.ts`: aquele tem `server-only` e um
@@ -403,8 +400,24 @@ export function OrderCreateClient({
       remover?: boolean;
     }>
   >([]);
-  // Consolidação: operação de criação pendente/recuperada (ver lib/encomendas/operacao-consolidacao.ts).
-  const [operacaoConsolidacao, setOperacaoConsolidacao] = useState<OperacaoConsolidacao | null>(null);
+  // Consolidação · fornecedor por linha (2026-09-30) — rascunho REAL e
+  // persistente por farmácia, autosave próprio (ver
+  // `components/encomendas/consolidacao-farmacia-autosave.tsx`, N
+  // instâncias, uma por farmácia tocada). `batchKeyConsolidacao` é gerado
+  // uma vez por sessão do ecrã e carregado em `?consolidacao=<batchKey>`
+  // (mesmo papel de `?rascunho=<id>` no modo "farmacia") — permite
+  // recuperar os N rascunhos depois de um refresh/navegação de volta.
+  const [batchKeyConsolidacao, setBatchKeyConsolidacao] = useState<string | null>(null);
+  const [draftsConsolidacao, setDraftsConsolidacao] = useState<
+    Record<string, { listaEncomendaId: string; versaoInicial: number }>
+  >({});
+  const [estadosAutosaveConsolidacao, setEstadosAutosaveConsolidacao] = useState<Record<string, EstadoAutosave>>({});
+  const autosaveRefsConsolidacao = useRef<Map<string, ConsolidacaoAutosaveHandle>>(new Map());
+  const draftPromiseRefsConsolidacao = useRef<Map<string, Promise<string | null>>>(new Map());
+  const consolidacaoCarregadaRef = useRef(false);
+  /** Farmácia escolhida para a edição em massa RESTRITA a essa farmácia (ver toolbar da Vista consolidada). */
+  const [bulkFarmaciaScopeId, setBulkFarmaciaScopeId] = useState("");
+  const [bulkFornecedorIdFarmacia, setBulkFornecedorIdFarmacia] = useState("");
 
   // ─── Resultado pós-finalização (Pontos 2/4/7/8) ────────────────────────
   //
@@ -468,166 +481,185 @@ export function OrderCreateClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId]);
 
-  // ─── Operação de consolidação pendente (resposta perdida) ────────────────
+  // ─── Consolidação · fornecedor por linha — rascunho real por farmácia ──
   //
-  // Uma chave de idempotência identifica uma INTENÇÃO de criação. Depois de
-  // uma tentativa cujo resultado não se viu (timeout, ligação perdida,
-  // refresh), o registo persiste por tenant+utilizador+workspace e o cliente
-  // RECONCILIA junto do servidor antes de qualquer nova tentativa — nunca
-  // gera uma chave nova sozinho. Ver lib/encomendas/operacao-consolidacao.ts.
-  const chaveOperacaoLS = chaveArmazenamentoOperacao(
-    utilizador?.tenant ?? "desconhecido",
-    utilizador?.userId ?? "desconhecido",
-    searchParams.get("workspace") ?? "nova"
-  );
-  const apiConsolidacao: ApiConsolidacao = {
-    criar: (i) => createConsolidatedOrdersAction(i),
-    reconciliar: (i) => obterEstadoConsolidacaoPorChaveAction(i),
-  };
-  function storageOperacao(): Storage | null {
-    try {
-      return typeof window === "undefined" ? null : window.localStorage;
-    } catch {
-      return null;
-    }
+  // (2026-09-30) Substitui o antigo lote atómico client-side (uma única
+  // `criar()` no fim, reconciliada por localStorage — ver histórico deste
+  // ficheiro / `lib/encomendas/operacao-consolidacao.ts`, que continua a
+  // existir INTACTO para quem precisar do caminho antigo sem fornecedor
+  // por linha, só deixou de ser chamado por este ecrã): cada farmácia
+  // ganha um rascunho REAL assim que é tocada, com o MESMO autosave que o
+  // modo "farmacia" já usa (debounce, bloqueio optimista, fallback local,
+  // reconciliação de conflito) — nunca um segundo motor de gravação.
+  function registarAutosaveRefConsolidacao(farmaciaId: string, handle: ConsolidacaoAutosaveHandle | null) {
+    if (handle) autosaveRefsConsolidacao.current.set(farmaciaId, handle);
+    else autosaveRefsConsolidacao.current.delete(farmaciaId);
   }
-  function depsConsolidacao() {
-    return {
-      api: apiConsolidacao,
-      storage: storageOperacao(),
-      chaveLS: chaveOperacaoLS,
-      gerarChave: () => crypto.randomUUID().replace(/-/g, ""),
-    };
+  function handleEstadoAutosaveConsolidacao(farmaciaId: string, estado: EstadoAutosave) {
+    setEstadosAutosaveConsolidacao((prev) => (prev[farmaciaId] === estado ? prev : { ...prev, [farmaciaId]: estado }));
   }
+
   /**
-   * `finalize` distingue "Guardar rascunho" (consolidação também passa
-   * por aqui com `finalize=false` — cria RASCUNHOS, sem outbox) de
-   * "Criar encomendas" — só este último mostra o painel de resultado com
-   * Imprimir/PDF/Email (Ponto 4): esse painel não faz sentido para um
-   * lote que ainda nem foi enviado para a fila.
+   * Garante que existe um rascunho REAL para esta farmácia, criando-o
+   * (com TODAS as linhas actuais DESSA farmácia) na primeira chamada —
+   * mesmo desenho de `ensureDraft` acima, uma farmácia de cada vez, nunca
+   * uma criação atómica das N farmácias. Single-flight por farmácia via
+   * `draftPromiseRefsConsolidacao`.
    */
-  function aplicarResultadoConsolidacao(r: ResultadoExecucao, finalize: boolean) {
-    switch (r.tipo) {
-      case "CRIADA":
-      case "RECUPERADA": {
-        const criadaAgora = r.tipo === "CRIADA";
-        setOperacaoConsolidacao(criadaAgora ? null : r.op);
-        if (!finalize) {
-          setFlash(
-            criadaAgora
-              ? { type: "ok", msg: `${r.listas.length} rascunho(s) criado(s).` }
-              : {
-                  type: "info",
-                  msg: `O lote anterior foi recuperado: ${r.listas.length} rascunho(s) já existem no servidor.`,
-                }
-          );
-          return;
-        }
-        setLinhas([]);
-        setHasProposal(false);
-        setProposalMeta(null);
-        setFlash(
-          criadaAgora
-            ? null
-            : {
-                type: "info",
-                msg: `O lote anterior foi recuperado: ${r.listas.length} encomenda(s) já existem no servidor. Não foi criado nenhum lote novo.`,
-              }
-        );
-        mostrarResultadoFinalizacao({
-          listaEncomendaIds: r.listas.map((l) => l.listaEncomendaId),
-          transferenciaIds: [],
+  function ensureDraftConsolidacao(farmaciaId: string, linhasDaFarmacia: Line[]): Promise<string | null> {
+    const existente = draftsConsolidacao[farmaciaId];
+    if (existente) return Promise.resolve(existente.listaEncomendaId);
+    if (!batchKeyConsolidacao) return Promise.resolve(null);
+    const emVoo = draftPromiseRefsConsolidacao.current.get(farmaciaId);
+    if (emVoo) return emVoo;
+
+    const validas = linhasDaFarmacia.filter((l) => {
+      const q = Number(l.finalQty || "0");
+      return Number.isFinite(q) && q > 0;
+    });
+    if (validas.length === 0) return Promise.resolve(null);
+
+    const farmaciaNome = farmacias.find((f) => f.id === farmaciaId)?.nome ?? farmaciaId;
+    const promessa = (async (): Promise<string | null> => {
+      try {
+        const r = await ensureRascunhoConsolidacaoAction({
+          batchKey: batchKeyConsolidacao,
+          farmaciaId,
+          nome: `${(nome.trim() || `Consolidação ${new Date().toLocaleDateString("pt-PT")}`)} · ${farmaciaNome}`.slice(0, 180),
+          linhas: validas.map((l) => ({
+            produtoId: l.produtoId,
+            quantidadeSugerida: l.suggestedQty ?? null,
+            quantidadeAjustada: Number(l.finalQty),
+            fornecedorSugeridoId: l.fornecedorSugeridoId,
+            notas: l.notas.trim() || null,
+            origem: l.origem,
+          })),
+          contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
         });
+        if (!r.ok) {
+          setFlash({ type: "err", msg: `${farmaciaNome}: ${r.error}` });
+          return null;
+        }
+        setDraftsConsolidacao((prev) => ({ ...prev, [farmaciaId]: { listaEncomendaId: r.listaEncomendaId, versaoInicial: r.versao } }));
+        return r.listaEncomendaId;
+      } catch (err) {
+        setFlash({ type: "err", msg: err instanceof Error ? err.message : `Falha ao criar rascunho de ${farmaciaNome}.` });
+        return null;
+      } finally {
+        draftPromiseRefsConsolidacao.current.delete(farmaciaId);
+      }
+    })();
+    draftPromiseRefsConsolidacao.current.set(farmaciaId, promessa);
+    return promessa;
+  }
+
+  /**
+   * Ponto único por onde TODAS as edições de uma linha de consolidação
+   * passam depois de um rascunho existir — mesma disciplina de
+   * `persistLineChange` (modo farmácia), mas por `Line` inteira (não só
+   * `produtoId`): o MESMO produto pode aparecer em várias farmácias na
+   * vista consolidada, cada uma com o seu próprio rascunho e a sua
+   * própria decisão de fornecedor — nunca uma propaga para a outra.
+   */
+  async function persistLineChangeConsolidacao(
+    l: Line,
+    patch: { quantidadeAjustada?: number | null; notas?: string | null; fornecedorSugeridoId?: string | null; origem?: OrigemLinha },
+    linhasActuaisTodas: Line[]
+  ) {
+    if (!l.farmaciaId) return;
+    const farmaciaId = l.farmaciaId;
+    const linhasDaFarmacia = linhasActuaisTodas.filter((x) => x.farmaciaId === farmaciaId);
+    const id = draftsConsolidacao[farmaciaId]?.listaEncomendaId ?? (await ensureDraftConsolidacao(farmaciaId, linhasDaFarmacia));
+    if (!id) return;
+    autosaveRefsConsolidacao.current.get(farmaciaId)?.marcarSujo(l.produtoId, patch);
+  }
+
+  function persistLineRemovalConsolidacao(l: Line) {
+    if (!l.farmaciaId || !draftsConsolidacao[l.farmaciaId]) return; // sem rascunho ainda: nada para remover no servidor
+    autosaveRefsConsolidacao.current.get(l.farmaciaId)?.marcarRemovido(l.produtoId);
+  }
+
+  function handleRemoveLineConsolidacao(l: Line) {
+    removeLine(l.key);
+    persistLineRemovalConsolidacao(l);
+  }
+
+  /** Força a gravação de TODOS os rascunhos de farmácia pendentes — chamado antes de "Guardar"/"Criar encomendas". */
+  async function flushTodasAutosavesConsolidacao(): Promise<boolean> {
+    const handles = [...autosaveRefsConsolidacao.current.values()];
+    if (handles.length === 0) return true;
+    const resultados = await Promise.all(handles.map((h) => h.flushSincrono()));
+    return resultados.every(Boolean);
+  }
+
+  // ── Sessão da consolidação (?consolidacao=<batchKey>) + recuperação ────
+  //
+  // Mesmo papel de `?rascunho=<id>` no modo "farmacia": gerado uma vez
+  // (ou lido da URL, num refresh/navegação de volta), carregado na URL
+  // para sobreviver a um refresh — e, ao contrário do modo "farmacia"
+  // (um único rascunho), aqui recupera o conteúdo COMPLETO de TODAS as
+  // farmácias que já tinham rascunho, sem recalcular nem voltar a
+  // sugerir nenhum fornecedor já decidido.
+  //
+  // DOIS efeitos, não um só — `mode` nasce SEMPRE "farmacia"
+  // (`useState<ProposalMode>("farmacia")`, nunca lido da URL na
+  // inicialização), por isso um único efeito gated em
+  // `mode === "consolidacao"` NUNCA correria depois de um refresh de
+  // `?consolidacao=<key>` (o mount acontece com `mode` ainda "farmacia").
+  // O efeito de MONTAGEM abaixo lê a URL independentemente do `mode`
+  // inicial — mesma disciplina do efeito de `?rascunho=<id>` mais acima
+  // — e é ele que muda `mode` para "consolidacao" quando encontra a
+  // chave. O SEGUNDO efeito só trata da outra origem possível: o
+  // utilizador a clicar no botão "Consolidação" numa sessão nova (sem
+  // chave na URL ainda) — got o MESMO ref-guard, nunca corre duas vezes.
+  useEffect(() => {
+    const key = searchParams.get("consolidacao");
+    if (!key || consolidacaoCarregadaRef.current) return;
+    consolidacaoCarregadaRef.current = true;
+    setMode("consolidacao");
+    setBatchKeyConsolidacao(key);
+    setCarregandoRascunho(true);
+    startTransition(async () => {
+      const r = await carregarRascunhosConsolidacaoAction({ batchKey: key, farmaciaIds: farmacias.map((f) => f.id) });
+      setCarregandoRascunho(false);
+      if (!r.ok) {
+        setFlash({ type: "err", msg: r.error });
         return;
       }
-      case "REJEITADA":
-        setOperacaoConsolidacao(null);
-        setFlash({ type: "err", msg: `Consolidação não criada (nada foi gravado): ${r.erro}` });
-        return;
-      case "DESCONHECIDO":
-        setOperacaoConsolidacao(r.op);
-        setFlash({
-          type: "err",
-          msg: `Não foi possível confirmar se a consolidação foi criada (${r.erro}). Nada de novo será criado sem verificar primeiro o estado no servidor.`,
-        });
-        return;
-      case "BLOQUEADA":
-        setOperacaoConsolidacao(r.op);
-        setFlash({ type: "err", msg: r.motivo });
-        return;
-    }
-  }
-  function snapshotConsolidacao(finalize: boolean, validLines: Line[]): SnapshotConsolidacao | null {
-    const byFarmacia = new Map<string, Line[]>();
-    for (const l of validLines) {
-      const fId = l.farmaciaId ?? "";
-      if (!fId) continue;
-      if (!byFarmacia.has(fId)) byFarmacia.set(fId, []);
-      byFarmacia.get(fId)!.push(l);
-    }
-    if (byFarmacia.size === 0) return null;
-    return {
-      nome: (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180),
-      finalize,
-      contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
-      lotes: [...byFarmacia.entries()]
-        .sort(([x], [y]) => (x < y ? -1 : 1))
-        .map(([fId, fLinhas]) => ({
-          farmaciaId: fId,
-          linhas: [...fLinhas]
-            .sort((x, y) => (x.produtoId < y.produtoId ? -1 : 1))
-            .map((l) => ({
-              produtoId: l.produtoId,
-              quantidadeSugerida: l.suggestedQty ?? null,
-              quantidadeAjustada: Number(l.finalQty),
-              notas: l.notas.trim() || null,
-              origem: l.origem,
-            })),
-        })),
-    };
-  }
-  // Ao montar (incl. depois de um refresh): lê o registo persistido e reconcilia
-  // com o servidor (só leitura — nunca cria nada).
-  useEffect(() => {
-    const pendente = lerOperacao(storageOperacao(), chaveOperacaoLS);
-    if (!pendente) return;
-    setOperacaoConsolidacao(pendente.estado === "A_SUBMETER" ? { ...pendente, estado: "RESULTADO_DESCONHECIDO" } : pendente);
-    void reconciliarPendente(depsConsolidacao()).then((r) => {
-      if (r) aplicarResultadoConsolidacao(r, pendente.snapshot.finalize);
+      const encontrados = r.porFarmacia.filter((p): p is typeof p & { draft: NonNullable<typeof p.draft> } => p.draft !== null);
+      if (encontrados.length === 0) return; // sessão nova: ecrã começa vazio, como sempre
+      const novosDrafts: Record<string, { listaEncomendaId: string; versaoInicial: number }> = {};
+      const novasLinhas: Line[] = [];
+      for (const p of encontrados) {
+        novosDrafts[p.farmaciaId] = { listaEncomendaId: p.draft.listaEncomendaId, versaoInicial: p.draft.versao };
+        for (const l of p.draft.linhas) novasLinhas.push(buildLineFromRascunho(l, p.farmaciaId));
+      }
+      setDraftsConsolidacao(novosDrafts);
+      setLinhas(novasLinhas);
+      setHasProposal(true);
+      setFlash({
+        type: "info",
+        msg: `Consolidação retomada — ${encontrados.length} farmácia(s), ${novasLinhas.length} linha(s). Fornecedores e quantidades decididos foram preservados tal e qual.`,
+      });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveOperacaoLS]);
-  function verificarEstadoConsolidacao() {
-    startTransition(async () => {
-      const r = await reconciliarPendente(depsConsolidacao());
-      if (r) aplicarResultadoConsolidacao(r, operacaoConsolidacao?.snapshot.finalize ?? false);
-    });
-  }
-  function continuarLoteRecuperado() {
-    const st = storageOperacao();
-    if (st) limparOperacao(st, chaveOperacaoLS);
-    setOperacaoConsolidacao(null);
-    router.push("/encomendas");
-  }
-  function criarNovoLoteExplicito() {
-    const validLines = linhas.filter((l) => Number.isFinite(Number(l.finalQty || "0")) && Number(l.finalQty || "0") > 0);
-    const snap = snapshotConsolidacao(operacaoConsolidacao?.snapshot.finalize ?? false, validLines);
-    if (!snap) {
-      setFlash({ type: "err", msg: "Sem linhas com quantidade > 0 para criar um novo lote." });
-      return;
-    }
-    const aviso =
-      operacaoConsolidacao?.estado === "CONCLUIDA"
-        ? "Vai criar um NOVO lote, além do que já existe no servidor. Continuar?"
-        : "Ainda não foi possível confirmar se o lote anterior foi criado. Criar um NOVO lote pode duplicar encomendas. Continuar?";
-    if (!window.confirm(aviso)) return;
-    startTransition(async () => {
-      aplicarResultadoConsolidacao(
-        await executarConsolidacao(depsConsolidacao(), snap, { novoLoteExplicito: true }),
-        snap.finalize
-      );
-    });
-  }
+  }, []);
+
+  // Sessão NOVA (o utilizador acabou de escolher "Consolidação", sem
+  // nenhuma chave ainda na URL) — gera a chave uma única vez e
+  // publica-a na URL. Se o efeito de montagem acima já tratou de uma
+  // chave existente, `consolidacaoCarregadaRef` já está true e este
+  // efeito não faz nada.
+  useEffect(() => {
+    if (mode !== "consolidacao" || consolidacaoCarregadaRef.current) return;
+    consolidacaoCarregadaRef.current = true;
+    const params = new URLSearchParams(searchParams.toString());
+    const key = crypto.randomUUID().replace(/-/g, "");
+    params.set("consolidacao", key);
+    window.history.replaceState(window.history.state, "", `${pathname}?${params.toString()}`);
+    setBatchKeyConsolidacao(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   function buildContextoActual(): PropostaContexto {
     return {
@@ -1775,6 +1807,42 @@ export function OrderCreateClient({
           const contextoSerializado = serializarPropostaContexto(buildContextoActual());
           if (contextoSerializado !== undefined) autosave.marcarContexto(contextoSerializado);
         }
+      } else if (mode === "consolidacao") {
+        // Mesmo espírito, uma farmácia de cada vez: uma proposta gerada É
+        // o "primeiro evento significativo" para CADA farmácia que nela
+        // aparece — quem ainda não tem rascunho ganha um agora (com TODAS
+        // as suas linhas de uma vez); quem já tem sincroniza só as linhas
+        // PROPOSTA (novas/actualizadas/removidas pelo recálculo) pelo SEU
+        // próprio autosave — nunca um segundo motor de gravação.
+        const porFarmaciaAntes = new Map<string, Line[]>();
+        for (const l of linhas) {
+          if (!l.farmaciaId) continue;
+          (porFarmaciaAntes.get(l.farmaciaId) ?? porFarmaciaAntes.set(l.farmaciaId, []).get(l.farmaciaId)!).push(l);
+        }
+        const porFarmaciaDepois = new Map<string, Line[]>();
+        for (const l of linhasComDecisao) {
+          if (!l.farmaciaId) continue;
+          (porFarmaciaDepois.get(l.farmaciaId) ?? porFarmaciaDepois.set(l.farmaciaId, []).get(l.farmaciaId)!).push(l);
+        }
+        for (const [fId, fLinhasDepois] of porFarmaciaDepois) {
+          if (!draftsConsolidacao[fId]) {
+            void ensureDraftConsolidacao(fId, fLinhasDepois);
+            continue;
+          }
+          const idsAntes = new Set((porFarmaciaAntes.get(fId) ?? []).filter((l) => l.origem === "PROPOSTA").map((l) => l.produtoId));
+          const idsDepois = new Set(fLinhasDepois.map((l) => l.produtoId));
+          for (const produtoId of idsAntes) {
+            if (!idsDepois.has(produtoId)) autosaveRefsConsolidacao.current.get(fId)?.marcarRemovido(produtoId);
+          }
+          for (const l of fLinhasDepois) {
+            if (l.origem !== "PROPOSTA") continue;
+            autosaveRefsConsolidacao.current.get(fId)?.marcarSujo(l.produtoId, {
+              quantidadeSugerida: l.suggestedQty ?? null,
+              quantidadeAjustada: Number(l.finalQty),
+              origem: "PROPOSTA",
+            });
+          }
+        }
       }
       setProposalMeta({
         numDays: result.data.meta.numDays,
@@ -1921,6 +1989,107 @@ export function OrderCreateClient({
     if (mode === "farmacia") persistLineRemoval(l.produtoId);
   }
 
+  // ─── Consolidação · edição por linha e em massa (Vista consolidada) ────
+  //
+  // Mesmo caminho de gravação de `handleFinalQtyChange`/`handleFornecedorChange`
+  // (modo farmácia), só que por FARMÁCIA — `persistLineChangeConsolidacao`
+  // já sabe rotear para o rascunho/autosave certo a partir de `l.farmaciaId`.
+  function handleConsolidadoQtyChange(l: Line, value: string) {
+    updateLine(l.key, { finalQty: value });
+    const n = Number(value || "0");
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, finalQty: value } : x));
+    void persistLineChangeConsolidacao(l, { quantidadeAjustada: Number.isFinite(n) ? n : 0 }, linhasActuais);
+  }
+
+  function handleConsolidadoFornecedorChange(l: Line, fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nomeForn = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
+    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn });
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, fornecedorSugeridoId: valor } : x));
+    void persistLineChangeConsolidacao(l, { fornecedorSugeridoId: valor }, linhasActuais);
+  }
+
+  /**
+   * Edição em massa por SELECÇÃO (`linhasSeleccionadas`/`bulkFornecedorId`,
+   * mesmo estado já usado por farmácia/grupo — aqui pode abranger mais de
+   * uma farmácia, se o utilizador seleccionou linhas de farmácias
+   * diferentes: cada linha grava-se no rascunho da SUA PRÓPRIA farmácia,
+   * nunca propagada para outra).
+   */
+  function handleBulkFornecedorChangeConsolidacao(keys: ReadonlySet<number>, fornecedorId: string) {
+    const valor = fornecedorId === "" ? null : fornecedorId;
+    const nomeForn = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
+    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn } : l)));
+    const linhasActuais = linhas.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor } : l));
+    for (const l of linhasActuais) {
+      if (!keys.has(l.key)) continue;
+      void persistLineChangeConsolidacao(l, { fornecedorSugeridoId: valor }, linhasActuais);
+    }
+  }
+
+  /** Edição em massa RESTRITA a uma farmácia — "alteração em massa limitada a uma farmácia" (nunca cruza farmácias). */
+  function handleBulkFornecedorFarmaciaConsolidacao(farmaciaId: string, fornecedorId: string) {
+    if (!farmaciaId || !fornecedorId) return;
+    const keys = new Set(linhas.filter((l) => l.farmaciaId === farmaciaId).map((l) => l.key));
+    handleBulkFornecedorChangeConsolidacao(keys, fornecedorId);
+  }
+
+  /**
+   * Resumo farmácia → fornecedor (por linhas correntes em memória) — a
+   * MESMA composição que `finalizarConsolidacaoMultiFornecedor` vai
+   * produzir no servidor, calculada aqui em pré-visualização sem escrever
+   * nada (regras puras reutilizadas de
+   * `lib/encomendas/finalizar-multi-fornecedor-regras.ts`).
+   */
+  const resumoConsolidacaoPorFarmacia = useMemo(() => {
+    if (mode !== "consolidacao") return [];
+    const porFarmacia = new Map<string, { farmaciaId: string; farmaciaNome: string; linhas: Line[] }>();
+    for (const l of linhas) {
+      if (!l.farmaciaId) continue;
+      if (!porFarmacia.has(l.farmaciaId)) {
+        porFarmacia.set(l.farmaciaId, { farmaciaId: l.farmaciaId, farmaciaNome: l.farmaciaNome ?? l.farmaciaId, linhas: [] });
+      }
+      porFarmacia.get(l.farmaciaId)!.linhas.push(l);
+    }
+    return [...porFarmacia.values()]
+      .sort((a, b) => a.farmaciaNome.localeCompare(b.farmaciaNome))
+      .map((f) => {
+        const comFornecedor = f.linhas.filter((l) => l.fornecedorSugeridoId != null);
+        const grupos = agruparLinhasPorFornecedor(
+          comFornecedor.map((l) => ({ produtoId: l.produtoId, fornecedorSugeridoId: l.fornecedorSugeridoId }))
+        );
+        const porFornecedor = grupos.map((g) => ({
+          fornecedorId: g.fornecedorId,
+          fornecedorNome: fornecedores.find((fo) => fo.id === g.fornecedorId)?.nome ?? "Fornecedor",
+          nLinhas: g.linhas.length,
+        }));
+        return {
+          farmaciaId: f.farmaciaId,
+          farmaciaNome: f.farmaciaNome,
+          total: f.linhas.length,
+          semFornecedor: f.linhas.length - comFornecedor.length,
+          porFornecedor,
+        };
+      });
+  }, [linhas, mode, fornecedores]);
+
+  /** Texto EXACTO da pré-visualização pedida — ver `formatarResumoConsolidacaoPreview`. */
+  const previewConsolidacaoTexto = useMemo(
+    () =>
+      formatarResumoConsolidacaoPreview(
+        resumoConsolidacaoPorFarmacia.map((f) => ({ farmaciaNome: f.farmaciaNome, porFornecedor: f.porFornecedor }))
+      ),
+    [resumoConsolidacaoPorFarmacia]
+  );
+  const totalDocumentosConsolidacao = resumoConsolidacaoPorFarmacia.reduce((s, f) => s + f.porFornecedor.length, 0);
+  const semFornecedorTotalConsolidacao = resumoConsolidacaoPorFarmacia.reduce((s, f) => s + f.semFornecedor, 0);
+
+  /** "Só sem fornecedor" aplicado à vista consolidada — mostra grupos de produto com PELO MENOS uma sub-linha sem fornecedor. */
+  const consolidadoRowsFiltradas = useMemo(() => {
+    if (!filterSemFornecedor) return consolidadoRows;
+    return consolidadoRows.filter((g) => g.farmaciaLinhas.some((l) => l.fornecedorSugeridoId == null));
+  }, [consolidadoRows, filterSemFornecedor]);
+
   function submit(finalize: boolean) {
     setFlash(null);
     const validLines = linhas.filter((l) => {
@@ -1933,18 +2102,84 @@ export function OrderCreateClient({
     }
 
     if (mode === "consolidacao") {
-      // Lote ÚNICO, uma só transacção no servidor (tudo ou nada), com uma
-      // chave de idempotência por INTENÇÃO: `executarConsolidacao` reconcilia
-      // primeiro qualquer operação pendente (resposta perdida, refresh) e só
-      // gera uma chave nova na ausência de operação registada ou por decisão
-      // explícita («Criar novo lote com as alterações»).
-      const snap = snapshotConsolidacao(finalize, validLines);
-      if (!snap) {
+      // Cada farmácia já tem (ou ganha agora) o SEU rascunho real,
+      // gravado incrementalmente por autosave desde o primeiro toque —
+      // ver `ensureDraftConsolidacao`/`persistLineChangeConsolidacao`
+      // acima. "Guardar rascunho" é só "força a gravação pendente +
+      // confirma" (mesmo papel do modo "farmacia"); "Criar encomendas"
+      // finaliza agrupando primeiro por farmácia, depois por fornecedor
+      // (`finalizarConsolidacaoFornecedorAction` → `finalizarConsolidacaoMultiFornecedor`)
+      // — nunca o antigo caminho sem fornecedor por linha.
+      if (!batchKeyConsolidacao) {
+        setFlash({ type: "err", msg: "Sessão de consolidação ainda não inicializada — tenta novamente." });
+        return;
+      }
+      const farmaciaIdsPresentes = [...new Set(validLines.map((l) => l.farmaciaId).filter((id): id is string => !!id))];
+      if (farmaciaIdsPresentes.length === 0) {
         setFlash({ type: "err", msg: "Sem farmácias identificadas nas linhas." });
         return;
       }
+      if (finalize) {
+        const semFornecedor = validLines.filter((l) => l.fornecedorSugeridoId == null);
+        if (semFornecedor.length > 0) {
+          // Verificação amigável do lado do cliente — a REAL é sempre a
+          // do motor, dentro da transacção (ver
+          // `validarLinhasParaFinalizacaoMultiFornecedor`/
+          // `LinhasSemFornecedorError`); esta é só para um erro rápido
+          // sem sequer chamar o servidor.
+          setFlash({
+            type: "err",
+            msg: `${semFornecedor.length} linha(s) sem fornecedor definido — atribui um fornecedor a todas as linhas antes de criar as encomendas.`,
+          });
+          setFilterSemFornecedor(true);
+          return;
+        }
+      }
       startTransition(async () => {
-        aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap), finalize);
+        // Garante rascunho para qualquer farmácia ainda sem um (ex.:
+        // linhas nunca tocadas individualmente desde a última proposta
+        // gerada) — `finalizarConsolidacaoFornecedorAction` exige que
+        // TODAS as farmácias do pedido já tenham um rascunho real.
+        await Promise.all(
+          farmaciaIdsPresentes.map((fId) =>
+            draftsConsolidacao[fId]
+              ? Promise.resolve()
+              : ensureDraftConsolidacao(fId, validLines.filter((l) => l.farmaciaId === fId))
+          )
+        );
+        const gravado = await flushTodasAutosavesConsolidacao();
+        if (!gravado) {
+          setFlash({
+            type: "err",
+            msg: "Não foi possível gravar as últimas alterações — tenta novamente antes de continuar.",
+          });
+          return;
+        }
+        if (!finalize) {
+          setFlash({ type: "ok", msg: "Rascunhos guardados." });
+          return;
+        }
+        const result = await finalizarConsolidacaoFornecedorAction({
+          batchKey: batchKeyConsolidacao,
+          farmaciaIds: farmaciaIdsPresentes,
+        });
+        if (result.ok) {
+          setFlash(null);
+          mostrarResultadoFinalizacao({
+            listaEncomendaIds: result.documentos.map((d) => d.listaEncomendaId),
+            transferenciaIds: [],
+          });
+        } else if ("conflito" in result && result.conflito) {
+          setFlash({
+            type: "err",
+            msg: "Uma das farmácias foi alterada por outra sessão entretanto — recarrega a página antes de finalizar.",
+          });
+        } else if ("semFornecedor" in result && result.semFornecedor) {
+          setFlash({ type: "err", msg: result.error });
+          setFilterSemFornecedor(true);
+        } else {
+          setFlash({ type: "err", msg: result.error });
+        }
       });
     } else {
       // Só "farmacia" chega aqui (o botão não existe em modo "grupo" —
@@ -2264,47 +2499,6 @@ export function OrderCreateClient({
         </div>
       )}
 
-      {operacaoConsolidacao && (
-        <div
-          role="status"
-          data-testid="consolidacao-pendente"
-          className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-        >
-          <p className="font-semibold">
-            {operacaoConsolidacao.estado === "CONCLUIDA"
-              ? "Lote de consolidação recuperado"
-              : operacaoConsolidacao.estado === "CONFLITO"
-                ? "Consolidação bloqueada"
-                : "Resultado da consolidação desconhecido"}
-          </p>
-          <p className="mt-1 text-xs">
-            {operacaoConsolidacao.estado === "CONCLUIDA"
-              ? `${operacaoConsolidacao.listas?.length ?? operacaoConsolidacao.farmaciaIds.length} encomenda(s) já existem no servidor. Alterações feitas depois NÃO foram aplicadas a esse lote.`
-              : operacaoConsolidacao.estado === "CONFLITO"
-                ? "Não é possível criar outro lote automaticamente."
-                : "A resposta do servidor não chegou. Nenhum lote novo será criado sem verificar o estado no servidor."}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {operacaoConsolidacao.estado !== "CONCLUIDA" && operacaoConsolidacao.estado !== "CONFLITO" && (
-              <button type="button" onClick={verificarEstadoConsolidacao} disabled={busy} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
-                Verificar estado no servidor
-              </button>
-            )}
-            {operacaoConsolidacao.estado === "CONCLUIDA" && (
-              <button type="button" onClick={continuarLoteRecuperado} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
-                Continuar os rascunhos criados
-              </button>
-            )}
-            {(operacaoConsolidacao.estado === "CONCLUIDA" ||
-              operacaoConsolidacao.estado === "RESULTADO_DESCONHECIDO" ||
-              operacaoConsolidacao.estado === "NAO_ENCONTRADA") && (
-              <button type="button" onClick={criarNovoLoteExplicito} disabled={busy} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
-                Criar novo lote com as alterações
-              </button>
-            )}
-          </div>
-        </div>
-      )}
       {flash && (
         <div
           className={`rounded-xl border px-4 py-3 text-[13px] ${
@@ -2709,24 +2903,138 @@ export function OrderCreateClient({
         </section>
       )}
 
+      {/* Consolidação · autosave real, uma instância por farmácia com
+          rascunho — componentes de lógica pura (sem UI própria), ver
+          `ConsolidacaoFarmaciaAutosave`. */}
+      {mode === "consolidacao" &&
+        Object.entries(draftsConsolidacao).map(([farmaciaId, d]) => (
+          <ConsolidacaoFarmaciaAutosave
+            key={farmaciaId}
+            ref={(handle) => registarAutosaveRefConsolidacao(farmaciaId, handle)}
+            farmaciaId={farmaciaId}
+            listaEncomendaId={d.listaEncomendaId}
+            versaoInicial={d.versaoInicial}
+            tenantSlug={utilizador?.tenant ?? "desconhecido"}
+            userId={utilizador?.userId ?? "desconhecido"}
+            onEstadoChange={handleEstadoAutosaveConsolidacao}
+          />
+        ))}
+
       {/* VISTA CONSOLIDAÇÃO */}
       {mode === "consolidacao" && (
         <section className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-[14px] font-semibold text-slate-900">Vista consolidada</h2>
             <p className="mt-0.5 text-[12px] text-slate-500">
-              Agrupado por produto. Ajuste as quantidades finais por farmácia antes de criar as encomendas.
+              Agrupado por produto. Ajuste quantidade e fornecedor por farmácia antes de criar as encomendas.
               {consolidadoRows.length > 0 && ` ${consolidadoRows.length} produtos · total: ${totalFinalAll} und`}
             </p>
           </div>
 
-          {consolidadoRows.length === 0 ? (
+          {resumoConsolidacaoPorFarmacia.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-[12px]">
+              {resumoConsolidacaoPorFarmacia.map((f) => (
+                <span
+                  key={f.farmaciaId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1"
+                >
+                  {estadosAutosaveConsolidacao[f.farmaciaId] && (
+                    <AutosaveStatusBadge estado={estadosAutosaveConsolidacao[f.farmaciaId]} />
+                  )}
+                  <span className="font-medium text-slate-700">{f.farmaciaNome}</span>
+                  <span className="text-slate-400">
+                    {f.total} linha{f.total === 1 ? "" : "s"}
+                    {f.semFornecedor > 0 && <span className="ml-1 font-medium text-amber-600">· {f.semFornecedor} sem fornecedor</span>}
+                  </span>
+                </span>
+              ))}
+              <label className="ml-auto inline-flex cursor-pointer items-center gap-1.5 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={filterSemFornecedor}
+                  onChange={(e) => setFilterSemFornecedor(e.target.checked)}
+                  className="rounded"
+                />
+                Só sem fornecedor{semFornecedorTotalConsolidacao > 0 ? ` (${semFornecedorTotalConsolidacao})` : ""}
+              </label>
+            </div>
+          )}
+
+          {resumoConsolidacaoPorFarmacia.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2.5 text-[12px]">
+              <span className="font-medium text-slate-700">Definir fornecedor:</span>
+              <select
+                value={bulkFarmaciaScopeId}
+                onChange={(e) => setBulkFarmaciaScopeId(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
+              >
+                <option value="">— nesta farmácia —</option>
+                {resumoConsolidacaoPorFarmacia.map((f) => (
+                  <option key={f.farmaciaId} value={f.farmaciaId}>{f.farmaciaNome}</option>
+                ))}
+              </select>
+              <div className="w-48">
+                <SearchableSelect
+                  items={fornecedoresItems}
+                  value={bulkFornecedorIdFarmacia || null}
+                  onChange={(v) => setBulkFornecedorIdFarmacia(v ?? "")}
+                  placeholder="— Fornecedor —"
+                  ariaLabel="Fornecedor a definir em toda a farmácia seleccionada"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={!bulkFarmaciaScopeId || !bulkFornecedorIdFarmacia}
+                onClick={() => {
+                  handleBulkFornecedorFarmaciaConsolidacao(bulkFarmaciaScopeId, bulkFornecedorIdFarmacia);
+                  setBulkFornecedorIdFarmacia("");
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
+              >
+                Aplicar a toda a farmácia
+              </button>
+              <span className="text-slate-300">·</span>
+              {linhasSeleccionadas.size > 0 ? (
+                <>
+                  <span className="text-slate-500">{linhasSeleccionadas.size} linha(s) seleccionada(s) (podem ser de farmácias diferentes)</span>
+                  <div className="w-48">
+                    <SearchableSelect
+                      items={fornecedoresItems}
+                      value={bulkFornecedorId || null}
+                      onChange={(v) => setBulkFornecedorId(v ?? "")}
+                      placeholder="— Fornecedor —"
+                      ariaLabel="Fornecedor a definir nas linhas seleccionadas"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!bulkFornecedorId}
+                    onClick={() => { handleBulkFornecedorChangeConsolidacao(linhasSeleccionadas, bulkFornecedorId); setBulkFornecedorId(""); setLinhasSeleccionadas(new Set()); }}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
+                  >
+                    Aplicar à selecção
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLinhasSeleccionadas(new Set())}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-500 hover:border-rose-300 hover:text-rose-700"
+                  >
+                    Limpar selecção
+                  </button>
+                </>
+              ) : (
+                <span className="text-slate-400">ou seleccione linhas específicas nos chips abaixo (podem abranger mais do que uma farmácia)</span>
+              )}
+            </div>
+          )}
+
+          {consolidadoRowsFiltradas.length === 0 ? (
             <div className="px-4 py-10 text-center text-[12px] text-slate-400">
-              {generating ? "A calcular…" : "Gere uma proposta para ver a vista consolidada."}
+              {generating ? "A calcular…" : consolidadoRows.length > 0 ? "Nenhuma linha sem fornecedor." : "Gere uma proposta para ver a vista consolidada."}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {consolidadoRows.map((g) => (
+              {consolidadoRowsFiltradas.map((g) => (
                 <div key={g.produtoId} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -2740,14 +3048,50 @@ export function OrderCreateClient({
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {g.farmaciaLinhas.map((l) => (
-                          <div key={l.key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                          <div
+                            key={l.key}
+                            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 ${
+                              l.fornecedorSugeridoId == null ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={linhasSeleccionadas.has(l.key)}
+                              onChange={(e) =>
+                                setLinhasSeleccionadas((prev) => {
+                                  const novo = new Set(prev);
+                                  if (e.target.checked) novo.add(l.key);
+                                  else novo.delete(l.key);
+                                  return novo;
+                                })
+                              }
+                              aria-label={`Seleccionar ${l.farmaciaNome ?? "linha"} · ${g.designacao}`}
+                            />
                             <span className="text-[11px] font-medium text-slate-700">{l.farmaciaNome ?? "—"}</span>
                             <span className="text-[11px] text-slate-400">suger. {fmtNum(l.suggestedQty)}</span>
                             <input type="number" min="0" value={l.finalQty}
-                              onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+                              onChange={(e) => handleConsolidadoQtyChange(l, e.target.value)}
                               onFocus={(e) => e.target.select()}
                               disabled={busy}
                               className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-right text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+                            <div className="w-40">
+                              <SearchableSelect
+                                items={fornecedoresItems}
+                                value={l.fornecedorSugeridoId}
+                                onChange={(v) => handleConsolidadoFornecedorChange(l, v ?? "")}
+                                placeholder="— Sem fornecedor —"
+                                selectedLabel={l.fornecedorSugeridoNome}
+                                disabled={busy}
+                                emptyVariant="warning"
+                                ariaLabel={`Fornecedor de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
+                              />
+                            </div>
+                            <button type="button" onClick={() => handleRemoveLineConsolidacao(l)} disabled={busy}
+                              aria-label={`Remover ${l.farmaciaNome ?? "linha"} · ${g.designacao}`}
+                              className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -2768,6 +3112,23 @@ export function OrderCreateClient({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pré-visualização OBRIGATÓRIA antes de "Criar encomendas" — o
+              MESMO texto/formato que o servidor confirma depois de
+              finalizar (`resumoTexto`), calculado aqui sem escrever nada. */}
+          {resumoConsolidacaoPorFarmacia.length > 0 && (
+            <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+              <h3 className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">
+                Pré-visualização — {totalDocumentosConsolidacao} encomenda{totalDocumentosConsolidacao === 1 ? "" : "s"} a criar
+              </h3>
+              <pre className="mt-1.5 whitespace-pre-wrap font-mono text-[11px] leading-5 text-slate-700">{previewConsolidacaoTexto}</pre>
+              {semFornecedorTotalConsolidacao > 0 && (
+                <p className="mt-1.5 text-[11px] font-medium text-amber-700">
+                  {semFornecedorTotalConsolidacao} linha(s) ainda sem fornecedor — atribui um fornecedor a todas antes de criar as encomendas.
+                </p>
+              )}
             </div>
           )}
         </section>
@@ -2843,7 +3204,11 @@ export function OrderCreateClient({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
               {mode === "consolidacao" && linhas.length > 0 && (
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Vai criar {new Set(linhas.map((l) => l.farmaciaId).filter(Boolean)).size} encomenda(s) — uma por farmácia.
+                  {/* Uma encomenda por (farmácia, fornecedor) distinto — nunca
+                      necessariamente "uma por farmácia" desde que o
+                      fornecedor passou a ser decidido por linha; ver a
+                      pré-visualização acima para o detalhe exacto. */}
+                  Vai criar {totalDocumentosConsolidacao} encomenda{totalDocumentosConsolidacao === 1 ? "" : "s"} — ver pré-visualização acima.
                 </p>
               )}
               {mode === "farmacia" && draftId && (
