@@ -358,6 +358,23 @@ export type UtilizadorFarmacia = Prisma.UtilizadorFarmaciaModel
  */
 export type AuditLog = Prisma.AuditLogModel
 /**
+ * Model CatalogoManutencaoOperacao
+ * Cabeçalho de UMA operação de manutenção em massa (aplicação OU
+ * reversão — ver `operacaoOrigemId`). Nunca é apagado; é a fonte de
+ * verdade da auditoria e o que a reversão usa para saber o que
+ * desfazer.
+ */
+export type CatalogoManutencaoOperacao = Prisma.CatalogoManutencaoOperacaoModel
+/**
+ * Model CatalogoManutencaoOperacaoItem
+ * Uma linha por PRODUTO alterado numa operação — o par (valor antes,
+ * valor depois) é o que permite reverter: no momento da reversão,
+ * compara-se o valor ACTUAL do produto (ou ProdutoFarmacia, para
+ * FORNECEDOR) com `valorNovoId`; só reverte se ainda for igual (nunca
+ * pisando uma alteração posterior de outra origem).
+ */
+export type CatalogoManutencaoOperacaoItem = Prisma.CatalogoManutencaoOperacaoItemModel
+/**
  * Model ProdutoFarmacia
  * Tudo o que varia entre farmácias vive aqui.
  */

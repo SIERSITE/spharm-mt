@@ -56,6 +56,8 @@ import {
 } from "@/lib/ingest/bulk";
 import { normalizeIva } from "@/lib/iva";
 import { applyErpCatalogFields } from "@/lib/ingest/catalog-from-erp";
+import { applyFornecedorPreferencialSilveira } from "@/lib/ingest/fornecedor-preferencial-silveira";
+import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-context";
 import {
   reconciliarImportacaoComGlobal,
   type ResumoReconciliacao,
@@ -289,6 +291,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           fabricante: a.fabricante,
         })),
         farmaciaId,
+        { modoNuncaReescreverFabricante: ctx.tenant.slug === TENANT_CATALOGO_MASSA },
       );
       const escritos =
         Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +
@@ -306,6 +309,36 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         "[bootstrap/products] enriquecimento a partir do ERP falhou (ingestão continua):",
         err instanceof Error ? err.message : err,
       );
+    }
+
+    // Fornecedor preferencial (ProdutoFarmacia.fornecedorHabitualId) —
+    // EXCLUSIVO do tenant silveira. O gate é validado ANTES de qualquer
+    // query/escrita específica desta funcionalidade — nas restantes
+    // tenants este bloco nem chega a correr, e o comportamento de
+    // ingestão fica idêntico ao anterior a esta funcionalidade. Mesma
+    // política de erro dos blocos de enriquecimento acima: nunca pode
+    // fazer a farmácia perder o upload de stock do dia.
+    if (ctx.tenant.slug === TENANT_CATALOGO_MASSA) {
+      try {
+        const fornecedorPref = await applyFornecedorPreferencialSilveira(
+          ctx.prisma,
+          dedup.map((a) => ({ cnp: a.cnp, fornecedorNome: a.fornecedorOrigem })),
+          farmaciaId,
+          cnpToId,
+        );
+        if (fornecedorPref.candidatos > 0) {
+          console.log(
+            `[bootstrap/products] fornecedor preferencial (silveira): ${fornecedorPref.candidatos} candidatos, ` +
+              `${fornecedorPref.preenchidos} preenchidos, ${fornecedorPref.preservados} preservados, ` +
+              `${fornecedorPref.ambiguos} ambíguos, ${fornecedorPref.cnpNaoEncontrado} sem produto`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          "[bootstrap/products] fornecedor preferencial (silveira) falhou (ingestão continua):",
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
 
     // Catálogo global: o CNP que já se conhece é projectado AGORA, e o

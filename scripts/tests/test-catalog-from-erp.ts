@@ -13,6 +13,8 @@
 import {
   decidirEscrita,
   decidirTipo,
+  decidirFabricanteSilveira,
+  temFabricanteDivergenteEntreFarmacias,
   limpar,
   limparAtc,
   normalizarFabricante,
@@ -105,6 +107,67 @@ eq("acima de consenso de marca (0.75)", ERP_CONFIDENCE > 0.75, true);
 eq("acima de retalho (0.80)", ERP_CONFIDENCE > 0.8, true);
 eq("abaixo de RegulatoryRecord (0.96)", ERP_CONFIDENCE < 0.96, true);
 eq("abaixo de flag MSRM (0.99)", ERP_CONFIDENCE < 0.99, true);
+
+console.log("\n=== fabricante silveira: nunca reescreve depois de definido ===");
+eq(
+  "campo vazio, não validado — preenche",
+  decidirFabricanteSilveira({ fabricanteAtualNormalizado: null, validadoManualmente: false }).escrever,
+  true,
+);
+eq(
+  "campo já definido — NUNCA reescreve, mesmo sem validação manual",
+  decidirFabricanteSilveira({ fabricanteAtualNormalizado: "BAYER PORTUGAL", validadoManualmente: false }).escrever,
+  false,
+);
+eq(
+  "validadoManualmente bloqueia mesmo com campo vazio",
+  decidirFabricanteSilveira({ fabricanteAtualNormalizado: null, validadoManualmente: true }).escrever,
+  false,
+);
+eq(
+  "campo já definido + validadoManualmente — continua bloqueado",
+  decidirFabricanteSilveira({ fabricanteAtualNormalizado: "BAYER PORTUGAL", validadoManualmente: true }).escrever,
+  false,
+);
+
+console.log("\n=== divergência de fabricante entre farmácias (silveira) ===");
+eq(
+  "duas farmácias com o mesmo valor — sem divergência",
+  temFabricanteDivergenteEntreFarmacias([
+    { farmaciaId: "f-silveirense", fabricanteErpAtual: "BAYER PORTUGAL" },
+    { farmaciaId: "f-segurado", fabricanteErpAtual: "BAYER PORTUGAL" },
+  ]),
+  false,
+);
+eq(
+  "duas farmácias com valores diferentes — divergência",
+  temFabricanteDivergenteEntreFarmacias([
+    { farmaciaId: "f-silveirense", fabricanteErpAtual: "BAYER PORTUGAL" },
+    { farmaciaId: "f-segurado", fabricanteErpAtual: "GENERIS FARMACEUTICA" },
+  ]),
+  true,
+);
+eq(
+  "uma farmácia sem valor (null) nunca conta como divergência sozinha",
+  temFabricanteDivergenteEntreFarmacias([
+    { farmaciaId: "f-silveirense", fabricanteErpAtual: "BAYER PORTUGAL" },
+    { farmaciaId: "f-segurado", fabricanteErpAtual: null },
+  ]),
+  false,
+);
+eq(
+  "ambas sem valor — sem divergência",
+  temFabricanteDivergenteEntreFarmacias([
+    { farmaciaId: "f-silveirense", fabricanteErpAtual: null },
+    { farmaciaId: "f-segurado", fabricanteErpAtual: null },
+  ]),
+  false,
+);
+eq(
+  "uma só farmácia nunca diverge consigo própria",
+  temFabricanteDivergenteEntreFarmacias([{ farmaciaId: "f-silveirense", fabricanteErpAtual: "BAYER PORTUGAL" }]),
+  false,
+);
 
 console.log(`\n${pass} ok, ${fail} falhas`);
 process.exit(fail === 0 ? 0 : 1);

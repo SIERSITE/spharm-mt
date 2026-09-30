@@ -80,6 +80,8 @@ export const ModelName = {
   Utilizador: 'Utilizador',
   UtilizadorFarmacia: 'UtilizadorFarmacia',
   AuditLog: 'AuditLog',
+  CatalogoManutencaoOperacao: 'CatalogoManutencaoOperacao',
+  CatalogoManutencaoOperacaoItem: 'CatalogoManutencaoOperacaoItem',
   ProdutoFarmacia: 'ProdutoFarmacia',
   ProdutoInterno: 'ProdutoInterno',
   Venda: 'Venda',
@@ -601,6 +603,36 @@ export const AuditLogScalarFieldEnum = {
 export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
 
 
+export const CatalogoManutencaoOperacaoScalarFieldEnum = {
+  id: 'id',
+  tipo: 'tipo',
+  utilizadorId: 'utilizadorId',
+  dataCriacao: 'dataCriacao',
+  farmaciaId: 'farmaciaId',
+  filtrosJson: 'filtrosJson',
+  valorNovoId: 'valorNovoId',
+  quantidadeSolicitada: 'quantidadeSolicitada',
+  quantidadeAlterada: 'quantidadeAlterada',
+  quantidadeIgnorada: 'quantidadeIgnorada',
+  motivo: 'motivo',
+  origem: 'origem',
+  operacaoOrigemId: 'operacaoOrigemId'
+} as const
+
+export type CatalogoManutencaoOperacaoScalarFieldEnum = (typeof CatalogoManutencaoOperacaoScalarFieldEnum)[keyof typeof CatalogoManutencaoOperacaoScalarFieldEnum]
+
+
+export const CatalogoManutencaoOperacaoItemScalarFieldEnum = {
+  id: 'id',
+  operacaoId: 'operacaoId',
+  produtoId: 'produtoId',
+  valorAnteriorId: 'valorAnteriorId',
+  valorNovoId: 'valorNovoId'
+} as const
+
+export type CatalogoManutencaoOperacaoItemScalarFieldEnum = (typeof CatalogoManutencaoOperacaoItemScalarFieldEnum)[keyof typeof CatalogoManutencaoOperacaoItemScalarFieldEnum]
+
+
 export const ProdutoFarmaciaScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
@@ -886,7 +918,8 @@ export const ListaEncomendaScalarFieldEnum = {
   numero: 'numero',
   motivoAnulacao: 'motivoAnulacao',
   anuladoPorId: 'anuladoPorId',
-  anuladoEm: 'anuladoEm'
+  anuladoEm: 'anuladoEm',
+  loteOrigemId: 'loteOrigemId'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]
@@ -900,6 +933,7 @@ export const LinhaEncomendaScalarFieldEnum = {
   quantidadeAjustada: 'quantidadeAjustada',
   fornecedorSugeridoId: 'fornecedorSugeridoId',
   notas: 'notas',
+  designacaoSnapshot: 'designacaoSnapshot',
   origem: 'origem'
 } as const
 

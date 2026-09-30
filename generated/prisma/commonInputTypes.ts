@@ -555,6 +555,23 @@ export type EnumUtilizadorPerfilWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumUtilizadorPerfilFilter<$PrismaModel>
 }
 
+export type EnumTipoManutencaoMassaFilter<$PrismaModel = never> = {
+  equals?: $Enums.TipoManutencaoMassa | Prisma.EnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  in?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel> | $Enums.TipoManutencaoMassa
+}
+
+export type EnumTipoManutencaoMassaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.TipoManutencaoMassa | Prisma.EnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  in?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTipoManutencaoMassaWithAggregatesFilter<$PrismaModel> | $Enums.TipoManutencaoMassa
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel>
+}
+
 export type DecimalNullableFilter<$PrismaModel = never> = {
   equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null
   in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null
@@ -1421,6 +1438,23 @@ export type NestedEnumUtilizadorPerfilWithAggregatesFilter<$PrismaModel = never>
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumUtilizadorPerfilFilter<$PrismaModel>
   _max?: Prisma.NestedEnumUtilizadorPerfilFilter<$PrismaModel>
+}
+
+export type NestedEnumTipoManutencaoMassaFilter<$PrismaModel = never> = {
+  equals?: $Enums.TipoManutencaoMassa | Prisma.EnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  in?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel> | $Enums.TipoManutencaoMassa
+}
+
+export type NestedEnumTipoManutencaoMassaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.TipoManutencaoMassa | Prisma.EnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  in?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TipoManutencaoMassa[] | Prisma.ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTipoManutencaoMassaWithAggregatesFilter<$PrismaModel> | $Enums.TipoManutencaoMassa
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumTipoManutencaoMassaFilter<$PrismaModel>
 }
 
 export type NestedDecimalNullableFilter<$PrismaModel = never> = {

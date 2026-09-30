@@ -128,6 +128,16 @@ enum EstadoListaEncomenda {
   /// tem de mostrar "ANULADO" com destaque (ver lib/reporting/adapters).
   /// Ver lib/encomendas/anulacao.ts.
   ANULADA
+  /// (2026-09-30) O rascunho original de uma preparação que foi
+  /// finalizada com linhas de MAIS DO QUE UM fornecedor — nesse caso
+  /// nunca fica FINALIZADA nem ANULADA nem ELIMINADA: a preparação em si
+  /// não é um documento externo (é dividida em N `ListaEncomenda`
+  /// FINALIZADA, uma por fornecedor, cada uma com o seu próprio número,
+  /// outbox e PDF — ver `loteOrigemId` abaixo e
+  /// lib/encomendas/finalizar-multi-fornecedor.ts). PREPARADA nunca é
+  /// apagada nem editável — existe só para "abrir a preparação" e ver
+  /// os documentos que gerou.
+  PREPARADA
 }
 
 /// Estado de uma transferência interna entre farmácias do grupo.
@@ -426,6 +436,7 @@ model Produto {
   indicadores           IndicadoresProdutoFarmacia[]
   linhasEncomenda       LinhaEncomenda[]
   linhasTransferencia   LinhaTransferencia[]
+  manutencaoMassaItens  CatalogoManutencaoOperacaoItem[]
   filaRevisao           FilaRevisao[]
   filaEnriquecimento    EnriquecimentoFila[]
   verificacaoHistorico  ProdutoVerificacaoHistorico[]
@@ -1260,6 +1271,7 @@ model Farmacia {
   syncRequests                        SyncRequest[]
   vendaManutencaoCelulas              VendaManutencaoCelula[]
   vendaManutencaoFarmacias            VendaManutencaoFarmacia[]
+  manutencaoMassaOperacoes            CatalogoManutencaoOperacao[]
 
   /// OBSOLETA desde 2026-08-18 — já NÃO escolhe fonte nenhuma.
   ///
@@ -1332,6 +1344,7 @@ model Utilizador {
   syncRequestsPedidos      SyncRequest[]
   vendaManutencoesCriadas  VendaManutencao[]    @relation("VendaManutencaoCriador")
   vendaManutencoesEditadas VendaManutencao[]    @relation("VendaManutencaoEditor")
+  manutencaoMassaOperacoes CatalogoManutencaoOperacao[]
 }
 
 /// Associação N:N utilizador → farmácias para perfis com acesso a
@@ -1371,6 +1384,91 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([entity, entityId])
   @@index([action, createdAt])
+}
+
+//////////////////////////////////////////////////////
+// MANUTENÇÃO EM MASSA DO CATÁLOGO — EXCLUSIVO DO TENANT SILVEIRA
+//////////////////////////////////////////////////////
+//
+// Ver lib/tenant-context.ts (TENANT_CATALOGO_MASSA) e
+// lib/catalog/manutencao-massa.ts — o servidor recusa qualquer query ou
+// escrita destes modelos fora do tenant silveira, ANTES de tocar na
+// base. Como cada tenant tem a sua própria base física, este par de
+// tabelas existe (pelo schema partilhado) em TODOS os tenants, mas só é
+// alguma vez escrito/lido em silveira — nos restantes fica sempre vazio.
+
+/// FABRICANTE altera `Produto.fabricanteId` (global ao tenant, não por
+/// farmácia). FORNECEDOR altera `ProdutoFarmacia.fornecedorHabitualId`
+/// (por farmácia — `CatalogoManutencaoOperacao.farmaciaId` é obrigatório
+/// nesse caso).
+enum TipoManutencaoMassa {
+  FABRICANTE
+  FORNECEDOR
+}
+
+/// Cabeçalho de UMA operação de manutenção em massa (aplicação OU
+/// reversão — ver `operacaoOrigemId`). Nunca é apagado; é a fonte de
+/// verdade da auditoria e o que a reversão usa para saber o que
+/// desfazer.
+model CatalogoManutencaoOperacao {
+  id          String              @id @default(cuid())
+  tipo        TipoManutencaoMassa
+  utilizadorId String
+  dataCriacao DateTime            @default(now())
+  /// Obrigatório quando tipo=FORNECEDOR (a relação é por farmácia); NULL
+  /// quando tipo=FABRICANTE (Produto.fabricanteId é global ao tenant).
+  farmaciaId  String?
+  /// Filtros que geraram a selecção "todos os resultados", serializados
+  /// em JSON opaco — só para auditoria/diagnóstico, nunca relido pelo
+  /// código para decidir nada.
+  filtrosJson String
+  /// Fabricante.id ou Fornecedor.id consoante `tipo` — o valor de
+  /// DESTINO desta operação (para onde os produtos foram alterados).
+  valorNovoId String
+  quantidadeSolicitada Int
+  quantidadeAlterada   Int
+  quantidadeIgnorada   Int
+  /// Motivo opcional indicado pelo utilizador (ex.: na reversão).
+  motivo      String?
+  /// "MANUTENCAO_MASSA" (aplicação normal) ou "REVERSAO" — ver
+  /// `operacaoOrigemId`.
+  origem      String              @default("MANUTENCAO_MASSA")
+  /// Preenchido SÓ quando origem="REVERSAO" — a operação original que
+  /// esta reverte. Uma operação original nunca é apagada por uma
+  /// reversão, mesmo parcial.
+  operacaoOrigemId String?
+
+  utilizador     Utilizador                        @relation(fields: [utilizadorId], references: [id])
+  farmacia       Farmacia?                         @relation(fields: [farmaciaId], references: [id])
+  operacaoOrigem CatalogoManutencaoOperacao?        @relation("CatalogoManutencaoReversao", fields: [operacaoOrigemId], references: [id])
+  reversoes      CatalogoManutencaoOperacao[]       @relation("CatalogoManutencaoReversao")
+  itens          CatalogoManutencaoOperacaoItem[]
+
+  @@index([tipo])
+  @@index([utilizadorId])
+  @@index([operacaoOrigemId])
+  @@index([dataCriacao])
+}
+
+/// Uma linha por PRODUTO alterado numa operação — o par (valor antes,
+/// valor depois) é o que permite reverter: no momento da reversão,
+/// compara-se o valor ACTUAL do produto (ou ProdutoFarmacia, para
+/// FORNECEDOR) com `valorNovoId`; só reverte se ainda for igual (nunca
+/// pisando uma alteração posterior de outra origem).
+model CatalogoManutencaoOperacaoItem {
+  id              String  @id @default(cuid())
+  operacaoId      String
+  produtoId       String
+  /// NULL para tipo=FABRICANTE (o produto não tinha fabricante antes) ou
+  /// para tipo=FORNECEDOR sem fornecedor preferencial anterior.
+  valorAnteriorId String?
+  valorNovoId     String
+
+  operacao CatalogoManutencaoOperacao @relation(fields: [operacaoId], references: [id], onDelete: Cascade)
+  produto  Produto                    @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([operacaoId])
+  @@index([produtoId])
 }
 
 //////////////////////////////////////////////////////
@@ -2057,17 +2155,27 @@ model ListaEncomenda {
   motivoAnulacao       String?
   anuladoPorId         String?
   anuladoEm            DateTime?
+  /// (2026-09-30) Preenchido SÓ nos documentos gerados por uma
+  /// finalização com separação por fornecedor — aponta para a
+  /// `ListaEncomenda` PREPARADA que os originou (ver comentário em
+  /// PREPARADA, EstadoListaEncomenda). NULL para todas as encomendas
+  /// "normais" (um único fornecedor, ou nenhum). Nunca aponta para si
+  /// própria; a preparação original tem sempre `loteOrigemId = null`.
+  loteOrigemId         String?
 
-  farmacia   Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  criadoPor  Utilizador       @relation(fields: [criadoPorId], references: [id])
-  anuladoPor Utilizador?      @relation("ListaEncomendaAnuladoPor", fields: [anuladoPorId], references: [id])
-  linhas     LinhaEncomenda[]
-  outbox     OrderOutbox?
+  farmacia      Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  criadoPor     Utilizador       @relation(fields: [criadoPorId], references: [id])
+  anuladoPor    Utilizador?      @relation("ListaEncomendaAnuladoPor", fields: [anuladoPorId], references: [id])
+  loteOrigem    ListaEncomenda?  @relation("ListaEncomendaLote", fields: [loteOrigemId], references: [id])
+  documentosGerados ListaEncomenda[] @relation("ListaEncomendaLote")
+  linhas        LinhaEncomenda[]
+  outbox        OrderOutbox?
 
   @@index([farmaciaId])
   @@index([criadoPorId])
   @@index([estado])
   @@index([estadoExport])
+  @@index([loteOrigemId])
 }
 
 /// De onde veio uma linha de encomenda.
@@ -2093,8 +2201,25 @@ model LinhaEncomenda {
   produtoId            String
   quantidadeSugerida   Decimal?             @db.Decimal(14, 3)
   quantidadeAjustada   Decimal?             @db.Decimal(14, 3)
+  /// Fornecedor da linha — nasce como SUGESTÃO (copiada do fornecedor
+  /// preferencial em ProdutoFarmacia.fornecedorHabitualId, quando existe,
+  /// no momento em que a proposta é gerada) mas é a partir daí um campo
+  /// normal e editável: o utilizador pode mudá-lo por linha, em massa, ou
+  /// deixá-lo por preencher. O que aqui fica gravado no momento da
+  /// finalização é que determina o(s) documento(s) externo(s) gerados —
+  /// ver lib/encomendas/finalizar-multi-fornecedor.ts e
+  /// lib/reporting/adapters/encomenda-documento.ts. Nunca recalculado
+  /// nem substituído automaticamente ao reabrir um rascunho.
   fornecedorSugeridoId String?
   notas                String?
+  /// Snapshot de `Produto.designacao` no momento em que a linha entrou
+  /// num documento FINALIZADO (nunca em RASCUNHO/PREPARADA, que continua
+  /// a mostrar a designação ao vivo enquanto é editável) — para uma
+  /// reimpressão futura mostrar SEMPRE o mesmo texto, mesmo que o
+  /// produto seja renomeado depois. NULL para linhas de rascunho ainda
+  /// não finalizadas, ou criadas antes desta coluna existir (nesse caso
+  /// o documento continua a usar `produto.designacao` ao vivo).
+  designacaoSnapshot   String?
   /// Proveniencia da linha. Default PROPOSTA: e' o que todas as linhas
   /// existentes sao — foram criadas pelo calculo automatico, que era o
   /// unico caminho ate' agora. Nenhuma linha historica muda de

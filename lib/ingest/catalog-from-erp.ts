@@ -198,6 +198,69 @@ export function decidirFabricanteBaseline(input: {
   };
 }
 
+export type DecisaoFabricanteSilveira = {
+  /** true = escrever `Produto.fabricanteId` com `novoCanonico`. */
+  escrever: boolean;
+  motivo: string;
+};
+
+/**
+ * Regra de fabricante EXCLUSIVA do tenant silveira (ver
+ * `lib/tenant-context.ts`, `TENANT_CATALOGO_MASSA`) — mais estrita que
+ * `decidirFabricanteBaseline`: uma vez que `Produto.fabricanteId` fica
+ * definido (por este caminho, por manutenção em massa, ou por qualquer
+ * outro), o ERP NUNCA mais o reescreve automaticamente, mesmo que o valor
+ * reportado pelo ERP mude — não há comparação de "qual farmácia é mais
+ * recente/importante" nenhuma: a primeira escrita bem sucedida é
+ * definitiva. Só reversão manual (manutenção em massa) ou correcção
+ * administrativa explícita muda o valor depois disso.
+ *
+ * Enquanto o campo continuar vazio, cada ciclo tenta de novo (comportamento
+ * já natural de `applyErpCatalogFields`: uma linha sem `r.fabricante` no
+ * payload é ignorada nesse ciclo, sem estabelecer nada, por isso o próximo
+ * ciclo com valor tenta de novo).
+ *
+ * `validadoManualmente` continua a bloquear sempre, pela mesma razão que em
+ * `decidirFabricanteBaseline`.
+ */
+export function decidirFabricanteSilveira(input: {
+  fabricanteAtualNormalizado: string | null;
+  validadoManualmente: boolean;
+}): DecisaoFabricanteSilveira {
+  const { fabricanteAtualNormalizado, validadoManualmente } = input;
+  if (validadoManualmente) {
+    return { escrever: false, motivo: "produto validadoManualmente=true — nunca reescrito automaticamente" };
+  }
+  if (fabricanteAtualNormalizado !== null) {
+    return {
+      escrever: false,
+      motivo: "fabricante já definido — tenant silveira nunca reescreve automaticamente uma vez definido",
+    };
+  }
+  return { escrever: true, motivo: "campo vazio — preenche (retry a cada ciclo enquanto vazio)" };
+}
+
+/**
+ * Divergência de fabricante ERP entre as farmácias do MESMO tenant, para o
+ * MESMO produto — sinal puramente informativo (`FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS`
+ * na UI de manutenção em massa), nunca resolvido automaticamente: quando
+ * `Produto.fabricanteId` já está definido (por qualquer via), esta função
+ * não decide qual farmácia "tem razão" — só sinaliza a divergência para
+ * decisão humana. Compara `ProdutoFarmacia.fabricanteErpAtual` (snapshot já
+ * canónico, gravado por `applyErpCatalogFields`) entre farmácias — nunca
+ * persistida como campo novo, calculada em cada leitura.
+ */
+export function temFabricanteDivergenteEntreFarmacias(
+  valoresPorFarmacia: Array<{ farmaciaId: string; fabricanteErpAtual: string | null }>
+): boolean {
+  const distintos = new Set(
+    valoresPorFarmacia
+      .map((v) => v.fabricanteErpAtual)
+      .filter((v): v is string => v !== null && v !== "")
+  );
+  return distintos.size > 1;
+}
+
 /**
  * Precedência do tipo de produto, isolada para poder ser testada.
  *
@@ -264,7 +327,21 @@ export async function applyErpCatalogFields(
    * grupoHomogeneo) continuam a ignorar isto — só afecta fabricante.
    */
   farmaciaId: string,
+  opts?: {
+    /**
+     * Exclusivo do tenant silveira (gate no caller — ver
+     * app/api/ingest/v1/bootstrap/products/route.ts, `TENANT_CATALOGO_MASSA`).
+     * Substitui `decidirFabricanteBaseline` por `decidirFabricanteSilveira`
+     * (nunca reescreve depois de definido, sem noção de "mudança desde
+     * baseline"). O snapshot `fabricanteErpAtual`/`fabricanteErpLastSeenAt`
+     * continua sempre a ser actualizado (serve a detecção de divergência
+     * entre farmácias), mas `fabricanteErpBaseline`/`fabricanteErpChangedAt`
+     * deixam de ter significado neste modo e não são tocados.
+     */
+    modoNuncaReescreverFabricante?: boolean;
+  },
 ): Promise<ErpCatalogResult> {
+  const modoNuncaReescreverFabricante = opts?.modoNuncaReescreverFabricante ?? false;
   const res: ErpCatalogResult = {
     candidatos: 0,
     preenchidos: zeros(),
@@ -432,33 +509,52 @@ export async function applyErpCatalogFields(
     // o porquê. `pfUpdates` grava o resultado em ProdutoFarmacia depois
     // do loop.
     if (r.fabricante) {
-      const baseline = baselinePorProduto.get(produto.id) ?? null;
-      const decisao = decidirFabricanteBaseline({
-        baseline,
-        novoCanonico: r.fabricante,
-        fabricanteAtualNormalizado: produto.fabricante?.nomeNormalizado ?? null,
-        validadoManualmente: produto.validadoManualmente,
-      });
-
       const pfData: Record<string, string | Date> = {
         fabricanteErpAtual: r.fabricante,
         fabricanteErpLastSeenAt: agora,
       };
-      if (decisao.primeiroCiclo) pfData.fabricanteErpFirstSeenAt = agora;
-      if (decisao.avancaBaseline) pfData.fabricanteErpBaseline = r.fabricante;
-      if (decisao.mudou) pfData.fabricanteErpChangedAt = agora;
-      pfUpdates.push({ produtoId: produto.id, data: pfData });
 
-      if (decisao.escrever) {
-        const fabId = fabPorNome.get(r.fabricante);
-        if (fabId) {
-          dados.fabricanteId = fabId;
-          escritos.push("fabricante");
-          if (decisao.primeiroCiclo) res.preenchidos.fabricante++;
-          else res.substituidos.fabricante++;
+      if (modoNuncaReescreverFabricante) {
+        const decisaoSilveira = decidirFabricanteSilveira({
+          fabricanteAtualNormalizado: produto.fabricante?.nomeNormalizado ?? null,
+          validadoManualmente: produto.validadoManualmente,
+        });
+        pfUpdates.push({ produtoId: produto.id, data: pfData });
+        if (decisaoSilveira.escrever) {
+          const fabId = fabPorNome.get(r.fabricante);
+          if (fabId) {
+            dados.fabricanteId = fabId;
+            escritos.push("fabricante");
+            res.preenchidos.fabricante++;
+          }
+        } else {
+          res.preservados.fabricante++;
         }
       } else {
-        res.preservados.fabricante++;
+        const baseline = baselinePorProduto.get(produto.id) ?? null;
+        const decisao = decidirFabricanteBaseline({
+          baseline,
+          novoCanonico: r.fabricante,
+          fabricanteAtualNormalizado: produto.fabricante?.nomeNormalizado ?? null,
+          validadoManualmente: produto.validadoManualmente,
+        });
+
+        if (decisao.primeiroCiclo) pfData.fabricanteErpFirstSeenAt = agora;
+        if (decisao.avancaBaseline) pfData.fabricanteErpBaseline = r.fabricante;
+        if (decisao.mudou) pfData.fabricanteErpChangedAt = agora;
+        pfUpdates.push({ produtoId: produto.id, data: pfData });
+
+        if (decisao.escrever) {
+          const fabId = fabPorNome.get(r.fabricante);
+          if (fabId) {
+            dados.fabricanteId = fabId;
+            escritos.push("fabricante");
+            if (decisao.primeiroCiclo) res.preenchidos.fabricante++;
+            else res.substituidos.fabricante++;
+          }
+        } else {
+          res.preservados.fabricante++;
+        }
       }
     }
 

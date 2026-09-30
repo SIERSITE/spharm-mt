@@ -130,7 +130,8 @@ export const EstadoListaEncomenda = {
   FINALIZADA: 'FINALIZADA',
   EXPORTADA: 'EXPORTADA',
   ELIMINADA: 'ELIMINADA',
-  ANULADA: 'ANULADA'
+  ANULADA: 'ANULADA',
+  PREPARADA: 'PREPARADA'
 } as const
 
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]
@@ -297,6 +298,14 @@ export const EnrichmentSourceStatus = {
 } as const
 
 export type EnrichmentSourceStatus = (typeof EnrichmentSourceStatus)[keyof typeof EnrichmentSourceStatus]
+
+
+export const TipoManutencaoMassa = {
+  FABRICANTE: 'FABRICANTE',
+  FORNECEDOR: 'FORNECEDOR'
+} as const
+
+export type TipoManutencaoMassa = (typeof TipoManutencaoMassa)[keyof typeof TipoManutencaoMassa]
 
 
 export const OrigemLinhaEncomenda = {

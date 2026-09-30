@@ -40,6 +40,20 @@ export const TENANT_SYNC_BLOQUEADO = "garantia";
  */
 export const TENANT_GRUPOS_LABORATORIAIS = "garantia";
 
+/**
+ * Tenant onde a manutenção em massa do catálogo (fabricante/fornecedor
+ * preferencial por produto, com auditoria e reversão) e as regras de
+ * ingestão associadas (fabricante nunca reescrito depois de definido,
+ * fornecedor preferencial nunca reescrito depois de definido, detecção
+ * de divergência entre farmácias) estão disponíveis. Nenhuma outra
+ * tenant tem o ecrã de manutenção, nem aceita as acções directas —
+ * o comportamento de ingestão nessas tenants mantém-se inalterado.
+ * Não é uma "farmácia principal/autoritativa": essa solução foi
+ * abandonada — isto só decide QUEM pode ver/usar o ecrã e as regras,
+ * nunca qual farmácia manda sobre a outra.
+ */
+export const TENANT_CATALOGO_MASSA = "silveira";
+
 export async function resolveCurrentTenantSlug(): Promise<string | null> {
   try {
     const { headers } = await import("next/headers");

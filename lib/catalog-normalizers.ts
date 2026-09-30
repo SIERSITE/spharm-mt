@@ -107,6 +107,38 @@ export function normalizeManufacturerName(
   return result || null;
 }
 
+// ── Fornecedor ───────────────────────────────────────────────────────────────
+
+/**
+ * Normalização CANÓNICA de fornecedor — mesma técnica de
+ * `normalizeFabricanteCanonico` (maiúsculas, sem acentos, sem pontuação
+ * incluindo pontos de abreviatura) mas com IDENTIDADE PRÓPRIA: `Fornecedor`
+ * é uma entidade distinta de `Fabricante` (o grossista/distribuidor a quem
+ * se compra, nunca o fabricante do produto) e não deve partilhar a mesma
+ * função de normalização — foi precisamente reaproveitar chaves de
+ * identidade entre conceitos distintos que causou a divergência histórica
+ * documentada em `normalizeFabricanteCanonico`.
+ *
+ * Limite de 120 (não 60, como fabricante) porque designações sociais de
+ * fornecedor tendem a ser mais longas ("MEPHA - Investimento e
+ * Desenvolvimento Farmacêutico, Lda" tem 47 chars já sem pontuação, mas
+ * outras ultrapassam 60 com facilidade) — mesmo limiar usado por
+ * `normalizeGrupoLaboratorialCanonico` (lib/catalog/grupo-laboratorial-normalizers.ts)
+ * pela mesma razão.
+ */
+export function normalizeFornecedorCanonico(
+  value: string | null | undefined
+): string | null {
+  if (!value) return null;
+  const semAcentos = value.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const canonico = semAcentos
+    .toUpperCase()
+    .replace(/[^A-Z0-9 &-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return canonico.length >= 2 && canonico.length <= 120 ? canonico : null;
+}
+
 // ── Princípio Ativo / DCI ────────────────────────────────────────────────────
 
 /**

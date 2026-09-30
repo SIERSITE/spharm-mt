@@ -413,6 +413,8 @@ export const ModelName = {
   Utilizador: 'Utilizador',
   UtilizadorFarmacia: 'UtilizadorFarmacia',
   AuditLog: 'AuditLog',
+  CatalogoManutencaoOperacao: 'CatalogoManutencaoOperacao',
+  CatalogoManutencaoOperacaoItem: 'CatalogoManutencaoOperacaoItem',
   ProdutoFarmacia: 'ProdutoFarmacia',
   ProdutoInterno: 'ProdutoInterno',
   Venda: 'Venda',
@@ -460,7 +462,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "grupoLaboratorial" | "grupoLaboratorialAlias" | "grupoLaboratorialFabricante" | "catalogoNacionalImportacao" | "catalogoNacionalRegistoImportado" | "produtoGrupoLaboratorial" | "regraGrupoLaboratorialPorCnp" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "grupoLaboratorial" | "grupoLaboratorialAlias" | "grupoLaboratorialFabricante" | "catalogoNacionalImportacao" | "catalogoNacionalRegistoImportado" | "produtoGrupoLaboratorial" | "regraGrupoLaboratorialPorCnp" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "catalogoManutencaoOperacao" | "catalogoManutencaoOperacaoItem" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2607,6 +2609,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.AuditLogCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.AuditLogCountAggregateOutputType> | number
+        }
+      }
+    }
+    CatalogoManutencaoOperacao: {
+      payload: Prisma.$CatalogoManutencaoOperacaoPayload<ExtArgs>
+      fields: Prisma.CatalogoManutencaoOperacaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoManutencaoOperacaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoManutencaoOperacaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoManutencaoOperacaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoManutencaoOperacaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoManutencaoOperacaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoManutencaoOperacaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoManutencaoOperacaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoManutencaoOperacaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoManutencaoOperacaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        update: {
+          args: Prisma.CatalogoManutencaoOperacaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoManutencaoOperacaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoManutencaoOperacaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoManutencaoOperacaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoManutencaoOperacaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoManutencaoOperacaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoManutencaoOperacao>
+        }
+        groupBy: {
+          args: Prisma.CatalogoManutencaoOperacaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoManutencaoOperacaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoManutencaoOperacaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoManutencaoOperacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    CatalogoManutencaoOperacaoItem: {
+      payload: Prisma.$CatalogoManutencaoOperacaoItemPayload<ExtArgs>
+      fields: Prisma.CatalogoManutencaoOperacaoItemFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoManutencaoOperacaoItemFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoManutencaoOperacaoItemFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoManutencaoOperacaoItemFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoManutencaoOperacaoItemFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoManutencaoOperacaoItemFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoManutencaoOperacaoItemCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoManutencaoOperacaoItemCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoManutencaoOperacaoItemCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoManutencaoOperacaoItemDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        update: {
+          args: Prisma.CatalogoManutencaoOperacaoItemUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoManutencaoOperacaoItemDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoManutencaoOperacaoItemUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoManutencaoOperacaoItemUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoManutencaoOperacaoItemUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoManutencaoOperacaoItemPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoManutencaoOperacaoItemAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoManutencaoOperacaoItem>
+        }
+        groupBy: {
+          args: Prisma.CatalogoManutencaoOperacaoItemGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoManutencaoOperacaoItemGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoManutencaoOperacaoItemCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoManutencaoOperacaoItemCountAggregateOutputType> | number
         }
       }
     }
@@ -5488,6 +5638,36 @@ export const AuditLogScalarFieldEnum = {
 export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
 
 
+export const CatalogoManutencaoOperacaoScalarFieldEnum = {
+  id: 'id',
+  tipo: 'tipo',
+  utilizadorId: 'utilizadorId',
+  dataCriacao: 'dataCriacao',
+  farmaciaId: 'farmaciaId',
+  filtrosJson: 'filtrosJson',
+  valorNovoId: 'valorNovoId',
+  quantidadeSolicitada: 'quantidadeSolicitada',
+  quantidadeAlterada: 'quantidadeAlterada',
+  quantidadeIgnorada: 'quantidadeIgnorada',
+  motivo: 'motivo',
+  origem: 'origem',
+  operacaoOrigemId: 'operacaoOrigemId'
+} as const
+
+export type CatalogoManutencaoOperacaoScalarFieldEnum = (typeof CatalogoManutencaoOperacaoScalarFieldEnum)[keyof typeof CatalogoManutencaoOperacaoScalarFieldEnum]
+
+
+export const CatalogoManutencaoOperacaoItemScalarFieldEnum = {
+  id: 'id',
+  operacaoId: 'operacaoId',
+  produtoId: 'produtoId',
+  valorAnteriorId: 'valorAnteriorId',
+  valorNovoId: 'valorNovoId'
+} as const
+
+export type CatalogoManutencaoOperacaoItemScalarFieldEnum = (typeof CatalogoManutencaoOperacaoItemScalarFieldEnum)[keyof typeof CatalogoManutencaoOperacaoItemScalarFieldEnum]
+
+
 export const ProdutoFarmaciaScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
@@ -5773,7 +5953,8 @@ export const ListaEncomendaScalarFieldEnum = {
   numero: 'numero',
   motivoAnulacao: 'motivoAnulacao',
   anuladoPorId: 'anuladoPorId',
-  anuladoEm: 'anuladoEm'
+  anuladoEm: 'anuladoEm',
+  loteOrigemId: 'loteOrigemId'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]
@@ -5787,6 +5968,7 @@ export const LinhaEncomendaScalarFieldEnum = {
   quantidadeAjustada: 'quantidadeAjustada',
   fornecedorSugeridoId: 'fornecedorSugeridoId',
   notas: 'notas',
+  designacaoSnapshot: 'designacaoSnapshot',
   origem: 'origem'
 } as const
 
@@ -6449,6 +6631,20 @@ export type ListEnumUtilizadorPerfilFieldRefInput<$PrismaModel> = FieldRefInputT
 
 
 /**
+ * Reference to a field of type 'TipoManutencaoMassa'
+ */
+export type EnumTipoManutencaoMassaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoManutencaoMassa'>
+    
+
+
+/**
+ * Reference to a field of type 'TipoManutencaoMassa[]'
+ */
+export type ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoManutencaoMassa[]'>
+    
+
+
+/**
  * Reference to a field of type 'TipoVenda'
  */
 export type EnumTipoVendaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoVenda'>
@@ -6851,6 +7047,8 @@ export type GlobalOmitConfig = {
   utilizador?: Prisma.UtilizadorOmit
   utilizadorFarmacia?: Prisma.UtilizadorFarmaciaOmit
   auditLog?: Prisma.AuditLogOmit
+  catalogoManutencaoOperacao?: Prisma.CatalogoManutencaoOperacaoOmit
+  catalogoManutencaoOperacaoItem?: Prisma.CatalogoManutencaoOperacaoItemOmit
   produtoFarmacia?: Prisma.ProdutoFarmaciaOmit
   produtoInterno?: Prisma.ProdutoInternoOmit
   venda?: Prisma.VendaOmit
