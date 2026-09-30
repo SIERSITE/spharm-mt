@@ -121,9 +121,7 @@ async function main() {
     const { PrismaClient } = await import("../../generated/prisma/client");
     const prisma1 = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDe(dbT1) }) });
 
-    const { createEncomendaWithOutbox, deriveFarmaciaIdempotencyKey, IdempotencyConflictError } = await import(
-      "../../lib/ingest/orders"
-    );
+    const { deriveFarmaciaIdempotencyKey } = await import("../../lib/ingest/orders");
     const { salvarAutosaveEncomenda } = await import("../../lib/encomendas/autosave");
     const {
       ensureRascunhoConsolidacaoFarmaciaServico,
@@ -153,7 +151,6 @@ async function main() {
     for (let i = 3; i < 13; i++) outros.push(await prisma1.produto.create({ data: { cnp: 9000000 + i, designacao: `Produto ${i}` } }));
 
     const uAdmin = await prisma1.utilizador.create({ data: { email: "admin@t.pt", nome: "Admin", perfil: "ADMINISTRADOR" } });
-    const uGrupo = await prisma1.utilizador.create({ data: { email: "grupo@t.pt", nome: "Grupo", perfil: "GESTOR_GRUPO" } });
     const uOper = await prisma1.utilizador.create({ data: { email: "oper@t.pt", nome: "Oper", perfil: "OPERADOR", farmaciaId: fA.id } });
 
     const deps = (u: { id: string; perfil: string; farmaciaId: string | null } = uAdmin, p = prisma1) => ({
@@ -284,7 +281,7 @@ async function main() {
     check(linhaEditada?.fornecedorSugeridoId === fornY.id, "9: edição individual de uma linha persiste no fornecedor certo");
 
     // 10: edição em massa restrita à farmácia A — farmácia B (mesmo produto!) fica intocada.
-    const autosave10 = await salvarAutosaveEncomenda(prisma1, {
+    await salvarAutosaveEncomenda(prisma1, {
       listaEncomendaId: draftC_A.listaEncomendaId,
       versaoEsperada: autosave9.versao,
       linhas: [
