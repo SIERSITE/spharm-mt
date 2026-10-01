@@ -46,6 +46,18 @@
  *   9c duas batchKey independentes: A → B → A sem misturar dados
  *   9d bloqueio optimista com DUAS sessões: conflito explícito (autosave e
  *      finalização), farmácia identificada, finalização bloqueada até recarregar
+ *   9e CORRIDA na criação do rascunho: a resposta da criação é ATRASADA (route.fetch +
+ *      espera, resposta real retida) e, nesse intervalo, editam-se 2 linhas, fornecedor/
+ *      quantidade/notas e uma remoção — tudo tem de ficar na BD quando a resposta chega
+ *   9f FLUSH ao desmontar: editar e navegar IMEDIATAMENTE (navegação de cliente, antes do
+ *      debounce), SEM esperar pela BD; só depois confirmar a BD e regressar pela URL; repetido
+ *      com uma remoção + contexto pendente (cobertura alterada e proposta regenerada)
+ *   9g SEM gravação cruzada: trocar de batchKey durante o debounce grava só no rascunho de
+ *      origem; trocar durante a criação do rascunho descarta a conclusão (nada na consolidação
+ *      errada)
+ *   9c agora cria a SEGUNDA consolidação integralmente pela UI (proposta gerada, não semeada);
+ *      a regra de pendingQty foi corrigida (rascunhos já não contam) — ver
+ *      test-proposta-pending-qty-db.ts
  *   11e / 13e notas recuperadas após o refresh e presentes, isoladas, nos 4 documentos
  *
  * ── Desenho dos dados ────────────────────────────────────────────────
@@ -262,6 +274,51 @@ async function main() {
       where: { produto: { cnp }, listaEncomenda: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(batchKey, farmaciaId) } },
       select: { notas: true, quantidadeAjustada: true, fornecedorSugeridoId: true },
     });
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const tenantE2E = "silveira";
+  const isoData = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  /** Gera a proposta CONSOLIDADA pelo ecrã (datas + botão) e espera pela vista — sem tocar na BD. */
+  async function gerarPropostaConsolidacao(p: Page) {
+    const hoje = new Date();
+    await campoPorLabel(p, "Data início", "input").fill(isoData(new Date(hoje.getFullYear(), hoje.getMonth() - 6, 1)));
+    await campoPorLabel(p, "Data fim", "input").fill(isoData(hoje));
+    await p.getByRole("button", { name: /Gerar (nova )?proposta/ }).click();
+    await p.getByText("CFL P1").first().waitFor({ timeout: 30000 });
+  }
+  /** Abre /encomendas/nova, escolhe Consolidação e devolve a batchKey NOVA que o ecrã gerou. */
+  async function abrirNovaConsolidacao(p: Page): Promise<string> {
+    await p.goto(`${baseFor(tenantE2E)}/encomendas/nova`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: "Consolidação" }).click();
+    await p.waitForFunction(() => new URL(location.href).searchParams.get("consolidacao") !== null);
+    return new URL(p.url()).searchParams.get("consolidacao")!;
+  }
+  /** Navegação de CLIENTE (sem recarregar a página) para um URL — o componente desmonta/reage como numa navegação real. */
+  async function navegarNoCliente(p: Page, url: string) {
+    await p.evaluate((u) => {
+      const w = window as unknown as { next?: { router?: { push: (x: string) => void } } };
+      if (w.next?.router) w.next.router.push(u);
+      else { history.pushState(null, "", u); }
+    }, url);
+  }
+  /** Retém a RESPOSTA real das acções de criação de rascunho (a escrita no servidor acontece logo; só a resposta chega tarde). */
+  async function atrasarCriacaoDeRascunho(p: Page, ms: number) {
+    const contador = { n: 0 };
+    await p.route("**/encomendas/nova**", async (route) => {
+      const req = route.request();
+      const corpo = req.postData() ?? "";
+      if (req.method() === "POST" && req.headers()["next-action"] && corpo.includes('"batchKey"') && corpo.includes('"nome"') && corpo.includes('"linhas"')) {
+        contador.n++;
+        // Node não resolve *.localhost (o Chromium sim): vai ao [::1] (o servidor escuta em localhost/IPv6) mantendo o Host (o tenant vem do subdomínio).
+        const u = new URL(req.url());
+        const resposta = await route.fetch({ url: req.url().replace(u.hostname, "[::1]"), headers: { ...req.headers(), host: u.host } });
+        await sleep(ms);
+        await route.fulfill({ response: resposta });
+      } else {
+        await route.continue();
+      }
+    });
+    return contador;
+  }
   const browser = await chromium.launch();
   try {
     const ctx = await contextoTenant(browser, tenant, seedData.adminUserId, "e2e-cfl@spharm.test");
@@ -408,36 +465,42 @@ async function main() {
     check((await notasInput(page, "CFL P1", B).inputValue()) === "nota B P1", "9b-f: P1/B recupera a nota DIFERENTE (B) para o mesmo produto");
     check((await notasInput(page, "CFL P2", A).inputValue()) === "nota massa A" && (await notasInput(page, "CFL P3", B).inputValue()) === "nota B P3", "9b-g: as restantes notas recuperam-se");
 
-    // ── 9c · duas batchKey independentes: A → B → A ──────────────────────
-    console.log("\n9c · duas consolidações independentes (batchKey A e B) — A → B → A sem misturar dados");
-    const { ensureRascunhoConsolidacaoFarmaciaServico } = await import("../../lib/encomendas/consolidacao-servico");
-    const batchKey1 = Array.from({ length: 24 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
-    const depsB = { prisma, tenantSlug: tenant, sessao: { sub: seedData.adminUserId, perfil: "ADMINISTRADOR", farmaciaId: null } };
-    const p1 = await prisma.produto.findUniqueOrThrow({ where: { cnp: 7_600_001 } });
-    const criadaA = await ensureRascunhoConsolidacaoFarmaciaServico(depsB, {
-      batchKey: batchKey1, farmaciaId: seedData.farmaciaAId, nome: "Lote 2 · A",
-      linhas: [{ produtoId: p1.id, quantidadeAjustada: 5, fornecedorSugeridoId: seedData.fornGamaId, notas: "lote2 nota A P1" }],
-    });
-    const criadaB = await ensureRascunhoConsolidacaoFarmaciaServico(depsB, {
-      batchKey: batchKey1, farmaciaId: seedData.farmaciaBId, nome: "Lote 2 · B",
-      linhas: [{ produtoId: p1.id, quantidadeAjustada: 6, fornecedorSugeridoId: seedData.fornAlfaId, notas: "lote2 nota B P1" }],
-    });
-    check(criadaA.ok && criadaB.ok, "9c-setup: segunda consolidação (batchKey independente) com rascunhos próprios nas MESMAS duas farmácias");
+    // ── 9c · duas consolidações independentes, AMBAS criadas pela UI: A → B → A ───────
+    console.log("\n9c · duas consolidações independentes (batchKey A e B), a segunda criada INTEGRALMENTE pela UI — A → B → A");
+    // A regra antiga de pendingQty contava os RASCUNHOS da consolidação A e a proposta B vinha a zero.
+    const batchKey1 = await abrirNovaConsolidacao(page);
+    check(batchKey1 !== batchKey0 && /^[a-f0-9]{32}$/.test(batchKey1), "9c-0: o ecrã gerou uma batchKey NOVA, diferente da primeira", `A=${batchKey0} B=${batchKey1}`);
+    await gerarPropostaConsolidacao(page);
+    check(
+      Number(await qtdInput(page, "CFL P1", A).inputValue()) > 0 && Number(await qtdInput(page, "CFL P2", A).inputValue()) > 0 &&
+        Number(await qtdInput(page, "CFL P1", B).inputValue()) > 0 && Number(await qtdInput(page, "CFL P3", B).inputValue()) > 0,
+      "9c-1: a SEGUNDA proposta, gerada na UI com os rascunhos da primeira consolidação ainda abertos, traz quantidade > 0 em todas as linhas (não fica a zero/AGUARDAR)"
+    );
+    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Alfa") && (await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Gama"),
+      "9c-1b: as sugestões iniciais de B são as habituais (Alfa em A, Gama em B) — nada herdado dos fornecedores editados na consolidação A");
+    await escolherFornecedorViaPicker(page, "CFL P1", A, "Gama");
+    await escolherFornecedorViaPicker(page, "CFL P1", B, "Alfa");
+    await qtdInput(page, "CFL P1", A).fill("5");
+    await notasInput(page, "CFL P1", A).fill("lote2 nota A P1");
+    await notasInput(page, "CFL P1", B).fill("lote2 nota B P1");
+    check(await esperarPor(async () => {
+      const [a, b] = await Promise.all([linhaBd(batchKey1, seedData.farmaciaAId, 7_600_001), linhaBd(batchKey1, seedData.farmaciaBId, 7_600_001)]);
+      return a?.fornecedorSugeridoId === seedData.fornGamaId && Number(a?.quantidadeAjustada) === 5 && a?.notas === "lote2 nota A P1" && b?.fornecedorSugeridoId === seedData.fornAlfaId && b?.notas === "lote2 nota B P1";
+    }), "9c-2: a consolidação B persistiu os SEUS fornecedor/quantidade/notas (drafts próprios, batchKey própria)");
+    const draftsB = await prisma.listaEncomenda.count({ where: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaBId)] } } });
+    check(draftsB === 2, "9c-2b: B tem exactamente 2 rascunhos reais (um por farmácia), independentes dos de A");
+    await page.waitForTimeout(1500);
+    // A → B → A (navegação por URL)
     await page.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey1}`, { waitUntil: "networkidle" });
     await page.getByText("CFL P1").first().waitFor({ timeout: 20000 });
-    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Gama") && (await notasInput(page, "CFL P1", A).inputValue()) === "lote2 nota A P1" && (await qtdInput(page, "CFL P1", A).inputValue()) === "5", "9c-B: a consolidação B mostra SÓ os dados do lote 2 em A (Gama, nota, 5)");
+    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Gama") && (await notasInput(page, "CFL P1", A).inputValue()) === "lote2 nota A P1" && (await qtdInput(page, "CFL P1", A).inputValue()) === "5", "9c-B: a consolidação B recupera SÓ os seus dados em A (Gama, nota, 5)");
     check((await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Alfa") && (await notasInput(page, "CFL P1", B).inputValue()) === "lote2 nota B P1", "9c-B-ii: …e em B (Alfa, nota do lote 2)");
-    check((await page.getByText("CFL P2").count()) === 0 && (await page.getByText("CFL P3").count()) === 0, "9c-B-iii: nenhuma linha do lote A (P2/P3) aparece na consolidação B");
     await page.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey0}`, { waitUntil: "networkidle" });
     await page.getByText("CFL P2").first().waitFor({ timeout: 20000 });
     check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Alfa") && (await notasInput(page, "CFL P1", A).inputValue()) === "nota A P1" && (await qtdInput(page, "CFL P1", A).inputValue()) === "17", "9c-A: de volta à consolidação A — dados intactos (Alfa, nota A P1, 17), nada do lote 2");
     check((await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Delta") && (await notasInput(page, "CFL P1", B).inputValue()) === "nota B P1", "9c-A-ii: …e em B (Delta, nota B P1)");
-    // Limpa o lote 2 (só serviu para provar o isolamento) — a base é descartável, mas os passos 13/18 não o devem ver.
-    const idsLote2 = (await prisma.listaEncomenda.findMany({ where: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaBId)] } }, select: { id: true } })).map((l) => l.id);
-    await prisma.orderExportAudit.deleteMany({ where: { outbox: { listaEncomendaId: { in: idsLote2 } } } });
-    await prisma.orderOutbox.deleteMany({ where: { listaEncomendaId: { in: idsLote2 } } });
-    await prisma.linhaEncomenda.deleteMany({ where: { listaEncomendaId: { in: idsLote2 } } });
-    await prisma.listaEncomenda.deleteMany({ where: { id: { in: idsLote2 } } });
+    const aDepois = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    check(aDepois?.notas === "nota A P1" && aDepois.fornecedorSugeridoId === seedData.fornAlfaId, "9c-A-iii: a BD da consolidação A não foi tocada pela B");
 
     // ── 9d · bloqueio optimista com DUAS sessões ─────────────────────────
     console.log("\n9d · duas sessões a editar a Farmácia A — conflito explícito, nunca sobrescrever");
@@ -475,6 +538,107 @@ async function main() {
     await bannerConflito.first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
     check((await notasInput(page2, "CFL P2", A).inputValue()) === "sessão 1 (v2)", "9d-9: depois de recarregar, a sessão 2 vê a versão mais recente");
     await page2.close();
+
+    // ── 9e · CORRIDA na criação do rascunho (resposta atrasada) ──────────────
+    console.log("\n9e · edições feitas enquanto o rascunho está a ser criado (resposta ATRASADA 9 s) — nenhuma se perde");
+    const pC = await ctx.newPage();
+    await pC.setViewportSize({ width: 1700, height: 1100 });
+    aceitarDialogosAutomaticamente(pC);
+    const atraso = await atrasarCriacaoDeRascunho(pC, 9000);
+    const batchKeyC = await abrirNovaConsolidacao(pC);
+    await gerarPropostaConsolidacao(pC);
+    check(atraso.n >= 1, "9e-0: a(s) resposta(s) de criação de rascunho foram interceptadas e retidas", `n=${atraso.n}`);
+    // — a resposta ainda não chegou: edita-se já —
+    await qtdInput(pC, "CFL P1", A).fill("21");                                  // quantidade
+    await notasInput(pC, "CFL P1", A).fill("durante criação P1 A");              // notas
+    await escolherFornecedorViaPicker(pC, "CFL P1", A, "Delta");                 // fornecedor
+    await notasInput(pC, "CFL P2", A).fill("durante criação P2 A");              // OUTRA linha, logo a seguir
+    await pC.getByRole("button", { name: `Remover ${A} · CFL P2` }).click();   // remoção durante a criação
+    await notasInput(pC, "CFL P1", B).fill("durante criação P1 B");              // outra farmácia
+    await escolherFornecedorViaPicker(pC, "CFL P3", B, "Beta");                  // linha sem fornecedor → Beta
+    const a1Cedo = await linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_001);
+    check(a1Cedo !== null && a1Cedo.notas !== "durante criação P1 A", "9e-1: com a resposta ainda retida, a BD só tem o snapshot da criação (as edições ainda não foram gravadas)");
+    const tudoGravado = await esperarPor(async () => {
+      const [a1, a2, b1, b3] = await Promise.all([linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_001), linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_002), linhaBd(batchKeyC, seedData.farmaciaBId, 7_600_001), linhaBd(batchKeyC, seedData.farmaciaBId, 7_600_003)]);
+      return a1?.notas === "durante criação P1 A" && Number(a1?.quantidadeAjustada) === 21 && a1?.fornecedorSugeridoId === seedData.fornDeltaId && a2 === null && b1?.notas === "durante criação P1 B" && b3?.fornecedorSugeridoId === seedData.fornBetaId;
+    }, 40000);
+    check(tudoGravado, "9e-2: quando a resposta chega, o MESMO autosave grava tudo — A/P1 (fornecedor+quantidade+notas), A/P2 removida, B/P1 notas, B/P3 fornecedor");
+    check((await notasInput(pC, "CFL P1", A).inputValue()) === "durante criação P1 A" && (await pC.getByLabel(`Notas de CFL P2 em ${A}`, { exact: true }).count()) === 0, "9e-3: o ecrã continua a mostrar as edições (P1/A) e sem a linha removida (P2/A)");
+
+    // ── 9f · FLUSH ao desmontar, SEM esperar pela BD ─────────────────────
+    console.log("\n9f · editar e navegar IMEDIATAMENTE (antes do debounce) — a BD só é consultada depois da navegação");
+    await pC.unroute("**/encomendas/nova**");
+    await pC.waitForTimeout(1500); // deixa assentar o autosave da secção anterior (esta secção parte de um estado gravado)
+    await qtdInput(pC, "CFL P1", A).fill("33");
+    await notasInput(pC, "CFL P1", A).fill("flush A");
+    await escolherFornecedorViaPicker(pC, "CFL P1", A, "Alfa"); // ~300 ms — bem abaixo do debounce de 1,2 s
+    await pC.locator('a[href="/encomendas"]').first().click();   // navegação de cliente IMEDIATA
+    await pC.waitForURL((u) => u.pathname === "/encomendas", { timeout: 15000 });
+    // só agora se olha para a BD (nenhuma espera prévia pela gravação)
+    check(await esperarPor(async () => {
+      const a1 = await linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_001);
+      return a1?.notas === "flush A" && Number(a1?.quantidadeAjustada) === 33 && a1?.fornecedorSugeridoId === seedData.fornAlfaId;
+    }, 20000), "9f-1: depois da navegação, a BD tem quantidade, fornecedor e notas editados (gravação ao desmontar)");
+    await pC.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKeyC}`, { waitUntil: "networkidle" });
+    await pC.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    check((await qtdInput(pC, "CFL P1", A).inputValue()) === "33" && (await notasInput(pC, "CFL P1", A).inputValue()) === "flush A" && (await fornecedorBotao(pC, "CFL P1", A).innerText()).includes("Alfa"),
+      "9f-2: ao regressar pela URL os três valores estão lá (33, 'flush A', Alfa)");
+
+    console.log("\n9f-bis · mesma coisa com REMOÇÃO de linha + CONTEXTO pendente");
+    const ctxAntes = (await prisma.listaEncomenda.findFirstOrThrow({ where: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(batchKeyC, seedData.farmaciaBId) } })).contextoJson ?? "";
+    // o P2/A foi removido em 9e; remove-se agora o P3/B (outra farmácia) — com o contexto mudado a seguir a regenerar
+    await campoPorLabel(pC, "Cobertura alvo (dias)", "input").fill("21");
+    await pC.getByRole("button", { name: /Gerar (nova )?proposta/ }).click();
+    await pC.getByText("CFL P1").first().waitFor({ timeout: 30000 });
+    await pC.waitForTimeout(600); // a proposta está no ecrã (isto NÃO é esperar pela BD)
+    await pC.getByRole("button", { name: `Remover ${B} · CFL P3` }).click();
+    await pC.locator('a[href="/encomendas"]').first().click();
+    await pC.waitForURL((u) => u.pathname === "/encomendas", { timeout: 15000 });
+    check(await esperarPor(async () => {
+      const b3 = await linhaBd(batchKeyC, seedData.farmaciaBId, 7_600_003);
+      const ctxB = (await prisma.listaEncomenda.findFirstOrThrow({ where: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(batchKeyC, seedData.farmaciaBId) } })).contextoJson ?? "";
+      return b3 === null && ctxB !== ctxAntes && ctxB.includes('"coverageDays":21');
+    }, 25000), "9f-3: depois da navegação, a remoção (P3/B) e o contexto (cobertura 21) estão na BD");
+    await pC.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKeyC}`, { waitUntil: "networkidle" });
+    await pC.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    check((await pC.getByLabel(`Notas de CFL P3 em ${B}`, { exact: true }).count()) === 0, "9f-4: ao regressar pela URL a linha removida continua removida");
+
+    // ── 9g · SEM gravação cruzada ────────────────────────────────────────
+    console.log("\n9g · trocar de batchKey durante o debounce / durante a criação — nada vai para a consolidação errada");
+    const a1AntesG = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    const b1AntesG = await linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001);
+    await notasInput(pC, "CFL P1", B).fill("cruzada?");                       // edição pendente (debounce a correr)…
+    await navegarNoCliente(pC, `/encomendas/nova?consolidacao=${batchKey0}`); // …e troca de consolidação IMEDIATA, no mesmo ecrã
+    await pC.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0);
+    check(await esperarPor(async () => (await notasInput(pC, "CFL P1", B).inputValue()) === "nota B P1"), "9g-0: o ecrã passou a mostrar a consolidação A");
+    check(await esperarPor(async () => (await linhaBd(batchKeyC, seedData.farmaciaBId, 7_600_001))?.notas === "cruzada?"), "9g-1: a edição pendente foi gravada NO RASCUNHO DE ORIGEM (consolidação C)");
+    const a1DepoisG = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    const b1DepoisG = await linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001);
+    check(JSON.stringify(a1AntesG) === JSON.stringify(a1DepoisG) && JSON.stringify(b1AntesG) === JSON.stringify(b1DepoisG) && b1DepoisG?.notas === "nota B P1", "9g-2: a consolidação A não recebeu nada ('cruzada?' não aparece nos seus rascunhos)");
+    check((await notasInput(pC, "CFL P1", B).inputValue()) === "nota B P1" && (await fornecedorBotao(pC, "CFL P1", A).innerText()).includes("Alfa"), "9g-3: o ecrã mostra agora os dados da consolidação A, sem restos da C");
+    const cruzadasEmA = await prisma.linhaEncomenda.count({ where: { notas: "cruzada?", listaEncomenda: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] } } } });
+    check(cruzadasEmA === 0, "9g-4: zero linhas com a nota 'cruzada?' nos rascunhos de A");
+
+    // troca DURANTE a criação do rascunho (resposta retida): a conclusão é descartada
+    const pD = await ctx.newPage();
+    await pD.setViewportSize({ width: 1700, height: 1100 });
+    aceitarDialogosAutomaticamente(pD);
+    const atrasoD = await atrasarCriacaoDeRascunho(pD, 8000);
+    const batchKeyD = await abrirNovaConsolidacao(pD);
+    await gerarPropostaConsolidacao(pD);
+    await notasInput(pD, "CFL P1", A).fill("descartar?");                    // edição durante a criação…
+    await navegarNoCliente(pD, `/encomendas/nova?consolidacao=${batchKey0}`); // …e troca para A antes de a resposta chegar
+    await pD.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0);
+    await esperarPor(async () => (await notasInput(pD, "CFL P1", A).inputValue()) === "nota A P1");
+    await pD.waitForTimeout(10000); // a resposta retida chega AGORA, já com a consolidação A no ecrã
+    check(atrasoD.n >= 1, "9g-5: a criação do rascunho da consolidação D foi retida e só respondeu depois da troca");
+    check((await notasInput(pD, "CFL P1", A).inputValue()) === "nota A P1" && (await fornecedorBotao(pD, "CFL P1", A).innerText()).includes("Alfa"), "9g-6: a resposta tardia NÃO foi aplicada à consolidação A (o ecrã continua com os dados de A)");
+    const descartarEmA = await prisma.linhaEncomenda.count({ where: { notas: "descartar?", listaEncomenda: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] } } } });
+    const a1PosD = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    check(descartarEmA === 0 && a1PosD?.notas === "nota A P1", "9g-7: nenhum rascunho de A recebeu a edição da consolidação D");
+    void batchKeyD;
+    await pD.close();
+    await pC.close();
 
     // ── 10 · refrescar ─────────────────────────────────────────────────
     console.log("\n10 · refrescar a página");
