@@ -35,12 +35,15 @@ export type ConsolidacaoAutosaveHandle = {
   versaoAtual: number;
   /** Versão ACTUAL do rascunho desta farmácia (lida no momento — nunca congelada no último render). */
   obterVersaoActual: () => number;
+  /** `true` quando este autosave já está ligado a um rascunho REAL (id recebido). */
+  temRascunho: () => boolean;
   temAlteracoesPendentes: boolean;
 };
 
 export type ConsolidacaoFarmaciaAutosaveProps = {
   farmaciaId: string;
-  listaEncomendaId: string;
+  /** `null` enquanto o rascunho está a ser criado — as edições acumulam no autosave e gravam-se quando o id chega. */
+  listaEncomendaId: string | null;
   versaoInicial: number;
   tenantSlug: string;
   userId: string;
@@ -74,6 +77,15 @@ export const ConsolidacaoFarmaciaAutosave = forwardRef<ConsolidacaoAutosaveHandl
       []
     );
 
+    // O rascunho acabou de ser criado: grava JÁ tudo o que foi editado enquanto
+    // a criação estava em voo (fornecedor, quantidade, notas, remoções) — pelo
+    // MESMO motor de autosave. Declarado depois do hook: o efeito de
+    // ressincronização da versão (dentro dele) corre primeiro.
+    useEffect(() => {
+      if (listaEncomendaId !== null) void autosave.guardarAgora();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [listaEncomendaId]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -85,9 +97,10 @@ export const ConsolidacaoFarmaciaAutosave = forwardRef<ConsolidacaoAutosaveHandl
         resolverConflitoActualizar: autosave.resolverConflitoActualizar,
         versaoAtual: autosave.versaoAtual,
         obterVersaoActual: autosave.obterVersaoActual,
+        temRascunho: () => listaEncomendaId !== null,
         temAlteracoesPendentes: autosave.temAlteracoesPendentes,
       }),
-      [autosave]
+      [autosave, listaEncomendaId]
     );
 
     // Reporta o estado (para a badge de autosave por farmácia) sempre que muda.

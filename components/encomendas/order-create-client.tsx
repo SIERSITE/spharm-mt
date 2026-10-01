@@ -411,6 +411,20 @@ export function OrderCreateClient({
   const [draftsConsolidacao, setDraftsConsolidacao] = useState<
     Record<string, { listaEncomendaId: string; versaoInicial: number }>
   >({});
+  // Espelhos SÍNCRONOS do estado acima — os handlers de evento e as
+  // conclusões assíncronas (criação de rascunho, recuperação) precisam do
+  // valor MAIS RECENTE, não o do render em que o closure foi criado, e
+  // precisam de saber se a batchKey ainda é a mesma quando a resposta chega.
+  const batchKeyConsolidacaoRef = useRef<string | null>(null);
+  const draftsConsolidacaoRef = useRef<Record<string, { listaEncomendaId: string; versaoInicial: number }>>({});
+  /** Contador por farmácia — só sobe quando o autosave dessa farmácia tem de ser remontado (reconciliação de conflito). */
+  const [nonceConsolidacao, setNonceConsolidacao] = useState<Record<string, number>>({});
+  function atualizarDraftsConsolidacao(
+    fn: (prev: Record<string, { listaEncomendaId: string; versaoInicial: number }>) => Record<string, { listaEncomendaId: string; versaoInicial: number }>
+  ) {
+    draftsConsolidacaoRef.current = fn(draftsConsolidacaoRef.current);
+    setDraftsConsolidacao(draftsConsolidacaoRef.current);
+  }
   const [estadosAutosaveConsolidacao, setEstadosAutosaveConsolidacao] = useState<Record<string, EstadoAutosave>>({});
   const autosaveRefsConsolidacao = useRef<Map<string, ConsolidacaoAutosaveHandle>>(new Map());
   const draftPromiseRefsConsolidacao = useRef<Map<string, Promise<string | null>>>(new Map());
@@ -504,16 +518,28 @@ export function OrderCreateClient({
   }
 
   /**
-   * Garante que existe um rascunho REAL para esta farmácia, criando-o
-   * (com TODAS as linhas actuais DESSA farmácia) na primeira chamada —
-   * mesmo desenho de `ensureDraft` acima, uma farmácia de cada vez, nunca
-   * uma criação atómica das N farmácias. Single-flight por farmácia via
-   * `draftPromiseRefsConsolidacao`.
+   * Cria (single-flight por farmácia) o rascunho REAL desta farmácia com o
+   * snapshot actual das suas linhas — uma farmácia de cada vez, nunca uma
+   * criação atómica das N farmácias.
+   *
+   * NÃO é isto que impede a perda de edições feitas ENQUANTO a criação está
+   * em voo. Isso é o autosave: o `ConsolidacaoFarmaciaAutosave` de cada
+   * farmácia com linhas está sempre montado (com `listaEncomendaId = null`
+   * até o rascunho existir), cada edição vai logo para o seu
+   * `useAutosaveEncomenda` — o estado pendente do hook É o "estado desejado
+   * mais recente", a linha INTEIRA, last-write-wins por produto, e as
+   * remoções — e, quando o id chega, o MESMO hook grava tudo (ver o efeito
+   * em consolidacao-farmacia-autosave.tsx). Nunca um buffer/motor paralelo.
+   *
+   * A conclusão só é aplicada se a batchKey ainda for a de quando a criação
+   * começou: uma troca de consolidação a meio descarta o resultado em vez de
+   * o aplicar à consolidação errada.
    */
   function ensureDraftConsolidacao(farmaciaId: string, linhasDaFarmacia: Line[]): Promise<string | null> {
-    const existente = draftsConsolidacao[farmaciaId];
+    const existente = draftsConsolidacaoRef.current[farmaciaId];
     if (existente) return Promise.resolve(existente.listaEncomendaId);
-    if (!batchKeyConsolidacao) return Promise.resolve(null);
+    const batchKey = batchKeyConsolidacaoRef.current;
+    if (!batchKey) return Promise.resolve(null);
     const emVoo = draftPromiseRefsConsolidacao.current.get(farmaciaId);
     if (emVoo) return emVoo;
 
@@ -524,10 +550,11 @@ export function OrderCreateClient({
     if (validas.length === 0) return Promise.resolve(null);
 
     const farmaciaNome = farmacias.find((f) => f.id === farmaciaId)?.nome ?? farmaciaId;
-    const promessa = (async (): Promise<string | null> => {
+    const emVooDaFarmacia: { p: Promise<string | null> | null } = { p: null }; // referida no finally do próprio async
+    const promessa = (emVooDaFarmacia.p = (async (): Promise<string | null> => {
       try {
         const r = await ensureRascunhoConsolidacaoAction({
-          batchKey: batchKeyConsolidacao,
+          batchKey,
           farmaciaId,
           nome: `${(nome.trim() || `Consolidação ${new Date().toLocaleDateString("pt-PT")}`)} · ${farmaciaNome}`.slice(0, 180),
           linhas: validas.map((l) => ({
@@ -540,52 +567,71 @@ export function OrderCreateClient({
           })),
           contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
         });
+        if (batchKeyConsolidacaoRef.current !== batchKey) return null; // mudou de consolidação a meio — descarta
         if (!r.ok) {
           setFlash({ type: "err", msg: `${farmaciaNome}: ${r.error}` });
           return null;
         }
-        setDraftsConsolidacao((prev) => ({ ...prev, [farmaciaId]: { listaEncomendaId: r.listaEncomendaId, versaoInicial: r.versao } }));
+        atualizarDraftsConsolidacao((prev) => ({ ...prev, [farmaciaId]: { listaEncomendaId: r.listaEncomendaId, versaoInicial: r.versao } }));
         return r.listaEncomendaId;
       } catch (err) {
-        setFlash({ type: "err", msg: err instanceof Error ? err.message : `Falha ao criar rascunho de ${farmaciaNome}.` });
+        if (batchKeyConsolidacaoRef.current === batchKey) {
+          setFlash({ type: "err", msg: err instanceof Error ? err.message : `Falha ao criar rascunho de ${farmaciaNome}.` });
+        }
         return null;
       } finally {
-        draftPromiseRefsConsolidacao.current.delete(farmaciaId);
+        if (draftPromiseRefsConsolidacao.current.get(farmaciaId) === emVooDaFarmacia.p) draftPromiseRefsConsolidacao.current.delete(farmaciaId);
       }
-    })();
+    })());
     draftPromiseRefsConsolidacao.current.set(farmaciaId, promessa);
     return promessa;
   }
 
   /**
    * Ponto único por onde TODAS as edições de uma linha de consolidação
-   * passam depois de um rascunho existir — mesma disciplina de
-   * `persistLineChange` (modo farmácia), mas por `Line` inteira (não só
-   * `produtoId`): o MESMO produto pode aparecer em várias farmácias na
-   * vista consolidada, cada uma com o seu próprio rascunho e a sua
-   * própria decisão de fornecedor — nunca uma propaga para a outra.
+   * passam — antes E depois de o rascunho existir. Regista logo, no
+   * autosave da SUA farmácia, o estado desejado COMPLETO da linha
+   * (quantidade, fornecedor, notas, origem — não só o campo tocado), de
+   * forma síncrona e sem esperar pela criação do rascunho: se a linha ainda
+   * não estiver no snapshot da criação, o upsert cria-a inteira. O MESMO
+   * produto pode aparecer em várias farmácias, cada uma com o seu próprio
+   * rascunho — nunca uma propaga para a outra.
    */
-  async function persistLineChangeConsolidacao(
-    l: Line,
-    patch: { quantidadeAjustada?: number | null; notas?: string | null; fornecedorSugeridoId?: string | null; origem?: OrigemLinha },
-    linhasActuaisTodas: Line[]
-  ) {
+  function persistLineChangeConsolidacao(l: Line, linhasActuaisTodas: Line[]) {
     if (!l.farmaciaId) return;
     const farmaciaId = l.farmaciaId;
-    const linhasDaFarmacia = linhasActuaisTodas.filter((x) => x.farmaciaId === farmaciaId);
-    const id = draftsConsolidacao[farmaciaId]?.listaEncomendaId ?? (await ensureDraftConsolidacao(farmaciaId, linhasDaFarmacia));
-    if (!id) return;
-    autosaveRefsConsolidacao.current.get(farmaciaId)?.marcarSujo(l.produtoId, patch);
+    const q = Number(l.finalQty || "0");
+    autosaveRefsConsolidacao.current.get(farmaciaId)?.marcarSujo(l.produtoId, {
+      quantidadeSugerida: l.suggestedQty ?? null,
+      quantidadeAjustada: Number.isFinite(q) ? q : 0,
+      fornecedorSugeridoId: l.fornecedorSugeridoId,
+      notas: l.notas.trim() || null,
+      origem: l.origem,
+    });
+    if (!draftsConsolidacaoRef.current[farmaciaId]) {
+      void ensureDraftConsolidacao(farmaciaId, linhasActuaisTodas.filter((x) => x.farmaciaId === farmaciaId));
+    }
   }
 
   function persistLineRemovalConsolidacao(l: Line) {
-    if (!l.farmaciaId || !draftsConsolidacao[l.farmaciaId]) return; // sem rascunho ainda: nada para remover no servidor
+    if (!l.farmaciaId) return;
+    // Sem rascunho E sem criação em voo: não há nada para remover no servidor.
+    if (!draftsConsolidacaoRef.current[l.farmaciaId] && !draftPromiseRefsConsolidacao.current.has(l.farmaciaId)) return;
     autosaveRefsConsolidacao.current.get(l.farmaciaId)?.marcarRemovido(l.produtoId);
   }
 
   function handleRemoveLineConsolidacao(l: Line) {
     removeLine(l.key);
     persistLineRemovalConsolidacao(l);
+  }
+
+  /** Espera (máx. ~8 s) que o autosave de cada farmácia já esteja ligado a um rascunho REAL (id recebido). */
+  async function aguardarRascunhosLigadosConsolidacao(farmaciaIds: string[]): Promise<boolean> {
+    for (let i = 0; i < 80; i++) {
+      if (farmaciaIds.every((f) => autosaveRefsConsolidacao.current.get(f)?.temRascunho())) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
   }
 
   /** Força a gravação de TODOS os rascunhos de farmácia pendentes — chamado antes de "Guardar"/"Criar encomendas". */
@@ -614,8 +660,10 @@ export function OrderCreateClient({
    * farmácias não são tocadas.
    */
   async function recarregarFarmaciaConsolidacao(farmaciaId: string) {
-    if (!batchKeyConsolidacao) return;
-    const r = await carregarRascunhosConsolidacaoAction({ batchKey: batchKeyConsolidacao, farmaciaIds: [farmaciaId] });
+    const batchKey = batchKeyConsolidacaoRef.current;
+    if (!batchKey) return;
+    const r = await carregarRascunhosConsolidacaoAction({ batchKey, farmaciaIds: [farmaciaId] });
+    if (batchKeyConsolidacaoRef.current !== batchKey) return; // mudou de consolidação a meio
     const draft = r.ok ? (r.porFarmacia[0]?.draft ?? null) : null;
     if (!r.ok || !draft) {
       setFlash({ type: "err", msg: r.ok ? "Rascunho da farmácia não encontrado." : r.error });
@@ -626,10 +674,11 @@ export function OrderCreateClient({
       ...prev.filter((l) => l.farmaciaId !== farmaciaId),
       ...draft.linhas.map((l) => buildLineFromRascunho(l, farmaciaId)),
     ]);
-    setDraftsConsolidacao((prev) => ({
+    atualizarDraftsConsolidacao((prev) => ({
       ...prev,
       [farmaciaId]: { listaEncomendaId: draft.listaEncomendaId, versaoInicial: draft.versao },
     }));
+    setNonceConsolidacao((prev) => ({ ...prev, [farmaciaId]: (prev[farmaciaId] ?? 0) + 1 })); // remonta o autosave com a versão nova
     setEstadosAutosaveConsolidacao((prev) => ({ ...prev, [farmaciaId]: { tipo: "limpo" } }));
     setConflitosFinalizacaoConsolidacao((prev) => {
       const resto = { ...prev };
@@ -659,15 +708,12 @@ export function OrderCreateClient({
   // chave. O SEGUNDO efeito só trata da outra origem possível: o
   // utilizador a clicar no botão "Consolidação" numa sessão nova (sem
   // chave na URL ainda) — got o MESMO ref-guard, nunca corre duas vezes.
-  useEffect(() => {
-    const key = searchParams.get("consolidacao");
-    if (!key || consolidacaoCarregadaRef.current) return;
-    consolidacaoCarregadaRef.current = true;
-    setMode("consolidacao");
-    setBatchKeyConsolidacao(key);
+  /** Recupera os rascunhos de TODAS as farmácias de uma consolidação — descarta a resposta se a batchKey mudou entretanto. */
+  function carregarConsolidacaoPorChave(key: string) {
     setCarregandoRascunho(true);
     startTransition(async () => {
       const r = await carregarRascunhosConsolidacaoAction({ batchKey: key, farmaciaIds: farmacias.map((f) => f.id) });
+      if (batchKeyConsolidacaoRef.current !== key) return; // outra consolidação tomou o ecrã
       setCarregandoRascunho(false);
       if (!r.ok) {
         setFlash({ type: "err", msg: r.error });
@@ -681,7 +727,7 @@ export function OrderCreateClient({
         novosDrafts[p.farmaciaId] = { listaEncomendaId: p.draft.listaEncomendaId, versaoInicial: p.draft.versao };
         for (const l of p.draft.linhas) novasLinhas.push(buildLineFromRascunho(l, p.farmaciaId));
       }
-      setDraftsConsolidacao(novosDrafts);
+      atualizarDraftsConsolidacao(() => novosDrafts);
       setLinhas(novasLinhas);
       setHasProposal(true);
       setFlash({
@@ -689,6 +735,16 @@ export function OrderCreateClient({
         msg: `Consolidação retomada — ${encontrados.length} farmácia(s), ${novasLinhas.length} linha(s). Fornecedores e quantidades decididos foram preservados tal e qual.`,
       });
     });
+  }
+
+  useEffect(() => {
+    const key = searchParams.get("consolidacao");
+    if (!key || consolidacaoCarregadaRef.current) return;
+    consolidacaoCarregadaRef.current = true;
+    batchKeyConsolidacaoRef.current = key;
+    setMode("consolidacao");
+    setBatchKeyConsolidacao(key);
+    carregarConsolidacaoPorChave(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -703,10 +759,65 @@ export function OrderCreateClient({
     const params = new URLSearchParams(searchParams.toString());
     const key = crypto.randomUUID().replace(/-/g, "");
     params.set("consolidacao", key);
+    batchKeyConsolidacaoRef.current = key; // ANTES do replaceState: o efeito de troca abaixo vê a mesma chave e não faz nada
     window.history.replaceState(window.history.state, "", `${pathname}?${params.toString()}`);
     setBatchKeyConsolidacao(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // Navegar para OUTRA PÁGINA por um link (menu, barra de tarefas): primeiro grava o que ficou
+  // pendente, DEPOIS navega. Só o desmontar não chega, e disparar as gravações em paralelo no
+  // instante da navegação também não — observado no ensaio E2E: uma Server Action disparada
+  // depois de a rota mudar é enviada para o URL da página NOVA (o Next tem de a reencaminhar) e,
+  // com duas farmácias a gravar ao mesmo tempo, a segunda ficava na fila da navegação e nunca
+  // chegava a executar. Por isso, havendo alterações pendentes, o clique é suspenso, as farmácias
+  // gravam UMA DE CADA VEZ, a partir de /encomendas/nova, e só então se navega (router.push).
+  // Sem pendentes, ou em cliques modificados/novo separador/outra origem, nada muda.
+  useEffect(() => {
+    if (mode !== "consolidacao") return;
+    function aoClicar(e: MouseEvent) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const alvo = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      if (!(alvo instanceof HTMLAnchorElement) || (alvo.target && alvo.target !== "_self") || alvo.hasAttribute("download")) return;
+      const destino = new URL(alvo.href, window.location.href);
+      if (destino.origin !== window.location.origin) return;
+      const handles = [...autosaveRefsConsolidacao.current.values()];
+      if (!handles.some((h) => h.temAlteracoesPendentes)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void (async () => {
+        for (const h of handles) await h.flushSincrono();
+        router.push(`${destino.pathname}${destino.search}${destino.hash}`);
+      })();
+    }
+    document.addEventListener("click", aoClicar, true);
+    return () => document.removeEventListener("click", aoClicar, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // Troca de consolidação com o ecrã montado (navegação para outro
+  // `?consolidacao=<outra chave>`): os autosaves da consolidação anterior
+  // desmontam (a `key` inclui a batchKey) e gravam o que lhes ficou
+  // pendente NOS SEUS rascunhos; o estado local é reposto e a nova
+  // consolidação é recuperada. Nada da anterior é aplicado à nova — nem
+  // criações de rascunho em voo (ver `ensureDraftConsolidacao`).
+  const chaveConsolidacaoUrl = searchParams.get("consolidacao");
+  useEffect(() => {
+    if (!chaveConsolidacaoUrl || !consolidacaoCarregadaRef.current) return;
+    if (chaveConsolidacaoUrl === batchKeyConsolidacaoRef.current) return;
+    batchKeyConsolidacaoRef.current = chaveConsolidacaoUrl;
+    draftPromiseRefsConsolidacao.current.clear();
+    atualizarDraftsConsolidacao(() => ({}));
+    setBatchKeyConsolidacao(chaveConsolidacaoUrl);
+    setNonceConsolidacao({});
+    setEstadosAutosaveConsolidacao({});
+    setConflitosFinalizacaoConsolidacao({});
+    setLinhas([]);
+    setHasProposal(false);
+    setMode("consolidacao");
+    carregarConsolidacaoPorChave(chaveConsolidacaoUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveConsolidacaoUrl]);
 
   function buildContextoActual(): PropostaContexto {
     return {
@@ -1872,10 +1983,14 @@ export function OrderCreateClient({
           (porFarmaciaDepois.get(l.farmaciaId) ?? porFarmaciaDepois.set(l.farmaciaId, []).get(l.farmaciaId)!).push(l);
         }
         for (const [fId, fLinhasDepois] of porFarmaciaDepois) {
-          if (!draftsConsolidacao[fId]) {
+          if (!draftsConsolidacaoRef.current[fId]) {
             void ensureDraftConsolidacao(fId, fLinhasDepois);
             continue;
           }
+          // O contexto da proposta (período, cobertura, filtros) descreve a análise que gerou estas
+          // linhas — acompanha-as no MESMO autosave (pendente até ao próximo flush).
+          const contextoSer = serializarPropostaContexto(buildContextoActual());
+          if (contextoSer !== undefined) autosaveRefsConsolidacao.current.get(fId)?.marcarContexto(contextoSer);
           const idsAntes = new Set((porFarmaciaAntes.get(fId) ?? []).filter((l) => l.origem === "PROPOSTA").map((l) => l.produtoId));
           const idsDepois = new Set(fLinhasDepois.map((l) => l.produtoId));
           for (const produtoId of idsAntes) {
@@ -2043,9 +2158,8 @@ export function OrderCreateClient({
   // já sabe rotear para o rascunho/autosave certo a partir de `l.farmaciaId`.
   function handleConsolidadoQtyChange(l: Line, value: string) {
     updateLine(l.key, { finalQty: value });
-    const n = Number(value || "0");
     const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, finalQty: value } : x));
-    void persistLineChangeConsolidacao(l, { quantidadeAjustada: Number.isFinite(n) ? n : 0 }, linhasActuais);
+    persistLineChangeConsolidacao(linhasActuais.find((x) => x.key === l.key) ?? l, linhasActuais);
   }
 
   function handleConsolidadoFornecedorChange(l: Line, fornecedorId: string) {
@@ -2053,7 +2167,7 @@ export function OrderCreateClient({
     const nomeForn = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
     updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn });
     const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, fornecedorSugeridoId: valor } : x));
-    void persistLineChangeConsolidacao(l, { fornecedorSugeridoId: valor }, linhasActuais);
+    persistLineChangeConsolidacao(linhasActuais.find((x) => x.key === l.key) ?? l, linhasActuais);
   }
 
   /**
@@ -2070,7 +2184,7 @@ export function OrderCreateClient({
     const linhasActuais = linhas.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor } : l));
     for (const l of linhasActuais) {
       if (!keys.has(l.key)) continue;
-      void persistLineChangeConsolidacao(l, { fornecedorSugeridoId: valor }, linhasActuais);
+      persistLineChangeConsolidacao(l, linhasActuais);
     }
   }
 
@@ -2085,7 +2199,7 @@ export function OrderCreateClient({
   function handleConsolidadoNotasChange(l: Line, value: string) {
     updateLine(l.key, { notas: value });
     const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, notas: value } : x));
-    void persistLineChangeConsolidacao(l, { notas: value.trim() || null }, linhasActuais);
+    persistLineChangeConsolidacao(linhasActuais.find((x) => x.key === l.key) ?? l, linhasActuais);
   }
 
   /** Nota em massa RESTRITA a uma farmácia — substitui as notas de todas as linhas dessa farmácia, nunca de outra. */
@@ -2095,7 +2209,7 @@ export function OrderCreateClient({
     const linhasActuais = linhas.map((l) => (l.farmaciaId === farmaciaId ? { ...l, notas: nota } : l));
     for (const l of linhasActuais) {
       if (l.farmaciaId !== farmaciaId) continue;
-      void persistLineChangeConsolidacao(l, { notas: nota.trim() || null }, linhasActuais);
+      persistLineChangeConsolidacao(l, linhasActuais);
     }
   }
 
@@ -2218,11 +2332,17 @@ export function OrderCreateClient({
         // TODAS as farmácias do pedido já tenham um rascunho real.
         await Promise.all(
           farmaciaIdsPresentes.map((fId) =>
-            draftsConsolidacao[fId]
+            draftsConsolidacaoRef.current[fId]
               ? Promise.resolve()
               : ensureDraftConsolidacao(fId, validLines.filter((l) => l.farmaciaId === fId))
           )
         );
+        // O id do rascunho só chega ao autosave no render seguinte — espera
+        // que cada farmácia tenha o seu autosave ligado ao rascunho real.
+        if (!(await aguardarRascunhosLigadosConsolidacao(farmaciaIdsPresentes))) {
+          setFlash({ type: "err", msg: "Não foi possível criar o rascunho de uma das farmácias — tenta novamente." });
+          return;
+        }
         const gravado = await flushTodasAutosavesConsolidacao();
         if (!gravado) {
           setFlash({
@@ -2990,18 +3110,26 @@ export function OrderCreateClient({
           rascunho — componentes de lógica pura (sem UI própria), ver
           `ConsolidacaoFarmaciaAutosave`. */}
       {mode === "consolidacao" &&
-        Object.entries(draftsConsolidacao).map(([farmaciaId, d]) => (
-          <ConsolidacaoFarmaciaAutosave
-            key={`${farmaciaId}:${d.listaEncomendaId}:${d.versaoInicial}`}
-            ref={(handle) => registarAutosaveRefConsolidacao(farmaciaId, handle)}
-            farmaciaId={farmaciaId}
-            listaEncomendaId={d.listaEncomendaId}
-            versaoInicial={d.versaoInicial}
-            tenantSlug={utilizador?.tenant ?? "desconhecido"}
-            userId={utilizador?.userId ?? "desconhecido"}
-            onEstadoChange={handleEstadoAutosaveConsolidacao}
-          />
-        ))}
+        batchKeyConsolidacao &&
+        [...new Set([...linhas.map((l) => l.farmaciaId).filter((f): f is string => !!f), ...Object.keys(draftsConsolidacao)])].map((farmaciaId) => {
+          const d = draftsConsolidacao[farmaciaId];
+          return (
+            <ConsolidacaoFarmaciaAutosave
+              // A key NÃO inclui o id do rascunho: o autosave nasce com id=null (rascunho ainda
+              // a ser criado) e mantém o pendente quando o id chega. Inclui a batchKey (uma
+              // consolidação nunca herda o autosave de outra) e o nonce (remontagem só na
+              // reconciliação de um conflito).
+              key={`${batchKeyConsolidacao}:${farmaciaId}:${nonceConsolidacao[farmaciaId] ?? 0}`}
+              ref={(handle) => registarAutosaveRefConsolidacao(farmaciaId, handle)}
+              farmaciaId={farmaciaId}
+              listaEncomendaId={d?.listaEncomendaId ?? null}
+              versaoInicial={d?.versaoInicial ?? 0}
+              tenantSlug={utilizador?.tenant ?? "desconhecido"}
+              userId={utilizador?.userId ?? "desconhecido"}
+              onEstadoChange={handleEstadoAutosaveConsolidacao}
+            />
+          );
+        })}
 
       {/* VISTA CONSOLIDAÇÃO */}
       {mode === "consolidacao" && (
