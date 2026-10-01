@@ -322,9 +322,10 @@ export function useAutosaveEncomenda(opts: {
       pendentesRemocaoRef.current.size > 0 ||
       contextoPendenteRef.current !== undefined;
     if (!pendente() && !emVooRef.current) return true;
-    // Uma gravação já em voo (ex.: o debounce acabou de disparar) — espera que
+    // Uma gravação já em voo (ex.: o debounce acabou de disparar) — espera (até 30 s: as Server Actions
+    // do cliente executam em fila, uma gravação pode estar atrás de outra acção lenta) que
     // termine em vez de a dar por falhada; o que ficou pendente a seguir grava-se já.
-    for (let i = 0; i < 50 && emVooRef.current; i++) await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 300 && emVooRef.current; i++) await new Promise((r) => setTimeout(r, 100));
     if (pendente() && !bloqueadoRef.current) await flush();
     return !pendente() && !bloqueadoRef.current;
   }, [flush]);

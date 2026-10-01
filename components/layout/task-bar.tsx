@@ -126,6 +126,7 @@ export function TaskBar() {
             key={t.id}
             type="button"
             onClick={() => irPara(t)}
+            data-navegacao-href={t.href}
             title={t.titulo}
             className={`group flex shrink-0 items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-1.5 text-[12px] font-medium transition ${
               activa

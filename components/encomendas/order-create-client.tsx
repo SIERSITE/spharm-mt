@@ -419,6 +419,13 @@ export function OrderCreateClient({
   const draftsConsolidacaoRef = useRef<Record<string, { listaEncomendaId: string; versaoInicial: number }>>({});
   /** Contador por farmácia — só sobe quando o autosave dessa farmácia tem de ser remontado (reconciliação de conflito). */
   const [nonceConsolidacao, setNonceConsolidacao] = useState<Record<string, number>>({});
+  /** Linhas do render actual — para operações assíncronas (criar o rascunho em falta ao sair da consolidação). */
+  const linhasRef = useRef<Line[]>([]);
+  /** Há uma saída da consolidação (link, tarefa, `?consolidacao=`, modo) à espera de as alterações gravarem. */
+  const trocaEmCursoRef = useRef(false);
+  const [aGuardarConsolidacao, setAGuardarConsolidacao] = useState(false);
+  /** Sempre a versão do render actual (os listeners de documento não ficam com closures antigos). */
+  const saidaConsolidacaoRef = useRef<{ precisa: () => boolean; confirmar: () => Promise<boolean> } | null>(null);
   function atualizarDraftsConsolidacao(
     fn: (prev: Record<string, { listaEncomendaId: string; versaoInicial: number }>) => Record<string, { listaEncomendaId: string; versaoInicial: number }>
   ) {
@@ -540,7 +547,9 @@ export function OrderCreateClient({
     if (existente) return Promise.resolve(existente.listaEncomendaId);
     const batchKey = batchKeyConsolidacaoRef.current;
     if (!batchKey) return Promise.resolve(null);
-    const emVoo = draftPromiseRefsConsolidacao.current.get(farmaciaId);
+    // A operação em voo fica associada, de forma imutável, à batchKey E à farmácia de origem.
+    const chaveVoo = `${batchKey}:${farmaciaId}`;
+    const emVoo = draftPromiseRefsConsolidacao.current.get(chaveVoo);
     if (emVoo) return emVoo;
 
     const validas = linhasDaFarmacia.filter((l) => {
@@ -580,10 +589,10 @@ export function OrderCreateClient({
         }
         return null;
       } finally {
-        if (draftPromiseRefsConsolidacao.current.get(farmaciaId) === emVooDaFarmacia.p) draftPromiseRefsConsolidacao.current.delete(farmaciaId);
+        if (draftPromiseRefsConsolidacao.current.get(chaveVoo) === emVooDaFarmacia.p) draftPromiseRefsConsolidacao.current.delete(chaveVoo);
       }
     })());
-    draftPromiseRefsConsolidacao.current.set(farmaciaId, promessa);
+    draftPromiseRefsConsolidacao.current.set(chaveVoo, promessa);
     return promessa;
   }
 
@@ -616,7 +625,7 @@ export function OrderCreateClient({
   function persistLineRemovalConsolidacao(l: Line) {
     if (!l.farmaciaId) return;
     // Sem rascunho E sem criação em voo: não há nada para remover no servidor.
-    if (!draftsConsolidacaoRef.current[l.farmaciaId] && !draftPromiseRefsConsolidacao.current.has(l.farmaciaId)) return;
+    if (!draftsConsolidacaoRef.current[l.farmaciaId] && !draftPromiseRefsConsolidacao.current.has(`${batchKeyConsolidacaoRef.current}:${l.farmaciaId}`)) return;
     autosaveRefsConsolidacao.current.get(l.farmaciaId)?.marcarRemovido(l.produtoId);
   }
 
@@ -624,6 +633,66 @@ export function OrderCreateClient({
     removeLine(l.key);
     persistLineRemovalConsolidacao(l);
   }
+
+  /** Há algo por gravar (rascunho em criação ou alterações pendentes) na consolidação activa? */
+  function precisaLiquidarConsolidacao(): boolean {
+    const batchKey = batchKeyConsolidacaoRef.current;
+    if (!batchKey) return false;
+    for (const k of draftPromiseRefsConsolidacao.current.keys()) if (k.startsWith(`${batchKey}:`)) return true;
+    return [...autosaveRefsConsolidacao.current.values()].some((h) => h.temAlteracoesPendentes);
+  }
+
+  /**
+   * Antes de SAIR da consolidação activa: para cada farmácia espera a criação do rascunho em voo
+   * (da batchKey de origem), recria-o se falhou, espera que o autosave fique ligado ao id e grava o
+   * pendente — tudo pelo MESMO useAutosaveEncomenda e sempre no rascunho de ORIGEM (a batchKey nunca
+   * muda enquanto isto corre). Em falha devolve o erro; nada é reposto nem descartado.
+   */
+  async function liquidarPendentesConsolidacao(): Promise<{ ok: true } | { ok: false; erro: string }> {
+    const batchKey = batchKeyConsolidacaoRef.current;
+    if (!batchKey) return { ok: true };
+    const nomeDe = (f: string) => farmacias.find((x) => x.id === f)?.nome ?? f;
+    const ids = new Set<string>(autosaveRefsConsolidacao.current.keys());
+    for (const k of draftPromiseRefsConsolidacao.current.keys()) if (k.startsWith(`${batchKey}:`)) ids.add(k.slice(batchKey.length + 1));
+    for (const fId of ids) {
+      const emVoo = draftPromiseRefsConsolidacao.current.get(`${batchKey}:${fId}`);
+      if (emVoo) await emVoo;
+      if (batchKeyConsolidacaoRef.current !== batchKey) return { ok: false, erro: "A consolidação mudou enquanto as alterações eram guardadas." };
+      if (!draftsConsolidacaoRef.current[fId]) {
+        const linhasDaFarmacia = linhasRef.current.filter((l) => l.farmaciaId === fId);
+        const temValidas = linhasDaFarmacia.some((l) => Number(l.finalQty || "0") > 0);
+        if (!temValidas || !autosaveRefsConsolidacao.current.get(fId)?.temAlteracoesPendentes) continue; // nada para gravar
+        const id = await ensureDraftConsolidacao(fId, linhasDaFarmacia);
+        if (!id) return { ok: false, erro: `${nomeDe(fId)}: não foi possível criar o rascunho — as alterações continuam neste ecrã, na consolidação actual.` };
+      }
+      if (!(await aguardarRascunhosLigadosConsolidacao([fId]))) {
+        return { ok: false, erro: `${nomeDe(fId)}: o rascunho não ficou pronto — as alterações continuam neste ecrã.` };
+      }
+      const gravado = await autosaveRefsConsolidacao.current.get(fId)?.flushSincrono();
+      if (!gravado) return { ok: false, erro: `${nomeDe(fId)}: não foi possível guardar as alterações — permanece-se na consolidação actual, com os valores locais.` };
+    }
+    return { ok: true };
+  }
+
+  /** Suspende a saída: mostra "A guardar…", liquida o pendente e devolve `true` só se tudo ficou gravado. */
+  async function confirmarSaidaConsolidacao(): Promise<boolean> {
+    if (trocaEmCursoRef.current) return false;
+    trocaEmCursoRef.current = true;
+    setAGuardarConsolidacao(true);
+    try {
+      const r = await liquidarPendentesConsolidacao();
+      if (!r.ok) {
+        setFlash({ type: "err", msg: r.erro });
+        return false;
+      }
+      return true;
+    } finally {
+      trocaEmCursoRef.current = false;
+      setAGuardarConsolidacao(false);
+    }
+  }
+  saidaConsolidacaoRef.current = { precisa: precisaLiquidarConsolidacao, confirmar: confirmarSaidaConsolidacao };
+  linhasRef.current = linhas;
 
   /** Espera (máx. ~8 s) que o autosave de cada farmácia já esteja ligado a um rascunho REAL (id recebido). */
   async function aguardarRascunhosLigadosConsolidacao(farmaciaIds: string[]): Promise<boolean> {
@@ -765,30 +834,36 @@ export function OrderCreateClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Navegar para OUTRA PÁGINA por um link (menu, barra de tarefas): primeiro grava o que ficou
-  // pendente, DEPOIS navega. Só o desmontar não chega, e disparar as gravações em paralelo no
-  // instante da navegação também não — observado no ensaio E2E: uma Server Action disparada
-  // depois de a rota mudar é enviada para o URL da página NOVA (o Next tem de a reencaminhar) e,
-  // com duas farmácias a gravar ao mesmo tempo, a segunda ficava na fila da navegação e nunca
-  // chegava a executar. Por isso, havendo alterações pendentes, o clique é suspenso, as farmácias
-  // gravam UMA DE CADA VEZ, a partir de /encomendas/nova, e só então se navega (router.push).
-  // Sem pendentes, ou em cliques modificados/novo separador/outra origem, nada muda.
+  // Sair da consolidação por um link ou por uma tarefa da barra (links <a> e botões com
+  // data-navegacao-href): o clique é SUSPENSO — o URL não muda — enquanto se espera pela criação do
+  // rascunho em voo e se grava o pendente (uma farmácia de cada vez, a partir de /encomendas/nova:
+  // uma Server Action disparada depois de a rota mudar chega ao URL da página nova e perdia-se, e
+  // gravar as farmácias em paralelo durante a navegação deixava a segunda na fila para sempre).
+  // Só quando tudo ficou gravado se navega (router.push). Se falhar: fica-se aqui, com erro explícito
+  // e os valores locais. Sem pendentes, cliques modificados, novo separador ou outra origem: nada muda.
   useEffect(() => {
     if (mode !== "consolidacao") return;
     function aoClicar(e: MouseEvent) {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const alvo = e.target instanceof Element ? e.target.closest("a[href]") : null;
-      if (!(alvo instanceof HTMLAnchorElement) || (alvo.target && alvo.target !== "_self") || alvo.hasAttribute("download")) return;
-      const destino = new URL(alvo.href, window.location.href);
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el || el.closest('[aria-label^="Fechar"]')) return;
+      const nav = el.closest("a[href], [data-navegacao-href]");
+      if (!nav) return;
+      let destino: URL;
+      if (nav instanceof HTMLAnchorElement) {
+        if ((nav.target && nav.target !== "_self") || nav.hasAttribute("download")) return;
+        destino = new URL(nav.href, window.location.href);
+      } else {
+        destino = new URL(nav.getAttribute("data-navegacao-href") ?? "", window.location.href);
+      }
       if (destino.origin !== window.location.origin) return;
-      const handles = [...autosaveRefsConsolidacao.current.values()];
-      if (!handles.some((h) => h.temAlteracoesPendentes)) return;
+      const saida = saidaConsolidacaoRef.current;
+      if (!saida || !saida.precisa()) return;
       e.preventDefault();
       e.stopPropagation();
-      void (async () => {
-        for (const h of handles) await h.flushSincrono();
-        router.push(`${destino.pathname}${destino.search}${destino.hash}`);
-      })();
+      void saida.confirmar().then((ok) => {
+        if (ok) router.push(`${destino.pathname}${destino.search}${destino.hash}`);
+      });
     }
     document.addEventListener("click", aoClicar, true);
     return () => document.removeEventListener("click", aoClicar, true);
@@ -804,18 +879,32 @@ export function OrderCreateClient({
   const chaveConsolidacaoUrl = searchParams.get("consolidacao");
   useEffect(() => {
     if (!chaveConsolidacaoUrl || !consolidacaoCarregadaRef.current) return;
-    if (chaveConsolidacaoUrl === batchKeyConsolidacaoRef.current) return;
-    batchKeyConsolidacaoRef.current = chaveConsolidacaoUrl;
-    draftPromiseRefsConsolidacao.current.clear();
-    atualizarDraftsConsolidacao(() => ({}));
-    setBatchKeyConsolidacao(chaveConsolidacaoUrl);
-    setNonceConsolidacao({});
-    setEstadosAutosaveConsolidacao({});
-    setConflitosFinalizacaoConsolidacao({});
-    setLinhas([]);
-    setHasProposal(false);
-    setMode("consolidacao");
-    carregarConsolidacaoPorChave(chaveConsolidacaoUrl);
+    const origem = batchKeyConsolidacaoRef.current;
+    if (chaveConsolidacaoUrl === origem) return;
+    const destino = chaveConsolidacaoUrl;
+    void (async () => {
+      // O URL já mudou (Back/Forward, router.push de outro código): o ecrã continua na ORIGEM até as
+      // alterações dela estarem gravadas; só então se activa a nova batchKey. Se falhar, repõe-se o URL.
+      const saida = saidaConsolidacaoRef.current;
+      if (origem && saida?.precisa() && !(await saida.confirmar())) {
+        const params = new URLSearchParams(window.location.search);
+        params.set("consolidacao", origem);
+        window.history.replaceState(window.history.state, "", `${pathname}?${params.toString()}`);
+        return;
+      }
+      if (batchKeyConsolidacaoRef.current !== origem) return; // outra troca ganhou entretanto
+      batchKeyConsolidacaoRef.current = destino;
+      draftPromiseRefsConsolidacao.current.clear();
+      atualizarDraftsConsolidacao(() => ({}));
+      setBatchKeyConsolidacao(destino);
+      setNonceConsolidacao({});
+      setEstadosAutosaveConsolidacao({});
+      setConflitosFinalizacaoConsolidacao({});
+      setLinhas([]);
+      setHasProposal(false);
+      setMode("consolidacao");
+      carregarConsolidacaoPorChave(destino);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveConsolidacaoUrl]);
 
@@ -1837,6 +1926,13 @@ export function OrderCreateClient({
 
   function handleModeChange(next: ProposalMode) {
     if (next === mode) return;
+    // Sair da consolidação com rascunhos por gravar: grava primeiro; falhando, fica-se no modo actual.
+    if (mode === "consolidacao" && precisaLiquidarConsolidacao()) {
+      void confirmarSaidaConsolidacao().then((ok) => {
+        if (ok) handleModeChange(next);
+      });
+      return;
+    }
     if (linhas.length > 0 && !window.confirm("Mudar de modo limpa as linhas actuais. Continuar?"))
       return;
     abandonarRascunhoLocal();
@@ -3134,6 +3230,11 @@ export function OrderCreateClient({
       {/* VISTA CONSOLIDAÇÃO */}
       {mode === "consolidacao" && (
         <section className="rounded-xl border border-slate-200 bg-white">
+          {aGuardarConsolidacao && (
+            <div role="status" data-testid="consolidacao-a-guardar" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-medium text-amber-800">
+              A guardar… as alterações são gravadas na consolidação actual antes de mudar de ecrã.
+            </div>
+          )}
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-[14px] font-semibold text-slate-900">Vista consolidada</h2>
             <p className="mt-0.5 text-[12px] text-slate-500">
