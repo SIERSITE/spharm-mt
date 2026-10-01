@@ -418,6 +418,10 @@ export function OrderCreateClient({
   /** Farmácia escolhida para a edição em massa RESTRITA a essa farmácia (ver toolbar da Vista consolidada). */
   const [bulkFarmaciaScopeId, setBulkFarmaciaScopeId] = useState("");
   const [bulkFornecedorIdFarmacia, setBulkFornecedorIdFarmacia] = useState("");
+  /** Nota a aplicar a TODAS as linhas da farmácia escolhida em `bulkFarmaciaScopeId`. */
+  const [bulkNotaFarmacia, setBulkNotaFarmacia] = useState("");
+  /** Farmácias cujo conflito de versão foi detectado pelo SERVIDOR na finalização (o autosave detecta os seus pelo estado `conflito`). */
+  const [conflitosFinalizacaoConsolidacao, setConflitosFinalizacaoConsolidacao] = useState<Record<string, true>>({});
 
   // ─── Resultado pós-finalização (Pontos 2/4/7/8) ────────────────────────
   //
@@ -590,6 +594,49 @@ export function OrderCreateClient({
     if (handles.length === 0) return true;
     const resultados = await Promise.all(handles.map((h) => h.flushSincrono()));
     return resultados.every(Boolean);
+  }
+
+  /** Versão ACTUAL de cada rascunho (lida dos autosaves no momento — nunca congelada) para o bloqueio optimista da finalização. */
+  function versoesActuaisConsolidacao(farmaciaIds: string[]): Record<string, number> {
+    const versoes: Record<string, number> = {};
+    for (const fId of farmaciaIds) {
+      const h = autosaveRefsConsolidacao.current.get(fId);
+      if (h) versoes[fId] = h.obterVersaoActual();
+    }
+    return versoes;
+  }
+
+  /**
+   * Reconcilia UMA farmácia em conflito: recarrega o seu rascunho do
+   * servidor (descarta as edições locais por gravar, que já não se aplicam
+   * à versão nova), substitui as linhas dessa farmácia e remonta o seu
+   * autosave com a versão nova (a `key` inclui `versaoInicial`). As outras
+   * farmácias não são tocadas.
+   */
+  async function recarregarFarmaciaConsolidacao(farmaciaId: string) {
+    if (!batchKeyConsolidacao) return;
+    const r = await carregarRascunhosConsolidacaoAction({ batchKey: batchKeyConsolidacao, farmaciaIds: [farmaciaId] });
+    const draft = r.ok ? (r.porFarmacia[0]?.draft ?? null) : null;
+    if (!r.ok || !draft) {
+      setFlash({ type: "err", msg: r.ok ? "Rascunho da farmácia não encontrado." : r.error });
+      return;
+    }
+    autosaveRefsConsolidacao.current.get(farmaciaId)?.resolverConflitoActualizar();
+    setLinhas((prev) => [
+      ...prev.filter((l) => l.farmaciaId !== farmaciaId),
+      ...draft.linhas.map((l) => buildLineFromRascunho(l, farmaciaId)),
+    ]);
+    setDraftsConsolidacao((prev) => ({
+      ...prev,
+      [farmaciaId]: { listaEncomendaId: draft.listaEncomendaId, versaoInicial: draft.versao },
+    }));
+    setEstadosAutosaveConsolidacao((prev) => ({ ...prev, [farmaciaId]: { tipo: "limpo" } }));
+    setConflitosFinalizacaoConsolidacao((prev) => {
+      const resto = { ...prev };
+      delete resto[farmaciaId];
+      return resto;
+    });
+    setFlash({ type: "info", msg: "Farmácia recarregada com os dados mais recentes do servidor." });
   }
 
   // ── Sessão da consolidação (?consolidacao=<batchKey>) + recuperação ────
@@ -2034,6 +2081,31 @@ export function OrderCreateClient({
     handleBulkFornecedorChangeConsolidacao(keys, fornecedorId);
   }
 
+  /** Notas por linha — mesmo caminho (rascunho + autosave da SUA farmácia) que quantidade e fornecedor. */
+  function handleConsolidadoNotasChange(l: Line, value: string) {
+    updateLine(l.key, { notas: value });
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, notas: value } : x));
+    void persistLineChangeConsolidacao(l, { notas: value.trim() || null }, linhasActuais);
+  }
+
+  /** Nota em massa RESTRITA a uma farmácia — substitui as notas de todas as linhas dessa farmácia, nunca de outra. */
+  function handleBulkNotasFarmaciaConsolidacao(farmaciaId: string, nota: string) {
+    if (!farmaciaId) return;
+    setLinhas((prev) => prev.map((l) => (l.farmaciaId === farmaciaId ? { ...l, notas: nota } : l)));
+    const linhasActuais = linhas.map((l) => (l.farmaciaId === farmaciaId ? { ...l, notas: nota } : l));
+    for (const l of linhasActuais) {
+      if (l.farmaciaId !== farmaciaId) continue;
+      void persistLineChangeConsolidacao(l, { notas: nota.trim() || null }, linhasActuais);
+    }
+  }
+
+  /** Farmácias com conflito de versão por reconciliar (detectado pelo autosave OU pela finalização no servidor). */
+  const farmaciasEmConflitoConsolidacao = useMemo(() => {
+    const ids = new Set<string>(Object.keys(conflitosFinalizacaoConsolidacao));
+    for (const [fId, est] of Object.entries(estadosAutosaveConsolidacao)) if (est.tipo === "conflito") ids.add(fId);
+    return [...ids];
+  }, [estadosAutosaveConsolidacao, conflitosFinalizacaoConsolidacao]);
+
   /**
    * Resumo farmácia → fornecedor (por linhas correntes em memória) — a
    * MESMA composição que `finalizarConsolidacaoMultiFornecedor` vai
@@ -2114,6 +2186,10 @@ export function OrderCreateClient({
         setFlash({ type: "err", msg: "Sessão de consolidação ainda não inicializada — tenta novamente." });
         return;
       }
+      if (farmaciasEmConflitoConsolidacao.length > 0) {
+        setFlash({ type: "err", msg: "Há farmácias em conflito de versão — recarrega-as antes de continuar." });
+        return;
+      }
       const farmaciaIdsPresentes = [...new Set(validLines.map((l) => l.farmaciaId).filter((id): id is string => !!id))];
       if (farmaciaIdsPresentes.length === 0) {
         setFlash({ type: "err", msg: "Sem farmácias identificadas nas linhas." });
@@ -2151,7 +2227,7 @@ export function OrderCreateClient({
         if (!gravado) {
           setFlash({
             type: "err",
-            msg: "Não foi possível gravar as últimas alterações — tenta novamente antes de continuar.",
+            msg: "Não foi possível gravar as últimas alterações (se houver uma farmácia em conflito, recarrega-a primeiro) — tenta novamente antes de continuar.",
           });
           return;
         }
@@ -2162,6 +2238,8 @@ export function OrderCreateClient({
         const result = await finalizarConsolidacaoFornecedorAction({
           batchKey: batchKeyConsolidacao,
           farmaciaIds: farmaciaIdsPresentes,
+          // Bloqueio optimista: a versão ACTUAL de cada rascunho (lida depois do flush acima).
+          versaoEsperadaPorFarmacia: versoesActuaisConsolidacao(farmaciaIdsPresentes),
         });
         if (result.ok) {
           setFlash(null);
@@ -2170,9 +2248,14 @@ export function OrderCreateClient({
             transferenciaIds: [],
           });
         } else if ("conflito" in result && result.conflito) {
+          const fId = "farmaciaId" in result ? result.farmaciaId : undefined;
+          if (fId) setConflitosFinalizacaoConsolidacao((prev) => ({ ...prev, [fId]: true }));
+          const nomeF = fId ? (farmacias.find((f) => f.id === fId)?.nome ?? fId) : null;
           setFlash({
             type: "err",
-            msg: "Uma das farmácias foi alterada por outra sessão entretanto — recarrega a página antes de finalizar.",
+            msg: nomeF
+              ? `${nomeF} foi alterada por outra sessão — recarrega essa farmácia antes de finalizar.`
+              : "Uma das farmácias foi alterada por outra sessão — recarrega-a antes de finalizar.",
           });
         } else if ("semFornecedor" in result && result.semFornecedor) {
           setFlash({ type: "err", msg: result.error });
@@ -2909,7 +2992,7 @@ export function OrderCreateClient({
       {mode === "consolidacao" &&
         Object.entries(draftsConsolidacao).map(([farmaciaId, d]) => (
           <ConsolidacaoFarmaciaAutosave
-            key={farmaciaId}
+            key={`${farmaciaId}:${d.listaEncomendaId}:${d.versaoInicial}`}
             ref={(handle) => registarAutosaveRefConsolidacao(farmaciaId, handle)}
             farmaciaId={farmaciaId}
             listaEncomendaId={d.listaEncomendaId}
@@ -2930,6 +3013,29 @@ export function OrderCreateClient({
               {consolidadoRows.length > 0 && ` ${consolidadoRows.length} produtos · total: ${totalFinalAll} und`}
             </p>
           </div>
+
+          {farmaciasEmConflitoConsolidacao.map((fId) => (
+            <div
+              key={fId}
+              role="alert"
+              data-testid="consolidacao-conflito"
+              data-farmacia-id={fId}
+              className="flex flex-wrap items-center gap-3 border-b border-rose-200 bg-rose-50 px-4 py-2.5 text-[12px] text-rose-800"
+            >
+              <span className="font-semibold">
+                Conflito de versão — {farmacias.find((f) => f.id === fId)?.nome ?? fId}
+              </span>
+              <span>Esta farmácia foi alterada noutra sessão. A finalização está bloqueada até a recarregares.</span>
+              <button
+                type="button"
+                onClick={() => void recarregarFarmaciaConsolidacao(fId)}
+                data-testid="consolidacao-recarregar-farmacia"
+                className="rounded-lg border border-rose-300 bg-white px-2.5 py-1 font-medium text-rose-800 hover:bg-rose-100"
+              >
+                Recarregar esta farmácia
+              </button>
+            </div>
+          ))}
 
           {resumoConsolidacaoPorFarmacia.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 text-[12px]">
@@ -2992,6 +3098,27 @@ export function OrderCreateClient({
                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
               >
                 Aplicar a toda a farmácia
+              </button>
+              <span className="text-slate-300">·</span>
+              <input
+                type="text"
+                value={bulkNotaFarmacia}
+                onChange={(e) => setBulkNotaFarmacia(e.target.value)}
+                placeholder="Nota para toda a farmácia"
+                maxLength={500}
+                aria-label="Nota a definir em toda a farmácia seleccionada"
+                className="w-48 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={!bulkFarmaciaScopeId}
+                onClick={() => {
+                  handleBulkNotasFarmaciaConsolidacao(bulkFarmaciaScopeId, bulkNotaFarmacia);
+                  setBulkNotaFarmacia("");
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
+              >
+                Aplicar nota à farmácia
               </button>
               <span className="text-slate-300">·</span>
               {linhasSeleccionadas.size > 0 ? (
@@ -3071,6 +3198,7 @@ export function OrderCreateClient({
                             <span className="text-[11px] font-medium text-slate-700">{l.farmaciaNome ?? "—"}</span>
                             <span className="text-[11px] text-slate-400">suger. {fmtNum(l.suggestedQty)}</span>
                             <input type="number" min="0" value={l.finalQty}
+                              aria-label={`Quantidade de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
                               onChange={(e) => handleConsolidadoQtyChange(l, e.target.value)}
                               onFocus={(e) => e.target.select()}
                               disabled={busy}
@@ -3087,6 +3215,15 @@ export function OrderCreateClient({
                                 ariaLabel={`Fornecedor de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
                               />
                             </div>
+                            <input
+                              type="text"
+                              value={l.notas}
+                              onChange={(e) => handleConsolidadoNotasChange(l, e.target.value)}
+                              disabled={busy}
+                              placeholder="notas"
+                              maxLength={500}
+                              aria-label={`Notas de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
+                              className="w-32 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
                             <button type="button" onClick={() => handleRemoveLineConsolidacao(l)} disabled={busy}
                               aria-label={`Remover ${l.farmaciaNome ?? "linha"} · ${g.designacao}`}
                               className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
@@ -3226,12 +3363,13 @@ export function OrderCreateClient({
                 </button>
               )}
               <button type="button" onClick={() => submit(false)}
-                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito")}
+                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito") || (mode === "consolidacao" && farmaciasEmConflitoConsolidacao.length > 0)}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
                 {busy ? "A guardar..." : "Guardar rascunho"}
               </button>
               <button type="button" onClick={() => submit(true)}
-                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito")}
+                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito") || (mode === "consolidacao" && farmaciasEmConflitoConsolidacao.length > 0)}
+                data-testid="consolidacao-criar-encomendas"
                 className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
                 {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
               </button>
