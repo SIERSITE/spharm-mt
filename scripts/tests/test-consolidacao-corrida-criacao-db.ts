@@ -68,7 +68,8 @@ async function main() {
     const { PrismaClient } = await import("../../generated/prisma/client");
     const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDe(db) }) });
     const { salvarAutosaveEncomenda } = await import("../../lib/encomendas/autosave");
-    const { ensureRascunhoConsolidacaoFarmaciaServico } = await import("../../lib/encomendas/consolidacao-servico");
+    const { ensureRascunhoConsolidacaoFarmaciaServico, obterRascunhosConsolidacaoServico } = await import("../../lib/encomendas/consolidacao-servico");
+    const { deriveFarmaciaIdempotencyKey: deriveKey } = await import("../../lib/ingest/orders");
 
     const farm = await prisma.farmacia.create({ data: { nome: "Farmácia A" } });
     const fX = await prisma.fornecedor.create({ data: { nomeNormalizado: "FORN X", nome: "Forn X" } });
@@ -152,6 +153,48 @@ async function main() {
     check(parcial.gravadas === 1 && lixo?.quantidadeAjustada === null && lixo?.origem === "MANUAL",
       "S7: (contraprova) um patch PARCIAL numa linha nova cria uma linha sem quantidade e origem MANUAL — por isso o cliente envia sempre a linha completa");
 
+    // ═══ X · uma operação CAPTURADA com a batchKey A nunca escreve em B ═══
+    console.log("\nX · operações em voo capturadas com batchKey A nunca escrevem na consolidação B (mesma farmácia, mesmos produtos)");
+    const bkA = chaveNova();
+    const bkB = chaveNova();
+    const linhasIni = [{ produtoId: p1.id, quantidadeAjustada: 4, fornecedorSugeridoId: fX.id, notas: "inicial" }];
+    // B já existe e tem o seu próprio conteúdo
+    const rB = await ensureRascunhoConsolidacaoFarmaciaServico(deps, { batchKey: bkB, farmaciaId: farm.id, nome: "B", linhas: linhasIni });
+    if (!rB.ok) throw new Error("setup B");
+    const fotoB = async () => {
+      const l = await prisma.listaEncomenda.findUniqueOrThrow({ where: { id: rB.listaEncomendaId }, include: { linhas: { orderBy: { produtoId: "asc" } } } });
+      return JSON.stringify({ versao: l.versao, nome: l.nome, linhas: l.linhas.map((x) => [x.produtoId, String(x.quantidadeAjustada), x.fornecedorSugeridoId, x.notas]) });
+    };
+    const antesX = await fotoB();
+    // A operação de criação é CAPTURADA (batchKey A) e a sua resposta chega tarde, depois de a UI já ter ido para B.
+    const capturaA = { batchKey: bkA };
+    const criacaoA = (async () => {
+      const r2 = await ensureRascunhoConsolidacaoFarmaciaServico(deps, { batchKey: capturaA.batchKey, farmaciaId: farm.id, nome: "A", linhas: [{ produtoId: p1.id, quantidadeAjustada: 9, fornecedorSugeridoId: fY.id, notas: "só de A" }] });
+      await sleep(800);
+      return r2;
+    })();
+    capturaA.batchKey = bkB; // (mutar a variável de fora não afecta o valor já capturado pela chamada)
+    const rA = await criacaoA;
+    check(rA.ok && rB.ok && rA.listaEncomendaId !== rB.listaEncomendaId, "X1: a criação capturada com A produz um rascunho DIFERENTE do de B");
+    if (!rA.ok) throw new Error("setup A");
+    check((await fotoB()) === antesX, "X2: o rascunho de B ficou exactamente igual (versão, linhas, fornecedor, notas)");
+    const gravadoA = await salvarAutosaveEncomenda(prisma, {
+      listaEncomendaId: rA.listaEncomendaId, versaoEsperada: rA.versao,
+      linhas: [{ produtoId: p1.id, quantidadeAjustada: 12, fornecedorSugeridoId: fX.id, notas: "editado em A" }, { produtoId: p2.id, quantidadeAjustada: 2, fornecedorSugeridoId: fX.id, notas: "novo em A", origem: "MANUAL" }],
+      linhasRemovidasProdutoIds: [p3.id],
+    });
+    check(gravadoA.gravadas === 2 && (await fotoB()) === antesX, "X3: o autosave do id de A (dois patches + remoção) não toca em B — a escrita segue o id do rascunho, não a batchKey actual");
+    const keysA = await prisma.listaEncomenda.count({ where: { clientIdempotencyKey: deriveKey(bkA, farm.id) } });
+    const keysB = await prisma.listaEncomenda.count({ where: { clientIdempotencyKey: deriveKey(bkB, farm.id) } });
+    check(keysA === 1 && keysB === 1, "X4: cada batchKey tem exactamente UM rascunho para a farmácia");
+    // a recuperação por batchKey devolve sempre o rascunho da chave pedida
+    const recA = await obterRascunhosConsolidacaoServico(deps, { batchKey: bkA, farmaciaIds: [farm.id] });
+    const recB = await obterRascunhosConsolidacaoServico(deps, { batchKey: bkB, farmaciaIds: [farm.id] });
+    check(recA.ok && recB.ok && recA.porFarmacia[0].draft?.listaEncomendaId === rA.listaEncomendaId && recB.porFarmacia[0].draft?.listaEncomendaId === rB.listaEncomendaId, "X5: obter(A) devolve o rascunho de A e obter(B) o de B — nunca trocados");
+    // repetir a criação de A (resposta perdida) continua a ser A, nunca B
+    const rA2 = await ensureRascunhoConsolidacaoFarmaciaServico(deps, { batchKey: bkA, farmaciaId: farm.id, nome: "A", linhas: [{ produtoId: p1.id, quantidadeAjustada: 9, fornecedorSugeridoId: fY.id, notas: "só de A" }] });
+    check(rA2.ok && rA2.listaEncomendaId === rA.listaEncomendaId && (await fotoB()) === antesX, "X6: repetir a criação de A (retry) devolve o MESMO rascunho de A e continua a não tocar em B");
+
     await prisma.$disconnect();
   } finally {
     await admin.query(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
@@ -173,7 +216,12 @@ async function main() {
   check(/quantidadeAjustada: Number\.isFinite\(q\) \? q : 0,\s*\n\s*fornecedorSugeridoId: l\.fornecedorSugeridoId,\s*\n\s*notas: l\.notas\.trim\(\) \|\| null,/.test(cliente), "E8: cada edição regista a linha COMPLETA (quantidade, fornecedor, notas)");
   check(!/pendentesPosCriacaoConsolidacao|bufferConsolidacao/.test(cliente), "E9: não existe um buffer/fila paralelo no ecrã");
 
-  check(/for \(const h of handles\) await h\.flushSincrono\(\);\s*\n\s*router\.push\(/.test(cliente) && /e\.preventDefault\(\);/.test(cliente), "E10: ao clicar num link com alterações pendentes, as farmácias gravam UMA DE CADA VEZ e só depois se navega");
+  check(/e\.preventDefault\(\);\s*\n\s*e\.stopPropagation\(\);\s*\n\s*void saida\.confirmar\(\)\.then\(\(ok\) => \{\s*\n\s*if \(ok\) router\.push\(/.test(cliente), "E10: ao clicar num link/tarefa com pendentes o clique é suspenso e só navega (router.push) depois de tudo gravado");
+  check(/data-navegacao-href=\{t\.href\}/.test(readFileSync("components/layout/task-bar.tsx", "utf8")), "E10b: as tarefas da barra declaram o destino e passam pela mesma guarda");
+  check(/const chaveVoo = `\$\{batchKey\}:\$\{farmaciaId\}`;/.test(cliente) && /draftPromiseRefsConsolidacao\.current\.set\(chaveVoo, promessa\)/.test(cliente), "E12: a criação em voo fica associada, de forma imutável, à batchKey E à farmácia de origem");
+  check(/const origem = batchKeyConsolidacaoRef\.current;[\s\S]*?!\(await saida\.confirmar\(\)\)\) \{[\s\S]*?params\.set\("consolidacao", origem\);[\s\S]*?return;\s*\n\s*\}\s*\n\s*if \(batchKeyConsolidacaoRef\.current !== origem\) return;/.test(cliente), "E13: na troca de ?consolidacao= a origem é liquidada primeiro; em falha repõe-se o URL de origem e não se activa a nova batchKey");
+  check(/if \(mode === "consolidacao" && precisaLiquidarConsolidacao\(\)\) \{\s*\n\s*void confirmarSaidaConsolidacao\(\)\.then\(\(ok\) => \{\s*\n\s*if \(ok\) handleModeChange\(next\);/.test(cliente), "E14: sair do modo consolidação também espera pela gravação");
+  check(/const emVoo = draftPromiseRefsConsolidacao\.current\.get\(`\$\{batchKey\}:\$\{fId\}`\);\s*\n\s*if \(emVoo\) await emVoo;/.test(cliente), "E15: a liquidação espera pela criação do rascunho em voo antes de gravar");
   check(/useEffect\(\s*\(\) => \(\) => \{\s*void guardarAgoraRef\.current\(\);/.test(comp), "E11: o autosave de cada farmácia também grava ao desmontar (navegação programática)");
 
   console.log(`\n${passed} ok, ${failed} falhas`);

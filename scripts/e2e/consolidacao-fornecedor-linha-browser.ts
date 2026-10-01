@@ -52,6 +52,9 @@
  *   9f FLUSH ao desmontar: editar e navegar IMEDIATAMENTE (navegação de cliente, antes do
  *      debounce), SEM esperar pela BD; só depois confirmar a BD e regressar pela URL; repetido
  *      com uma remoção + contexto pendente (cobertura alterada e proposta regenerada)
+ *   9h SAÍDA SUSPENSA: mudar de consolidação com a criação do rascunho em voo (9 s) — a UI fica
+ *      em 'A guardar…', depois navega e tudo está na origem; falha de criação / de gravação ⇒ fica
+ *      na origem, URL intacto, valores locais, erro explícito
  *   9g SEM gravação cruzada: trocar de batchKey durante o debounce grava só no rascunho de
  *      origem; trocar durante a criação do rascunho descarta a conclusão (nada na consolidação
  *      errada)
@@ -619,26 +622,125 @@ async function main() {
     const cruzadasEmA = await prisma.linhaEncomenda.count({ where: { notas: "cruzada?", listaEncomenda: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] } } } });
     check(cruzadasEmA === 0, "9g-4: zero linhas com a nota 'cruzada?' nos rascunhos de A");
 
-    // troca DURANTE a criação do rascunho (resposta retida): a conclusão é descartada
+    await pC.close();
+
+    // ── 9h · sair da consolidação DURANTE a criação do rascunho: NADA se perde ────────────
+    console.log("\n9h · mudar de consolidação com a criação do rascunho em voo — a saída fica suspensa até tudo estar gravado na origem");
+    const injetarLink = (pg: Page, href: string) =>
+      pg.evaluate((h) => {
+        document.getElementById("e2e-link")?.remove();
+        const a = document.createElement("a");
+        a.id = "e2e-link";
+        a.href = h;
+        a.textContent = "ir";
+        a.style.cssText = "position:fixed;top:0;left:0;z-index:99999;background:#fff;padding:4px";
+        document.body.appendChild(a);
+      }, href);
+    const chaveUrl = (pg: Page) => new URL(pg.url()).searchParams.get("consolidacao");
+    const alvoA = `/encomendas/nova?consolidacao=${batchKey0}`;
+    const a1AntesH = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    const b1AntesH = await linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001);
+
     const pD = await ctx.newPage();
     await pD.setViewportSize({ width: 1700, height: 1100 });
     aceitarDialogosAutomaticamente(pD);
-    const atrasoD = await atrasarCriacaoDeRascunho(pD, 8000);
+    const atrasoD = await atrasarCriacaoDeRascunho(pD, 9000);
     const batchKeyD = await abrirNovaConsolidacao(pD);
     await gerarPropostaConsolidacao(pD);
-    await notasInput(pD, "CFL P1", A).fill("descartar?");                    // edição durante a criação…
-    await navegarNoCliente(pD, `/encomendas/nova?consolidacao=${batchKey0}`); // …e troca para A antes de a resposta chegar
-    await pD.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0);
-    await esperarPor(async () => (await notasInput(pD, "CFL P1", A).inputValue()) === "nota A P1");
-    await pD.waitForTimeout(10000); // a resposta retida chega AGORA, já com a consolidação A no ecrã
-    check(atrasoD.n >= 1, "9g-5: a criação do rascunho da consolidação D foi retida e só respondeu depois da troca");
-    check((await notasInput(pD, "CFL P1", A).inputValue()) === "nota A P1" && (await fornecedorBotao(pD, "CFL P1", A).innerText()).includes("Alfa"), "9g-6: a resposta tardia NÃO foi aplicada à consolidação A (o ecrã continua com os dados de A)");
-    const descartarEmA = await prisma.linhaEncomenda.count({ where: { notas: "descartar?", listaEncomenda: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] } } } });
-    const a1PosD = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
-    check(descartarEmA === 0 && a1PosD?.notas === "nota A P1", "9g-7: nenhum rascunho de A recebeu a edição da consolidação D");
-    void batchKeyD;
+    check(atrasoD.n >= 1, "9h-0: a criação real dos rascunhos de D está retida (9 s)");
+    // com a resposta RETIDA: fornecedor, quantidade, notas e uma remoção em A (+ notas em B)
+    await qtdInput(pD, "CFL P1", A).fill("21");
+    await notasInput(pD, "CFL P1", A).fill("origem guardada P1 A");
+    await escolherFornecedorViaPicker(pD, "CFL P1", A, "Delta");
+    await pD.getByRole("button", { name: `Remover ${A} · CFL P2` }).click();
+    await notasInput(pD, "CFL P1", B).fill("origem guardada P1 B");
+    // tenta mudar imediatamente para a consolidação A (link interno)
+    await injetarLink(pD, alvoA);
+    await pD.locator("#e2e-link").click();
+    await pD.getByTestId("consolidacao-a-guardar").waitFor({ state: "visible", timeout: 5000 });
+    check(chaveUrl(pD) === batchKeyD, "9h-1: a saída está SUSPENSA — o URL continua na consolidação de origem (D)");
+    check((await pD.getByTestId("consolidacao-a-guardar").innerText()).includes("A guardar"), "9h-2: a UI mostra 'A guardar…' enquanto a criação não conclui");
+    check((await qtdInput(pD, "CFL P1", A).inputValue()) === "21" && (await notasInput(pD, "CFL P1", A).inputValue()) === "origem guardada P1 A", "9h-3: o ecrã continua em D com os valores editados");
+    await pD.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0, { timeout: 45000 });
+    check(true, "9h-4: só depois de gravar é que navega para a consolidação A (batchKey0)");
+    check(await esperarPor(async () => (await notasInput(pD, "CFL P1", A).inputValue()) === "nota A P1"), "9h-5: o ecrã passou a mostrar os dados da consolidação A");
+    check(await esperarPor(async () => {
+      const [a1, a2, b1] = await Promise.all([linhaBd(batchKeyD, seedData.farmaciaAId, 7_600_001), linhaBd(batchKeyD, seedData.farmaciaAId, 7_600_002), linhaBd(batchKeyD, seedData.farmaciaBId, 7_600_001)]);
+      return a1?.notas === "origem guardada P1 A" && Number(a1?.quantidadeAjustada) === 21 && a1?.fornecedorSugeridoId === seedData.fornDeltaId && a2 === null && b1?.notas === "origem guardada P1 B";
+    }, 15000), "9h-6: na BD, TODAS as alterações ficaram nos rascunhos da origem (D): fornecedor, quantidade, notas, remoção de P2/A, notas de B");
+    const a1DepoisH = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    const b1DepoisH = await linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001);
+    const marcasEmA = await prisma.linhaEncomenda.count({ where: { notas: { startsWith: "origem guardada" }, listaEncomenda: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] } } } });
+    check(JSON.stringify(a1AntesH) === JSON.stringify(a1DepoisH) && JSON.stringify(b1AntesH) === JSON.stringify(b1DepoisH) && marcasEmA === 0, "9h-7: NENHUMA alteração apareceu na consolidação de destino (A)");
+    await pD.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKeyD}`, { waitUntil: "networkidle" });
+    await pD.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    check(
+      (await qtdInput(pD, "CFL P1", A).inputValue()) === "21" && (await notasInput(pD, "CFL P1", A).inputValue()) === "origem guardada P1 A" && (await fornecedorBotao(pD, "CFL P1", A).innerText()).includes("Delta") &&
+        (await pD.getByLabel(`Notas de CFL P2 em ${A}`, { exact: true }).count()) === 0 && (await notasInput(pD, "CFL P1", B).inputValue()) === "origem guardada P1 B",
+      "9h-8: regressando a D vêem-se os valores e a remoção (21, 'origem guardada P1 A', Delta, P2/A removida)"
+    );
     await pD.close();
-    await pC.close();
+
+    // ── 9h-bis · FALHA na criação do rascunho: fica na origem, com erro, sem perder nada ──
+    console.log("\n9h-bis · criação do rascunho FALHA ao sair — permanece na origem, URL intacto, valores locais mantidos, erro visível");
+    const pE = await ctx.newPage();
+    await pE.setViewportSize({ width: 1700, height: 1100 });
+    aceitarDialogosAutomaticamente(pE);
+    await pE.route("**/encomendas/nova**", async (route) => {
+      const req = route.request();
+      const corpo = req.postData() ?? "";
+      if (req.method() === "POST" && req.headers()["next-action"] && corpo.includes('"batchKey"') && corpo.includes('"nome"') && corpo.includes('"linhas"')) await route.abort("failed");
+      else await route.continue();
+    });
+    const batchKeyE = await abrirNovaConsolidacao(pE);
+    await gerarPropostaConsolidacao(pE);
+    await qtdInput(pE, "CFL P1", A).fill("23");
+    await notasInput(pE, "CFL P1", A).fill("local E");
+    await escolherFornecedorViaPicker(pE, "CFL P1", A, "Delta");
+    check((await prisma.listaEncomenda.count({ where: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKeyE, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKeyE, seedData.farmaciaBId)] } } })) === 0, "9h-bis-0: com a criação a falhar, não existe nenhum rascunho de E na BD");
+    await injetarLink(pE, alvoA);
+    await pE.locator("#e2e-link").click();
+    const erroVisivel = await pE.getByText(/não foi possível criar o rascunho/).first().waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false);
+    check(erroVisivel, "9h-bis-1: aparece um erro explícito a dizer que o rascunho não pôde ser criado");
+    check(chaveUrl(pE) === batchKeyE, "9h-bis-2: o URL NÃO mudou — continua na consolidação de origem");
+    check((await qtdInput(pE, "CFL P1", A).inputValue()) === "23" && (await notasInput(pE, "CFL P1", A).inputValue()) === "local E" && (await fornecedorBotao(pE, "CFL P1", A).innerText()).includes("Delta"), "9h-bis-3: os valores locais (23, 'local E', Delta) continuam no ecrã");
+    check((await pE.getByTestId("consolidacao-a-guardar").count()) === 0, "9h-bis-4: o indicador 'A guardar' desaparece (a operação terminou, em falha)");
+    // a falha é recuperável: sem o bloqueio, a mesma saída conclui e grava tudo na origem
+    await pE.unroute("**/encomendas/nova**");
+    await pE.locator("#e2e-link").click();
+    await pE.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0, { timeout: 45000 });
+    check(await esperarPor(async () => {
+      const a1 = await linhaBd(batchKeyE, seedData.farmaciaAId, 7_600_001);
+      return a1?.notas === "local E" && Number(a1?.quantidadeAjustada) === 23 && a1?.fornecedorSugeridoId === seedData.fornDeltaId;
+    }, 15000), "9h-bis-5: depois de a falha ser removida, a saída conclui e as alterações ficam gravadas na origem (E)");
+    await pE.close();
+
+    // ── 9h-ter · FALHA na gravação (rascunho existe): mesmo comportamento, via router.push ──
+    console.log("\n9h-ter · gravação FALHA ao trocar de batchKey por navegação programática — o URL é reposto, nada se perde");
+    const pF = await ctx.newPage();
+    await pF.setViewportSize({ width: 1700, height: 1100 });
+    aceitarDialogosAutomaticamente(pF);
+    await pF.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKeyC}`, { waitUntil: "networkidle" });
+    await pF.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    await pF.route("**/encomendas/nova**", async (route) => {
+      const req = route.request();
+      const corpo = req.postData() ?? "";
+      if (req.method() === "POST" && req.headers()["next-action"] && corpo.includes('"listaEncomendaId"') && corpo.includes('"versaoEsperada"')) await route.abort("failed");
+      else await route.continue();
+    });
+    await notasInput(pF, "CFL P1", A).fill("falha ao gravar");
+    await navegarNoCliente(pF, alvoA);
+    const erroGravar = await pF.getByText(/não foi possível guardar as alterações/).first().waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false);
+    check(erroGravar, "9h-ter-1: aparece um erro explícito de gravação");
+    check(await esperarPor(async () => chaveUrl(pF) === batchKeyC), "9h-ter-2: o URL é reposto na consolidação de origem (C)");
+    check((await notasInput(pF, "CFL P1", A).inputValue()) === "falha ao gravar", "9h-ter-3: o valor local mantém-se no ecrã");
+    check((await linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_001))?.notas !== "falha ao gravar", "9h-ter-4: nada chegou à BD enquanto a gravação falhava");
+    await pF.unroute("**/encomendas/nova**");
+    await navegarNoCliente(pF, alvoA);
+    await pF.waitForFunction((k) => new URL(location.href).searchParams.get("consolidacao") === k, batchKey0, { timeout: 45000 });
+    check(await esperarPor(async () => (await linhaBd(batchKeyC, seedData.farmaciaAId, 7_600_001))?.notas === "falha ao gravar", 15000), "9h-ter-5: removida a falha, a saída conclui e o valor fica gravado em C");
+    check((await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001))?.notas === "nota A P1", "9h-ter-6: a consolidação A não recebeu nada");
+    await pF.close();
 
     // ── 10 · refrescar ─────────────────────────────────────────────────
     console.log("\n10 · refrescar a página");
