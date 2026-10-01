@@ -368,11 +368,18 @@ export async function generateOrderProposal(
       GROUP BY vm."produtoId"
     ),
     pending AS (
+      -- Compromisso REAL por exportar: só encomendas FINALIZADAS (com outbox)
+      -- cuja exportação ainda não terminou. Um RASCUNHO nunca conta — nem o
+      -- de outra análise/consolidação, nem o rascunho-pai já dividido por
+      -- fornecedor (os seus documentos filhos FINALIZADA já contam) — e
+      -- ANULADA/ELIMINADA também não. estadoExport sozinho não chegava:
+      -- nasce PENDENTE por omissão em TODOS os estados (ver schema).
       SELECT le."produtoId",
              SUM(COALESCE(le."quantidadeAjustada", le."quantidadeSugerida", 0)) AS qty
       FROM "LinhaEncomenda" le
       JOIN "ListaEncomenda" l ON l.id = le."listaEncomendaId"
       WHERE l."farmaciaId" = ${input.farmaciaId}
+        AND l.estado = 'FINALIZADA'
         AND l."estadoExport" IN ('PENDENTE', 'EM_EXPORTACAO')
       GROUP BY le."produtoId"
     )`;
