@@ -62,6 +62,7 @@
     "test:e2e-workspaces": "tsx scripts/e2e/workspaces-browser.ts",
     "test:workspace-isolamento": "tsx scripts/tests/test-workspace-isolamento.ts",
     "test:consolidacao-resposta-perdida-db": "tsx scripts/tests/test-consolidacao-resposta-perdida-db.ts",
+    "test:consolidacao-notas-conflito-auth-db": "tsx scripts/tests/test-consolidacao-notas-conflito-auth-db.ts",
     "test:reconstruir-rascunho": "tsx scripts/tests/test-reconstruir-rascunho.ts",
     "test:encomenda-idempotencia-db": "tsx scripts/tests/test-encomenda-idempotencia-db.ts",
     "test:diagnostico-tools": "tsx scripts/tests/test-diagnostico-tools.ts",

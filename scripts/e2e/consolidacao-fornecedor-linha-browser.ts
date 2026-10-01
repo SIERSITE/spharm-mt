@@ -39,6 +39,15 @@
  *   18 anular uma
  *   19 confirmar que as restantes continuam activas
  *
+ * Passos acrescentados na auditoria de 2026-10-01 (entre o 9 e o 10):
+ *   9a notas por linha e em massa por farmácia — MESMO produto, notas diferentes
+ *   9b editar fornecedor/quantidade/notas em A, navegar para outra página,
+ *      regressar pela URL, confirmar recuperação integral
+ *   9c duas batchKey independentes: A → B → A sem misturar dados
+ *   9d bloqueio optimista com DUAS sessões: conflito explícito (autosave e
+ *      finalização), farmácia identificada, finalização bloqueada até recarregar
+ *   11e / 13e notas recuperadas após o refresh e presentes, isoladas, nos 4 documentos
+ *
  * ── Desenho dos dados ────────────────────────────────────────────────
  * Farmácia A: P1→Alfa, P2→Beta (sugestão inicial). Farmácia B: P1 (o
  * MESMO produto — fornecedor DIFERENTE por farmácia) →Gama, P3→sem
@@ -102,6 +111,20 @@ async function escolherFornecedorViaPicker(page: Page, designacao: string, farma
   await opcao.waitFor({ state: "visible" });
   await opcao.click();
   await page.waitForTimeout(300);
+}
+function notasInput(page: Page, designacao: string, farmaciaNome: string) {
+  return page.getByLabel(`Notas de ${designacao} em ${farmaciaNome}`, { exact: true });
+}
+function qtdInput(page: Page, designacao: string, farmaciaNome: string) {
+  return page.getByLabel(`Quantidade de ${designacao} em ${farmaciaNome}`, { exact: true });
+}
+async function esperarPor(cond: () => Promise<boolean>, ms = 20000): Promise<boolean> {
+  const fim = Date.now() + ms;
+  while (Date.now() < fim) {
+    if (await cond().catch(() => false)) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
 }
 function aceitarDialogosAutomaticamente(page: Page) {
   page.on("dialog", (d) => { d.accept().catch(() => {}); });
@@ -229,6 +252,16 @@ async function contextoTenant(browser: import("playwright").Browser, tenant: str
 async function main() {
   const tenant = "silveira";
   const seedData = await seed(DB);
+  const { PrismaClient } = await import("../../generated/prisma/client");
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
+  const { deriveFarmaciaIdempotencyKey } = await import("../../lib/ingest/orders");
+  /** A linha de um produto (por CNP) no rascunho REAL de uma farmácia numa consolidação (por batchKey). */
+  const linhaBd = (batchKey: string, farmaciaId: string, cnp: number) =>
+    prisma.linhaEncomenda.findFirst({
+      where: { produto: { cnp }, listaEncomenda: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(batchKey, farmaciaId) } },
+      select: { notas: true, quantidadeAjustada: true, fornecedorSugeridoId: true },
+    });
   const browser = await chromium.launch();
   try {
     const ctx = await contextoTenant(browser, tenant, seedData.adminUserId, "e2e-cfl@spharm.test");
@@ -334,6 +367,115 @@ async function main() {
     await escolherFornecedorViaPicker(page, "CFL P3", seedData.farmaciaBNome, "Beta");
     check((await fornecedorBotao(page, "CFL P3", seedData.farmaciaBNome).innerText()).includes("Beta"), "9: P3/Farmácia B já mostra Beta");
 
+    // ── 9a · notas por linha e em massa por farmácia ────────────────────
+    console.log("\n9a · notas por linha e por farmácia (o MESMO produto, notas DIFERENTES nas duas farmácias)");
+    const batchKey0 = new URL(page.url()).searchParams.get("consolidacao")!;
+    const A = seedData.farmaciaANome;
+    const B = seedData.farmaciaBNome;
+    // O selector de farmácia da massa continua em A (passo 6).
+    await page.getByLabel("Nota a definir em toda a farmácia seleccionada").fill("nota massa A");
+    await page.getByRole("button", { name: "Aplicar nota à farmácia" }).click();
+    await page.waitForTimeout(300);
+    check(
+      (await notasInput(page, "CFL P1", A).inputValue()) === "nota massa A" && (await notasInput(page, "CFL P2", A).inputValue()) === "nota massa A",
+      "9a: a nota em massa foi aplicada às linhas da Farmácia A"
+    );
+    check((await notasInput(page, "CFL P1", B).inputValue()) === "" && (await notasInput(page, "CFL P3", B).inputValue()) === "", "9a-ii: a Farmácia B NÃO foi afectada pela nota em massa de A");
+    await notasInput(page, "CFL P1", A).fill("nota A P1");
+    await notasInput(page, "CFL P1", B).fill("nota B P1");
+    await notasInput(page, "CFL P3", B).fill("nota B P3");
+    await qtdInput(page, "CFL P1", A).fill("17");
+    const gravouNotas = await esperarPor(async () => {
+      const [a1, a2, b1, b3] = await Promise.all([linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001), linhaBd(batchKey0, seedData.farmaciaAId, 7_600_002), linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001), linhaBd(batchKey0, seedData.farmaciaBId, 7_600_003)]);
+      return a1?.notas === "nota A P1" && Number(a1?.quantidadeAjustada) === 17 && a2?.notas === "nota massa A" && b1?.notas === "nota B P1" && b3?.notas === "nota B P3";
+    });
+    check(gravouNotas, "9a-iii: o autosave gravou notas (e a quantidade) nos rascunhos REAIS de cada farmácia");
+    const a1Bd = await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_001);
+    const b1Bd = await linhaBd(batchKey0, seedData.farmaciaBId, 7_600_001);
+    check(a1Bd?.notas === "nota A P1" && b1Bd?.notas === "nota B P1", "9a-iv: o MESMO produto (CFL P1) tem notas diferentes em A e B na base de dados");
+
+    // ── 9b · navegar para outra página e regressar ───────────────────────
+    console.log("\n9b · editar em A, navegar para outra página, regressar pela URL — recuperação integral");
+    await page.goto(`${baseFor(tenant)}/encomendas`, { waitUntil: "networkidle" });
+    check(new URL(page.url()).searchParams.get("consolidacao") === null, "9b: estamos noutra página (sem sessão de consolidação)");
+    await page.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey0}`, { waitUntil: "networkidle" });
+    await page.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Alfa"), "9b-a: P1/A recupera o fornecedor (Alfa)");
+    check((await fornecedorBotao(page, "CFL P2", A).innerText()).includes("Beta"), "9b-b: P2/A recupera o fornecedor (Beta)");
+    check((await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Delta"), "9b-c: P1/B recupera o fornecedor (Delta)");
+    check((await qtdInput(page, "CFL P1", A).inputValue()) === "17", "9b-d: P1/A recupera a quantidade editada (17)");
+    check((await notasInput(page, "CFL P1", A).inputValue()) === "nota A P1", "9b-e: P1/A recupera a nota (A)");
+    check((await notasInput(page, "CFL P1", B).inputValue()) === "nota B P1", "9b-f: P1/B recupera a nota DIFERENTE (B) para o mesmo produto");
+    check((await notasInput(page, "CFL P2", A).inputValue()) === "nota massa A" && (await notasInput(page, "CFL P3", B).inputValue()) === "nota B P3", "9b-g: as restantes notas recuperam-se");
+
+    // ── 9c · duas batchKey independentes: A → B → A ──────────────────────
+    console.log("\n9c · duas consolidações independentes (batchKey A e B) — A → B → A sem misturar dados");
+    const { ensureRascunhoConsolidacaoFarmaciaServico } = await import("../../lib/encomendas/consolidacao-servico");
+    const batchKey1 = Array.from({ length: 24 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+    const depsB = { prisma, tenantSlug: tenant, sessao: { sub: seedData.adminUserId, perfil: "ADMINISTRADOR", farmaciaId: null } };
+    const p1 = await prisma.produto.findUniqueOrThrow({ where: { cnp: 7_600_001 } });
+    const criadaA = await ensureRascunhoConsolidacaoFarmaciaServico(depsB, {
+      batchKey: batchKey1, farmaciaId: seedData.farmaciaAId, nome: "Lote 2 · A",
+      linhas: [{ produtoId: p1.id, quantidadeAjustada: 5, fornecedorSugeridoId: seedData.fornGamaId, notas: "lote2 nota A P1" }],
+    });
+    const criadaB = await ensureRascunhoConsolidacaoFarmaciaServico(depsB, {
+      batchKey: batchKey1, farmaciaId: seedData.farmaciaBId, nome: "Lote 2 · B",
+      linhas: [{ produtoId: p1.id, quantidadeAjustada: 6, fornecedorSugeridoId: seedData.fornAlfaId, notas: "lote2 nota B P1" }],
+    });
+    check(criadaA.ok && criadaB.ok, "9c-setup: segunda consolidação (batchKey independente) com rascunhos próprios nas MESMAS duas farmácias");
+    await page.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey1}`, { waitUntil: "networkidle" });
+    await page.getByText("CFL P1").first().waitFor({ timeout: 20000 });
+    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Gama") && (await notasInput(page, "CFL P1", A).inputValue()) === "lote2 nota A P1" && (await qtdInput(page, "CFL P1", A).inputValue()) === "5", "9c-B: a consolidação B mostra SÓ os dados do lote 2 em A (Gama, nota, 5)");
+    check((await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Alfa") && (await notasInput(page, "CFL P1", B).inputValue()) === "lote2 nota B P1", "9c-B-ii: …e em B (Alfa, nota do lote 2)");
+    check((await page.getByText("CFL P2").count()) === 0 && (await page.getByText("CFL P3").count()) === 0, "9c-B-iii: nenhuma linha do lote A (P2/P3) aparece na consolidação B");
+    await page.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey0}`, { waitUntil: "networkidle" });
+    await page.getByText("CFL P2").first().waitFor({ timeout: 20000 });
+    check((await fornecedorBotao(page, "CFL P1", A).innerText()).includes("Alfa") && (await notasInput(page, "CFL P1", A).inputValue()) === "nota A P1" && (await qtdInput(page, "CFL P1", A).inputValue()) === "17", "9c-A: de volta à consolidação A — dados intactos (Alfa, nota A P1, 17), nada do lote 2");
+    check((await fornecedorBotao(page, "CFL P1", B).innerText()).includes("Delta") && (await notasInput(page, "CFL P1", B).inputValue()) === "nota B P1", "9c-A-ii: …e em B (Delta, nota B P1)");
+    // Limpa o lote 2 (só serviu para provar o isolamento) — a base é descartável, mas os passos 13/18 não o devem ver.
+    const idsLote2 = (await prisma.listaEncomenda.findMany({ where: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey1, seedData.farmaciaBId)] } }, select: { id: true } })).map((l) => l.id);
+    await prisma.orderExportAudit.deleteMany({ where: { outbox: { listaEncomendaId: { in: idsLote2 } } } });
+    await prisma.orderOutbox.deleteMany({ where: { listaEncomendaId: { in: idsLote2 } } });
+    await prisma.linhaEncomenda.deleteMany({ where: { listaEncomendaId: { in: idsLote2 } } });
+    await prisma.listaEncomenda.deleteMany({ where: { id: { in: idsLote2 } } });
+
+    // ── 9d · bloqueio optimista com DUAS sessões ─────────────────────────
+    console.log("\n9d · duas sessões a editar a Farmácia A — conflito explícito, nunca sobrescrever");
+    const page2 = await ctx.newPage();
+    await page2.setViewportSize({ width: 1700, height: 1100 });
+    aceitarDialogosAutomaticamente(page2);
+    await page2.goto(`${baseFor(tenant)}/encomendas/nova?consolidacao=${batchKey0}`, { waitUntil: "networkidle" });
+    await page2.getByText("CFL P2").first().waitFor({ timeout: 20000 });
+    await notasInput(page, "CFL P2", A).fill("sessão 1");
+    check(await esperarPor(async () => (await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_002))?.notas === "sessão 1"), "9d-1: a sessão 1 gravou a sua nota (a versão avançou)");
+    await notasInput(page2, "CFL P2", A).fill("sessão 2 (deve falhar)");
+    const bannerConflito = page2.getByTestId("consolidacao-conflito");
+    const apareceu = await bannerConflito.first().waitFor({ state: "visible", timeout: 20000 }).then(() => true).catch(() => false);
+    check(apareceu, "9d-2: a sessão 2 mostra um aviso de conflito explícito (a sua gravação foi recusada)");
+    check(apareceu && (await bannerConflito.first().innerText()).includes(A) && (await bannerConflito.first().getAttribute("data-farmacia-id")) === seedData.farmaciaAId, "9d-2b: o aviso identifica a FARMÁCIA em conflito (A), não a B");
+    check((await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_002))?.notas === "sessão 1", "9d-3: nada foi sobrescrito — a base mantém a nota da sessão 1");
+    check(await page2.getByRole("button", { name: "Criar encomendas" }).isDisabled(), "9d-4: 'Criar encomendas' está bloqueado na sessão em conflito");
+    check(await page2.getByRole("button", { name: "Guardar rascunho" }).isDisabled(), "9d-4b: 'Guardar rascunho' também");
+    await page2.getByTestId("consolidacao-recarregar-farmacia").click();
+    await bannerConflito.first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+    check((await bannerConflito.count()) === 0 && (await notasInput(page2, "CFL P2", A).inputValue()) === "sessão 1", "9d-5: depois de recarregar, o aviso desaparece e a sessão 2 mostra os dados do servidor (sessão 1)");
+    check(!(await page2.getByRole("button", { name: "Criar encomendas" }).isDisabled()), "9d-5b: a finalização volta a estar disponível");
+
+    console.log("\n9d-bis · conflito detectado pelo SERVIDOR na finalização (sessão 2 sem edições locais)");
+    await notasInput(page, "CFL P2", A).fill("sessão 1 (v2)");
+    check(await esperarPor(async () => (await linhaBd(batchKey0, seedData.farmaciaAId, 7_600_002))?.notas === "sessão 1 (v2)"), "9d-6: a sessão 1 grava de novo (a versão avança outra vez)");
+    const finalizadosAntes = await prisma.listaEncomenda.count({ where: { loteOrigemId: { not: null } } });
+    await page2.getByRole("button", { name: "Criar encomendas" }).click();
+    const apareceu2 = await bannerConflito.first().waitFor({ state: "visible", timeout: 20000 }).then(() => true).catch(() => false);
+    check(apareceu2 && (await bannerConflito.first().getAttribute("data-farmacia-id")) === seedData.farmaciaAId, "9d-7: a finalização na sessão desactualizada é recusada pelo servidor e identifica a Farmácia A");
+    const finalizadosDepois = await prisma.listaEncomenda.count({ where: { loteOrigemId: { not: null } } });
+    const divididosA = await prisma.listaEncomenda.count({ where: { clientIdempotencyKey: { in: [deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaAId), deriveFarmaciaIdempotencyKey(batchKey0, seedData.farmaciaBId)] }, loteDivididoEm: { not: null } } });
+    check(finalizadosDepois === finalizadosAntes && divididosA === 0, "9d-8: nenhuma encomenda foi criada e nenhum rascunho ficou dividido");
+    await page2.getByTestId("consolidacao-recarregar-farmacia").click();
+    await bannerConflito.first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+    check((await notasInput(page2, "CFL P2", A).inputValue()) === "sessão 1 (v2)", "9d-9: depois de recarregar, a sessão 2 vê a versão mais recente");
+    await page2.close();
+
     // ── 10 · refrescar ─────────────────────────────────────────────────
     console.log("\n10 · refrescar a página");
     await page.waitForTimeout(1500); // autosave a gravar antes do refresh
@@ -349,6 +491,9 @@ async function main() {
     check((await fornecedorBotao(page, "CFL P1", seedData.farmaciaBNome).innerText()).includes("Delta"), "11c: P1/Farmácia B recupera Delta (edição individual do passo 5, nunca a sugestão original Gama)");
     check((await fornecedorBotao(page, "CFL P3", seedData.farmaciaBNome).innerText()).includes("Beta"), "11d: P3/Farmácia B recupera Beta (correcção do passo 9)");
 
+    check((await notasInput(page, "CFL P1", A).inputValue()) === "nota A P1" && (await notasInput(page, "CFL P1", B).inputValue()) === "nota B P1", "11e: o MESMO produto recupera as suas notas DIFERENTES em A e B");
+    check((await notasInput(page, "CFL P2", A).inputValue()) === "sessão 1 (v2)" && (await notasInput(page, "CFL P3", B).inputValue()) === "nota B P3" && (await qtdInput(page, "CFL P1", A).inputValue()) === "17", "11f: restantes notas e a quantidade editada recuperam-se");
+
     // ── 12 · finalizar ───────────────────────────────────────────────────
     console.log("\n12 · finalizar — 'Criar encomendas'");
     await page.waitForTimeout(1500);
@@ -358,9 +503,6 @@ async function main() {
 
     // ── 13 · confirmar quatro encomendas ─────────────────────────────────
     console.log("\n13 · confirmar exactamente quatro encomendas finais");
-    const { PrismaClient } = await import("../../generated/prisma/client");
-    const { PrismaPg } = await import("@prisma/adapter-pg");
-    const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
     const draftA = await prisma.listaEncomenda.findFirst({ where: { farmaciaId: seedData.farmaciaAId, estado: "RASCUNHO", loteDivididoEm: { not: null } }, orderBy: { dataCriacao: "desc" } });
     const draftB = await prisma.listaEncomenda.findFirst({ where: { farmaciaId: seedData.farmaciaBId, estado: "RASCUNHO", loteDivididoEm: { not: null } }, orderBy: { dataCriacao: "desc" } });
     check(!!draftA && !!draftB, "13-fixture: os dois rascunhos (um por farmácia) ficaram marcados como divididos");
@@ -374,6 +516,16 @@ async function main() {
     const numeros = documentos.map((d) => d.numero);
     check(numeros.every((n) => n !== null && /^EN-\d{6}$/.test(n!)) && new Set(numeros).size === 4, "13c: 4 números reais EN-######, todos distintos");
     check(documentos.filter((d) => d.farmaciaId === seedData.farmaciaAId).length === 2 && documentos.filter((d) => d.farmaciaId === seedData.farmaciaBId).length === 2, "13d: 2 documentos por farmácia — nenhuma mistura");
+
+    // 13e · as notas chegaram aos documentos finais, isoladas por farmácia × fornecedor
+    const docDe = (farmaciaId: string, fornecedorNome: string) => documentos.find((d) => d.farmaciaId === farmaciaId && d.linhas[0]?.fornecedorSugerido?.nome === fornecedorNome);
+    const dAAlfa = docDe(seedData.farmaciaAId, "CFL Fornecedor Alfa");
+    const dABeta = docDe(seedData.farmaciaAId, "CFL Fornecedor Beta");
+    const dBDelta = docDe(seedData.farmaciaBId, "CFL Fornecedor Delta");
+    const dBBeta = docDe(seedData.farmaciaBId, "CFL Fornecedor Beta");
+    check(dAAlfa?.linhas[0].notas === "nota A P1" && Number(dAAlfa?.linhas[0].quantidadeAjustada) === 17, "13e-a: documento (A, Alfa) leva a nota 'nota A P1' e a quantidade 17");
+    check(dBDelta?.linhas[0].notas === "nota B P1", "13e-b: documento (B, Delta) leva a nota DIFERENTE 'nota B P1' para o MESMO produto");
+    check(dABeta?.linhas[0].notas === "sessão 1 (v2)" && dBBeta?.linhas[0].notas === "nota B P3", "13e-c: documentos (A, Beta) e (B, Beta) levam cada um a SUA nota — mesmo fornecedor, farmácias diferentes, sem mistura");
 
     // ── 14 · abrir os quatro documentos ──────────────────────────────────
     console.log("\n14 · abrir os quatro documentos (legíveis, uma navegação real no browser)");

@@ -16,6 +16,7 @@ import {
   deriveFornecedorIdempotencyKey,
   deriveGrupoDraftIdempotencyKey,
   deriveGrupoFinalizacaoBatchKey,
+  formatarResumoConsolidacaoPreview,
   formatarResumoFinalizacaoMultiFornecedor,
   validarLinhasParaFinalizacaoMultiFornecedor,
 } from "../../lib/encomendas/finalizar-multi-fornecedor-regras";
@@ -208,5 +209,46 @@ console.log("\n=== deriveGrupoDraftIdempotencyKey / deriveGrupoFinalizacaoBatchK
   check(chaveSemSalt !== draftA1 && chaveSemSalt !== finA1, "nenhuma das chaves de grupo colide com deriveFornecedorIdempotencyKey para a mesma entrada");
 }
 
-console.log(`\n${pass} ok, ${fail} falhas`);
+
+// ─── formatarResumoConsolidacaoPreview (pré-visualização da consolidação) ───
+{
+  console.log("\nformatarResumoConsolidacaoPreview");
+  const esperado = [
+    "Farmácia A",
+    "  Fornecedor X — 120 linhas",
+    "  Fornecedor Y — 1 linha",
+    "",
+    "Farmácia B",
+    "  Fornecedor X — 80 linhas",
+    "  Fornecedor Z — 22 linhas",
+    "",
+    "Total: 4 encomendas",
+  ].join("\n");
+  const texto = formatarResumoConsolidacaoPreview([
+    { farmaciaNome: "Farmácia A", porFornecedor: [{ fornecedorNome: "Fornecedor X", nLinhas: 120 }, { fornecedorNome: "Fornecedor Y", nLinhas: 1 }] },
+    { farmaciaNome: "Farmácia B", porFornecedor: [{ fornecedorNome: "Fornecedor X", nLinhas: 80 }, { fornecedorNome: "Fornecedor Z", nLinhas: 22 }] },
+  ]);
+  check(texto === esperado, "formato EXACTO pedido: farmácia, fornecedor — N linhas (singular/plural), linha em branco, Total");
+
+  eq("uma única encomenda usa o singular", formatarResumoConsolidacaoPreview([
+    { farmaciaNome: "Farmácia A", porFornecedor: [{ fornecedorNome: "Fornecedor X", nLinhas: 1 }] },
+  ]), "Farmácia A\n  Fornecedor X — 1 linha\n\nTotal: 1 encomenda");
+
+  eq("sem farmácias: só o total (0 encomendas)", formatarResumoConsolidacaoPreview([]), "Total: 0 encomendas");
+
+  eq("farmácia sem fornecedores é omitida e não conta", formatarResumoConsolidacaoPreview([
+    { farmaciaNome: "Farmácia A", porFornecedor: [] },
+    { farmaciaNome: "Farmácia B", porFornecedor: [{ fornecedorNome: "Fornecedor Z", nLinhas: 3 }] },
+  ]), "Farmácia B\n  Fornecedor Z — 3 linhas\n\nTotal: 1 encomenda");
+
+  // Coerência com o resumo que o servidor produz depois de escrever: mesma forma de linha por fornecedor.
+  const doServidor = formatarResumoFinalizacaoMultiFornecedor([
+    { fornecedorNome: "Fornecedor X", numero: null, nLinhas: 2 },
+  ]);
+  check(doServidor.includes("Fornecedor X") && doServidor.includes("2 linhas"), "o resumo do servidor (referência) usa a mesma forma 'Fornecedor — N linhas'");
+}
+
+
+console.log(`
+${pass} ok, ${fail} falhas`);
 process.exit(fail === 0 ? 0 : 1);
