@@ -317,9 +317,16 @@ export function useAutosaveEncomenda(opts: {
 
   /** Chamar ANTES de fechar uma tarefa/mudar de módulo/logout — tenta concluir a gravação pendente. */
   const flushSincrono = useCallback(async (): Promise<boolean> => {
-    if (pendentesRef.current.size === 0) return true;
-    await flush();
-    return pendentesRef.current.size === 0 && !bloqueadoRef.current;
+    const pendente = () =>
+      pendentesRef.current.size > 0 ||
+      pendentesRemocaoRef.current.size > 0 ||
+      contextoPendenteRef.current !== undefined;
+    if (!pendente() && !emVooRef.current) return true;
+    // Uma gravação já em voo (ex.: o debounce acabou de disparar) — espera que
+    // termine em vez de a dar por falhada; o que ficou pendente a seguir grava-se já.
+    for (let i = 0; i < 50 && emVooRef.current; i++) await new Promise((r) => setTimeout(r, 100));
+    if (pendente() && !bloqueadoRef.current) await flush();
+    return !pendente() && !bloqueadoRef.current;
   }, [flush]);
 
   const resolverConflitoActualizar = useCallback(() => {
@@ -358,6 +365,8 @@ export function useAutosaveEncomenda(opts: {
   return {
     estado,
     versaoAtual: versaoRef.current,
+    /** Versão ACTUAL do rascunho (lê o ref no momento da chamada — nunca o valor do último render). */
+    obterVersaoActual: () => versaoRef.current,
     temAlteracoesPendentes,
     marcarSujo,
     marcarRemovido,

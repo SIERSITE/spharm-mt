@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { autosaveEncomendaAction, type AutosaveLinhaInput } from "@/app/encomendas/[id]/actions";
 import { useAutosaveEncomenda, type EstadoAutosave } from "@/lib/encomendas/use-autosave-encomenda";
 
@@ -33,6 +33,8 @@ export type ConsolidacaoAutosaveHandle = {
   flushSincrono: () => Promise<boolean>;
   resolverConflitoActualizar: () => void;
   versaoAtual: number;
+  /** Versão ACTUAL do rascunho desta farmácia (lida no momento — nunca congelada no último render). */
+  obterVersaoActual: () => number;
   temAlteracoesPendentes: boolean;
 };
 
@@ -60,6 +62,18 @@ export const ConsolidacaoFarmaciaAutosave = forwardRef<ConsolidacaoAutosaveHandl
       onGravado: (produtoIds, novaVersao) => onGravado?.(farmaciaId, produtoIds, novaVersao),
     });
 
+    // Navegar para outra página desmonta este componente: tenta gravar já o
+    // que ainda estiver pendente (o debounce ficaria perdido). Usa o `guardarAgora`
+    // mais recente via ref — o efeito corre só no desmonte.
+    const guardarAgoraRef = useRef(autosave.guardarAgora);
+    guardarAgoraRef.current = autosave.guardarAgora;
+    useEffect(
+      () => () => {
+        void guardarAgoraRef.current();
+      },
+      []
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -70,6 +84,7 @@ export const ConsolidacaoFarmaciaAutosave = forwardRef<ConsolidacaoAutosaveHandl
         flushSincrono: autosave.flushSincrono,
         resolverConflitoActualizar: autosave.resolverConflitoActualizar,
         versaoAtual: autosave.versaoAtual,
+        obterVersaoActual: autosave.obterVersaoActual,
         temAlteracoesPendentes: autosave.temAlteracoesPendentes,
       }),
       [autosave]

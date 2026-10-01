@@ -11,7 +11,7 @@ import {
   obterEstadoConsolidacaoServico,
   ensureRascunhoConsolidacaoFarmaciaServico,
   obterRascunhosConsolidacaoServico,
-  autorizarConsolidacao,
+  finalizarConsolidacaoServico,
   type CriarConsolidacaoInput,
   type CriarConsolidacaoResultado,
   type EstadoConsolidacaoServidor,
@@ -20,16 +20,12 @@ import {
 } from "@/lib/encomendas/consolidacao-servico";
 import {
   createEncomendaWithOutbox,
-  deriveFarmaciaIdempotencyKey,
   IdempotencyConflictError,
   type OrderLineInput,
 } from "@/lib/ingest/orders";
 import {
-  finalizarConsolidacaoMultiFornecedor,
-  LinhasSemFornecedorError as LinhasSemFornecedorErrorConsolidacao,
   type DocumentoConsolidacaoGerado,
 } from "@/lib/encomendas/consolidacao-multi-fornecedor";
-import { ConflitoVersaoError } from "@/lib/encomendas/autosave";
 import { loadOrderDetail } from "@/lib/encomendas/order-detail";
 import { loadTransferenciasDetail } from "@/lib/transferencias/transferencia-detail";
 import { buildEncomendaDocumentoReport } from "@/lib/reporting/adapters/encomenda-documento";
@@ -214,7 +210,7 @@ export async function obterEstadoConsolidacaoPorChaveAction(input: {
 }): Promise<EstadoConsolidacaoServidor> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
-  return obterEstadoConsolidacaoServico({ prisma, sessao: session }, input);
+  return obterEstadoConsolidacaoServico({ prisma, sessao: session, tenantSlug: (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT }, input);
 }
 
 // ─── Consolidação · fornecedor por linha (rascunho real por farmácia) ───
@@ -273,7 +269,7 @@ export async function carregarRascunhosConsolidacaoAction(input: {
 }): Promise<ObterRascunhosConsolidacaoResultado> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
-  return obterRascunhosConsolidacaoServico({ prisma, sessao: session }, input);
+  return obterRascunhosConsolidacaoServico({ prisma, sessao: session, tenantSlug: (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT }, input);
 }
 
 export type FinalizarConsolidacaoFornecedorInput = {
@@ -292,111 +288,51 @@ export type FinalizarConsolidacaoFornecedorResultado =
       resumoTexto: string;
     }
   | { ok: false; error: string; code?: "IDEMPOTENCY_CONFLICT" }
-  | { ok: false; error: string; conflito: true; versaoAtual?: number }
+  | { ok: false; error: string; conflito: true; farmaciaId?: string; versaoAtual?: number }
   | { ok: false; error: string; semFornecedor: true; produtoIdsSemFornecedor: string[]; farmaciaId?: string };
 
 /**
  * Finaliza a consolidação inteira, agrupando PRIMEIRO por farmácia,
- * DEPOIS por fornecedor — delega toda a lógica de divisão/transacção em
- * `finalizarConsolidacaoMultiFornecedor` (lib/encomendas/
- * consolidacao-multi-fornecedor.ts), nunca uma segunda implementação.
- *
- * Três camadas de defesa, por esta ordem:
- *   1. Autorização por farmácia (`autorizarConsolidacao`) — ANTES de
- *      qualquer leitura/escrita.
- *   2. Pré-validação "amigável": lê as linhas actuais de cada rascunho e
- *      corre `validarLinhasParaFinalizacaoMultiFornecedor` — um erro aqui
- *      identifica a farmácia e os produtos exactos, sem ter aberto
- *      nenhuma transacção de escrita.
- *   3. A validação REAL, dentro da transacção do motor — nunca confia só
- *      na pré-validação (uma corrida entre o passo 2 e a chamada ao
- *      motor, ex.: outra sessão a editar a mesma farmácia em simultâneo,
- *      é sempre possível); ver o comentário do motor sobre o âmbito da
- *      transacção (uma falha em qualquer farmácia reverte o LOTE INTEIRO
- *      — ver `finalizarConsolidacaoMultiFornecedor`).
+ * DEPOIS por fornecedor. Invólucro fino: resolve sessão/prisma/tenant
+ * reais e delega TUDO — autorização (tenant, criador, acesso a cada
+ * farmácia), bloqueio optimista por farmácia, pré-validação e a
+ * transacção do motor — em `finalizarConsolidacaoServico`
+ * (lib/encomendas/consolidacao-servico.ts). Nenhuma verificação própria
+ * aqui: uma versão mais fraca duplicada na action é exactamente o que se
+ * evita.
  */
 export async function finalizarConsolidacaoFornecedorAction(
   input: FinalizarConsolidacaoFornecedorInput
 ): Promise<FinalizarConsolidacaoFornecedorResultado> {
   const session = await requirePermission("reports.write");
-
-  if (!Array.isArray(input.farmaciaIds) || input.farmaciaIds.length === 0) {
-    return { ok: false, error: "Sem farmácias na consolidação." };
-  }
-  const recusa = autorizarConsolidacao(session, input.farmaciaIds);
-  if (recusa) return { ok: false, error: recusa };
-
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
-  // Pré-validação amigável — ver o comentário da função.
-  for (const farmaciaId of input.farmaciaIds) {
-    const draft = await prisma.listaEncomenda.findFirst({
-      where: { clientIdempotencyKey: deriveFarmaciaIdempotencyKey(input.batchKey, farmaciaId) },
-      select: { linhas: { select: { produtoId: true, fornecedorSugeridoId: true } } },
-    });
-    if (!draft) {
-      return { ok: false, error: `Farmácia sem linhas para finalizar (${farmaciaId}).` };
-    }
-    const validacao = validarLinhasParaFinalizacaoMultiFornecedor(draft.linhas);
-    if (!validacao.ok) {
-      return {
-        ok: false,
-        error: validacao.error,
-        semFornecedor: true,
-        produtoIdsSemFornecedor: validacao.produtoIdsSemFornecedor,
-        farmaciaId,
-      };
-    }
-  }
+  const r = await finalizarConsolidacaoServico(
+    {
+      prisma,
+      tenantSlug,
+      sessao: session,
+      auditar: (e) =>
+        logAudit({ actorId: session.sub, action: e.action, entity: "ListaEncomenda", entityId: e.entityId, meta: e.meta }),
+    },
+    input
+  );
 
-  try {
-    const versaoMap = input.versaoEsperadaPorFarmacia
-      ? new Map(Object.entries(input.versaoEsperadaPorFarmacia))
-      : undefined;
-    const resultado = await finalizarConsolidacaoMultiFornecedor(prisma, tenantSlug, {
-      batchKey: input.batchKey,
-      farmaciaIds: input.farmaciaIds,
-      versaoEsperadaPorFarmacia: versaoMap,
-    });
-
-    if (!resultado.reutilizado) {
-      for (const doc of resultado.documentos) {
-        await logAudit({
-          actorId: session.sub,
-          action: "order.finalized_multi_fornecedor",
-          entity: "ListaEncomenda",
-          entityId: doc.listaEncomendaId,
-          meta: { mode: "consolidacao", farmaciaId: doc.farmaciaId, fornecedorId: doc.fornecedorId, nLinhas: doc.nLinhas },
-        });
-      }
-    }
-
+  if (r.ok) {
     revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
-    return {
-      ok: true,
-      reutilizado: resultado.reutilizado,
-      porFarmacia: resultado.porFarmacia,
-      documentos: resultado.documentos,
-      resumoTexto: resultado.resumoTexto,
-    };
-  } catch (err) {
-    if (err instanceof LinhasSemFornecedorErrorConsolidacao) {
-      return {
-        ok: false,
-        error: err.message,
-        semFornecedor: true,
-        produtoIdsSemFornecedor: err.produtoIdsSemFornecedor,
-      };
-    }
-    if (err instanceof ConflitoVersaoError) {
-      return { ok: false, error: err.message, conflito: true, versaoAtual: err.versaoAtual };
-    }
-    if (err instanceof IdempotencyConflictError) {
-      return { ok: false, error: err.message, code: "IDEMPOTENCY_CONFLICT" };
-    }
-    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+    return { ok: true, reutilizado: r.reutilizado, porFarmacia: r.porFarmacia, documentos: r.documentos, resumoTexto: r.resumoTexto };
+  }
+  switch (r.code) {
+    case "CONFLITO_VERSAO":
+      return { ok: false, error: r.error, conflito: true, farmaciaId: r.farmaciaId, versaoAtual: r.versaoAtual };
+    case "SEM_FORNECEDOR":
+      return { ok: false, error: r.error, semFornecedor: true, produtoIdsSemFornecedor: r.produtoIdsSemFornecedor ?? [], farmaciaId: r.farmaciaId };
+    case "IDEMPOTENCY_CONFLICT":
+      return { ok: false, error: r.error, code: "IDEMPOTENCY_CONFLICT" };
+    default:
+      return { ok: false, error: r.error };
   }
 }
 

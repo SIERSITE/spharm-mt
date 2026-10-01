@@ -28,12 +28,22 @@ import {
   type OrderLineInput,
 } from "@/lib/ingest/orders";
 import { loadOrderDetailComPrisma, type OrderDetailLine } from "@/lib/encomendas/order-detail";
+import {
+  finalizarConsolidacaoMultiFornecedor,
+  LinhasSemFornecedorError,
+  type DocumentoConsolidacaoGerado,
+} from "@/lib/encomendas/consolidacao-multi-fornecedor";
+import { ConflitoVersaoError } from "@/lib/encomendas/autosave";
+import { validarLinhasParaFinalizacaoMultiFornecedor } from "@/lib/encomendas/finalizar-multi-fornecedor-regras";
 
 export const CHAVE_IDEMPOTENCIA_RE = /^[A-Za-z0-9_-]{16,80}$/;
 /** Tecto do contexto serializado — igual ao das restantes actions de encomendas. */
 export const CONTEXTO_MAX_CHARS = 20_000;
 
-export type SessaoConsolidacao = Pick<SessionUser, "sub" | "perfil" | "farmaciaId">;
+export type SessaoConsolidacao = Pick<SessionUser, "sub" | "perfil" | "farmaciaId"> & {
+  /** Claim `tenant` da sessão — quando presente, TEM de bater com o tenant do pedido (`deps.tenantSlug`). */
+  tenant?: string;
+};
 
 export type ConsolidacaoDeps = {
   prisma: PrismaClient;
@@ -67,7 +77,14 @@ export type CriarConsolidacaoResultado =
  * A verificação por farmácia vem PRIMEIRO: um utilizador de farmácia que
  * inclua uma farmácia alheia é recusado pelo que fez, não só pelo perfil.
  */
-export function autorizarConsolidacao(sessao: SessaoConsolidacao, farmaciaIds: readonly string[]): string | null {
+export function autorizarConsolidacao(
+  sessao: SessaoConsolidacao,
+  farmaciaIds: readonly string[],
+  tenantSlug?: string
+): string | null {
+  if (tenantSlug !== undefined && sessao.tenant !== undefined && sessao.tenant !== tenantSlug) {
+    return "Consolidação não encontrada ou sem acesso.";
+  }
   for (const id of farmaciaIds) {
     if (!canAccessFarmaciaSync(sessao as SessionUser, id)) {
       return "Sem acesso a uma das farmácias da consolidação.";
@@ -101,7 +118,7 @@ export async function criarConsolidacaoServico(
   // 1. Validação e autorização — TUDO antes da transacção de escrita.
   const invalido = validarEntrada(input);
   if (invalido) return { ok: false, error: invalido, code: "REJEITADO" };
-  const recusa = autorizarConsolidacao(deps.sessao, input.lotes.map((l) => l.farmaciaId));
+  const recusa = autorizarConsolidacao(deps.sessao, input.lotes.map((l) => l.farmaciaId), deps.tenantSlug);
   if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
 
   // 2. Escrita atómica.
@@ -168,7 +185,7 @@ export type EstadoConsolidacaoServidor =
  * do tenant corrente — outro tenant vive noutra base e nunca as encontra).
  */
 export async function obterEstadoConsolidacaoServico(
-  deps: Pick<ConsolidacaoDeps, "prisma" | "sessao">,
+  deps: Pick<ConsolidacaoDeps, "prisma" | "sessao" | "tenantSlug">,
   input: { batchKey: string; farmaciaIds: string[] }
 ): Promise<EstadoConsolidacaoServidor> {
   if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
@@ -180,7 +197,7 @@ export async function obterEstadoConsolidacaoServico(
   if (new Set(input.farmaciaIds).size !== input.farmaciaIds.length) {
     return { ok: false, error: "Farmácia repetida na consolidação.", code: "REJEITADO" };
   }
-  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds);
+  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds, deps.tenantSlug);
   if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
 
   try {
@@ -266,7 +283,7 @@ export async function ensureRascunhoConsolidacaoFarmaciaServico(
   if (input.contexto != null && input.contexto.length > CONTEXTO_MAX_CHARS) {
     return { ok: false, error: "Contexto da proposta excede o tamanho máximo.", code: "REJEITADO" };
   }
-  const recusa = autorizarConsolidacao(deps.sessao, [input.farmaciaId]);
+  const recusa = autorizarConsolidacao(deps.sessao, [input.farmaciaId], deps.tenantSlug);
   if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
 
   try {
@@ -340,7 +357,7 @@ export type ObterRascunhosConsolidacaoResultado =
  * `criarListaNaTransaccao`).
  */
 export async function obterRascunhosConsolidacaoServico(
-  deps: Pick<ConsolidacaoDeps, "prisma" | "sessao">,
+  deps: Pick<ConsolidacaoDeps, "prisma" | "sessao" | "tenantSlug">,
   input: { batchKey: string; farmaciaIds: string[] }
 ): Promise<ObterRascunhosConsolidacaoResultado> {
   if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
@@ -352,7 +369,7 @@ export async function obterRascunhosConsolidacaoServico(
   if (new Set(input.farmaciaIds).size !== input.farmaciaIds.length) {
     return { ok: false, error: "Farmácia repetida na consolidação.", code: "REJEITADO" };
   }
-  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds);
+  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds, deps.tenantSlug);
   if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
 
   try {
@@ -390,6 +407,161 @@ export async function obterRascunhosConsolidacaoServico(
       porFarmacia: input.farmaciaIds.map((farmaciaId) => ({ farmaciaId, draft: porFarmaciaMap.get(farmaciaId) ?? null })),
     };
   } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido", code: "ERRO_SERVIDOR" };
+  }
+}
+
+// ─── Finalização: autorização + bloqueio optimista centralizados ───────
+//
+// (2026-10-01) Toda a decisão "este utilizador pode finalizar ESTA
+// consolidação?" vive aqui — a Server Action é só um invólucro fino
+// (sessão/prisma/tenant reais → este serviço). Uma `batchKey` NUNCA é, por
+// si, autorização: o rascunho de cada farmácia só é localizado/lido se
+// pertencer ao utilizador da sessão E a farmácia estiver ao seu alcance,
+// e a recusa é sempre uma mensagem genérica — sem ids, sem detalhes, sem
+// distinguir "não existe" de "é de outro".
+
+export type FinalizarConsolidacaoServicoInput = {
+  batchKey: string;
+  farmaciaIds: string[];
+  /** Versão que o cliente tem de CADA rascunho — omitida para uma farmácia = sem verificação para ela. */
+  versaoEsperadaPorFarmacia?: Record<string, number>;
+};
+
+export type FinalizarConsolidacaoServicoResultado =
+  | {
+      ok: true;
+      reutilizado: boolean;
+      porFarmacia: Array<{ farmaciaId: string; loteOrigemId: string; documentos: DocumentoConsolidacaoGerado[] }>;
+      documentos: DocumentoConsolidacaoGerado[];
+      resumoTexto: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      code: "REJEITADO" | "IDEMPOTENCY_CONFLICT" | "CONFLITO_VERSAO" | "SEM_FORNECEDOR" | "ERRO_SERVIDOR";
+      /** Farmácia em conflito de versão / com linhas sem fornecedor, quando conhecida. */
+      farmaciaId?: string;
+      versaoAtual?: number;
+      produtoIdsSemFornecedor?: string[];
+    };
+
+const MSG_CONSOLIDACAO_INDISPONIVEL = "Consolidação não encontrada ou sem acesso.";
+
+export async function finalizarConsolidacaoServico(
+  deps: ConsolidacaoDeps,
+  input: FinalizarConsolidacaoServicoInput
+): Promise<FinalizarConsolidacaoServicoResultado> {
+  // 1. Forma do pedido e autorização — antes de QUALQUER leitura de rascunhos.
+  if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
+    return { ok: false, error: "Chave de idempotência inválida.", code: "REJEITADO" };
+  }
+  if (!Array.isArray(input.farmaciaIds) || input.farmaciaIds.length === 0) {
+    return { ok: false, error: "Sem farmácias na consolidação.", code: "REJEITADO" };
+  }
+  if (new Set(input.farmaciaIds).size !== input.farmaciaIds.length) {
+    return { ok: false, error: "Farmácia repetida na consolidação.", code: "REJEITADO" };
+  }
+  const recusa = autorizarConsolidacao(deps.sessao, input.farmaciaIds, deps.tenantSlug);
+  if (recusa) return { ok: false, error: recusa, code: "REJEITADO" };
+
+  try {
+    // 2. Só rascunhos PRÓPRIOS (criador = sessão) das farmácias pedidas — o
+    //    filtro está na própria query: um rascunho alheio nunca é lido.
+    const chavePorFarmacia = new Map(input.farmaciaIds.map((f) => [deriveFarmaciaIdempotencyKey(input.batchKey, f), f]));
+    const listas = await deps.prisma.listaEncomenda.findMany({
+      where: {
+        clientIdempotencyKey: { in: [...chavePorFarmacia.keys()] },
+        criadoPorId: deps.sessao.sub,
+        farmaciaId: { in: input.farmaciaIds },
+      },
+      select: {
+        farmaciaId: true,
+        clientIdempotencyKey: true,
+        versao: true,
+        loteDivididoEm: true,
+        linhas: { select: { produtoId: true, fornecedorSugeridoId: true } },
+      },
+    });
+    const porFarmacia = new Map<string, (typeof listas)[number]>();
+    for (const l of listas) {
+      if (chavePorFarmacia.get(l.clientIdempotencyKey ?? "") === l.farmaciaId) porFarmacia.set(l.farmaciaId, l);
+    }
+    if (input.farmaciaIds.some((f) => !porFarmacia.has(f))) {
+      return { ok: false, error: MSG_CONSOLIDACAO_INDISPONIVEL, code: "REJEITADO" };
+    }
+
+    // 3. Pré-validação amigável (identifica a farmácia). Um rascunho já
+    //    dividido é um replay idempotente — o motor devolve os documentos
+    //    existentes, por isso nem versão nem fornecedores se reavaliam.
+    for (const farmaciaId of input.farmaciaIds) {
+      const lista = porFarmacia.get(farmaciaId)!;
+      if (lista.loteDivididoEm !== null) continue;
+      const esperada = input.versaoEsperadaPorFarmacia?.[farmaciaId];
+      if (esperada !== undefined && esperada !== lista.versao) {
+        return {
+          ok: false,
+          error: "Esta farmácia foi alterada noutra sessão — recarrega-a antes de finalizar.",
+          code: "CONFLITO_VERSAO",
+          farmaciaId,
+          versaoAtual: lista.versao,
+        };
+      }
+    }
+    for (const farmaciaId of input.farmaciaIds) {
+      const lista = porFarmacia.get(farmaciaId)!;
+      if (lista.loteDivididoEm !== null) continue;
+      const validacao = validarLinhasParaFinalizacaoMultiFornecedor(lista.linhas);
+      if (!validacao.ok) {
+        return {
+          ok: false,
+          error: validacao.error,
+          code: "SEM_FORNECEDOR",
+          farmaciaId,
+          produtoIdsSemFornecedor: validacao.produtoIdsSemFornecedor,
+        };
+      }
+    }
+
+    // 4. A validação REAL e a escrita: dentro da transacção do motor.
+    const resultado = await finalizarConsolidacaoMultiFornecedor(deps.prisma, deps.tenantSlug, {
+      batchKey: input.batchKey,
+      farmaciaIds: input.farmaciaIds,
+      versaoEsperadaPorFarmacia: input.versaoEsperadaPorFarmacia
+        ? new Map(Object.entries(input.versaoEsperadaPorFarmacia))
+        : undefined,
+    });
+
+    if (!resultado.reutilizado && deps.auditar) {
+      for (const doc of resultado.documentos) {
+        try {
+          await deps.auditar({
+            action: "order.finalized_multi_fornecedor",
+            entityId: doc.listaEncomendaId,
+            meta: { mode: "consolidacao", farmaciaId: doc.farmaciaId, fornecedorId: doc.fornecedorId, nLinhas: doc.nLinhas },
+          });
+        } catch {
+          // deliberadamente ignorado — auditoria pós-commit nunca transforma sucesso em erro
+        }
+      }
+    }
+    return {
+      ok: true,
+      reutilizado: resultado.reutilizado,
+      porFarmacia: resultado.porFarmacia,
+      documentos: resultado.documentos,
+      resumoTexto: resultado.resumoTexto,
+    };
+  } catch (err) {
+    if (err instanceof LinhasSemFornecedorError) {
+      return { ok: false, error: err.message, code: "SEM_FORNECEDOR", produtoIdsSemFornecedor: err.produtoIdsSemFornecedor };
+    }
+    if (err instanceof ConflitoVersaoError) {
+      return { ok: false, error: err.message, code: "CONFLITO_VERSAO", versaoAtual: err.versaoAtual };
+    }
+    if (err instanceof IdempotencyConflictError) {
+      return { ok: false, error: err.message, code: "IDEMPOTENCY_CONFLICT" };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido", code: "ERRO_SERVIDOR" };
   }
 }
