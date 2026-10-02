@@ -194,11 +194,11 @@ async function main() {
     check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabC.id], semFabricante: true }), set(5, 6, 8)), "F5: «C OU sem fabricante»");
     check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], categorias: [cat1.nome] }), set(1, 2, 7)), "F6: fabricante + categoria");
     check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], categorias: [cat1.nome], subcategorias: [sub11.nome] }), set(1)), "F7: fabricante + categoria + subcategoria");
-    check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id, fabB.id], tipoArtigo: "PARAFARMACIA" }), set(3, 4)), "F8: fabricantes + tipo de artigo");
+    check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id, fabB.id], tiposArtigo: ["PARAFARMACIA"] }), set(3, 4)), "F8: fabricantes + tipo de artigo");
     check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], pesquisa: "Comprimidos" }), set(2)), "F9: fabricante + pesquisa textual");
     check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], farmaciaIds: [fSeg.id], distribuidores: ["DIST-2"] }), set(1)), "F10: fabricante + farmácia + distribuidor (P1 tem DIST-2 no Segurado)");
     check(igual(await cnpsDe("FABRICANTE", { utilizacoes: ["mf-tosse"], fabricanteAtualIds: [fabB.id] }), set(4)), "F11: fabricante + utilização");
-    check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], tipoArtigo: "PARAFARMACIA" }), set()), "F12: combinação sem resultados = zero (nunca o catálogo inteiro)");
+    check(igual(await cnpsDe("FABRICANTE", { fabricanteAtualIds: [fabA.id], tiposArtigo: ["PARAFARMACIA"] }), set()), "F12: combinação sem resultados = zero (nunca o catálogo inteiro)");
     check(igual(await cnpsDe("FABRICANTE", { cnps: [] }), set()), "F13: lista de CNP importada vazia = nenhum produto");
     const pag1 = await M2.listarProdutosPagina(prisma, "FABRICANTE", { fabricanteAtualIds: [fabA.id, fabB.id] }, { page: 1, pageSize: 2 });
     const pag2 = await M2.listarProdutosPagina(prisma, "FABRICANTE", { fabricanteAtualIds: [fabA.id, fabB.id] }, { page: 2, pageSize: 2 });
@@ -209,6 +209,41 @@ async function main() {
     // selecção de TODOS os resultados não inclui produtos fora do filtro
     const prevTodos = await M2.previewOperacao(prisma, "FABRICANTE", { fabricanteAtualIds: [fabA.id] }, { modo: "existente", id: fabD.id }, { modo: "todos" });
     check(prevTodos.ok && prevTodos.totalCount === 3 && prevTodos.totalCorrespondentes === 3, "F16: «todos os resultados» = só os 3 do fabricante A");
+
+    // ═══ T · tipo de artigo (filtro que já existia na manutenção — mantido e agora multi-selecção) ═══
+    console.log("\nT · tipo de artigo: multi-selecção, combinações, período, snapshot/apply/reversão");
+    check(igual(await cnpsDe("FABRICANTE", { tiposArtigo: ["MEDICAMENTO"] }), set(1, 2, 5, 7)), "T1: um tipo de artigo (MEDICAMENTO)");
+    check(igual(await cnpsDe("FABRICANTE", { tiposArtigo: ["MEDICAMENTO", "PARAFARMACIA"] }), set(1, 2, 3, 4, 5, 6, 7, 8)), "T2: vários tipos de artigo (OU entre os valores)");
+    check(igual(await cnpsDe("FABRICANTE", { tiposArtigo: ["PARAFARMACIA"], fabricanteAtualIds: [fabB.id], semFabricante: true }), set(3, 4, 6, 8)), "T3: tipo de artigo + fabricante actual + «sem fabricante»");
+    check(igual(await cnpsDe("FABRICANTE", { tiposArtigo: ["MEDICAMENTO"], fabricanteAtualIds: [fabA.id], categorias: [cat1.nome], subcategorias: [sub11.nome] }), set(1)), "T4: tipo + fabricante actual + categoria + subcategoria");
+    check(igual(await cnpsDe("FORNECEDOR", { farmaciaIds: [fSilv.id], tiposArtigo: ["MEDICAMENTO"], fornecedorAtualIds: [foX.id] }), set(1, 2, 5)), "T5: tipo de artigo + fornecedor habitual actual (Silveirense)");
+    check(igual(await cnpsDe("FORNECEDOR", { farmaciaIds: [fSeg.id], tiposArtigo: ["PARAFARMACIA"], semFornecedor: true }), set(8)), "T6: tipo de artigo + «sem fornecedor habitual» (Segurado)");
+    check(igual(await cnpsDe("FORNECEDOR", { farmaciaIds: [fSilv.id], tiposArtigo: ["MEDICAMENTO"], fornecedorAtualIds: [foX.id], pesquisa: "Gama" }), set(5)), "T7: tipo + fornecedor + pesquisa");
+    check(igual(await cnpsDe("FABRICANTE", { tiposArtigo: ["PARAFARMACIA"], from, to, farmaciaIds: [fSilv.id, fSeg.id], apenasComStock: false }), set(3, 4, 6)), "T8: tipo de artigo + período de vendas + farmácias");
+    const pagT = await M2.listarProdutosPagina(prisma, "FABRICANTE", { tiposArtigo: ["MEDICAMENTO"] }, { page: 2, pageSize: 3 });
+    check(pagT.totalCount === 4 && pagT.items.length === 1, "T9: contagem e paginação respeitam o tipo de artigo (4 no total; 1 na 2.ª página de 3)");
+    const tiposReais = (await prisma.produto.findMany({ where: { tipoArtigo: { not: null } }, select: { tipoArtigo: true }, distinct: ["tipoArtigo"], orderBy: { tipoArtigo: "asc" } })).map((t) => t.tipoArtigo);
+    check(JSON.stringify(tiposReais) === JSON.stringify(["MEDICAMENTO", "PARAFARMACIA"]), "T10: as opções vêm do catálogo real (distinct de Produto.tipoArtigo)");
+    check(JSON.stringify(M2.normalizarFiltro({ tiposArtigo: [" PARAFARMACIA ", "MEDICAMENTO", "MEDICAMENTO"] }).tiposArtigo) === JSON.stringify(["MEDICAMENTO", "PARAFARMACIA"]), "T11: normalização do snapshot: únicos, aparados e ordenados");
+    {
+      const filtroT = { tiposArtigo: ["MEDICAMENTO"], fabricanteAtualIds: [fabA.id] };
+      const antes = new Map((await prisma.produto.findMany({ select: { id: true, fabricanteId: true } })).map((p) => [p.id, p.fabricanteId]));
+      const pv = await M2.previewOperacao(prisma, "FABRICANTE", filtroT, { modo: "existente", id: fabD.id }, { modo: "todos" });
+      check(pv.ok && pv.totalCount === 3 && (pv.ok && JSON.stringify(pv.filtro.tiposArtigo) === JSON.stringify(["MEDICAMENTO"])), "T12: o preview inclui o tipo de artigo no snapshot do filtro e abrange só os 3 (1, 2, 7)");
+      if (!pv.ok) throw new Error("setup T");
+      const diferente = await M2.aplicarManutencaoMassa(prisma, { tipo: "FABRICANTE", filtro: { ...filtroT, tiposArtigo: ["PARAFARMACIA"] }, destino: { modo: "existente", id: fabD.id }, selecao: { modo: "todos" }, snapshotHash: pv.snapshotHash, utilizadorId: user.id });
+      check(!diferente.ok, "T13: mudar o tipo de artigo depois do preview invalida o snapshot (nada é aplicado)");
+      const ap = await M2.aplicarManutencaoMassa(prisma, { tipo: "FABRICANTE", filtro: filtroT, destino: { modo: "existente", id: fabD.id }, selecao: { modo: "todos" }, snapshotHash: pv.snapshotHash, utilizadorId: user.id });
+      check(ap.ok && ap.quantidadeAlterada === 3, "T14: apply altera os 3 produtos do filtro");
+      const depois = new Map((await prisma.produto.findMany({ select: { id: true, fabricanteId: true } })).map((p) => [p.id, p.fabricanteId]));
+      const alterados = [...depois].filter(([id, v]) => antes.get(id) !== v).map(([id]) => id).sort();
+      check(JSON.stringify(alterados) === JSON.stringify([prod[1].id, prod[2].id, prod[7].id].sort()), "T15: ZERO alterações fora do snapshot (só 1, 2 e 7)");
+      if (ap.ok) {
+        const rv = await M2.reverterOperacao(prisma, ap.operacaoId, user.id);
+        const rep = new Map((await prisma.produto.findMany({ select: { id: true, fabricanteId: true } })).map((p) => [p.id, p.fabricanteId]));
+        check(rv.ok && [...antes].every(([id, v]) => rep.get(id) === v), "T16: a reversão repõe exactamente o estado anterior");
+      }
+    }
 
     // ═══ S · selecção e snapshot ═══════════════════════════════════════
     console.log("\nS · selecção, snapshot verificável e zero alterações fora dele");
@@ -249,20 +284,17 @@ async function main() {
             orig.call(t, (tx: Record<string, unknown>) =>
               fn(new Proxy(tx, {
                 get(tt, pp, rr) {
-                  if (pp === "produto") {
-                    const d = Reflect.get(tt, pp, rr) as Record<string, unknown>;
-                    return new Proxy(d, {
-                      get(dt, dp, dr) {
-                        if (dp === "updateMany") {
-                          return async (args: unknown) => {
-                            // alguém altera P2 (fora desta transacção) logo antes de a escrita em bloco correr
-                            await (prisma as unknown as { produto: { update: (a: unknown) => Promise<unknown> } }).produto.update({ where: { id: prod[2].id }, data: { fabricanteId: fabC.id } });
-                            return (Reflect.get(dt, dp, dr) as (a: unknown) => Promise<unknown>).call(dt, args);
-                          };
-                        }
-                        return Reflect.get(dt, dp, dr);
-                      },
-                    });
+                  if (pp === "$executeRaw") {
+                    // a escrita em bloco é SQL set-based: alguém altera P2 (fora desta transacção) logo antes do UPDATE de Produto
+                    const orig = Reflect.get(tt, pp, rr) as (...a: unknown[]) => Promise<unknown>;
+                    return async (...a: unknown[]) => {
+                      const q = a[0] as { sql?: string; strings?: readonly string[] };
+                      const texto = q?.sql ?? q?.strings?.join("?") ?? "";
+                      if (texto.includes('UPDATE "Produto"')) {
+                        await (prisma as unknown as { produto: { update: (x: unknown) => Promise<unknown> } }).produto.update({ where: { id: prod[2].id }, data: { fabricanteId: fabC.id } });
+                      }
+                      return orig.apply(tt, a);
+                    };
                   }
                   return Reflect.get(tt, pp, rr);
                 },

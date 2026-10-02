@@ -84,7 +84,7 @@ type FiltroFormState = {
   incluirManutencao: boolean;
   dataInicio: string;
   dataFim: string;
-  tipoArtigo: string;
+  tiposArtigo: string[];
   semFabricante: boolean;
   fornecedoresHabituais: string[]; // «Fornecedor habitual atual» — nomes
   semFornecedor: boolean;
@@ -106,7 +106,7 @@ const FORM_VAZIO: FiltroFormState = {
   incluirManutencao: DEFAULTS_MOVIMENTO.incluirManutencao,
   dataInicio: "",
   dataFim: "",
-  tipoArtigo: "",
+  tiposArtigo: [],
   semFabricante: false,
   fornecedoresHabituais: [],
   semFornecedor: false,
@@ -130,7 +130,7 @@ function paraFiltro(tipo: TipoManutencaoMassa, f: FiltroFormState, o: OpcoesManu
     incluirTransferencias: f.incluirTransferencias,
     apenasComStock: f.apenasComStock,
     incluirManutencao: f.incluirManutencao,
-    tipoArtigo: f.tipoArtigo || null,
+    tiposArtigo: f.tiposArtigo,
     fabricanteAtualIds: idDe(o.fabricantes, f.fabricantes),
     semFabricante: f.semFabricante,
     fornecedorAtualIds: tipo === "FORNECEDOR" ? idDe(o.fornecedoresHabituais, f.fornecedoresHabituais) : undefined,
@@ -156,7 +156,7 @@ function resumoFiltroLegivel(tipo: TipoManutencaoMassa, f: FiltroFormState, o: O
     const nomePorSlug = new Map(o.filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
     partes.push(`Utilização: ${f.utilizacoes.map((s) => nomePorSlug.get(s) ?? s).join(", ")}`);
   }
-  if (f.tipoArtigo) partes.push(`Tipo de artigo: ${f.tipoArtigo}`);
+  if (f.tiposArtigo.length) partes.push(`Tipo de artigo: ${f.tiposArtigo.join(", ")}`);
   if (tipo === "FORNECEDOR" && (f.fornecedoresHabituais.length || f.semFornecedor)) {
     partes.push(`Fornecedor habitual actual: ${[...f.fornecedoresHabituais, ...(f.semFornecedor ? ["sem fornecedor habitual"] : [])].join(", ")}`);
   }
@@ -505,8 +505,9 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
     });
   }
 
+  /** Mesma regra de Vendas: repõe TODOS os filtros ao estado inicial, excepto o período (é vista, não filtragem). */
   function limparFiltros() {
-    setForm(FORM_VAZIO);
+    setForm((prev) => ({ ...FORM_VAZIO, dataInicio: prev.dataInicio, dataFim: prev.dataFim }));
   }
 
   const extra = (
@@ -519,22 +520,12 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
           onToggle={(v) => campo("fornecedoresHabituais")((prev) => alternarValor(v, prev))}
         />
       )}
-      <label className="block">
-        <div className="mb-1 text-[11px] font-medium text-slate-500">Tipo de artigo</div>
-        <select
-          aria-label="Tipo de artigo"
-          value={form.tipoArtigo}
-          onChange={(e) => campo("tipoArtigo")(e.target.value)}
-          className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
-        >
-          <option value="">Todos</option>
-          {opcoes.tiposArtigo.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </label>
+      <SearchableMultiSelect
+        label="Tipo de artigo"
+        options={opcoes.tiposArtigo}
+        selected={form.tiposArtigo}
+        onToggle={(v) => campo("tiposArtigo")((prev) => alternarValor(v, prev))}
+      />
     </>
   );
 

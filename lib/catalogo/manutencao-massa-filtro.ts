@@ -18,7 +18,7 @@
  * ao produto NAQUELA farmácia. Uma operação de FORNECEDOR só toca nas farmácias
  * explicitamente listadas em `farmaciaIds` — nunca noutra.
  */
-import { DEFAULT_INCLUIR_CREDITO } from "@/lib/reporting/natureza-venda";
+import { ESTADO_INICIAL_MOVIMENTO } from "@/lib/reporting/estado-inicial-movimento";
 
 export type TipoManutencaoMassa = "FABRICANTE" | "FORNECEDOR";
 
@@ -50,7 +50,8 @@ export type ManutencaoMassaFiltro = {
   incluirManutencao?: boolean;
 
   // ── Conceitos específicos da manutenção ──
-  tipoArtigo?: string | null;
+  /** Tipo de artigo (`Produto.tipoArtigo`), multi-selecção — OU entre os valores. */
+  tiposArtigo?: string[];
   /** Fabricante ATUAL, por ID. Com `semFabricante` = «um destes OU sem fabricante». */
   fabricanteAtualIds?: string[];
   semFabricante?: boolean;
@@ -62,12 +63,7 @@ export type ManutencaoMassaFiltro = {
 };
 
 /** Defaults de Vendas para os interruptores de movimento (para o mesmo universo com os mesmos valores). */
-export const DEFAULTS_MOVIMENTO = {
-  incluirCredito: DEFAULT_INCLUIR_CREDITO,
-  incluirTransferencias: false,
-  apenasComStock: true,
-  incluirManutencao: false,
-} as const;
+export const DEFAULTS_MOVIMENTO = ESTADO_INICIAL_MOVIMENTO;
 
 export type DestinoInput =
   | { modo: "existente"; id: string }
@@ -122,7 +118,7 @@ export function normalizarFiltro(f: ManutencaoMassaFiltro): ManutencaoMassaFiltr
     out.apenasComStock = f.apenasComStock ?? DEFAULTS_MOVIMENTO.apenasComStock;
     out.incluirManutencao = f.incluirManutencao ?? DEFAULTS_MOVIMENTO.incluirManutencao;
   }
-  set("tipoArtigo", f.tipoArtigo && f.tipoArtigo.trim() ? f.tipoArtigo.trim() : undefined);
+  set("tiposArtigo", lista(f.tiposArtigo));
   set("fabricanteAtualIds", lista(f.fabricanteAtualIds));
   if (f.semFabricante) out.semFabricante = true;
   set("fornecedorAtualIds", lista(f.fornecedorAtualIds));

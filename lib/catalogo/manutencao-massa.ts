@@ -28,8 +28,7 @@
  * Nunca apaga/funde Fabricante/Fornecedor/aliases/grupos laboratoriais.
  */
 import { createHash } from "node:crypto";
-import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { temFabricanteDivergenteEntreFarmacias } from "@/lib/ingest/catalog-from-erp";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { normalizeFabricanteCanonico, normalizeFornecedorCanonico } from "@/lib/catalog-normalizers";
 import { resolverOuCriarFornecedor } from "@/lib/catalogo/resolver-fornecedor";
 import { resolverOuCriarFabricante } from "@/lib/catalogo/resolver-fabricante";
@@ -132,25 +131,31 @@ async function resolverParesPeriodo(
 }
 
 /**
- * Produtos com `fabricanteErpAtual` divergente entre farmácias do tenant.
- * Sinal informativo — nunca resolve nada sozinho. Varre `ProdutoFarmacia` inteira
- * do tenant (aceitável para o volume de um grupo; não escala indefinidamente).
+ * Produtos com `fabricanteErpAtual` divergente entre farmácias do tenant (≥ 2 valores
+ * distintos e não vazios). Sinal informativo — nunca resolve nada sozinho.
+ *
+ * Agregação NO POSTGRESQL (`GROUP BY … HAVING COUNT(DISTINCT …) > 1`): só devolve os ids dos
+ * produtos divergentes — nunca carrega `ProdutoFarmacia` em memória. Quando os restantes critérios já
+ * reduziram o universo, passa-se `candidatos` e a agregação só olha para esses produtos.
  */
-export async function resolverProdutosComFabricanteDivergente(prisma: Tx): Promise<Set<string>> {
-  const rows = await prisma.produtoFarmacia.findMany({
-    select: { produtoId: true, farmaciaId: true, fabricanteErpAtual: true },
-  });
-  const porProduto = new Map<string, Array<{ farmaciaId: string; fabricanteErpAtual: string | null }>>();
-  for (const r of rows) {
-    const arr = porProduto.get(r.produtoId) ?? [];
-    arr.push({ farmaciaId: r.farmaciaId, fabricanteErpAtual: r.fabricanteErpAtual });
-    porProduto.set(r.produtoId, arr);
-  }
-  const result = new Set<string>();
-  for (const [produtoId, valores] of porProduto) {
-    if (temFabricanteDivergenteEntreFarmacias(valores)) result.add(produtoId);
-  }
-  return result;
+export async function resolverProdutosComFabricanteDivergente(
+  prisma: Tx | PrismaClient,
+  candidatos?: readonly string[] | null
+): Promise<Set<string>> {
+  const rows =
+    candidatos == null
+      ? await prisma.$queryRaw<Array<{ produtoId: string }>>(Prisma.sql`
+          SELECT "produtoId" FROM "ProdutoFarmacia"
+          WHERE "fabricanteErpAtual" IS NOT NULL AND "fabricanteErpAtual" <> ''
+          GROUP BY "produtoId" HAVING COUNT(DISTINCT "fabricanteErpAtual") > 1`)
+      : candidatos.length === 0
+        ? []
+        : await prisma.$queryRaw<Array<{ produtoId: string }>>(Prisma.sql`
+            SELECT "produtoId" FROM "ProdutoFarmacia"
+            WHERE "produtoId" = ANY(${[...candidatos]}::text[])
+              AND "fabricanteErpAtual" IS NOT NULL AND "fabricanteErpAtual" <> ''
+            GROUP BY "produtoId" HAVING COUNT(DISTINCT "fabricanteErpAtual") > 1`);
+  return new Set(rows.map((r) => r.produtoId));
 }
 
 async function resolverEscopo(prisma: PrismaClient, tipo: TipoManutencaoMassa, filtro: ManutencaoMassaFiltro): Promise<Escopo> {
@@ -176,8 +181,16 @@ async function resolverEscopo(prisma: PrismaClient, tipo: TipoManutencaoMassa, f
     if ([...periodoPorFarmacia.values()].every((s) => s.size === 0)) return vazio;
   }
 
-  const divergentes = tipo === "FABRICANTE" && f.fabricanteDivergente ? await resolverProdutosComFabricanteDivergente(prisma) : null;
-  if (divergentes && divergentes.size === 0) return vazio;
+  // «Fabricante divergente»: primeiro reduz-se o universo pelos restantes critérios (candidatos) e só depois
+  // se calcula a divergência, no PostgreSQL, sobre esses candidatos.
+  let divergentes: Set<string> | null = null;
+  if (tipo === "FABRICANTE" && f.fabricanteDivergente) {
+    const semDivergencia = whereFabricante({ ...f, fabricanteDivergente: false }, { vazio: false, prefiltroIds, periodoPorFarmacia, divergentes: null, farmacias });
+    const restringe = (semDivergencia.AND as Prisma.ProdutoWhereInput[]).some((c) => Object.keys(c).length > 0);
+    const candidatos = restringe ? (await prisma.produto.findMany({ where: semDivergencia, select: { id: true } })).map((p) => p.id) : null;
+    divergentes = await resolverProdutosComFabricanteDivergente(prisma, candidatos);
+    if (divergentes.size === 0) return vazio;
+  }
 
   return { vazio: false, prefiltroIds, periodoPorFarmacia, divergentes, farmacias };
 }
@@ -193,7 +206,7 @@ function condicaoValorAtual(campo: "fabricanteId" | "fornecedorHabitualId", ids:
 function whereProduto(f: ManutencaoMassaFiltro, esc: Escopo): Prisma.ProdutoWhereInput {
   const AND: Prisma.ProdutoWhereInput[] = [];
   if (esc.prefiltroIds) AND.push({ id: { in: esc.prefiltroIds } });
-  if (f.tipoArtigo) AND.push({ tipoArtigo: f.tipoArtigo });
+  if (f.tiposArtigo && f.tiposArtigo.length > 0) AND.push({ tipoArtigo: { in: f.tiposArtigo } });
   const fab = condicaoValorAtual("fabricanteId", f.fabricanteAtualIds, f.semFabricante);
   if (fab) AND.push(fab as Prisma.ProdutoWhereInput);
   return AND.length > 0 ? { AND } : {};
@@ -464,6 +477,16 @@ export type PreviewOperacaoResultado =
   | { ok: false; error: string };
 
 const AMOSTRA_LIMITE = 200;
+
+/**
+ * Tecto de alvos (produtos, ou pares produto×farmácia) por operação. A operação inteira corre numa só
+ * transacção (atomicidade); medido em PostgreSQL local, ~72 000 alvos demoram ~40 s dentro da transacção
+ * (custo dominado pelos triggers de chave estrangeira e pela manutenção de índices), com `timeout` de 120 s.
+ * Acima do tecto recusa-se com uma mensagem clara em vez de arriscar um timeout a meio.
+ */
+export const LIMITE_ALVOS_POR_OPERACAO = 150_000;
+const MSG_LIMITE = (n: number) =>
+  `A selecção tem ${n.toLocaleString("pt-PT")} alvos — acima do limite de ${LIMITE_ALVOS_POR_OPERACAO.toLocaleString("pt-PT")} por operação. Restrinja os filtros (por exemplo por categoria ou farmácia) e repita em mais do que uma operação.`;
 export const MOTIVO_JA_NO_DESTINO = "Já tem o valor de destino";
 
 async function nomesPorId(prisma: PrismaClient, tipo: TipoManutencaoMassa, ids: string[]): Promise<Map<string, string>> {
@@ -513,6 +536,7 @@ export async function previewOperacao(
 
   const todos = await resolverAlvos(prisma, tipo, filtro);
   const selecionados = aplicarSelecao(todos, selecao);
+  if (selecionados.length > LIMITE_ALVOS_POR_OPERACAO) return { ok: false, error: MSG_LIMITE(selecionados.length) };
   const snapshotHash = hashSnapshot(tipo, filtro, selecionados);
 
   const valorIds = [...new Set(selecionados.map((a) => a.valorAnteriorId).filter((x): x is string => !!x))];
@@ -617,9 +641,24 @@ export type OperacaoCriada = {
   quantidadeIgnorada: number;
 };
 
+/** Tempos (ms) de cada fase do apply — para auditar desempenho e atomicidade (tudo o que escreve está em `transacaoMs`). */
+export type TemposApply = {
+  /** Fora da transacção: resolver alvos + validar selecção. */
+  alvosMs: number;
+  hashMs: number;
+  /** Dentro da transacção (total). */
+  transacaoMs: number;
+  destinoMs: number;
+  updateMs: number;
+  operacaoMs: number;
+  itensMs: number;
+  totalMs: number;
+};
+
 export type AplicarManutencaoMassaResultado =
   | {
       ok: true;
+      tempos: TemposApply;
       /** Uma operação por farmácia (FORNECEDOR) ou uma só (FABRICANTE). */
       operacoes: OperacaoCriada[];
       operacaoId: string;
@@ -641,13 +680,16 @@ class ErroNegocio extends Error {
  * dados reais; cada escrita é compare-and-set sobre o valor anterior.
  */
 export async function aplicarManutencaoMassa(prisma: PrismaClient, input: AplicarManutencaoMassaInput): Promise<AplicarManutencaoMassaResultado> {
+  const t0 = Date.now();
   const erroFiltro = validarFiltro(input.tipo, input.filtro);
   if (erroFiltro) return { ok: false, error: erroFiltro };
   const filtro = normalizarFiltro(input.filtro);
 
   const todos = await resolverAlvos(prisma, input.tipo, filtro);
   const alvo = aplicarSelecao(todos, input.selecao);
+  const tAlvos = Date.now();
   if (alvo.length === 0) return { ok: false, error: "Nenhum produto corresponde aos filtros indicados." };
+  if (alvo.length > LIMITE_ALVOS_POR_OPERACAO) return { ok: false, error: MSG_LIMITE(alvo.length) };
   if (!input.snapshotHash || hashSnapshot(input.tipo, filtro, alvo) !== input.snapshotHash) {
     return {
       ok: false,
@@ -655,13 +697,18 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
       error: "Os produtos abrangidos mudaram desde a pré-visualização (ou a selecção não corresponde) — volte a pré-visualizar antes de aplicar.",
     };
   }
+  const tHash = Date.now();
+  const parcial = { destinoMs: 0, updateMs: 0, operacaoMs: 0, itensMs: 0 };
 
   try {
+    const tTx0 = Date.now();
     const operacoes = await prisma.$transaction(
       async (tx) => {
+        const tD = Date.now();
         const destinoResolvido = await resolverDestinoParaAplicar(tx, input.tipo, input.destino);
         if (!destinoResolvido.ok) throw new ErroNegocio(destinoResolvido.error);
         const destinoId = destinoResolvido.id;
+        parcial.destinoMs += Date.now() - tD;
 
         const porFarmacia = new Map<string | null, Alvo[]>();
         for (const a of alvo) {
@@ -672,11 +719,11 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
 
         const criadas: OperacaoCriada[] = [];
         for (const [farmaciaId, lista] of porFarmacia) {
+          // Agrupa por valor anterior → UM `UPDATE` set-based por valor anterior, em compare-and-set no
+          // próprio WHERE (`IS NOT DISTINCT FROM`): se alguma linha já não tem esse valor, a contagem
+          // não bate e a operação inteira reverte (nada fica alterado).
           let alterados = 0;
           let ignorados = 0;
-
-          // Agrupa por valor anterior → um `updateMany` por (valor anterior, bloco), em
-          // compare-and-set: se alguma linha já não tem esse valor, a operação inteira reverte.
           const porValor = new Map<string | null, string[]>();
           for (const a of lista) {
             if (a.valorAnteriorId === destinoId) {
@@ -687,25 +734,17 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
             g.push(a.produtoId);
             porValor.set(a.valorAnteriorId, g);
           }
+          const tU = Date.now();
           for (const [valorAnterior, produtoIds] of porValor) {
-            for (const bloco of chunks(produtoIds)) {
-              const r =
-                input.tipo === "FABRICANTE"
-                  ? await tx.produto.updateMany({
-                      where: { id: { in: bloco }, fabricanteId: valorAnterior },
-                      data: { fabricanteId: destinoId, dataAtualizacao: new Date() },
-                    })
-                  : await tx.produtoFarmacia.updateMany({
-                      where: { farmaciaId: farmaciaId!, produtoId: { in: bloco }, fornecedorHabitualId: valorAnterior },
-                      data: { fornecedorHabitualId: destinoId },
-                    });
-              if (r.count !== bloco.length) {
-                throw new ErroNegocio("Os dados mudaram durante a aplicação (outra operação alterou estes produtos) — nada foi alterado.", "CONCORRENCIA");
-              }
-              alterados += r.count;
+            const n = await atualizarEmBloco(tx, input.tipo, farmaciaId, produtoIds, valorAnterior, destinoId);
+            if (n !== produtoIds.length) {
+              throw new ErroNegocio("Os dados mudaram durante a aplicação (outra operação alterou estes produtos) — nada foi alterado.", "CONCORRENCIA");
             }
+            alterados += n;
           }
+          parcial.updateMs += Date.now() - tU;
 
+          const tO = Date.now();
           const operacao = await tx.catalogoManutencaoOperacao.create({
             data: {
               tipo: input.tipo,
@@ -721,11 +760,14 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
             },
             select: { id: true },
           });
-          for (const bloco of chunks(lista, 5000)) {
-            await tx.catalogoManutencaoOperacaoItem.createMany({
-              data: bloco.map((a) => ({ operacaoId: operacao.id, produtoId: a.produtoId, valorAnteriorId: a.valorAnteriorId, valorNovoId: destinoId })),
-            });
-          }
+          parcial.operacaoMs += Date.now() - tO;
+          const tI = Date.now();
+          await inserirItensEmBloco(
+            tx,
+            operacao.id,
+            lista.map((a) => ({ produtoId: a.produtoId, valorAnteriorId: a.valorAnteriorId, valorNovoId: destinoId }))
+          );
+          parcial.itensMs += Date.now() - tI;
           criadas.push({
             operacaoId: operacao.id,
             farmaciaId: input.tipo === "FORNECEDOR" ? farmaciaId : null,
@@ -738,9 +780,11 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
       },
       { maxWait: 10_000, timeout: 120_000 }
     );
+    const tFim = Date.now();
 
     return {
       ok: true,
+      tempos: { alvosMs: tAlvos - t0, hashMs: tHash - tAlvos, transacaoMs: tFim - tTx0, ...parcial, totalMs: tFim - t0 },
       operacoes,
       operacaoId: operacoes[0].operacaoId,
       quantidadeSolicitada: operacoes.reduce((s, o) => s + o.quantidadeSolicitada, 0),
@@ -749,7 +793,50 @@ export async function aplicarManutencaoMassa(prisma: PrismaClient, input: Aplica
     };
   } catch (err) {
     if (err instanceof ErroNegocio) return { ok: false, error: err.message, ...(err.code ? { code: err.code } : {}) };
-    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido ao aplicar manutenção em massa." };
+    // Erro inesperado (ex.: falha da base de dados a meio): a transacção já reverteu TUDO. Não se mostra
+    // ao utilizador a mensagem técnica do driver.
+    console.error("[manutencao-massa] apply falhou — transacção revertida:", err);
+    return { ok: false, error: "Não foi possível aplicar a operação (erro na base de dados) — nada foi alterado." };
+  }
+}
+
+/**
+ * UPDATE set-based em compare-and-set: só altera as linhas cujo valor actual AINDA é `valorAnterior`.
+ * Devolve quantas alterou; o chamador compara com o esperado e, se diferir, reverte a transacção.
+ * `dataAtualizacao` replica o `@updatedAt` do Prisma (que o SQL directo não aplica) — em Produto e em ProdutoFarmacia.
+ */
+async function atualizarEmBloco(
+  tx: Tx,
+  tipo: TipoManutencaoMassa,
+  farmaciaId: string | null,
+  produtoIds: readonly string[],
+  valorAnterior: string | null,
+  valorNovo: string
+): Promise<number> {
+  const ids = [...produtoIds];
+  if (tipo === "FABRICANTE") {
+    return tx.$executeRaw(Prisma.sql`
+      UPDATE "Produto" SET "fabricanteId" = ${valorNovo}, "dataAtualizacao" = (now() AT TIME ZONE 'UTC')
+      WHERE id = ANY(${ids}::text[]) AND "fabricanteId" IS NOT DISTINCT FROM ${valorAnterior}::text`);
+  }
+  return tx.$executeRaw(Prisma.sql`
+    UPDATE "ProdutoFarmacia" SET "fornecedorHabitualId" = ${valorNovo}, "dataAtualizacao" = (now() AT TIME ZONE 'UTC')
+    WHERE "farmaciaId" = ${farmaciaId}::text AND "produtoId" = ANY(${ids}::text[])
+      AND "fornecedorHabitualId" IS NOT DISTINCT FROM ${valorAnterior}::text`);
+}
+
+type ItemAuditoria = { produtoId: string; valorAnteriorId: string | null; valorNovoId: string };
+
+/** Auditoria por CONJUNTO: um `INSERT … SELECT FROM unnest(…)` por bloco (em vez de milhares de linhas por round-trip). */
+async function inserirItensEmBloco(tx: Tx, operacaoId: string, itens: readonly ItemAuditoria[]): Promise<void> {
+  for (const bloco of chunks(itens, 20_000)) {
+    const produtoIds = bloco.map((i) => i.produtoId);
+    const anteriores = bloco.map((i) => i.valorAnteriorId);
+    const novos = bloco.map((i) => i.valorNovoId);
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "CatalogoManutencaoOperacaoItem" (id, "operacaoId", "produtoId", "valorAnteriorId", "valorNovoId")
+      SELECT gen_random_uuid()::text, ${operacaoId}::text, t.pid, t.ant, t.novo
+      FROM unnest(${produtoIds}::text[], ${anteriores}::text[], ${novos}::text[]) AS t(pid, ant, novo)`);
   }
 }
 
@@ -787,31 +874,28 @@ export async function reverterOperacao(prisma: PrismaClient, operacaoOrigemId: s
     const resultado = await prisma.$transaction(
       async (tx) => {
         const produtoIds = original.itens.map((i) => i.produtoId);
-        const tocadosDepois = new Set<string>();
-        for (const bloco of chunks(produtoIds)) {
-          const posteriores = await tx.catalogoManutencaoOperacaoItem.findMany({
-            where: {
-              produtoId: { in: bloco },
-              operacao: { tipo: original.tipo, farmaciaId: original.farmaciaId, dataCriacao: { gt: original.dataCriacao } },
-            },
-            select: { produtoId: true },
-          });
-          for (const p of posteriores) tocadosDepois.add(p.produtoId);
-        }
+        // Produtos tocados por uma operação POSTERIOR do mesmo tipo/farmácia — uma só consulta no PostgreSQL.
+        const posteriores = await tx.$queryRaw<Array<{ produtoId: string }>>(Prisma.sql`
+          SELECT DISTINCT i."produtoId"
+          FROM "CatalogoManutencaoOperacaoItem" i
+          JOIN "CatalogoManutencaoOperacao" o ON o.id = i."operacaoId"
+          WHERE i."produtoId" = ANY(${produtoIds}::text[])
+            AND o.tipo = ${original.tipo}::"TipoManutencaoMassa"
+            AND o."farmaciaId" IS NOT DISTINCT FROM ${original.farmaciaId}::text
+            AND o."dataCriacao" > ${original.dataCriacao}`);
+        const tocadosDepois = new Set(posteriores.map((p) => p.produtoId));
 
-        // valores actuais, em bloco
+        // valores actuais — uma só consulta
         const atual = new Map<string, string | null>();
-        for (const bloco of chunks(produtoIds)) {
-          if (original.tipo === "FABRICANTE") {
-            const ps = await tx.produto.findMany({ where: { id: { in: bloco } }, select: { id: true, fabricanteId: true } });
-            for (const p of ps) atual.set(p.id, p.fabricanteId);
-          } else {
-            const pfs = await tx.produtoFarmacia.findMany({
-              where: { farmaciaId: original.farmaciaId!, produtoId: { in: bloco } },
-              select: { produtoId: true, fornecedorHabitualId: true },
-            });
-            for (const p of pfs) atual.set(p.produtoId, p.fornecedorHabitualId);
-          }
+        if (original.tipo === "FABRICANTE") {
+          const ps = await tx.$queryRaw<Array<{ id: string; v: string | null }>>(Prisma.sql`
+            SELECT id, "fabricanteId" AS v FROM "Produto" WHERE id = ANY(${produtoIds}::text[])`);
+          for (const p of ps) atual.set(p.id, p.v);
+        } else {
+          const pfs = await tx.$queryRaw<Array<{ id: string; v: string | null }>>(Prisma.sql`
+            SELECT "produtoId" AS id, "fornecedorHabitualId" AS v FROM "ProdutoFarmacia"
+            WHERE "farmaciaId" = ${original.farmaciaId}::text AND "produtoId" = ANY(${produtoIds}::text[])`);
+          for (const p of pfs) atual.set(p.id, p.v);
         }
 
         const ignorados: Array<{ produtoId: string; motivo: string }> = [];
@@ -840,16 +924,8 @@ export async function reverterOperacao(prisma: PrismaClient, operacaoOrigemId: s
         }
         for (const [k, ids] of porPar) {
           const [de, para] = k.split(">");
-          for (const bloco of chunks(ids)) {
-            const r =
-              original.tipo === "FABRICANTE"
-                ? await tx.produto.updateMany({ where: { id: { in: bloco }, fabricanteId: de }, data: { fabricanteId: para, dataAtualizacao: new Date() } })
-                : await tx.produtoFarmacia.updateMany({
-                    where: { farmaciaId: original.farmaciaId!, produtoId: { in: bloco }, fornecedorHabitualId: de },
-                    data: { fornecedorHabitualId: para },
-                  });
-            if (r.count !== bloco.length) throw new Error("Os dados mudaram durante a reversão — nada foi alterado.");
-          }
+          const n = await atualizarEmBloco(tx, original.tipo, original.farmaciaId, ids, de, para);
+          if (n !== ids.length) throw new Error("Os dados mudaram durante a reversão — nada foi alterado.");
         }
 
         const novaOperacao = await tx.catalogoManutencaoOperacao.create({
@@ -868,11 +944,11 @@ export async function reverterOperacao(prisma: PrismaClient, operacaoOrigemId: s
           },
           select: { id: true },
         });
-        for (const bloco of chunks(elegiveis, 5000)) {
-          await tx.catalogoManutencaoOperacaoItem.createMany({
-            data: bloco.map((e) => ({ operacaoId: novaOperacao.id, produtoId: e.produtoId, valorAnteriorId: e.de, valorNovoId: e.para })),
-          });
-        }
+        await inserirItensEmBloco(
+          tx,
+          novaOperacao.id,
+          elegiveis.map((e) => ({ produtoId: e.produtoId, valorAnteriorId: e.de, valorNovoId: e.para }))
+        );
         return { novaOperacaoId: novaOperacao.id, revertidos: elegiveis.length, ignorados };
       },
       { maxWait: 10_000, timeout: 120_000 }
@@ -883,6 +959,8 @@ export async function reverterOperacao(prisma: PrismaClient, operacaoOrigemId: s
     if (err instanceof Error && err.message === "NENHUM_ELEGIVEL") {
       return { ok: false, error: "Nenhum produto elegível para reversão — todos foram alterados desde então." };
     }
-    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido ao reverter." };
+    if (err instanceof Error && err.message.startsWith("Os dados mudaram durante a reversão")) return { ok: false, error: err.message };
+    console.error("[manutencao-massa] reversão falhou — transacção revertida:", err);
+    return { ok: false, error: "Não foi possível reverter a operação (erro na base de dados) — nada foi alterado." };
   }
 }

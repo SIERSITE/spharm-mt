@@ -126,6 +126,8 @@ function check(cond: boolean, msg: string, detalhe?: string) {
 
 const TOTAL_PRODUTOS = 111; // > 2 * pageSize(50) → garante >= 3 páginas
 const IDX_DIVERGENTE = 55;
+/** Produto SEM vendas mas com stock actual na farmácia 1: só entra no universo com «Incluir stock sem vendas» ligado (como em Vendas). */
+const IDX_STOCK_SEM_VENDAS = 20;
 
 type ProdutoMeta = {
   i: number;
@@ -281,8 +283,8 @@ async function seed(databaseUrl: string): Promise<SeedResult> {
 
       await prisma.produtoFarmacia.upsert({
         where: { produtoId_farmaciaId: { produtoId: p.id, farmaciaId: f1.id } },
-        update: { fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null },
-        create: { produtoId: p.id, farmaciaId: f1.id, fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null },
+        update: { fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null, stockAtual: m.i === IDX_STOCK_SEM_VENDAS ? 5 : 0 },
+        create: { produtoId: p.id, farmaciaId: f1.id, fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null, stockAtual: m.i === IDX_STOCK_SEM_VENDAS ? 5 : 0 },
       });
       await prisma.produtoFarmacia.upsert({
         where: { produtoId_farmaciaId: { produtoId: p.id, farmaciaId: f2.id } },
@@ -343,6 +345,10 @@ async function opcoesMulti(page: Page, label: string): Promise<string[]> {
   const bloco = blocoMulti(page, label);
   const textos = await bloco.locator("button").allInnerTexts();
   return textos.map((t) => t.replace(/✓/g, "").trim()).filter(Boolean).sort();
+}
+/** Estado do interruptor (ToggleRow) pelo seu rótulo: `role="switch"` + `aria-checked`. */
+async function estadoToggle(page: Page, rotulo: string): Promise<boolean> {
+  return (await page.getByRole("switch", { name: rotulo, exact: true }).getAttribute("aria-checked")) === "true";
 }
 async function abrirFiltros(page: Page) {
   const painel = page.locator('input[placeholder="Pesquisar farmácia..."]');
@@ -434,6 +440,23 @@ async function passo2(ctx: BrowserContext, page: Page) {
   await vendas.getByRole("button", { name: /Limpar filtros/ }).click();
   await limparFiltros(page);
   check((await vendas.locator("span.rounded-full", { hasText: "MM E2E Higiene Oral" }).count()) === 0 && (await page.locator("span.rounded-full", { hasText: "MM E2E Higiene Oral" }).count()) === 0, "Passo 2: «Limpar filtros» remove o valor escolhido (chips) nos dois ecrãs");
+
+  // «Incluir stock sem vendas» (apenasComStock): MESMO estado inicial nos dois e «Limpar filtros» repõe-no ao inicial.
+  const ROT = "Incluir stock sem vendas";
+  // Na Manutenção o interruptor só é relevante (e visível) com um período de vendas definido.
+  await page.getByLabel("Data início").fill(JANELA_VENDAS.from);
+  await page.getByLabel("Data fim").fill(JANELA_VENDAS.to);
+  await page.waitForTimeout(400);
+  check((await estadoToggle(vendas, ROT)) === true && (await estadoToggle(page, ROT)) === true, "Passo 2: ao abrir, «Incluir stock sem vendas» está LIGADO em Vendas e na Manutenção (estado inicial único)");
+  for (const p of [vendas, page]) await p.getByRole("switch", { name: ROT, exact: true }).click();
+  await vendas.waitForTimeout(200);
+  check((await estadoToggle(vendas, ROT)) === false && (await estadoToggle(page, ROT)) === false, "Passo 2: desligar funciona nos dois");
+  await vendas.getByRole("button", { name: /Limpar filtros/ }).click();
+  await limparFiltros(page);
+  check((await estadoToggle(vendas, ROT)) === true && (await estadoToggle(page, ROT)) === true, "Passo 2: «Limpar filtros» repõe «Incluir stock sem vendas» ao estado inicial (LIGADO) nos dois — antes, Vendas repunha DESLIGADO");
+  await page.getByLabel("Data início").fill("");
+  await page.getByLabel("Data fim").fill("");
+  await page.waitForTimeout(400);
   await vendas.close();
 }
 
@@ -468,9 +491,17 @@ async function passo3(page: Page, seedData: SeedResult) {
   await escolherMulti(page, "Subcategoria", "MM E2E Escovas");
   const escAB = META.filter((m) => m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
   check((await esperarTotal(page, escAB)) === escAB, `Passo 3f: … ∧ subcategoria Escovas = ${escAB}`);
-  await page.getByLabel("Tipo de artigo").selectOption("MEDICAMENTO");
+  await escolherMulti(page, "Tipo de artigo", "MEDICAMENTO");
   const medEsc = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
   check((await esperarTotal(page, medEsc)) === medEsc, `Passo 3g: … ∧ tipo MEDICAMENTO = ${medEsc}`);
+  const tiposOpc = await opcoesMulti(page, "Tipo de artigo");
+  check(JSON.stringify(tiposOpc) === JSON.stringify(["MEDICAMENTO", "PARAFARMACIA"]), "Passo 3g: «Tipo de artigo» é multi-selecção e oferece os tipos reais do catálogo", String(tiposOpc));
+  await escolherMulti(page, "Tipo de artigo", "PARAFARMACIA");
+  const ambosTipos = META.filter((m) => m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
+  check((await esperarTotal(page, ambosTipos)) === ambosTipos, `Passo 3g: MEDICAMENTO + PARAFARMACIA (OU) = ${ambosTipos}`);
+  await blocoMulti(page, "Tipo de artigo").locator("button", { hasText: "PARAFARMACIA" }).first().click(); // clicar na opção marcada (✓) retira-a
+  await page.waitForTimeout(300);
+  check((await esperarTotal(page, medEsc)) === medEsc, `Passo 3g: retirar um dos tipos volta a ${medEsc}`);
   await page.getByPlaceholder("Pesquisar por CNP ou descrição...").fill("Produto 0");
   const pesq = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA") && m.designacao.includes("Produto 0")).length;
   check((await esperarTotal(page, pesq)) === pesq, `Passo 3h: … ∧ pesquisa «Produto 0» = ${pesq} (todos os filtros em simultâneo)`);
@@ -488,7 +519,14 @@ async function passo3(page: Page, seedData: SeedResult) {
   await page.getByLabel("Data fim").fill(JANELA_VENDAS.to);
   await page.waitForTimeout(600);
   const nVendidos = PRODUTOS_COM_VENDAS.length;
-  check((await esperarTotal(page, nVendidos)) === nVendidos, `Passo 3k: com período, só os ${nVendidos} produtos com vendas nesse período (a mesma regra de Vendas)`);
+  const nComStock = nVendidos + 1; // + o produto só com stock (IDX_STOCK_SEM_VENDAS), porque «Incluir stock sem vendas» nasce LIGADO
+  check((await esperarTotal(page, nComStock)) === nComStock, `Passo 3k: com período, os ${nVendidos} com vendas + 1 só com stock = ${nComStock} (a mesma regra de Vendas, «Incluir stock sem vendas» ligado)`);
+  await page.getByRole("switch", { name: "Incluir stock sem vendas", exact: true }).click();
+  check((await esperarTotal(page, nVendidos)) === nVendidos, `Passo 3k: desligar «Incluir stock sem vendas» → só os ${nVendidos} com vendas (a query do servidor acompanha o interruptor)`);
+  await limparFiltros(page);
+  check(await estadoToggle(page, "Incluir stock sem vendas"), "Passo 3k: «Limpar filtros» volta a ligar o interruptor");
+  check((await page.getByLabel("Data início").inputValue()) === JANELA_VENDAS.from && (await page.getByLabel("Data fim").inputValue()) === JANELA_VENDAS.to, "Passo 3k: …e mantém o período (como em Vendas: período é vista, não filtragem)");
+  check((await esperarTotal(page, nComStock)) === nComStock, `Passo 3k: …e o servidor volta a devolver ${nComStock} (UI e query sincronizadas)`);
   await page.getByLabel("Data início").fill("");
   await page.getByLabel("Data fim").fill("");
   await page.waitForTimeout(400);
