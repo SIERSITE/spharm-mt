@@ -210,6 +210,22 @@ async function main() {
     // ═══ L · tecto ═══════════════════════════════════════════════════════════
     console.log("\nL · tecto de alvos por operação");
     check(M2.LIMITE_ALVOS_POR_OPERACAO === 150_000, "L1: o tecto está definido (150 000)");
+    // L2 — acima do tecto: preview e apply recusam, com mensagem clara, sem escrever nada.
+    const catL = await prisma.classificacao.create({ data: { nome: "Atom Cat Limite", tipo: "NIVEL_1" } });
+    await pg.query(
+      `INSERT INTO "Produto" (id, cnp, designacao, estado, "classificacaoNivel1Id", "dataAtualizacao")
+       SELECT 'atom-l-' || g, 20000000 + g, 'Atom L ' || g, 'VALIDADO', $1, now() FROM generate_series(0, $2::int) g`,
+      [catL.id, M2.LIMITE_ALVOS_POR_OPERACAO] // LIMITE + 1 produtos
+    );
+    const estadoAntesL = await estadoFab();
+    const contAntesL = await contagens();
+    const pvL = await M2.previewOperacao(prisma, "FABRICANTE", { categorias: [catL.nome] }, { modo: "existente", id: fabDest.id }, { modo: "todos" });
+    check(!pvL.ok && /150.000|150 000|150000/.test(pvL.error) && /Restrinja os filtros/.test(pvL.error), `L2: preview acima do tecto é recusado — «${pvL.ok ? "?" : pvL.error}»`);
+    const apL = await M2.aplicarManutencaoMassa(prisma, { tipo: "FABRICANTE", filtro: { categorias: [catL.nome] }, destino: { modo: "existente", id: fabDest.id }, selecao: { modo: "todos" }, snapshotHash: "irrelevante", utilizadorId: user.id });
+    check(!apL.ok && /Restrinja os filtros/.test(apL.error), "L3: o apply acima do tecto também é recusado");
+    check((await estadoFab()) === estadoAntesL && JSON.stringify(await contagens()) === JSON.stringify(contAntesL), "L4: nada foi escrito (nem produtos, nem operações, nem auditoria)");
+    const pvDentro = await M2.previewOperacao(prisma, "FABRICANTE", filtroF, { modo: "existente", id: fabDest.id }, { modo: "todos" });
+    check(pvDentro.ok, "L5: dentro do tecto (36 000) o preview continua a funcionar");
 
     await prisma.$disconnect();
   } finally {

@@ -75,6 +75,7 @@
     "test:proposta-fornecedor-habitual-db": "tsx scripts/tests/test-proposta-fornecedor-habitual-db.ts",
     "test:e2e-menu-manutencao": "tsx scripts/e2e/menu-manutencao-catalogo-browser.ts",
     "test:e2e-fornecedor-massa": "tsx scripts/e2e/fornecedor-massa-encomendas-browser.ts",
+    "test:e2e-detalhe-fornecedor-inativo": "tsx scripts/e2e/encomenda-detalhe-fornecedor-inativo-browser.ts",
     "test:reconstruir-rascunho": "tsx scripts/tests/test-reconstruir-rascunho.ts",
     "test:encomenda-idempotencia-db": "tsx scripts/tests/test-encomenda-idempotencia-db.ts",
     "test:diagnostico-tools": "tsx scripts/tests/test-diagnostico-tools.ts",

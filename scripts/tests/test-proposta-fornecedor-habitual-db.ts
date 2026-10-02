@@ -209,6 +209,40 @@ async function main() {
     check(fin.documentos.length === 2, "I12: depois de substituído por um ativo, a finalização gera os 2 documentos", JSON.stringify(fin.documentos.map((d) => d.fornecedorNome)));
     check((await prisma.produtoFarmacia.count({ where: { fornecedorHabitualId: forLate.id } })) === 0, "I13: nada foi trocado automaticamente nem escrito em ProdutoFarmacia");
 
+    console.log("\nJ · detalhe da encomenda: inativo identificável e substituível; documento antigo intacto");
+    const { buildEncomendaDocumentoReport } = await import("../../lib/reporting/adapters/encomenda-documento");
+    // J1 — documento ANTIGO finalizado com um fornecedor que depois fica inativo
+    const forAnt = await prisma.fornecedor.create({ data: { nomeNormalizado: "FH-FORN-ANTIGO", nome: "Forn Antigo", estado: "ATIVO" } });
+    const antigo = await createEncomendaWithOutbox(prisma, "t", { farmaciaId: fA.id, criadoPorId: user.id, nome: "Documento antigo", finalize: true, linhas: [{ produtoId: prod[1], quantidadeAjustada: 4, fornecedorSugeridoId: forAnt.id }] });
+    await prisma.fornecedor.update({ where: { id: forAnt.id }, data: { estado: "INATIVO" } });
+    const dAnt = await loadOrderDetailComPrisma(prisma, antigo.listaEncomendaId);
+    const lAnt = dAnt!.linhas[0];
+    check(dAnt!.editable === false && lAnt.fornecedorSugeridoNome === "Forn Antigo" && lAnt.fornecedorSugeridoId === forAnt.id, "J1: o documento antigo continua a mostrar o fornecedor ORIGINAL (nome e id) mesmo depois de ficar inativo");
+    const rel = JSON.stringify(buildEncomendaDocumentoReport([dAnt!]));
+    check(rel.includes("Forn Antigo") && !rel.includes("(inativo)"), "J2: a reimpressão (documento) usa o nome original, sem «(inativo)» nem substituição");
+    // J3 — rascunho com várias linhas; atribuição colectiva que inclua um inativo é recusada por inteiro
+    const rJ = await prisma.listaEncomenda.create({
+      data: { farmaciaId: fA.id, nome: "Rascunho detalhe", estado: "RASCUNHO", criadoPorId: user.id, linhas: { create: [{ produtoId: prod[1], quantidadeAjustada: 5, fornecedorSugeridoId: forAnt.id, origem: "PROPOSTA" }, { produtoId: prod[7], quantidadeAjustada: 5, fornecedorSugeridoId: forX.id, origem: "PROPOSTA" }, { produtoId: prod[8], quantidadeAjustada: 5, fornecedorSugeridoId: forX.id, origem: "PROPOSTA" }] } },
+    });
+    let eJ: unknown = null;
+    try { await salvarAutosaveEncomenda(prisma, { listaEncomendaId: rJ.id, versaoEsperada: 0, linhas: [{ produtoId: prod[1], fornecedorSugeridoId: forY.id }, { produtoId: prod[7], fornecedorSugeridoId: forAnt.id }, { produtoId: prod[8], fornecedorSugeridoId: forY.id }] }); } catch (e) { eJ = e; }
+    const aposJ = await loadOrderDetailComPrisma(prisma, rJ.id);
+    check(eJ instanceof FornecedorInativoError, "J3: a atribuição colectiva que inclui um fornecedor inativo é RECUSADA");
+    check(aposJ!.linhas.find((l) => l.produtoId === prod[1])!.fornecedorSugeridoId === forAnt.id && aposJ!.linhas.find((l) => l.produtoId === prod[8])!.fornecedorSugeridoId === forX.id && aposJ!.versao === rJ.versao, "J4: …por inteiro: nenhuma das outras linhas do mesmo lote foi gravada e a versão não avançou");
+    // J5 — a linha apontada a um inativo é identificável; substituir por um ativo grava e limpa o aviso
+    const dJ = await loadOrderDetailComPrisma(prisma, rJ.id);
+    check(dJ!.linhas.filter((l) => l.fornecedorSugeridoInativo).map((l) => l.produtoId).join() === prod[1] && dJ!.linhas.find((l) => l.produtoId === prod[1])!.fornecedorSugeridoNome === "Forn Antigo", "J5: só a linha 1 vem assinalada como inativa, com o nome histórico");
+    const subst = await salvarAutosaveEncomenda(prisma, { listaEncomendaId: rJ.id, versaoEsperada: dJ!.versao, linhas: [{ produtoId: prod[1], fornecedorSugeridoId: forY.id }] });
+    const dJ2 = await loadOrderDetailComPrisma(prisma, rJ.id);
+    check(subst.gravadas === 1 && dJ2!.linhas.every((l) => !l.fornecedorSugeridoInativo) && dJ2!.linhas.find((l) => l.produtoId === prod[1])!.fornecedorSugeridoNome === "Forn Y", "J6: a substituição por um ativo é gravada pelo autosave e o aviso desaparece");
+    const fRes = await prisma.$transaction((tx) => finalizarNaTransaccao(tx, "t", { listaEncomendaId: rJ.id, batchKey: "fh-batch-j" }));
+    check(fRes.documentos.length === 2, "J7: a finalização conclui-se depois da substituição (2 fornecedores → 2 documentos)");
+    // J8 — a mensagem de recusa na finalização identifica as linhas
+    const rK = await prisma.listaEncomenda.create({ data: { farmaciaId: fA.id, nome: "Rascunho K", estado: "RASCUNHO", criadoPorId: user.id, linhas: { create: [{ produtoId: prod[1], quantidadeAjustada: 5, fornecedorSugeridoId: forAnt.id, origem: "PROPOSTA" }, { produtoId: prod[7], quantidadeAjustada: 5, fornecedorSugeridoId: forAnt.id, origem: "PROPOSTA" }] } } });
+    let eK: unknown = null;
+    try { await finalizeAndQueueOrder(prisma, "t", rK.id); } catch (e) { eK = e; }
+    check(eK instanceof FornecedorInativoError && [prod[1], prod[7]].every((p) => (eK as InstanceType<typeof FornecedorInativoError>).produtoIdsSemFornecedor.includes(p)) && /Forn Antigo/.test((eK as Error).message), "J8: o erro de finalização indica as linhas (produtos) e o fornecedor inativo", String(eK));
+
     console.log("\nX · o diagnóstico (read-only) identifica a coincidência que a proposta NÃO usa");
     const { diagnosticarCobertura } = await import("../../scripts/diagnostics/fornecedor-habitual-cobertura");
     const antesDiag = JSON.stringify(await prisma.produtoFarmacia.findMany({ orderBy: [{ produtoId: "asc" }, { farmaciaId: "asc" }], select: { produtoId: true, farmaciaId: true, fornecedorHabitualId: true, fornecedorOrigem: true } }));
