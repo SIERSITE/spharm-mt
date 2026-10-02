@@ -126,3 +126,75 @@ export async function resolverOuCriarFornecedor(
 
   return { status: "resolvido", fornecedorId: created.id, criado: true };
 }
+
+export type FornecedorResolvidoPorTexto = { id: string; nome: string; estado: "ATIVO" | "INATIVO" };
+
+/**
+ * Resolução SÓ DE LEITURA de um conjunto de textos de fornecedor (ex.:
+ * `ProdutoFarmacia.fornecedorOrigem`, o nome do fornecedor habitual no ERP)
+ * para `Fornecedor` existentes. Nunca cria nem escreve nada (nem aliases —
+ * ao contrário de `resolverOuCriarFornecedor`, que faz upsert de alias).
+ *
+ * Só devolve correspondências com EVIDÊNCIA: match exacto por
+ * `nomeNormalizado` canónico, ou por `FornecedorAlias.aliasNome` quando aponta
+ * para exactamente UM fornecedor. Ambíguo ou desconhecido → fica de fora do mapa.
+ * Duas consultas em lote, nunca uma por texto.
+ */
+export async function resolverFornecedoresPorTextoSoLeitura(
+  prisma: Prisma.TransactionClient,
+  textos: readonly string[]
+): Promise<Map<string, FornecedorResolvidoPorTexto>> {
+  const out = new Map<string, FornecedorResolvidoPorTexto>();
+  const unicos = [...new Set(textos.map((t) => t.trim()).filter(Boolean))];
+  if (unicos.length === 0) return out;
+
+  const canonicoDe = new Map<string, string>();
+  for (const t of unicos) {
+    const c = normalizeFornecedorCanonico(t);
+    if (c) canonicoDe.set(t, c);
+  }
+  const canonicos = [...new Set(canonicoDe.values())];
+  const porNome = canonicos.length
+    ? await prisma.fornecedor.findMany({
+        where: { nomeNormalizado: { in: canonicos } },
+        select: { id: true, nome: true, nomeNormalizado: true, estado: true },
+      })
+    : [];
+  const fornecedorPorCanonico = new Map(porNome.map((f) => [f.nomeNormalizado, f]));
+
+  const semMatch = unicos.filter((t) => !fornecedorPorCanonico.has(canonicoDe.get(t) ?? "\u0000"));
+  const alias = semMatch.length
+    ? await prisma.fornecedorAlias.findMany({
+        where: { aliasNome: { in: semMatch } },
+        select: { aliasNome: true, fornecedorId: true },
+      })
+    : [];
+  const idsPorAlias = new Map<string, Set<string>>();
+  for (const a of alias) {
+    const s = idsPorAlias.get(a.aliasNome) ?? new Set<string>();
+    s.add(a.fornecedorId);
+    idsPorAlias.set(a.aliasNome, s);
+  }
+  const idsUnicos = [...new Set([...idsPorAlias.values()].filter((s) => s.size === 1).map((s) => [...s][0]))];
+  const porAliasFornecedor = idsUnicos.length
+    ? await prisma.fornecedor.findMany({
+        where: { id: { in: idsUnicos } },
+        select: { id: true, nome: true, nomeNormalizado: true, estado: true },
+      })
+    : [];
+  const fornecedorPorId = new Map(porAliasFornecedor.map((f) => [f.id, f]));
+
+  for (const t of unicos) {
+    const direto = fornecedorPorCanonico.get(canonicoDe.get(t) ?? "\u0000");
+    if (direto) {
+      out.set(t, { id: direto.id, nome: direto.nome ?? direto.nomeNormalizado, estado: direto.estado });
+      continue;
+    }
+    const ids = idsPorAlias.get(t);
+    if (ids && ids.size === 1) {
+      const f = fornecedorPorId.get([...ids][0]);
+      if (f) out.set(t, { id: f.id, nome: f.nome ?? f.nomeNormalizado, estado: f.estado });
+    }
+  }
+  return out;
+}

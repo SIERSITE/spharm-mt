@@ -382,14 +382,15 @@ async function main() {
 
     // ── 6 · alterar em massa, RESTRITO a uma farmácia ─────────────────
     console.log("\n6 · alteração em massa limitada à Farmácia A (nunca cruza farmácias)");
-    const farmaciaScopeSelect = page.locator("select").filter({ has: page.getByRole("option", { name: "— nesta farmácia —" }) });
-    await farmaciaScopeSelect.selectOption({ label: seedData.farmaciaANome });
-    await page.getByRole("button", { name: "Fornecedor a definir em toda a farmácia seleccionada" }).click();
-    const bulkFarmaciaCombo = page.getByRole("combobox", { name: "Fornecedor a definir em toda a farmácia seleccionada" });
+    // Barra comum de atribuição colectiva: «Todas as linhas da farmácia» (A) → fornecedor → resumo → confirmar.
+    await page.getByTestId("bulkc-farmacia").selectOption(seedData.farmaciaAId);
+    await page.getByRole("button", { name: "Fornecedor a atribuir" }).click();
+    const bulkFarmaciaCombo = page.getByRole("combobox", { name: "Fornecedor a atribuir" });
     await bulkFarmaciaCombo.waitFor({ state: "visible" });
     await bulkFarmaciaCombo.fill("Alfa");
     await page.getByRole("listbox").first().getByRole("option").first().click();
-    await page.getByRole("button", { name: "Aplicar a toda a farmácia" }).click();
+    await page.getByTestId("bulkc-atribuir").click();
+    await page.getByTestId("bulkc-confirmar").click();
     await page.waitForTimeout(400);
     check((await fornecedorBotao(page, "CFL P1", seedData.farmaciaANome).innerText()).includes("Alfa"), "6a: a massa aplicou Alfa a P1/Farmácia A");
     check((await fornecedorBotao(page, "CFL P2", seedData.farmaciaANome).innerText()).includes("Alfa"), "6b: a massa aplicou Alfa a P2/Farmácia A também");
@@ -432,7 +433,8 @@ async function main() {
     const batchKey0 = new URL(page.url()).searchParams.get("consolidacao")!;
     const A = seedData.farmaciaANome;
     const B = seedData.farmaciaBNome;
-    // O selector de farmácia da massa continua em A (passo 6).
+    // O selector de farmácia (notas por farmácia) — A.
+    await page.locator("select").filter({ has: page.getByRole("option", { name: "— nesta farmácia —" }) }).selectOption({ label: A });
     await page.getByLabel("Nota a definir em toda a farmácia seleccionada").fill("nota massa A");
     await page.getByRole("button", { name: "Aplicar nota à farmácia" }).click();
     await page.waitForTimeout(300);

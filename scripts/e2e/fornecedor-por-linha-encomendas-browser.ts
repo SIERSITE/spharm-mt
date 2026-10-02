@@ -343,13 +343,14 @@ async function passo4(page: Page, tenant: string) {
   console.log(`\nPasso 4 (${tenant}) · alterar várias linhas em massa via "Definir fornecedor"`);
   await page.locator('input[aria-label="Seleccionar linha FL E2E Produto 10"]').check();
   await page.locator('input[aria-label="Seleccionar linha FL E2E Produto 11"]').check();
-  const bulkBotao = page.getByRole("button", { name: "Fornecedor a definir nas linhas seleccionadas" });
+  const bulkBotao = page.getByRole("button", { name: "Fornecedor a atribuir" });
   await bulkBotao.click();
-  const bulkInput = page.getByRole("combobox", { name: "Fornecedor a definir nas linhas seleccionadas" });
+  const bulkInput = page.getByRole("combobox", { name: "Fornecedor a atribuir" });
   await bulkInput.waitFor({ state: "visible" });
   await bulkInput.fill("Gama");
   await page.getByRole("listbox").first().getByRole("option").first().click();
-  await page.getByRole("button", { name: "Definir fornecedor" }).click();
+  await page.getByTestId("bulk-atribuir").click();
+  await page.getByTestId("bulk-confirmar").click();
   await page.waitForTimeout(500);
   const linha10 = page.locator("tr").filter({ has: page.locator('input[aria-label="Seleccionar linha FL E2E Produto 10"]') });
   const linha11 = page.locator("tr").filter({ has: page.locator('input[aria-label="Seleccionar linha FL E2E Produto 11"]') });

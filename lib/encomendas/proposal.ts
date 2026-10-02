@@ -9,6 +9,7 @@ import {
   type ResumoListaImportada,
 } from "@/lib/encomendas/resumo-lista";
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
+import { resolverFornecedoresPorTextoSoLeitura } from "@/lib/catalogo/resolver-fornecedor";
 
 /**
  * Factor aplicado à cobertura alvo para calcular excedente transferível.
@@ -110,6 +111,16 @@ export type ProposalRow = {
    * lib/encomendas/finalizar-multi-fornecedor.ts.
    */
   fornecedorSugeridoId: string | null;
+  /** Nome legível do fornecedor sugerido (mesmo quando está INACTIVO — nunca fica uma linha com id e sem nome). */
+  fornecedorSugeridoNome?: string | null;
+  /** `INATIVO` = o habitual existe mas está desactivado: a linha mostra-o e assinala-o em vez de o esconder. */
+  fornecedorSugeridoEstado?: "ATIVO" | "INATIVO" | null;
+  /**
+   * De onde veio a sugestão: `HABITUAL` = `ProdutoFarmacia.fornecedorHabitualId` (a fonte de verdade);
+   * `TEXTO_ERP` = o habitual não está preenchido mas o NOME do fornecedor habitual no ERP
+   * (`fornecedorOrigem`) corresponde, sem ambiguidade, a um Fornecedor existente. Nunca se inventa nem se grava.
+   */
+  fornecedorSugeridoFonte?: "HABITUAL" | "TEXTO_ERP" | null;
   categoria: string;
   productType: string | null;
   salesQty: number;
@@ -292,6 +303,8 @@ type RawRow = {
   stockAtual: number | null;
   fornecedorOrigem: string | null;
   fornecedorHabitualId: string | null;
+  fornecedorHabitualNome: string | null;
+  fornecedorHabitualEstado: string | null;
   categoriaOrigem: string | null;
   subcategoriaOrigem: string | null;
   canonN1: string | null;
@@ -396,7 +409,9 @@ export async function generateOrderProposal(
       pf."subcategoriaOrigem"                     AS "subcategoriaOrigem",
       c1.nome                                     AS "canonN1",
       c2.nome                                     AS "canonN2",
-      COALESCE(pending.qty::float, 0)             AS "pendingQty"`;
+      COALESCE(pending.qty::float, 0)             AS "pendingQty",
+      COALESCE(fo.nome, fo."nomeNormalizado")      AS "fornecedorHabitualNome",
+      fo.estado::text                             AS "fornecedorHabitualEstado"`;
 
   const joinsCatalogo = Prisma.sql`
     LEFT JOIN "Fabricante"     fab ON fab.id = p."fabricanteId"
@@ -434,6 +449,7 @@ export async function generateOrderProposal(
         FROM "ProdutoFarmacia" pf
         JOIN "Produto"  p ON p.id = pf."produtoId"
         ${joinsCatalogo}
+        LEFT JOIN "Fornecedor" fo ON fo.id = pf."fornecedorHabitualId"
         LEFT JOIN vendas  v       ON v."produtoId"       = pf."produtoId"
         LEFT JOIN pending         ON pending."produtoId" = pf."produtoId"
         WHERE pf."farmaciaId" = ${input.farmaciaId}
@@ -454,6 +470,7 @@ export async function generateOrderProposal(
         ${joinsCatalogo}
         LEFT JOIN "ProdutoFarmacia" pf ON pf."produtoId" = v."produtoId"
                                       AND pf."farmaciaId" = ${input.farmaciaId}
+        LEFT JOIN "Fornecedor" fo ON fo.id = pf."fornecedorHabitualId"
         LEFT JOIN pending              ON pending."produtoId" = v."produtoId"
         WHERE v.qty > 0
           AND (pf."flagRetirado" IS NOT TRUE)
@@ -504,6 +521,9 @@ export async function generateOrderProposal(
       fabricante: r.fabricante,
       fornecedor: r.fornecedorOrigem,
       fornecedorSugeridoId: r.fornecedorHabitualId,
+      fornecedorSugeridoNome: r.fornecedorHabitualId ? r.fornecedorHabitualNome : null,
+      fornecedorSugeridoEstado: r.fornecedorHabitualId ? (r.fornecedorHabitualEstado === "INATIVO" ? "INATIVO" : "ATIVO") : null,
+      fornecedorSugeridoFonte: r.fornecedorHabitualId ? "HABITUAL" : null,
       categoria,
       productType: r.productType,
       salesQty: Math.round(salesQty * 1000) / 1000,
@@ -529,6 +549,8 @@ export async function generateOrderProposal(
     });
   }
 
+  await preencherFornecedorPeloTextoDoErp(prisma, rows);
+
   return {
     rows,
     meta: {
@@ -551,6 +573,27 @@ export async function generateOrderProposal(
         : {}),
     },
   };
+}
+
+/**
+ * Linhas sem `fornecedorHabitualId` mas com o NOME do fornecedor habitual do ERP
+ * (`fornecedorOrigem`): resolve-o, SÓ DE LEITURA, para um Fornecedor existente quando a
+ * correspondência é inequívoca (nome canónico exacto ou alias único). É evidência — o ERP diz qual é
+ * o habitual — e não escreve nada: `ProdutoFarmacia` continua a ser alterado só pela ingestão e pela
+ * manutenção de catálogo. Cada farmácia resolve o SEU texto; nunca se copia de uma para a outra.
+ */
+async function preencherFornecedorPeloTextoDoErp(prisma: PrismaClient, rows: ProposalRow[]): Promise<void> {
+  const candidatas = rows.filter((r) => !r.fornecedorSugeridoId && r.fornecedor && r.fornecedor.trim());
+  if (candidatas.length === 0) return;
+  const mapa = await resolverFornecedoresPorTextoSoLeitura(prisma, candidatas.map((r) => r.fornecedor!));
+  for (const r of candidatas) {
+    const f = mapa.get(r.fornecedor!.trim());
+    if (!f) continue;
+    r.fornecedorSugeridoId = f.id;
+    r.fornecedorSugeridoNome = f.nome;
+    r.fornecedorSugeridoEstado = f.estado;
+    r.fornecedorSugeridoFonte = "TEXTO_ERP";
+  }
 }
 
 // ─── Proposta de grupo ────────────────────────────────────────────────────────

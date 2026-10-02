@@ -38,6 +38,8 @@ import { getHistoricoProdutosLoteAction } from "@/app/encomendas/actions";
 import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { BarraFornecedorEmMassa } from "@/components/encomendas/barra-fornecedor-massa";
+import { alternarPagina, paginar } from "@/lib/encomendas/selecao-fornecedor-massa";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
 import { enriquecerLinhasRascunho } from "@/lib/encomendas/reconstruir-rascunho";
@@ -347,7 +349,9 @@ export function OrderCreateClient({
   // produtoId pode aparecer em várias sub-linhas (uma por farmácia); a
   // `key` é sempre única por linha renderizada.
   const [linhasSeleccionadas, setLinhasSeleccionadas] = useState<Set<number>>(new Set());
-  const [bulkFornecedorId, setBulkFornecedorId] = useState("");
+  /** Paginação da tabela (a selecção «página» e a atribuição em massa trabalham sobre ela). */
+  const [tamanhoPaginaTabela, setTamanhoPaginaTabela] = useState(50);
+  const [paginaTabela, setPaginaTabela] = useState(1);
   // ── Ordenação ────────────────────────────────────────────────────
   //
   // Esta tabela era a ÚNICA da aplicação com ordenação por cabeçalho, e
@@ -438,7 +442,6 @@ export function OrderCreateClient({
   const consolidacaoCarregadaRef = useRef(false);
   /** Farmácia escolhida para a edição em massa RESTRITA a essa farmácia (ver toolbar da Vista consolidada). */
   const [bulkFarmaciaScopeId, setBulkFarmaciaScopeId] = useState("");
-  const [bulkFornecedorIdFarmacia, setBulkFornecedorIdFarmacia] = useState("");
   /** Nota a aplicar a TODAS as linhas da farmácia escolhida em `bulkFarmaciaScopeId`. */
   const [bulkNotaFarmacia, setBulkNotaFarmacia] = useState("");
   /** Farmácias cujo conflito de versão foi detectado pelo SERVIDOR na finalização (o autosave detecta os seus pelo estado `conflito`). */
@@ -496,13 +499,17 @@ export function OrderCreateClient({
   // Depois de um rascunho recuperado por retry, aplica as edições que o
   // utilizador fez enquanto a criação falhava/estava pendente.
   useEffect(() => {
-    if (!draftId || pendentesPosCriacaoRef.current.length === 0) return;
+    if (!draftId) return;
     const pendentes = pendentesPosCriacaoRef.current;
     pendentesPosCriacaoRef.current = [];
     for (const p of pendentes) {
       if (p.remover) autosave.marcarRemovido(p.produtoId);
       else if (p.patch) autosave.marcarSujo(p.produtoId, p.patch);
     }
+    // As edições feitas ENQUANTO a criação estava em voo (edição linha a linha, atribuição colectiva,
+    // remoções) ficaram no pendente do MESMO autosave — com o id ainda nulo o flush não corria. Agora
+    // que o id chegou, grava-as já (nunca à espera de uma edição futura que as arraste).
+    void autosave.guardarAgora();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId]);
 
@@ -1069,7 +1076,10 @@ export function OrderCreateClient({
   }
 
   function persistLineRemoval(produtoId: string) {
-    if (mode !== "farmacia" || !draftId) return; // sem rascunho ainda: nada para remover no servidor
+    if (mode !== "farmacia") return;
+    // Sem rascunho E sem criação em voo: nada para remover no servidor. Com a criação em voo a remoção
+    // fica pendente no autosave e grava-se quando o id chegar.
+    if (!draftId && !draftPromiseRef.current) return;
     autosave.marcarRemovido(produtoId);
   }
 
@@ -1274,6 +1284,22 @@ export function OrderCreateClient({
     if (mode === "grupo") return gruposProduto.flatMap((g) => g.subLinhas);
     return visibleLinhas;
   }, [mode, gruposProduto, visibleLinhas]);
+
+  // Página actual da tabela. Em modo grupo pagina-se por GRUPOS DE PRODUTO (nunca separa as
+  // sub-linhas de um produto); nos outros modos, por linhas.
+  const paginaInfo = useMemo(() => {
+    if (mode === "grupo") {
+      const g = paginar(gruposProduto, paginaTabela, tamanhoPaginaTabela);
+      return { gruposPagina: g.fatia, linhasPagina: g.fatia.flatMap((x) => x.subLinhas), totalPaginas: g.totalPaginas, pagina: g.pagina };
+    }
+    const l = paginar(visibleLinhas, paginaTabela, tamanhoPaginaTabela);
+    return { gruposPagina: [] as GrupoProdutoLine[], linhasPagina: l.fatia, totalPaginas: l.totalPaginas, pagina: l.pagina };
+  }, [mode, gruposProduto, visibleLinhas, paginaTabela, tamanhoPaginaTabela]);
+
+  // Mudar um filtro/tamanho volta à primeira página (a página antiga pode já nem existir).
+  useEffect(() => {
+    setPaginaTabela(1);
+  }, [tableSearch, filterEstado, filterFarmaciaTabela, filterRuturas, filterStockBaixo, filterSemFornecedor, tamanhoPaginaTabela]);
 
   /** `Line.key` → posição na lista navegável — o índice ESTÁVEL que as refs usam (Ponto 3.6). */
   const rowIndexByKey = useMemo(() => {
@@ -1737,9 +1763,9 @@ export function OrderCreateClient({
       key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
       fabricante: r.fabricante, fornecedor: r.fornecedor,
       fornecedorSugeridoId: r.fornecedorSugeridoId,
-      fornecedorSugeridoNome: r.fornecedorSugeridoId
-        ? (fornecedores.find((f) => f.id === r.fornecedorSugeridoId)?.nome ?? null)
-        : null,
+      // Nome: o da lista de fornecedores activos, ou o que a proposta já traz (habitual INACTIVO, ou resolvido
+      // pelo texto do ERP) — nunca uma linha com fornecedor e sem nome.
+      fornecedorSugeridoNome: nomeFornecedorSugerido(r),
       farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
       salesQty: r.salesQty, avgDailySales: r.avgDailySales,
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
@@ -1756,6 +1782,13 @@ export function OrderCreateClient({
       farmaciaOrigemId: decisao.farmaciaOrigemId,
       farmaciaDestinoId: decisao.farmaciaDestinoId,
     };
+  }
+
+  function nomeFornecedorSugerido(r: ProposalRow): string | null {
+    if (!r.fornecedorSugeridoId) return null;
+    const base = fornecedores.find((f) => f.id === r.fornecedorSugeridoId)?.nome ?? r.fornecedorSugeridoNome ?? null;
+    if (!base) return null;
+    return r.fornecedorSugeridoEstado === "INATIVO" ? `${base} (inativo)` : base;
   }
 
   function buildManualLine(p: ProductSearchResult): Line {
@@ -2282,13 +2315,6 @@ export function OrderCreateClient({
       if (!keys.has(l.key)) continue;
       persistLineChangeConsolidacao(l, linhasActuais);
     }
-  }
-
-  /** Edição em massa RESTRITA a uma farmácia — "alteração em massa limitada a uma farmácia" (nunca cruza farmácias). */
-  function handleBulkFornecedorFarmaciaConsolidacao(farmaciaId: string, fornecedorId: string) {
-    if (!farmaciaId || !fornecedorId) return;
-    const keys = new Set(linhas.filter((l) => l.farmaciaId === farmaciaId).map((l) => l.key));
-    handleBulkFornecedorChangeConsolidacao(keys, fornecedorId);
   }
 
   /** Notas por linha — mesmo caminho (rascunho + autosave da SUA farmácia) que quantidade e fornecedor. */
@@ -3095,33 +3121,23 @@ export function OrderCreateClient({
                   ({resumoFornecedores.porFornecedor.map((f) => `${f.nome}: ${f.nLinhas}`).join(" · ")})
                 </span>
               )}
-              <div className="ml-auto flex items-center gap-2">
-                {linhasSeleccionadas.size > 0 && (
-                  <>
-                    <span className="text-slate-500">{linhasSeleccionadas.size} seleccionada{linhasSeleccionadas.size === 1 ? "" : "s"}</span>
-                    <div className="w-56">
-                      <SearchableSelect
-                        items={fornecedoresItems}
-                        value={bulkFornecedorId || null}
-                        onChange={(v) => setBulkFornecedorId(v ?? "")}
-                        placeholder="— Fornecedor —"
-                        ariaLabel="Fornecedor a definir nas linhas seleccionadas"
-                      />
-                    </div>
-                    <button type="button" disabled={!bulkFornecedorId}
-                      onClick={() => { handleBulkFornecedorChange(linhasSeleccionadas, bulkFornecedorId); setBulkFornecedorId(""); setLinhasSeleccionadas(new Set()); }}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40">
-                      Definir fornecedor
-                    </button>
-                    <button type="button"
-                      onClick={() => { handleBulkFornecedorChange(linhasSeleccionadas, ""); setLinhasSeleccionadas(new Set()); }}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[12px] text-slate-500 hover:border-rose-300 hover:text-rose-700">
-                      Limpar
-                    </button>
-                  </>
-                )}
-              </div>
             </div>
+          )}
+
+          {linhas.length > 0 && (
+            <BarraFornecedorEmMassa
+              idPrefixo="bulk"
+              todas={linhas}
+              visiveis={linhasNavegaveis}
+              pagina={paginaInfo.linhasPagina}
+              selecionadas={linhasSeleccionadas}
+              setSelecionadas={setLinhasSeleccionadas}
+              fornecedoresItems={fornecedoresItems}
+              nomeFornecedor={(id) => fornecedores.find((f) => f.id === id)?.nome ?? id}
+              farmacias={isGroupMode ? farmaciaOptions : []}
+              onAplicar={(keys, id) => handleBulkFornecedorChange(keys, id)}
+              disabled={busy}
+            />
           )}
 
           {linhas.length === 0 ? (
@@ -3133,6 +3149,7 @@ export function OrderCreateClient({
               Nenhuma linha corresponde aos filtros activos.
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
@@ -3141,13 +3158,9 @@ export function OrderCreateClient({
                       <input
                         type="checkbox"
                         className="rounded"
-                        checked={visibleLinhas.length > 0 && visibleLinhas.every((l) => linhasSeleccionadas.has(l.key))}
-                        onChange={(e) =>
-                          setLinhasSeleccionadas(
-                            e.target.checked ? new Set(visibleLinhas.map((l) => l.key)) : new Set()
-                          )
-                        }
-                        aria-label="Seleccionar todas as linhas visíveis"
+                        checked={paginaInfo.linhasPagina.length > 0 && paginaInfo.linhasPagina.every((l) => linhasSeleccionadas.has(l.key))}
+                        onChange={() => setLinhasSeleccionadas(alternarPagina(linhasSeleccionadas, paginaInfo.linhasPagina))}
+                        aria-label="Seleccionar todas as linhas desta página"
                       />
                     </th>
                     <th className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
@@ -3170,7 +3183,7 @@ export function OrderCreateClient({
                 </thead>
                 <tbody>
                   {mode === "grupo"
-                    ? gruposProduto.map((g) => (
+                    ? paginaInfo.gruposPagina.map((g) => (
                         <Fragment key={g.produtoId}>
                           <ProdutoGrupoHeader
                             grupo={g}
@@ -3181,7 +3194,7 @@ export function OrderCreateClient({
                           {g.subLinhas.map((l) => renderLinhaRow(l, { isSubLinha: true }))}
                         </Fragment>
                       ))
-                    : visibleLinhas.map((l) => (
+                    : paginaInfo.linhasPagina.map((l) => (
                         <Fragment key={l.key}>
                           {renderLinhaRow(l)}
                           <tr className="border-b border-slate-100">
@@ -3198,6 +3211,29 @@ export function OrderCreateClient({
                 </tbody>
               </table>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-2 text-[12px] text-slate-600" data-testid="paginacao-tabela">
+              <label className="inline-flex items-center gap-1.5">
+                Linhas por página
+                <select
+                  aria-label="Linhas por página"
+                  value={tamanhoPaginaTabela}
+                  onChange={(e) => setTamanhoPaginaTabela(Number(e.target.value))}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[12px]"
+                >
+                  {[20, 30, 50, 100, 0].map((n) => (
+                    <option key={n} value={n}>
+                      {n === 0 ? "Todas" : n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="inline-flex items-center gap-2">
+                <button type="button" disabled={paginaInfo.pagina <= 1} onClick={() => setPaginaTabela(paginaInfo.pagina - 1)} aria-label="Página anterior" className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40">‹</button>
+                <span data-testid="pagina-actual">Página {paginaInfo.pagina} de {paginaInfo.totalPaginas}</span>
+                <button type="button" disabled={paginaInfo.pagina >= paginaInfo.totalPaginas} onClick={() => setPaginaTabela(paginaInfo.pagina + 1)} aria-label="Página seguinte" className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40">›</button>
+              </span>
+            </div>
+            </>
           )}
         </section>
       )}
@@ -3297,7 +3333,7 @@ export function OrderCreateClient({
 
           {resumoConsolidacaoPorFarmacia.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2.5 text-[12px]">
-              <span className="font-medium text-slate-700">Definir fornecedor:</span>
+              <span className="font-medium text-slate-700">Nota por farmácia:</span>
               <select
                 value={bulkFarmaciaScopeId}
                 onChange={(e) => setBulkFarmaciaScopeId(e.target.value)}
@@ -3308,26 +3344,6 @@ export function OrderCreateClient({
                   <option key={f.farmaciaId} value={f.farmaciaId}>{f.farmaciaNome}</option>
                 ))}
               </select>
-              <div className="w-48">
-                <SearchableSelect
-                  items={fornecedoresItems}
-                  value={bulkFornecedorIdFarmacia || null}
-                  onChange={(v) => setBulkFornecedorIdFarmacia(v ?? "")}
-                  placeholder="— Fornecedor —"
-                  ariaLabel="Fornecedor a definir em toda a farmácia seleccionada"
-                />
-              </div>
-              <button
-                type="button"
-                disabled={!bulkFarmaciaScopeId || !bulkFornecedorIdFarmacia}
-                onClick={() => {
-                  handleBulkFornecedorFarmaciaConsolidacao(bulkFarmaciaScopeId, bulkFornecedorIdFarmacia);
-                  setBulkFornecedorIdFarmacia("");
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
-              >
-                Aplicar a toda a farmácia
-              </button>
               <span className="text-slate-300">·</span>
               <input
                 type="text"
@@ -3349,39 +3365,22 @@ export function OrderCreateClient({
               >
                 Aplicar nota à farmácia
               </button>
-              <span className="text-slate-300">·</span>
-              {linhasSeleccionadas.size > 0 ? (
-                <>
-                  <span className="text-slate-500">{linhasSeleccionadas.size} linha(s) seleccionada(s) (podem ser de farmácias diferentes)</span>
-                  <div className="w-48">
-                    <SearchableSelect
-                      items={fornecedoresItems}
-                      value={bulkFornecedorId || null}
-                      onChange={(v) => setBulkFornecedorId(v ?? "")}
-                      placeholder="— Fornecedor —"
-                      ariaLabel="Fornecedor a definir nas linhas seleccionadas"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!bulkFornecedorId}
-                    onClick={() => { handleBulkFornecedorChangeConsolidacao(linhasSeleccionadas, bulkFornecedorId); setBulkFornecedorId(""); setLinhasSeleccionadas(new Set()); }}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:border-cyan-300 disabled:opacity-40"
-                  >
-                    Aplicar à selecção
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLinhasSeleccionadas(new Set())}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-500 hover:border-rose-300 hover:text-rose-700"
-                  >
-                    Limpar selecção
-                  </button>
-                </>
-              ) : (
-                <span className="text-slate-400">ou seleccione linhas específicas nos chips abaixo (podem abranger mais do que uma farmácia)</span>
-              )}
             </div>
+          )}
+
+          {resumoConsolidacaoPorFarmacia.length > 0 && (
+            <BarraFornecedorEmMassa
+              idPrefixo="bulkc"
+              todas={linhas}
+              visiveis={consolidadoRowsFiltradas.flatMap((g) => g.farmaciaLinhas)}
+              selecionadas={linhasSeleccionadas}
+              setSelecionadas={setLinhasSeleccionadas}
+              fornecedoresItems={fornecedoresItems}
+              nomeFornecedor={(id) => fornecedores.find((f) => f.id === id)?.nome ?? id}
+              farmacias={resumoConsolidacaoPorFarmacia.map((f) => ({ id: f.farmaciaId, nome: f.farmaciaNome }))}
+              onAplicar={(keys, id) => handleBulkFornecedorChangeConsolidacao(keys, id)}
+              disabled={busy}
+            />
           )}
 
           {consolidadoRowsFiltradas.length === 0 ? (
