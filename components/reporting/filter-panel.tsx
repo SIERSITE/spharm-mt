@@ -144,6 +144,9 @@ export function ToggleRow({
       <span className="text-[13px] text-slate-700">{label}</span>
       <button
         type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={[
           "relative h-5 w-10 rounded-full transition",

@@ -63,6 +63,7 @@ import {
   DEFAULT_INCLUIR_CREDITO,
   DEFAULT_INCLUIR_TRANSFERENCIAS,
 } from "@/lib/reporting/natureza-venda";
+import { ESTADO_INICIAL_MOVIMENTO } from "@/lib/reporting/estado-inicial-movimento";
 
 type Agrupamento =
   | "artigo"
@@ -267,8 +268,8 @@ export function VendasClient({
       // `lib/encomendas/prefill-from-vendas.ts`: a proposta de Encomenda
       // gerada a partir de Vendas herda este universo, logo estes
       // produtos deixam de ficar invisíveis também nesse fluxo.
-      apenasComStock: true,
-      incluirManutencao: false,
+      apenasComStock: ESTADO_INICIAL_MOVIMENTO.apenasComStock,
+      incluirManutencao: ESTADO_INICIAL_MOVIMENTO.incluirManutencao,
       incluirTotais: true,
       modoVisualizacao: "tabela",
       incluirCredito: DEFAULT_INCLUIR_CREDITO,
@@ -885,8 +886,8 @@ export function VendasClient({
     setArtigo("");
     setListaCodigos(null);
     setApenasComVendas(true);
-    setApenasComStock(false);
-    setIncluirManutencao(false);
+    setApenasComStock(ESTADO_INICIAL_MOVIMENTO.apenasComStock);
+    setIncluirManutencao(ESTADO_INICIAL_MOVIMENTO.incluirManutencao);
     setIncluirTotais(true);
     setIncluirCredito(DEFAULT_INCLUIR_CREDITO);
     setIncluirTransferencias(DEFAULT_INCLUIR_TRANSFERENCIAS);

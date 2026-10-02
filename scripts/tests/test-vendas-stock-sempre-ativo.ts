@@ -23,9 +23,12 @@ const src = readFileSync(new URL("../../components/vendas/vendas-client.tsx", im
 
 console.log("\nA · valor inicial do toggle");
 {
-  const m = src.match(/apenasComStock:\s*(true|false)/);
+  // O valor inicial vem da fonte única `ESTADO_INICIAL_MOVIMENTO` (partilhada com a Manutenção em massa e com «Limpar filtros»).
+  const m = src.match(/apenasComStock:\s*(true|false|ESTADO_INICIAL_MOVIMENTO\.apenasComStock)/);
   check(!!m, "A1: encontra o valor inicial de apenasComStock no estado inicial");
-  check(m?.[1] === "true", "A2: nasce ligado (true) — nunca depende do utilizador o activar");
+  const fonteUnica = readFileSync(new URL("../../lib/reporting/estado-inicial-movimento.ts", import.meta.url), "utf8");
+  const nasceLigado = m?.[1] === "true" || (m?.[1] === "ESTADO_INICIAL_MOVIMENTO.apenasComStock" && /apenasComStock:\s*true/.test(fonteUnica));
+  check(nasceLigado, "A2: nasce ligado (true) — nunca depende do utilizador o activar");
 }
 
 console.log("\nB · o toggle continua visível e ligado ao mesmo estado");

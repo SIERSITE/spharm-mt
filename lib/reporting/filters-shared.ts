@@ -225,6 +225,9 @@ export function limparFiltrosPreservandoData(
     apenasSemClassif: false,
     incluirCredito: DEFAULT_INCLUIR_CREDITO,
     incluirTransferencias: DEFAULT_INCLUIR_TRANSFERENCIAS,
+    // Margens/Inventário NÃO têm este controlo (nascem sem ele): repor a «desligado»
+    // é o estado inicial deles. Vendas e Manutenção (que o têm ligado por omissão)
+    // usam `ESTADO_INICIAL_MOVIMENTO` (lib/reporting/estado-inicial-movimento.ts).
     apenasComStock: false,
     incluirManutencao: false,
     // from/to NUNCA aparecem acima — ficam exactamente como vieram, via
