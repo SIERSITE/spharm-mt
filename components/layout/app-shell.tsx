@@ -19,12 +19,14 @@ import {
   Percent,
   KeyRound,
   Wrench,
+  ListChecks,
 } from "lucide-react";
 import { Suspense } from "react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
 import { ArtigoPanel } from "@/components/stock/artigo-panel";
 
 type AppShellProps = {
@@ -75,7 +77,11 @@ const navigation: NavGroup[] = [
   },
   {
     section: "CATÁLOGO",
-    items: [{ label: "Catálogo", href: "/catalogo", icon: BookOpen }],
+    items: [
+      { label: "Catálogo", href: "/catalogo", icon: BookOpen },
+      // Só apresentação: a página e TODAS as server actions repetem o gate de tenant.
+      { label: "Manutenção do catálogo", href: "/catalogo/manutencao", icon: ListChecks, soTenant: TENANT_CATALOGO_MASSA },
+    ],
   },
   {
     section: "CONFIGURAÇÕES",
@@ -118,6 +124,8 @@ type NavItem = {
   icon: typeof BarChart3;
   /** Só visível ao perfil ADMINISTRADOR. Ausente = visível a todos. */
   soAdministrador?: boolean;
+  /** Cosmético: só mostra o item neste tenant (nunca substitui o gate server-side). */
+  soTenant?: string;
 };
 type NavGroup = {
   /** null = item raiz sem rótulo de secção (Dashboard). */
@@ -164,7 +172,7 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const groups = (isPlatformAdmin ? [...navigation, platformGroup] : navigation)
     .map((g) => ({
       ...g,
-      items: g.items.filter((i) => !i.soAdministrador || ehAdministrador),
+      items: g.items.filter((i) => (!i.soAdministrador || ehAdministrador) && (!i.soTenant || utilizador?.tenant === i.soTenant)),
     }))
     // Uma secção que fique sem itens não deve deixar o rótulo órfão.
     .filter((g) => g.items.length > 0);

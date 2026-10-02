@@ -202,7 +202,7 @@ console.log("\n=== a interface não mostra o que a pessoa não pode fazer ===");
     "o perfil vem da sessão, não de uma prop opcional",
   );
   check(
-    /items: g\.items\.filter\(\(i\) => !i\.soAdministrador \|\| ehAdministrador\)/.test(shell),
+    /items: g\.items\.filter\(\(i\) => \(!i\.soAdministrador \|\| ehAdministrador\)/.test(shell),
     "os itens só-administrador são filtrados",
   );
   check(

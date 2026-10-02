@@ -411,10 +411,10 @@ console.log("\n== J. Timeout local e política de retry do agent ==");
 // ═════════════════════════════════════════════════════════════════════
 console.log("\n== P. Trava garantia — Sincronizar agora recusado no servidor, outros tenants inalterados ==");
 {
-  const tenantContext = src("lib/tenant-context.ts");
+  const tenantContext = src("lib/tenant-constants.ts");
   check(
     tenantContext.includes('export const TENANT_SYNC_BLOQUEADO = "garantia"'),
-    "lib/tenant-context.ts declara TENANT_SYNC_BLOQUEADO = \"garantia\" — fonte única para as duas camadas (servidor + UI)",
+    "lib/tenant-constants.ts (re-exportado por tenant-context.ts) declara TENANT_SYNC_BLOQUEADO = \"garantia\" — fonte única para as duas camadas (servidor + UI)",
   );
 
   const syncActions = src("app/stock/sync-actions.ts");

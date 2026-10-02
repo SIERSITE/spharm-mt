@@ -20,39 +20,10 @@
  */
 
 /**
- * Tenant onde "Sincronizar agora" está desligado (2026-09) — garantia está
- * a meio de uma classificação cuidada de fabricantes/grupos laboratoriais,
- * e uma sincronização automática do ERP podia reescrever essa curadoria
- * por cima. Vive aqui (módulo simples, sem "use server") em vez de em
- * `app/stock/sync-actions.ts` porque um ficheiro `"use server"` só pode
- * exportar funções — uma constante lá dentro rebentava o build. Usado por
- * `app/stock/sync-actions.ts` (recusa no servidor) e `app/stock/page.tsx`
- * (esconde o widget) — as DUAS camadas lêem a mesma fonte.
+ * As constantes de tenant vivem em `lib/tenant-constants.ts` (módulo simples, importável
+ * por componentes client). Re-exportadas aqui para os imports existentes.
  */
-export const TENANT_SYNC_BLOQUEADO = "garantia";
-
-/**
- * Tenant onde o filtro de fabricante do catálogo passa a trabalhar sobre
- * o grupo laboratorial pesquisável (ver lib/catalog/resolver-grupo-laboratorial.ts)
- * em vez de só `Fabricante`. Mesmo valor que `TENANT_SYNC_BLOQUEADO` hoje,
- * mas é uma decisão DISTINTA — vive numa constante própria para as duas
- * poderem divergir sem confusão sobre "qual delas isto verifica".
- */
-export const TENANT_GRUPOS_LABORATORIAIS = "garantia";
-
-/**
- * Tenant onde a manutenção em massa do catálogo (fabricante/fornecedor
- * preferencial por produto, com auditoria e reversão) e as regras de
- * ingestão associadas (fabricante nunca reescrito depois de definido,
- * fornecedor preferencial nunca reescrito depois de definido, detecção
- * de divergência entre farmácias) estão disponíveis. Nenhuma outra
- * tenant tem o ecrã de manutenção, nem aceita as acções directas —
- * o comportamento de ingestão nessas tenants mantém-se inalterado.
- * Não é uma "farmácia principal/autoritativa": essa solução foi
- * abandonada — isto só decide QUEM pode ver/usar o ecrã e as regras,
- * nunca qual farmácia manda sobre a outra.
- */
-export const TENANT_CATALOGO_MASSA = "silveira";
+export { TENANT_SYNC_BLOQUEADO, TENANT_GRUPOS_LABORATORIAIS, TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
 
 export async function resolveCurrentTenantSlug(): Promise<string | null> {
   try {
