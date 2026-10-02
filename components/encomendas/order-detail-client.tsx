@@ -27,6 +27,11 @@ import {
 import type { ProductSearchResult } from "@/app/encomendas/nova/search";
 import { useAutosaveEncomenda } from "@/lib/encomendas/use-autosave-encomenda";
 import { useUtilizador } from "@/components/layout/session-provider";
+import {
+  AvisoFornecedorLinha,
+  CLASSE_LINHA_FORNECEDOR_INATIVO,
+  rotuloFornecedorLinha,
+} from "@/components/encomendas/fornecedor-inativo-ui";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 
 type Props = { detail: OrderDetail; fornecedores: { id: string; nome: string }[] };
@@ -85,6 +90,8 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   // de verdade). Em caso de erro, o flash mostra e o router refresh
   // restaura.
   const [linhas, setLinhas] = useState(detail.linhas);
+  // Produtos que a finalização apontou como «a corrigir» (fornecedor inativo) — realçados até serem corrigidos.
+  const [linhasComErro, setLinhasComErro] = useState<Set<string>>(new Set());
 
   // Forma que `SearchableSelect` espera ({id,label}) — derivada uma vez
   // por mudança de `fornecedores`, nunca recalculada a cada tecla.
@@ -182,9 +189,21 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   function handleFornecedorChange(linhaId: string, fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nome = valor ? fornecedores.find((f) => f.id === valor)?.nome ?? null : null;
+    // Só um fornecedor ATIVO (os que o picker oferece) pode ser escolhido; o servidor também o exige.
+    if (valor && nome === null) {
+      setFlash({ type: "err", msg: "Esse fornecedor não está ativo — escolha um fornecedor ativo." });
+      return;
+    }
     setLinhas((prev) =>
-      prev.map((l) => (l.id === linhaId ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l))
+      prev.map((l) => (l.id === linhaId ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome, fornecedorSugeridoInativo: false } : l))
     );
+    setLinhasComErro((prev) => {
+      const l0 = linhas.find((l) => l.id === linhaId);
+      if (!l0 || !prev.has(l0.produtoId)) return prev;
+      const novo = new Set(prev);
+      novo.delete(l0.produtoId);
+      return novo;
+    });
     const line = linhas.find((l) => l.id === linhaId);
     if (line) {
       autosave.marcarSujo(line.produtoId, { fornecedorSugeridoId: valor });
@@ -198,11 +217,22 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   function handleBulkFornecedorChange(fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nome = valor ? fornecedores.find((f) => f.id === valor)?.nome ?? null : null;
+    // A atribuição colectiva só aceita fornecedores ATIVOS — nunca volta a atribuir um inativo.
+    if (valor && nome === null) {
+      setFlash({ type: "err", msg: "Esse fornecedor não está ativo — escolha um fornecedor ativo." });
+      return;
+    }
     setLinhas((prev) =>
       prev.map((l) =>
-        linhasSeleccionadas.has(l.id) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l
+        linhasSeleccionadas.has(l.id) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome, fornecedorSugeridoInativo: false } : l
       )
     );
+    setLinhasComErro((prev) => {
+      if (prev.size === 0) return prev;
+      const novo = new Set(prev);
+      for (const l of linhas) if (linhasSeleccionadas.has(l.id)) novo.delete(l.produtoId);
+      return novo;
+    });
     for (const l of linhas) {
       if (!linhasSeleccionadas.has(l.id)) continue;
       autosave.marcarSujo(l.produtoId, { fornecedorSugeridoId: valor });
@@ -281,7 +311,15 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
           msg: "Esta encomenda foi alterada por outra sessão entretanto — actualiza a página para ver os dados mais recentes antes de finalizar.",
         });
       } else if (!r.ok && "semFornecedor" in r && r.semFornecedor) {
-        setFlash({ type: "err", msg: r.error });
+        // Lista as linhas a corrigir (as que o servidor apontou) e realça-as na tabela.
+        const ids = new Set(r.produtoIdsSemFornecedor ?? []);
+        setLinhasComErro(ids);
+        const alvo = linhas.filter((l) => ids.has(l.produtoId));
+        const nomes = alvo.slice(0, 5).map((l) => l.designacao).join("; ");
+        setFlash({
+          type: "err",
+          msg: alvo.length > 0 ? `${r.error} Linhas a corrigir: ${nomes}${alvo.length > 5 ? ` (+${alvo.length - 5})` : ""}.` : r.error,
+        });
       } else if (!r.ok) {
         setFlash({ type: "err", msg: r.error });
       }
@@ -604,7 +642,11 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
               </thead>
               <tbody>
                 {linhas.map((l, rowIndex) => (
-                  <tr key={l.id} className="border-b border-slate-50">
+                  <tr
+                    key={l.id}
+                    data-testid={l.fornecedorSugeridoInativo || linhasComErro.has(l.produtoId) ? "linha-fornecedor-inativo" : undefined}
+                    className={`border-b border-slate-50 ${editable && (l.fornecedorSugeridoInativo || linhasComErro.has(l.produtoId)) ? CLASSE_LINHA_FORNECEDOR_INATIVO : ""}`}
+                  >
                     {editable && (
                       <td className="px-3 py-2">
                         <input
@@ -709,16 +751,19 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
                     </td>
                     <td className="px-3 py-2">
                       {editable ? (
+                        <>
                         <SearchableSelect
                           items={fornecedoresItems}
                           value={l.fornecedorSugeridoId}
                           onChange={(v) => handleFornecedorChange(l.id, v ?? "")}
                           placeholder="— Sem fornecedor —"
-                          selectedLabel={l.fornecedorSugeridoNome}
+                          selectedLabel={rotuloFornecedorLinha(l)}
                           disabled={busy}
                           emptyVariant="warning"
                           ariaLabel={`Fornecedor de ${l.designacao}`}
                         />
+                        <AvisoFornecedorLinha fornecedorSugeridoId={l.fornecedorSugeridoId} fornecedorSugeridoInativo={l.fornecedorSugeridoInativo} />
+                        </>
                       ) : (
                         <span className="text-slate-600">{l.fornecedorSugeridoNome ?? "—"}</span>
                       )}

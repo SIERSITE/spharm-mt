@@ -29,6 +29,7 @@ import {
 } from "@/app/encomendas/[id]/actions";
 import { useAutosaveEncomenda } from "@/lib/encomendas/use-autosave-encomenda";
 import { AutosaveStatusBadge } from "@/components/encomendas/autosave-status-badge";
+import { rotuloFornecedorLinha, AvisoFornecedorLinha } from "@/components/encomendas/fornecedor-inativo-ui";
 import { useUtilizador } from "@/components/layout/session-provider";
 import {
   serializarPropostaContexto,
@@ -193,31 +194,6 @@ type Props = {
   /** Fornecedores ACTIVOS, para o picker por linha (ver `LinhaEncomenda.fornecedorSugeridoId`). */
   fornecedores: { id: string; nome: string }[];
 };
-
-/** Nome do fornecedor da linha; o histórico fica visível mas assinalado quando o fornecedor está inativo. */
-function rotuloFornecedorLinha(l: Pick<Line, "fornecedorSugeridoNome" | "fornecedorSugeridoInativo">): string | null {
-  if (!l.fornecedorSugeridoNome) return null;
-  return l.fornecedorSugeridoInativo ? `${l.fornecedorSugeridoNome} (inativo)` : l.fornecedorSugeridoNome;
-}
-
-/** Aviso sob o picker: fornecedor inativo a substituir, ou habitual inativo que a proposta não usou. */
-function avisoFornecedorLinha(l: Pick<Line, "fornecedorSugeridoId" | "fornecedorSugeridoInativo" | "habitualInativoNome">) {
-  if (l.fornecedorSugeridoId && l.fornecedorSugeridoInativo) {
-    return (
-      <div data-testid="fornecedor-inativo-aviso" className="mt-0.5 text-[10px] font-medium text-rose-600">
-        Fornecedor inativo — substitua antes de finalizar
-      </div>
-    );
-  }
-  if (!l.fornecedorSugeridoId && l.habitualInativoNome) {
-    return (
-      <div data-testid="habitual-inativo-aviso" className="mt-0.5 text-[10px] font-medium text-amber-700">
-        Habitual inativo: {l.habitualInativoNome} — escolha outro
-      </div>
-    );
-  }
-  return null;
-}
 
 let lineKeyCounter = 0;
 function nextKey(): number {
@@ -2760,7 +2736,7 @@ export function OrderCreateClient({
               emptyVariant="warning"
               ariaLabel={`Fornecedor de ${l.designacao}`}
             />
-            {avisoFornecedorLinha(l)}
+            <AvisoFornecedorLinha fornecedorSugeridoId={l.fornecedorSugeridoId} fornecedorSugeridoInativo={l.fornecedorSugeridoInativo} habitualInativoNome={l.habitualInativoNome} />
           </td>
         )}
         <td className={`${stickyDireitaCls} border-l border-slate-200 bg-white px-2 py-1.5`} style={{ right: rightFinal }}>
@@ -3479,7 +3455,7 @@ export function OrderCreateClient({
                                 emptyVariant="warning"
                                 ariaLabel={`Fornecedor de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
                               />
-                              {avisoFornecedorLinha(l)}
+                              <AvisoFornecedorLinha fornecedorSugeridoId={l.fornecedorSugeridoId} fornecedorSugeridoInativo={l.fornecedorSugeridoInativo} habitualInativoNome={l.habitualInativoNome} />
                             </div>
                             <input
                               type="text"
