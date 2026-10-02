@@ -298,7 +298,7 @@ console.log("\nL2 · Margens/Inventário usam o SearchableMultiSelect do Vendas"
     painel.includes("export function SearchableMultiSelect"),
     "SearchableMultiSelect vive em filter-panel.tsx — o mesmo ficheiro que o Vendas importa",
   );
-  const vendasSrc = readFileSync("components/vendas/vendas-client.tsx", "utf8");
+  const vendasSrc = readFileSync("components/reporting/vendas-filtros.tsx", "utf8");
   check(
     vendasSrc.includes('from "@/components/reporting/filter-panel"') && vendasSrc.includes("SearchableMultiSelect"),
     "…e o Vendas importa exactamente o mesmo símbolo do mesmo ficheiro (não uma cópia local)",

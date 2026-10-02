@@ -180,7 +180,7 @@ async function main(): Promise<void> {
   console.log("\nC · Vendas/Margens/Inventário chamam a MESMA função com os MESMOS argumentos (verificação estática — garante que nunca podem divergir)");
   {
     for (const ficheiro of ["lib/vendas-data.ts", "lib/margens-data.ts", "lib/inventario-data.ts"]) {
-      const conteudo = readFileSync(ficheiro, "utf8");
+      const conteudo = readFileSync(ficheiro === "lib/vendas-data.ts" ? "lib/reporting/prefiltro-produtos.ts" : ficheiro, "utf8"); // Vendas delega no prefiltro partilhado
       check(
         conteudo.includes("resolverProdutoIdsPorLaboratoriosSelecionados(prisma, filters.fabricantes)"),
         `C.${ficheiro}: chama resolverProdutoIdsPorLaboratoriosSelecionados(prisma, filters.fabricantes) — assinatura idêntica`,

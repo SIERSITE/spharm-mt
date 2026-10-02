@@ -86,15 +86,9 @@ import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
-import {
-  restringirPorCatalogo,
-  restringirSemClassificacao,
-  temFiltroCatalogo,
-} from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
-import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
-import { resolverProdutoIdsPorLaboratoriosSelecionados } from "@/lib/reporting/resolver-laboratorio-selecionado";
+import { resolverPrefiltroProdutos } from "@/lib/reporting/prefiltro-produtos";
 import {
   SQL_LINHAS_ELEGIVEIS,
   SQL_QUANTIDADE_ASSINADA,
@@ -289,71 +283,12 @@ export async function getVendasData(
   const farmaciaNameById = new Map(farmacias.map((f) => [f.id, f.nome]));
   if (farmaciaIds.length === 0) return { period, rows: [] };
 
-  // ── Pré-filtros de produto (categorias / fabricantes / semClassif /
-  //    pesquisa). Mesmo padrão de lib/margens-data.ts:189-232. Encolhe
-  //    o universo antes do pivot pesado em VendaMensal.
-  let produtoIdFilter: string[] | null = null;
-  if (filters.categorias && filters.categorias.length > 0) {
-    const classifs = await prisma.classificacao.findMany({
-      where: { tipo: "NIVEL_1", estado: "ATIVO", nome: { in: filters.categorias } },
-      select: { id: true },
-    });
-    const classifIds = classifs.map((c) => c.id);
-    if (classifIds.length === 0) return { period, rows: [] };
-    const produtos = await prisma.produto.findMany({
-      where: { classificacaoNivel1Id: { in: classifIds } },
-      select: { id: true },
-    });
-    produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { period, rows: [] };
-  }
-  if (filters.apenasSemClassif) {
-    // Helper central: o mesmo `where` estava escrito em tres loaders, e
-    // faltava-lhe a mesma condicao nos tres — os codigos internos do ERP.
-    // Ver lib/reporting/catalog-prefilter.ts.
-    produtoIdFilter = await restringirSemClassificacao(prisma, produtoIdFilter);
-    if (produtoIdFilter.length === 0) return { period, rows: [] };
-  }
-  if (filters.fabricantes && filters.fabricantes.length > 0) {
-    // Resolve nomes de fabricante OU de grupo laboratorial (garantia) —
-    // mesmo resolvedor partilhado com Margens/Inventário, nunca duplicado.
-    const idsLaboratorio = await resolverProdutoIdsPorLaboratoriosSelecionados(prisma, filters.fabricantes);
-    if (idsLaboratorio.length === 0) return { period, rows: [] };
-    if (produtoIdFilter) {
-      const idsLaboratorioSet = new Set(idsLaboratorio);
-      produtoIdFilter = produtoIdFilter.filter((id) => idsLaboratorioSet.has(id));
-    } else {
-      produtoIdFilter = idsLaboratorio;
-    }
-    if (produtoIdFilter.length === 0) return { period, rows: [] };
-  }
-  // Lista de CNP importada, subcategoria (N2) e utilizacao —
-  // mesmo padrao, helper partilhado. A lista entra por aqui e nao
-  // por um ramo proprio: e' o que faz os tres relatorios ganharem-na
-  // sem nenhum deles a conhecer. Ver lib/reporting/catalog-prefilter.ts.
-  if (temFiltroCatalogo(filters)) {
-    produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
-    if (produtoIdFilter && produtoIdFilter.length === 0) return { period, rows: [] };
-  }
-  // Pesquisa por CNP (exacto OU parcial) ou designação — MESMA regra que
-  // Margens (`construirCondicaoPesquisa`, lib/reporting/pesquisa-produto.ts).
-  // Antes desta correcção (2026-09), Vendas reimplementava esta pesquisa à
-  // mão com `prisma.produto.findMany` e só encontrava o CNP por igualdade
-  // EXACTA (`cnp: asNumber`) — escrever metade do código não encontrava
-  // nada, o mesmo problema que Margens já tinha corrigido no seu próprio
-  // loader. `$queryRaw` (em vez de `findMany`) é o que permite `cnp::text
-  // LIKE`, que o query-builder do Prisma Client não expõe para um campo Int.
-  if (filters.pesquisa && filters.pesquisa.trim()) {
-    const pesquisaCond = construirCondicaoPesquisa(filters.pesquisa);
-    const produtos = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT p.id FROM "Produto" p
-      WHERE 1 = 1
-        ${pesquisaCond}
-        ${produtoIdFilter ? Prisma.sql`AND p.id = ANY(${produtoIdFilter})` : Prisma.empty}
-    `);
-    produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { period, rows: [] };
-  }
+  // ── Pré-filtros de produto (categorias / sem classificação / fabricantes / lista de CNP /
+  //    subcategorias / utilizações / pesquisa). Regra única, partilhada com a Manutenção em massa
+  //    do catálogo: ver lib/reporting/prefiltro-produtos.ts. Encolhe o universo antes do pivot
+  //    pesado em VendaMensal.
+  const produtoIdFilter: string[] | null = await resolverPrefiltroProdutos(prisma, filters);
+  if (produtoIdFilter && produtoIdFilter.length === 0) return { period, rows: [] };
   // Distribuidor (fornecedorOrigem em PF) — corre via filtro em PF mais
   // abaixo (não pré-encolhe Produto, porque mesmo produto pode ter
   // distribuidor diferente por farmácia).

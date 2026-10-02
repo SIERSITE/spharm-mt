@@ -183,8 +183,9 @@ console.log("\nB · os loaders usam o helper, e só o helper");
 
   for (const f of LOADERS) {
     const t = readFileSync(f, "utf8");
+    const tDelega = f === "lib/vendas-data.ts" ? readFileSync("lib/reporting/prefiltro-produtos.ts", "utf8") : t; // Vendas delega no prefiltro partilhado
     check(
-      t.includes("restringirSemClassificacao(prisma, produtoIdFilter)"),
+      tDelega.includes("restringirSemClassificacao(prisma, produtoIdFilter)"),
       `${f}: delega no helper`,
     );
     // A assinatura da cópia antiga: o `where` com `classificacaoNivel1Id`

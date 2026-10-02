@@ -92,14 +92,21 @@ console.log("\n=== C. Um mecanismo só, importado pelos dois loaders ===");
     reexportadaPorMargens === construirCondicaoPesquisa,
   );
 
-  const vd = src("lib/vendas-data.ts");
+  // (2026-10) O pré-filtro de produto de Vendas foi extraído para
+  // `lib/reporting/prefiltro-produtos.ts` (partilhado com a Manutenção em massa): é lá que
+  // `construirCondicaoPesquisa` é importada e chamada; `vendas-data.ts` delega nesse módulo.
+  const vd = src("lib/reporting/prefiltro-produtos.ts");
   ok(
-    "lib/vendas-data.ts importa construirCondicaoPesquisa de lib/reporting/pesquisa-produto",
+    "o pré-filtro partilhado de Vendas importa construirCondicaoPesquisa de lib/reporting/pesquisa-produto",
     /from ["']@\/lib\/reporting\/pesquisa-produto["']/.test(vd) && vd.includes("construirCondicaoPesquisa"),
   );
   ok(
     "…e chama-a para construir a pesquisa (não reimplementa)",
     vd.includes("construirCondicaoPesquisa(filters.pesquisa)"),
+  );
+  ok(
+    "lib/vendas-data.ts delega nesse pré-filtro partilhado",
+    src("lib/vendas-data.ts").includes("resolverPrefiltroProdutos(prisma, filters)"),
   );
 
   const md = src("lib/margens-data.ts");
@@ -195,7 +202,9 @@ console.log("\n=== F. UI clara e sem contradição client-side ===");
   ok('já não usa o rótulo genérico "Artigo" para este campo', !/label="Artigo"/.test(cv));
   ok(
     "o campo ganhou um ícone de pesquisa (lupa) — mesmo padrão visual já usado no SearchableMultiSelect",
-    /function CompactInput\([\s\S]{0,900}<Search /.test(cv),
+    // (2026-10) `CompactInput` foi extraído de vendas-client para components/reporting/vendas-filtros.tsx
+    // (partilhado com a Manutenção em massa) — a lupa vive agora lá; Vendas continua a usá-lo.
+    /function CompactInput\([\s\S]{0,900}<Search /.test(src("components/reporting/vendas-filtros.tsx")) && cv.includes("CompactInput"),
   );
 
   // O bug de contaminação client-side: já não deve existir NENHUM sítio

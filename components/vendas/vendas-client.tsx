@@ -20,22 +20,18 @@ import {
 } from "@/lib/reporting/filters-shared";
 import { normalizarOpcao } from "@/components/reporting/filter-select";
 import {
-  FilterPill,
   FiltrosToggleButton,
   LimparFiltrosButton,
-  SearchableMultiSelect,
   ToggleRow,
 } from "@/components/reporting/filter-panel";
-import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "@/components/reporting/laboratorio-multi-select";
 import {
   Eye,
   Filter,
-  Search,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
-import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
+import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/reporting/vendas-filtros";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
@@ -66,7 +62,6 @@ import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import {
   DEFAULT_INCLUIR_CREDITO,
   DEFAULT_INCLUIR_TRANSFERENCIAS,
-  rotuloNaturezas,
 } from "@/lib/reporting/natureza-venda";
 
 type Agrupamento =
@@ -178,16 +173,6 @@ function daysInclusive(fromIso: string, toIso: string): number {
   const b = Date.parse(`${toIso}T00:00:00Z`);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 0;
   return Math.floor((b - a) / 86_400_000) + 1;
-}
-
-function toggleValue(
-  value: string,
-  selected: string[],
-  setter: React.Dispatch<React.SetStateAction<string[]>>
-) {
-  setter((prev) =>
-    prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
-  );
 }
 
 // Duplicado de propósito, não importado de `lib/permissions.ts`: aquele
@@ -364,8 +349,6 @@ export function VendasClient({
       : filterOptions.subcategorias
   ).map((s) => s.nome);
   const utilizacoesOpcoes = filterOptions.utilizacoes;
-  const nomePorSlug = new Map(utilizacoesOpcoes.map((u) => [u.slug, u.nome]));
-  const slugPorNome = new Map(utilizacoesOpcoes.map((u) => [u.nome, u.slug]));
 
   const baseFiltered = useMemo(() => {
     return initialRows.filter((row) => {
@@ -1185,198 +1168,40 @@ export function VendasClient({
           </div>
 
           {filtrosAbertos && (
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-              <div className="mb-3">
-                <ImportListaCodigos
-                  lista={listaCodigos}
-                  onChange={setListaCodigos}
-                  disabled={isPending}
-                />
-              </div>
-              <div className="grid gap-3 xl:grid-cols-4">
-                <SearchableMultiSelect
-                  label="Farmácia"
-                  options={farmacias}
-                  selected={farmaciasSelecionadas}
-                  onToggle={(value) =>
-                    toggleValue(value, farmaciasSelecionadas, setFarmaciasSelecionadas)
-                  }
-                />
-                <SearchableMultiSelect
-                  label="Distribuidor"
-                  options={fornecedores}
-                  selected={fornecedoresSelecionados}
-                  onToggle={(value) =>
-                    toggleValue(
-                      value,
-                      fornecedoresSelecionados,
-                      setFornecedoresSelecionados
-                    )
-                  }
-                />
-                {filterOptions.laboratorios && filterOptions.laboratorios.length > 0 ? (
-                  <LaboratorioMultiSelect
-                    laboratorios={filterOptions.laboratorios}
-                    selected={fabricantesSelecionados}
-                    onToggle={(value) =>
-                      toggleValue(
-                        value,
-                        fabricantesSelecionados,
-                        setFabricantesSelecionados
-                      )
-                    }
-                  />
-                ) : (
-                  <SearchableMultiSelect
-                    label="Fabricante"
-                    options={fabricantes}
-                    selected={fabricantesSelecionados}
-                    onToggle={(value) =>
-                      toggleValue(
-                        value,
-                        fabricantesSelecionados,
-                        setFabricantesSelecionados
-                      )
-                    }
-                  />
-                )}
-                <SearchableMultiSelect
-                  label="Categoria"
-                  options={categorias}
-                  selected={categoriasSelecionadas}
-                  onToggle={(value) =>
-                    toggleValue(
-                      value,
-                      categoriasSelecionadas,
-                      setCategoriasSelecionadas
-                    )
-                  }
-                />
-                <SearchableMultiSelect
-                  label="Subcategoria"
-                  options={subcategorias}
-                  selected={subcategoriasSelecionadas}
-                  onToggle={(value) =>
-                    toggleValue(
-                      value,
-                      subcategoriasSelecionadas,
-                      setSubcategoriasSelecionadas
-                    )
-                  }
-                />
-                {/* Viaja em slug, mostra-se pelo nome. */}
-                <SearchableMultiSelect
-                  label="Utilização"
-                  options={utilizacoesOpcoes.map((u) => u.nome)}
-                  selected={utilizacoesSelecionadas.map((s) => nomePorSlug.get(s) ?? s)}
-                  onToggle={(nome) => {
-                    const slug = slugPorNome.get(nome) ?? nome;
-                    setUtilizacoesSelecionadas((prev) =>
-                      prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]
-                    );
-                  }}
-                />
-              </div>
-
-              {/* Os dois interruptores do relatório oficial do SPharm.
-                  Os defaults — crédito ON, transferências OFF — são os
-                  do relatório contra o qual reconciliamos, e estão à
-                  vista para ninguém ter de adivinhar o que está a ver.
-                  Alternar é um filtro na query: a natureza sobrevive à
-                  agregação, portanto não há nada a reprocessar. */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={incluirCredito}
-                    onChange={(e) => setIncluirCredito(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span>Incluir vendas a crédito</span>
-                </label>
-                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={incluirTransferencias}
-                    onChange={(e) => setIncluirTransferencias(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span>Incluir guias de transferência</span>
-                </label>
-                <span className="text-[11px] text-slate-400">
-                  {rotuloNaturezas({ incluirCredito, incluirTransferencias })}
-                </span>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {farmaciasSelecionadas.map((item) => (
-                  <FilterPill
-                    key={`farmacia-${item}`}
-                    label={item}
-                    onRemove={() =>
-                      setFarmaciasSelecionadas((prev) =>
-                        prev.filter((v) => v !== item)
-                      )
-                    }
-                  />
-                ))}
-                {fornecedoresSelecionados.map((item) => (
-                  <FilterPill
-                    key={`fornecedor-${item}`}
-                    label={item}
-                    onRemove={() =>
-                      setFornecedoresSelecionados((prev) =>
-                        prev.filter((v) => v !== item)
-                      )
-                    }
-                  />
-                ))}
-                {fabricantesSelecionados.map((item) => (
-                  <FilterPill
-                    key={`fabricante-${item}`}
-                    label={filterOptions.laboratorios ? rotuloLaboratorioSelecionado(item, filterOptions.laboratorios) : item}
-                    onRemove={() =>
-                      setFabricantesSelecionados((prev) =>
-                        prev.filter((v) => v !== item)
-                      )
-                    }
-                  />
-                ))}
-                {categoriasSelecionadas.map((item) => (
-                  <FilterPill
-                    key={`categoria-${item}`}
-                    label={item}
-                    onRemove={() =>
-                      setCategoriasSelecionadas((prev) =>
-                        prev.filter((v) => v !== item)
-                      )
-                    }
-                  />
-                ))}
-                {subcategoriasSelecionadas.map((item) => (
-                  <FilterPill
-                    key={`subcategoria-${item}`}
-                    label={item}
-                    onRemove={() =>
-                      setSubcategoriasSelecionadas((prev) =>
-                        prev.filter((v) => v !== item)
-                      )
-                    }
-                  />
-                ))}
-                {utilizacoesSelecionadas.map((slug) => (
-                  <FilterPill
-                    key={`utilizacao-${slug}`}
-                    label={nomePorSlug.get(slug) ?? slug}
-                    onRemove={() =>
-                      setUtilizacoesSelecionadas((prev) =>
-                        prev.filter((v) => v !== slug)
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
+            <VendasFiltrosPainel
+              disabled={isPending}
+              opcoes={{
+                farmacias,
+                distribuidores: fornecedores,
+                fabricantes,
+                laboratorios: filterOptions.laboratorios,
+                categorias,
+                subcategorias,
+                utilizacoes: utilizacoesOpcoes,
+              }}
+              valores={{
+                listaCodigos,
+                farmacias: farmaciasSelecionadas,
+                distribuidores: fornecedoresSelecionados,
+                fabricantes: fabricantesSelecionados,
+                categorias: categoriasSelecionadas,
+                subcategorias: subcategoriasSelecionadas,
+                utilizacoes: utilizacoesSelecionadas,
+                incluirCredito,
+                incluirTransferencias,
+              }}
+              set={{
+                listaCodigos: setListaCodigos,
+                farmacias: setFarmaciasSelecionadas,
+                distribuidores: setFornecedoresSelecionados,
+                fabricantes: setFabricantesSelecionados,
+                categorias: setCategoriasSelecionadas,
+                subcategorias: setSubcategoriasSelecionadas,
+                utilizacoes: setUtilizacoesSelecionadas,
+                incluirCredito: setIncluirCredito,
+                incluirTransferencias: setIncluirTransferencias,
+              }}
+            />
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-2.5">
@@ -2064,61 +1889,6 @@ function CompactSelect({
           </option>
         ))}
       </select>
-    </label>
-  );
-}
-
-function CompactInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-[11px] font-medium text-slate-500">{label}</div>
-      {/* Ícone de lupa — o mesmo padrão visual de SearchableMultiSelect,
-          aqui para deixar claro que este é o campo de PESQUISA do
-          relatório (CNP ou descrição), não um filtro qualquer.
-          O utilizador não estava a perceber que era aqui que se
-          escrevia o nome do produto para filtrar. */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
-        />
-      </div>
-    </label>
-  );
-}
-
-function CompactDate({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-[11px] font-medium text-slate-500">{label}</div>
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
-      />
     </label>
   );
 }

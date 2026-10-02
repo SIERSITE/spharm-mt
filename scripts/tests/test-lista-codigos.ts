@@ -439,9 +439,13 @@ check(
 
 // Os três loaders continuam a passar pelo helper partilhado — é o que
 // lhes dá a lista sem nenhum deles a conhecer.
-for (const f of ["lib/inventario-data.ts", "lib/margens-data.ts", "lib/vendas-data.ts"]) {
+for (const f of ["lib/inventario-data.ts", "lib/margens-data.ts"]) {
   check(/restringirPorCatalogo\(prisma, filters, produtoIdFilter\)/.test(src(f)), `${f} usa o pré-filtro partilhado`);
 }
+// Vendas passou a delegar em `lib/reporting/prefiltro-produtos.ts` (partilhado com a Manutenção em massa),
+// que é quem chama o helper de catálogo.
+check(/resolverPrefiltroProdutos\(prisma, filters\)/.test(src("lib/vendas-data.ts")), "lib/vendas-data.ts usa o pré-filtro partilhado");
+check(/restringirPorCatalogo\(prisma, filters, produtoIdFilter\)/.test(src("lib/reporting/prefiltro-produtos.ts")), "…e esse pré-filtro usa o helper de catálogo");
 
 // ─────────────────────────────────────────────────────────────────────
 // H. Limites
