@@ -78,16 +78,16 @@ import {
  * a divisão já feita.
  */
 
+import {
+  exigirFornecedoresAtivos,
+  FornecedorInativoError,
+  LinhasSemFornecedorError,
+} from "@/lib/encomendas/fornecedor-inativo";
+
 type Tx = Prisma.TransactionClient;
 
-export class LinhasSemFornecedorError extends Error {
-  readonly produtoIdsSemFornecedor: string[];
-  constructor(message: string, produtoIdsSemFornecedor: string[]) {
-    super(message);
-    this.name = "LinhasSemFornecedorError";
-    this.produtoIdsSemFornecedor = produtoIdsSemFornecedor;
-  }
-}
+// As classes vivem em fornecedor-inativo.ts (sem dependências circulares com lib/ingest/orders.ts).
+export { LinhasSemFornecedorError, FornecedorInativoError };
 
 /**
  * Lançado quando outra chamada concorrente já mudou o rascunho entretanto
@@ -220,6 +220,8 @@ export async function finalizarNaTransaccao(
   if (!validacao.ok) {
     throw new LinhasSemFornecedorError(validacao.error, validacao.produtoIdsSemFornecedor);
   }
+  // Um fornecedor inativo tem de ser substituído antes de finalizar — nunca se gera documento para ele.
+  await exigirFornecedoresAtivos(tx, draft.linhas);
 
   const grupos = agruparLinhasPorFornecedor(draft.linhas);
   const nomePorId = await nomesFornecedores(

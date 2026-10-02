@@ -139,11 +139,12 @@ async function atribuir(page: Page, p: string, nome: string, botao = "atribuir")
   return r.replace(/\s+/g, " ");
 }
 
-async function gerarFarmacia(page: Page, tenant: string, farmaciaId: string) {
+/** `meses` diferente de 6 muda os parâmetros da proposta → outra chave de idempotência → um rascunho NOVO (em vez de reutilizar o de uma parte anterior). */
+async function gerarFarmacia(page: Page, tenant: string, farmaciaId: string, meses = 6) {
   await page.goto(`${baseFor(tenant)}/encomendas/nova`, { waitUntil: "networkidle" });
   await campoPorLabel(page, "Farmácia", "select").selectOption(farmaciaId);
   const hoje = new Date();
-  await campoPorLabel(page, "Data início", "input").fill(iso(new Date(hoje.getFullYear(), hoje.getMonth() - 6, 1)));
+  await campoPorLabel(page, "Data início", "input").fill(iso(new Date(hoje.getFullYear(), hoje.getMonth() - meses, 1)));
   await campoPorLabel(page, "Data fim", "input").fill(iso(hoje));
   await page.getByRole("button", { name: /Gerar (nova )?proposta/ }).click();
   await page.getByText(nomeP(1)).first().waitFor({ timeout: 30000 });
@@ -465,6 +466,93 @@ async function parteE(page: Page, s: Seed, listaId: string) {
   }
 }
 
+// ═══ Parte G · fornecedores INATIVOS e texto do ERP (sem fallback) ═══════════
+async function parteG(browser: Browser, s: Seed) {
+  console.log("\nG · habitual inativo não é usado; texto do ERP não vira fornecedor; fornecedor inativo num rascunho: nome histórico, não escolhível, finalização exige substituição");
+  const prisma = await prismaE2E();
+  try {
+    const inativo = await prisma.fornecedor.upsert({ where: { nomeNormalizado: "FM E2E INATIVO" }, update: { estado: "INATIVO" }, create: { nomeNormalizado: "FM E2E INATIVO", nome: "FM Fornecedor Inativo", estado: "INATIVO" } });
+    // P21: habitual INATIVO. P22: sem habitual mas o texto do ERP coincide EXACTAMENTE com o nome canónico do Alfa.
+    await prisma.produtoFarmacia.updateMany({ where: { farmaciaId: s.fA, produto: { cnp: cnpDe(21) } }, data: { fornecedorHabitualId: inativo.id } });
+    await prisma.produtoFarmacia.updateMany({ where: { farmaciaId: s.fA, produto: { cnp: cnpDe(22) } }, data: { fornecedorHabitualId: null, fornecedorOrigem: "FM E2E ALFA" } });
+  } finally {
+    await prisma.$disconnect();
+  }
+  const habitaisAntes = await snapshotHabituais();
+  const inicio = new Date(Date.now() - 1000);
+  const ctx = await contexto(browser, "silveira", s.adminId);
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 1700, height: 1200 });
+  aceitarDialogos(page);
+  await gerarFarmacia(page, "silveira", s.fA, 5);
+  const linhaDe = (n: number) => page.locator("tbody tr", { hasText: nomeP(n) }).first();
+  const txt21 = (await linhaDe(21).innerText()).replace(/\s+/g, " ");
+  check(/Habitual inativo: FM Fornecedor Inativo/.test(txt21) && !/Delta|Alfa|Beta|Gama/.test(txt21.replace(nomeP(21), "")), "G1: P21 (habitual INATIVO) NÃO é preenchido — fica «sem fornecedor» com o aviso «Habitual inativo: …»", txt21);
+  check((await page.getByTestId("habitual-inativo-aviso").count()) === 1, "G2: só essa linha tem o aviso de habitual inativo");
+  const txt22 = (await linhaDe(22).innerText()).replace(/\s+/g, " ");
+  check(!/FM Fornecedor Alfa/.test(txt22) && !/inativo/i.test(txt22), "G3: P22 (texto do ERP == nome canónico do Alfa, sem habitual) continua «Sem fornecedor» — NENHUM fallback pelo texto", txt22);
+  const resumo = await page.locator("div", { hasText: /Fornecedores:/ }).last().innerText();
+  check(/40 sem fornecedor/.test(resumo), "G4: continuam 40 linhas sem fornecedor (P21 e P22 incluídas)", resumo.slice(0, 160));
+
+  // um rascunho real com Delta em todas as linhas…
+  await page.getByTestId("bulk-toda").click();
+  await atribuir(page, "bulk", s.forn.W.nome);
+  check(await esperarPor(async () => { const r = await rascunhoDaFarmacia(s.fA, inicio); return !!r && (await contarPorFornecedor(r.id))[s.forn.W.id] === 60; }), "G5: rascunho gravado com Delta em todas as linhas");
+  const lista = (await rascunhoDaFarmacia(s.fA, inicio))!.id;
+  // …e Delta fica INATIVO depois (o rascunho mantém o id; o nome histórico não se perde).
+  const prisma2 = await prismaE2E();
+  try {
+    await prisma2.fornecedor.update({ where: { id: s.forn.W.id }, data: { estado: "INATIVO" } });
+  } finally {
+    await prisma2.$disconnect();
+  }
+  await page.waitForTimeout(1800);
+  await page.goto(`${baseFor("silveira")}/encomendas/nova?rascunho=${lista}`, { waitUntil: "networkidle" });
+  await page.getByText(nomeP(1)).first().waitFor({ timeout: 30000 });
+  const l1 = (await linhaDe(1).innerText()).replace(/\s+/g, " ");
+  check(/FM Fornecedor Delta \(inativo\)/.test(l1), "G6: ao reabrir, a linha mostra o NOME histórico assinalado como inativo («FM Fornecedor Delta (inativo)»)", l1);
+  const visiveis = await page.getByLabel(/^Fornecedor de /).count();
+  check(visiveis > 0 && (await page.getByTestId("fornecedor-inativo-aviso").count()) === visiveis, `G7: TODAS as linhas visíveis (${visiveis}, por página) trazem o aviso «Fornecedor inativo — substitua antes de finalizar»`);
+  // não é possível escolhê-lo de novo
+  await page.getByRole("button", { name: "Fornecedor a atribuir" }).click();
+  const combo = page.getByRole("combobox", { name: "Fornecedor a atribuir" });
+  await combo.fill("Delta");
+  await page.waitForTimeout(300);
+  check((await page.getByRole("listbox").first().getByRole("option").count()) === 0, "G8: o fornecedor inativo NÃO aparece como escolha na barra de atribuição");
+  await combo.fill("");
+  await page.keyboard.press("Escape");
+  // finalizar com inativo → recusado, nada gerado
+  await page.getByRole("button", { name: /Finalizar e enviar para fila/ }).click();
+  const recusa = await page.getByText(/fornecedor inativo/i).first().waitFor({ state: "visible", timeout: 20000 }).then(() => true).catch(() => false);
+  check(recusa, "G9: finalizar com linhas num fornecedor inativo é RECUSADO com mensagem clara");
+  const prisma3 = await prismaE2E();
+  try {
+    const l = await prisma3.listaEncomenda.findUniqueOrThrow({ where: { id: lista } });
+    check(l.estado === "RASCUNHO" && (await prisma3.listaEncomenda.count({ where: { loteOrigemId: lista } })) === 0, "G10: o rascunho continua RASCUNHO e nenhum documento foi gerado");
+    const linhas = await prisma3.linhaEncomenda.findMany({ where: { listaEncomendaId: lista }, select: { fornecedorSugeridoId: true } });
+    check(linhas.every((x) => x.fornecedorSugeridoId === s.forn.W.id), "G11: nenhuma linha foi substituída automaticamente — o nome/id histórico mantém-se");
+  } finally {
+    await prisma3.$disconnect();
+  }
+  // substituir por um fornecedor ativo → finaliza
+  await page.getByTestId("bulk-toda").click();
+  await atribuir(page, "bulk", s.forn.X.nome);
+  check(await esperarPor(async () => (await contarPorFornecedor(lista))[s.forn.X.id] === 60), "G12: substituídas as 60 linhas por um fornecedor ATIVO (Alfa)");
+  await page.getByRole("button", { name: /Finalizar e enviar para fila/ }).click();
+  await page.getByRole("heading", { name: "Encomenda finalizada" }).waitFor({ timeout: 30000 });
+  const prisma4 = await prismaE2E();
+  try {
+    const l = await prisma4.listaEncomenda.findUniqueOrThrow({ where: { id: lista } });
+    check(l.estado === "FINALIZADA", "G13: depois de substituído, a encomenda finaliza");
+    // repõe Delta
+    await prisma4.fornecedor.update({ where: { id: s.forn.W.id }, data: { estado: "ATIVO" } });
+  } finally {
+    await prisma4.$disconnect();
+  }
+  check((await snapshotHabituais()) === habitaisAntes, "G14: nenhum habitual (ProdutoFarmacia) foi alterado em todo o fluxo");
+  await ctx.close();
+}
+
 async function main() {
   const s = await seed();
   const browser = await chromium.launch({
@@ -478,6 +566,7 @@ async function main() {
     await parteF(browser, s);
     await parteE(page, s, listaId);
     await ctx.close();
+    await parteG(browser, s);
   } finally {
     await browser.close();
   }

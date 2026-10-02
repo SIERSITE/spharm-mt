@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
 import { proximoNumeroDocumento } from "@/lib/documentos/numeracao";
+import { exigirFornecedoresAtivos } from "@/lib/encomendas/fornecedor-inativo";
 
 /**
  * lib/ingest/orders.ts
@@ -243,6 +244,7 @@ export async function criarListaNaTransaccao(
   // campo `numero`/`designacaoSnapshot` em prisma/schema.prisma). Ambos
   // decididos ANTES do `create`, porque `designacaoSnapshot` precisa de
   // ir dentro do próprio `create` das linhas (não há um 2.º write).
+  if (input.finalize) await exigirFornecedoresAtivos(tx, input.linhas);
   const numero = input.finalize ? await proximoNumeroDocumento(tx, "ENC") : null;
   const designacaoPorProduto = new Map<string, string>();
   if (input.finalize) {
@@ -471,6 +473,7 @@ export async function finalizeAndQueueOrder(
     if (lista.linhas.length === 0) {
       throw new Error("[ingest/orders] lista sem linhas não é exportável.");
     }
+    await exigirFornecedoresAtivos(tx, lista.linhas);
 
     // Número de documento + snapshot da designação: atribuídos SÓ agora,
     // no momento exacto em que a lista deixa de ser um RASCUNHO editável

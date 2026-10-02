@@ -115,6 +115,10 @@ type Line = {
    */
   fornecedorSugeridoId: string | null;
   fornecedorSugeridoNome: string | null;
+  /** O fornecedor desta linha (já gravado) está INATIVO: mostra-se o nome histórico, assinalado; tem de ser substituído. */
+  fornecedorSugeridoInativo?: boolean;
+  /** A proposta NÃO usou o habitual desta linha porque está inativo (informativo). */
+  habitualInativoNome?: string | null;
   farmaciaNome: string | null;
   farmaciaId: string | null;
   salesQty: number | null;
@@ -189,6 +193,31 @@ type Props = {
   /** Fornecedores ACTIVOS, para o picker por linha (ver `LinhaEncomenda.fornecedorSugeridoId`). */
   fornecedores: { id: string; nome: string }[];
 };
+
+/** Nome do fornecedor da linha; o histórico fica visível mas assinalado quando o fornecedor está inativo. */
+function rotuloFornecedorLinha(l: Pick<Line, "fornecedorSugeridoNome" | "fornecedorSugeridoInativo">): string | null {
+  if (!l.fornecedorSugeridoNome) return null;
+  return l.fornecedorSugeridoInativo ? `${l.fornecedorSugeridoNome} (inativo)` : l.fornecedorSugeridoNome;
+}
+
+/** Aviso sob o picker: fornecedor inativo a substituir, ou habitual inativo que a proposta não usou. */
+function avisoFornecedorLinha(l: Pick<Line, "fornecedorSugeridoId" | "fornecedorSugeridoInativo" | "habitualInativoNome">) {
+  if (l.fornecedorSugeridoId && l.fornecedorSugeridoInativo) {
+    return (
+      <div data-testid="fornecedor-inativo-aviso" className="mt-0.5 text-[10px] font-medium text-rose-600">
+        Fornecedor inativo — substitua antes de finalizar
+      </div>
+    );
+  }
+  if (!l.fornecedorSugeridoId && l.habitualInativoNome) {
+    return (
+      <div data-testid="habitual-inativo-aviso" className="mt-0.5 text-[10px] font-medium text-amber-700">
+        Habitual inativo: {l.habitualInativoNome} — escolha outro
+      </div>
+    );
+  }
+  return null;
+}
 
 let lineKeyCounter = 0;
 function nextKey(): number {
@@ -1247,7 +1276,7 @@ export function OrderCreateClient({
         semFornecedor++;
         continue;
       }
-      const nome = l.fornecedorSugeridoNome ?? fornecedores.find((f) => f.id === l.fornecedorSugeridoId)?.nome ?? "Fornecedor";
+      const nome = rotuloFornecedorLinha(l) ?? fornecedores.find((f) => f.id === l.fornecedorSugeridoId)?.nome ?? "Fornecedor";
       const actual = porFornecedor.get(l.fornecedorSugeridoId) ?? { nome, nLinhas: 0 };
       actual.nLinhas += 1;
       porFornecedor.set(l.fornecedorSugeridoId, actual);
@@ -1763,9 +1792,9 @@ export function OrderCreateClient({
       key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
       fabricante: r.fabricante, fornecedor: r.fornecedor,
       fornecedorSugeridoId: r.fornecedorSugeridoId,
-      // Nome: o da lista de fornecedores activos, ou o que a proposta já traz (habitual INACTIVO, ou resolvido
-      // pelo texto do ERP) — nunca uma linha com fornecedor e sem nome.
+      // Só um habitual ATIVO chega aqui (a proposta nunca sugere um inativo nem o texto do ERP).
       fornecedorSugeridoNome: nomeFornecedorSugerido(r),
+      habitualInativoNome: r.fornecedorHabitualInativoNome ?? null,
       farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
       salesQty: r.salesQty, avgDailySales: r.avgDailySales,
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
@@ -1786,9 +1815,7 @@ export function OrderCreateClient({
 
   function nomeFornecedorSugerido(r: ProposalRow): string | null {
     if (!r.fornecedorSugeridoId) return null;
-    const base = fornecedores.find((f) => f.id === r.fornecedorSugeridoId)?.nome ?? r.fornecedorSugeridoNome ?? null;
-    if (!base) return null;
-    return r.fornecedorSugeridoEstado === "INATIVO" ? `${base} (inativo)` : base;
+    return fornecedores.find((f) => f.id === r.fornecedorSugeridoId)?.nome ?? r.fornecedorSugeridoNome ?? null;
   }
 
   function buildManualLine(p: ProductSearchResult): Line {
@@ -1829,6 +1856,7 @@ export function OrderCreateClient({
       key: nextKey(), produtoId: l.produtoId, cnp: l.cnp, designacao: l.designacao,
       fabricante: l.fabricante, fornecedor: l.fornecedor,
       fornecedorSugeridoId: l.fornecedorSugeridoId, fornecedorSugeridoNome: l.fornecedorSugeridoNome,
+      fornecedorSugeridoInativo: l.fornecedorSugeridoInativo,
       farmaciaNome: farmaciasVisiveis.find((f) => f.id === farmId)?.nome ?? null,
       farmaciaId: farmId,
       salesQty: null, avgDailySales: null, currentStock: l.currentStock,
@@ -2251,7 +2279,7 @@ export function OrderCreateClient({
   function handleFornecedorChange(l: Line, fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nome = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
-    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome });
+    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome, fornecedorSugeridoInativo: false });
     if (mode !== "farmacia") return;
     const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, fornecedorSugeridoId: valor } : x));
     void persistLineChange(l.produtoId, { fornecedorSugeridoId: valor }, linhasActuais);
@@ -2266,7 +2294,7 @@ export function OrderCreateClient({
   function handleBulkFornecedorChange(keys: ReadonlySet<number>, fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nome = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
-    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome } : l)));
+    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nome, fornecedorSugeridoInativo: false } : l)));
     if (mode !== "farmacia") return;
     const linhasActuais = linhas.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor } : l));
     for (const l of linhasActuais) {
@@ -2294,7 +2322,7 @@ export function OrderCreateClient({
   function handleConsolidadoFornecedorChange(l: Line, fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nomeForn = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
-    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn });
+    updateLine(l.key, { fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn, fornecedorSugeridoInativo: false });
     const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, fornecedorSugeridoId: valor } : x));
     persistLineChangeConsolidacao(linhasActuais.find((x) => x.key === l.key) ?? l, linhasActuais);
   }
@@ -2309,7 +2337,7 @@ export function OrderCreateClient({
   function handleBulkFornecedorChangeConsolidacao(keys: ReadonlySet<number>, fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nomeForn = valor ? (fornecedores.find((f) => f.id === valor)?.nome ?? null) : null;
-    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn } : l)));
+    setLinhas((prev) => prev.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor, fornecedorSugeridoNome: nomeForn, fornecedorSugeridoInativo: false } : l)));
     const linhasActuais = linhas.map((l) => (keys.has(l.key) ? { ...l, fornecedorSugeridoId: valor } : l));
     for (const l of linhasActuais) {
       if (!keys.has(l.key)) continue;
@@ -2432,6 +2460,14 @@ export function OrderCreateClient({
         return;
       }
       if (finalize) {
+        const comInativo = validLines.filter((l) => l.fornecedorSugeridoInativo);
+        if (comInativo.length > 0) {
+          setFlash({
+            type: "err",
+            msg: `${comInativo.length} linha(s) apontam para um fornecedor inativo — substitui-o por um fornecedor ativo antes de criar as encomendas.`,
+          });
+          return;
+        }
         const semFornecedor = validLines.filter((l) => l.fornecedorSugeridoId == null);
         if (semFornecedor.length > 0) {
           // Verificação amigável do lado do cliente — a REAL é sempre a
@@ -2719,11 +2755,12 @@ export function OrderCreateClient({
               value={l.fornecedorSugeridoId}
               onChange={(v) => handleFornecedorChange(l, v ?? "")}
               placeholder="— Sem fornecedor —"
-              selectedLabel={l.fornecedorSugeridoNome}
+              selectedLabel={rotuloFornecedorLinha(l)}
               disabled={busy}
               emptyVariant="warning"
               ariaLabel={`Fornecedor de ${l.designacao}`}
             />
+            {avisoFornecedorLinha(l)}
           </td>
         )}
         <td className={`${stickyDireitaCls} border-l border-slate-200 bg-white px-2 py-1.5`} style={{ right: rightFinal }}>
@@ -3437,11 +3474,12 @@ export function OrderCreateClient({
                                 value={l.fornecedorSugeridoId}
                                 onChange={(v) => handleConsolidadoFornecedorChange(l, v ?? "")}
                                 placeholder="— Sem fornecedor —"
-                                selectedLabel={l.fornecedorSugeridoNome}
+                                selectedLabel={rotuloFornecedorLinha(l)}
                                 disabled={busy}
                                 emptyVariant="warning"
                                 ariaLabel={`Fornecedor de ${l.designacao} em ${l.farmaciaNome ?? "farmácia"}`}
                               />
+                              {avisoFornecedorLinha(l)}
                             </div>
                             <input
                               type="text"

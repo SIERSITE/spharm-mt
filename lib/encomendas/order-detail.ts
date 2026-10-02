@@ -22,6 +22,8 @@ export type OrderDetailLine = {
    */
   fornecedorSugeridoId: string | null;
   fornecedorSugeridoNome: string | null;
+  /** O fornecedor desta linha existe mas está INATIVO (nome histórico preservado; a finalização exige substituição). */
+  fornecedorSugeridoInativo?: boolean;
   currentStock: number | null;
   quantidadeSugerida: number | null;
   quantidadeAjustada: number | null;
@@ -169,7 +171,7 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
               fabricante: { select: { nomeNormalizado: true } },
             },
           },
-          fornecedorSugerido: { select: { id: true, nome: true, nomeNormalizado: true } },
+          fornecedorSugerido: { select: { id: true, nome: true, nomeNormalizado: true, estado: true } },
         },
       },
       outbox: {
@@ -270,6 +272,7 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
       fornecedor: stockByProduto.get(l.produtoId)?.fornecedor ?? null,
       fornecedorSugeridoId: l.fornecedorSugeridoId,
       fornecedorSugeridoNome: l.fornecedorSugerido?.nome ?? l.fornecedorSugerido?.nomeNormalizado ?? null,
+      fornecedorSugeridoInativo: !!l.fornecedorSugerido && l.fornecedorSugerido.estado !== "ATIVO",
       currentStock: stockByProduto.get(l.produtoId)?.stock ?? null,
       quantidadeSugerida: toF(l.quantidadeSugerida),
       quantidadeAjustada: toF(l.quantidadeAjustada),

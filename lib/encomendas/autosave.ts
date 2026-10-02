@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { exigirNovoFornecedorAtivo } from "@/lib/encomendas/fornecedor-inativo";
 
 /**
  * lib/encomendas/autosave.ts
@@ -112,6 +113,20 @@ export async function salvarAutosaveEncomenda(
     if (!lista) throw new Error("Encomenda não encontrada.");
     if (lista.estado !== "RASCUNHO") throw new RascunhoNaoEditavelError(lista.estado);
     if (lista.versao !== input.versaoEsperada) throw new ConflitoVersaoError(lista.versao);
+
+    // Fornecedor inativo: não pode ser ESCOLHIDO como novo valor (manter o já gravado é permitido).
+    const pedidosFornecedor = input.linhas.filter((l) => l.fornecedorSugeridoId);
+    if (pedidosFornecedor.length > 0) {
+      const existentes = await tx.linhaEncomenda.findMany({
+        where: { listaEncomendaId: input.listaEncomendaId, produtoId: { in: pedidosFornecedor.map((l) => l.produtoId) } },
+        select: { produtoId: true, fornecedorSugeridoId: true },
+      });
+      await exigirNovoFornecedorAtivo(
+        tx,
+        pedidosFornecedor,
+        new Map(existentes.map((e) => [e.produtoId, e.fornecedorSugeridoId]))
+      );
+    }
 
     for (const linha of input.linhas) {
       await tx.linhaEncomenda.upsert({

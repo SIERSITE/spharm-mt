@@ -347,6 +347,7 @@ export type RascunhoNovaEncomendaLinha = {
   /** Fornecedor DECIDIDO nesta linha — ver comentário em OrderDetailLine.fornecedorSugeridoId. */
   fornecedorSugeridoId: string | null;
   fornecedorSugeridoNome: string | null;
+  fornecedorSugeridoInativo?: boolean;
   currentStock: number | null;
   quantidadeSugerida: number | null;
   quantidadeAjustada: number | null;
@@ -418,6 +419,7 @@ export async function carregarRascunhoNovaEncomendaAction(
         fornecedor: l.fornecedor,
         fornecedorSugeridoId: l.fornecedorSugeridoId,
         fornecedorSugeridoNome: l.fornecedorSugeridoNome,
+        fornecedorSugeridoInativo: l.fornecedorSugeridoInativo,
         currentStock: l.currentStock,
         quantidadeSugerida: l.quantidadeSugerida,
         quantidadeAjustada: l.quantidadeAjustada,

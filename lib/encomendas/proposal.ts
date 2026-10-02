@@ -9,7 +9,6 @@ import {
   type ResumoListaImportada,
 } from "@/lib/encomendas/resumo-lista";
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
-import { resolverFornecedoresPorTextoSoLeitura } from "@/lib/catalogo/resolver-fornecedor";
 
 /**
  * Factor aplicado à cobertura alvo para calcular excedente transferível.
@@ -109,18 +108,18 @@ export type ProposalRow = {
    * que decide é `LinhaEncomenda.fornecedorSugeridoId` (editável por
    * linha/em massa), nunca recalculado a partir daqui ao reabrir. Ver
    * lib/encomendas/finalizar-multi-fornecedor.ts.
+   *
+   * Fonte ÚNICA: `ProdutoFarmacia.fornecedorHabitualId`, e só se o fornecedor estiver ATIVO. Sem habitual
+   * (ou habitual inativo) = `null` («Sem fornecedor»). O texto do ERP (`fornecedor`) NUNCA a preenche.
    */
   fornecedorSugeridoId: string | null;
-  /** Nome legível do fornecedor sugerido (mesmo quando está INACTIVO — nunca fica uma linha com id e sem nome). */
+  /** Nome legível do fornecedor sugerido (só existe quando `fornecedorSugeridoId` existe). */
   fornecedorSugeridoNome?: string | null;
-  /** `INATIVO` = o habitual existe mas está desactivado: a linha mostra-o e assinala-o em vez de o esconder. */
-  fornecedorSugeridoEstado?: "ATIVO" | "INATIVO" | null;
   /**
-   * De onde veio a sugestão: `HABITUAL` = `ProdutoFarmacia.fornecedorHabitualId` (a fonte de verdade);
-   * `TEXTO_ERP` = o habitual não está preenchido mas o NOME do fornecedor habitual no ERP
-   * (`fornecedorOrigem`) corresponde, sem ambiguidade, a um Fornecedor existente. Nunca se inventa nem se grava.
+   * Informativo: o habitual desta linha existe mas está INATIVO, por isso NÃO foi usado. Só serve para a UI
+   * explicar «habitual inativo: X — escolha outro»; nunca é sugestão nem entra em nenhum documento.
    */
-  fornecedorSugeridoFonte?: "HABITUAL" | "TEXTO_ERP" | null;
+  fornecedorHabitualInativoNome?: string | null;
   categoria: string;
   productType: string | null;
   salesQty: number;
@@ -520,10 +519,10 @@ export async function generateOrderProposal(
       designacao: r.designacao,
       fabricante: r.fabricante,
       fornecedor: r.fornecedorOrigem,
-      fornecedorSugeridoId: r.fornecedorHabitualId,
-      fornecedorSugeridoNome: r.fornecedorHabitualId ? r.fornecedorHabitualNome : null,
-      fornecedorSugeridoEstado: r.fornecedorHabitualId ? (r.fornecedorHabitualEstado === "INATIVO" ? "INATIVO" : "ATIVO") : null,
-      fornecedorSugeridoFonte: r.fornecedorHabitualId ? "HABITUAL" : null,
+      // Só um habitual ATIVO é sugerido; um inativo fica de fora (e só é assinalado).
+      fornecedorSugeridoId: r.fornecedorHabitualId && r.fornecedorHabitualEstado === "ATIVO" ? r.fornecedorHabitualId : null,
+      fornecedorSugeridoNome: r.fornecedorHabitualId && r.fornecedorHabitualEstado === "ATIVO" ? r.fornecedorHabitualNome : null,
+      fornecedorHabitualInativoNome: r.fornecedorHabitualId && r.fornecedorHabitualEstado !== "ATIVO" ? r.fornecedorHabitualNome : null,
       categoria,
       productType: r.productType,
       salesQty: Math.round(salesQty * 1000) / 1000,
@@ -549,7 +548,6 @@ export async function generateOrderProposal(
     });
   }
 
-  await preencherFornecedorPeloTextoDoErp(prisma, rows);
 
   return {
     rows,
@@ -573,27 +571,6 @@ export async function generateOrderProposal(
         : {}),
     },
   };
-}
-
-/**
- * Linhas sem `fornecedorHabitualId` mas com o NOME do fornecedor habitual do ERP
- * (`fornecedorOrigem`): resolve-o, SÓ DE LEITURA, para um Fornecedor existente quando a
- * correspondência é inequívoca (nome canónico exacto ou alias único). É evidência — o ERP diz qual é
- * o habitual — e não escreve nada: `ProdutoFarmacia` continua a ser alterado só pela ingestão e pela
- * manutenção de catálogo. Cada farmácia resolve o SEU texto; nunca se copia de uma para a outra.
- */
-async function preencherFornecedorPeloTextoDoErp(prisma: PrismaClient, rows: ProposalRow[]): Promise<void> {
-  const candidatas = rows.filter((r) => !r.fornecedorSugeridoId && r.fornecedor && r.fornecedor.trim());
-  if (candidatas.length === 0) return;
-  const mapa = await resolverFornecedoresPorTextoSoLeitura(prisma, candidatas.map((r) => r.fornecedor!));
-  for (const r of candidatas) {
-    const f = mapa.get(r.fornecedor!.trim());
-    if (!f) continue;
-    r.fornecedorSugeridoId = f.id;
-    r.fornecedorSugeridoNome = f.nome;
-    r.fornecedorSugeridoEstado = f.estado;
-    r.fornecedorSugeridoFonte = "TEXTO_ERP";
-  }
 }
 
 // ─── Proposta de grupo ────────────────────────────────────────────────────────
