@@ -9,10 +9,8 @@
  *   1. `resolveCurrentTenantSlug() === TENANT_CATALOGO_MASSA` — se não,
  *      rejeita de forma limpa (nunca um throw não tratado).
  *   2. Sessão + `can(session, "catalog.write")`.
- *   3. Validação do payload contra os dados REAIS do tenant (farmaciaId
- *      tem de ser uma Farmacia existente; se a sessão for farmácia-scoped
- *      — não ADMINISTRADOR/GESTOR_GRUPO — só pode agir sobre a sua
- *      própria farmácia, via `canAccessFarmaciaSync`).
+ *   3. Validação do payload contra os dados REAIS do tenant (cada farmácia tem
+ *      de existir e estar ao alcance da sessão, via `canAccessFarmaciaSync`).
  *
  * Nunca reutiliza `requirePlatformAdmin()` (app/admin/**) — essa é a
  * consola cross-tenant, sem relação com este ecrã per-tenant.
@@ -22,22 +20,23 @@ import { getPrisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { can, canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { logAudit } from "@/lib/audit";
-import { resolveCurrentTenantSlug, TENANT_CATALOGO_MASSA } from "@/lib/tenant-context";
+import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
+import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
 import {
   aplicarManutencaoMassa,
-  listarIdsCorrespondentes,
   listarProdutosPagina,
   previewOperacao,
   reverterOperacao,
   validarFiltro,
   type DestinoInput,
   type ManutencaoMassaFiltro,
+  type SelecaoManutencao,
   type TipoManutencaoMassa,
 } from "@/lib/catalogo/manutencao-massa";
 
 /**
- * Guarda comum aos 3 primeiros passos. Devolve a sessão + prisma
- * tenant-scoped quando tudo bate certo, ou uma rejeição limpa.
+ * Guarda comum. Devolve a sessão + prisma tenant-scoped quando tudo bate certo,
+ * ou uma rejeição limpa. Corre ANTES de qualquer query.
  */
 async function guardaBase() {
   const tenantSlug = await resolveCurrentTenantSlug();
@@ -52,63 +51,70 @@ async function guardaBase() {
   return { ok: true as const, session, prisma };
 }
 
+type Prisma_ = Awaited<ReturnType<typeof getPrisma>>;
+type Sessao_ = NonNullable<Awaited<ReturnType<typeof getSession>>>;
+
+const MAX_ITENS_LISTA = 5_000;
+const MAX_CNPS = 25_000;
+const MAX_SELECAO = 100_000;
+
 /**
- * Valida que a farmácia pedida existe de facto no tenant e que a sessão
- * pode agir sobre ela (ADMINISTRADOR/GESTOR_GRUPO: qualquer uma;
- * GESTOR_FARMACIA/OPERADOR: só a sua própria).
+ * Valida o pedido contra os dados REAIS do tenant — nunca confia no cliente:
+ *   · filtro (regras puras);
+ *   · tamanhos máximos;
+ *   · cada farmácia existe, está ativa e a sessão tem acesso a ela;
+ *   · fabricantes/fornecedores actuais referidos existem.
  */
-async function validarFarmaciaDoPedido(
-  prisma: Awaited<ReturnType<typeof getPrisma>>,
-  session: NonNullable<Awaited<ReturnType<typeof getSession>>>,
-  farmaciaId: string | null | undefined
-): Promise<string | null> {
-  if (!farmaciaId) return "Farmácia é obrigatória.";
-  if (!canAccessFarmaciaSync(session, farmaciaId)) {
-    return "Sem acesso a esta farmácia.";
-  }
-  const farmacia = await prisma.farmacia.findUnique({ where: { id: farmaciaId }, select: { id: true } });
-  if (!farmacia) return "Farmácia não encontrada.";
-  return null;
-}
-
-/** Valida `filtro.*Id` contra a BD real do tenant (nunca confia cegamente no cliente). */
-async function validarReferenciasDoFiltro(
-  prisma: Awaited<ReturnType<typeof getPrisma>>,
-  tipo: TipoManutencaoMassa,
-  filtro: ManutencaoMassaFiltro
-): Promise<string | null> {
-  if (filtro.classificacaoNivel1Id) {
-    const c = await prisma.classificacao.findUnique({ where: { id: filtro.classificacaoNivel1Id }, select: { id: true, tipo: true } });
-    if (!c || c.tipo !== "NIVEL_1") return "Categoria inválida.";
-  }
-  if (filtro.classificacaoNivel2Id) {
-    const c = await prisma.classificacao.findUnique({ where: { id: filtro.classificacaoNivel2Id }, select: { id: true, tipo: true } });
-    if (!c || c.tipo !== "NIVEL_2") return "Subcategoria inválida.";
-  }
-  if (filtro.fabricanteAtualId) {
-    const f = await prisma.fabricante.findUnique({ where: { id: filtro.fabricanteAtualId }, select: { id: true } });
-    if (!f) return "Fabricante actual inválido.";
-  }
-  if (tipo === "FORNECEDOR" && filtro.fornecedorAtualId) {
-    const f = await prisma.fornecedor.findUnique({ where: { id: filtro.fornecedorAtualId }, select: { id: true } });
-    if (!f) return "Fornecedor actual inválido.";
-  }
-  return null;
-}
-
 async function validarPedido(
-  prisma: Awaited<ReturnType<typeof getPrisma>>,
-  session: NonNullable<Awaited<ReturnType<typeof getSession>>>,
+  prisma: Prisma_,
+  session: Sessao_,
   tipo: TipoManutencaoMassa,
-  filtro: ManutencaoMassaFiltro
+  filtro: ManutencaoMassaFiltro,
+  selecao?: SelecaoManutencao
 ): Promise<string | null> {
   const erroFiltro = validarFiltro(tipo, filtro);
   if (erroFiltro) return erroFiltro;
-  if (tipo === "FORNECEDOR") {
-    const erroFarmacia = await validarFarmaciaDoPedido(prisma, session, filtro.farmaciaId);
-    if (erroFarmacia) return erroFarmacia;
+
+  for (const [nome, v] of Object.entries({
+    farmaciaIds: filtro.farmaciaIds,
+    categorias: filtro.categorias,
+    subcategorias: filtro.subcategorias,
+    utilizacoes: filtro.utilizacoes,
+    distribuidores: filtro.distribuidores,
+    fabricanteAtualIds: filtro.fabricanteAtualIds,
+    fornecedorAtualIds: filtro.fornecedorAtualIds,
+  })) {
+    if (v !== undefined && (!Array.isArray(v) || v.length > MAX_ITENS_LISTA || v.some((x) => typeof x !== "string"))) {
+      return `Filtro inválido (${nome}).`;
+    }
   }
-  return validarReferenciasDoFiltro(prisma, tipo, filtro);
+  if (filtro.cnps !== undefined && (!Array.isArray(filtro.cnps) || filtro.cnps.length > MAX_CNPS || filtro.cnps.some((n) => !Number.isSafeInteger(n)))) {
+    return "Lista de CNP inválida.";
+  }
+  if (selecao) {
+    const n = selecao.modo === "manual" ? selecao.chaves?.length : (selecao.excluidas?.length ?? 0);
+    if (!Array.isArray(selecao.modo === "manual" ? selecao.chaves : selecao.excluidas ?? []) || (n ?? 0) > MAX_SELECAO) {
+      return "Selecção inválida.";
+    }
+  }
+
+  const farmaciaIds = [...new Set(filtro.farmaciaIds ?? [])];
+  if (farmaciaIds.length > 0) {
+    for (const id of farmaciaIds) {
+      if (!canAccessFarmaciaSync(session, id)) return "Sem acesso a uma das farmácias seleccionadas.";
+    }
+    const existentes = await prisma.farmacia.count({ where: { id: { in: farmaciaIds }, estado: "ATIVO" } });
+    if (existentes !== farmaciaIds.length) return "Farmácia não encontrada ou inactiva.";
+  }
+  const fab = [...new Set(filtro.fabricanteAtualIds ?? [])];
+  if (fab.length > 0 && (await prisma.fabricante.count({ where: { id: { in: fab } } })) !== fab.length) {
+    return "Fabricante actual inválido.";
+  }
+  const forn = [...new Set(filtro.fornecedorAtualIds ?? [])];
+  if (forn.length > 0 && (await prisma.fornecedor.count({ where: { id: { in: forn } } })) !== forn.length) {
+    return "Fornecedor habitual actual inválido.";
+  }
+  return null;
 }
 
 // ─── Consulta / grelha ──────────────────────────────────────────────────────
@@ -125,7 +131,7 @@ export async function listarProdutosManutencaoMassaAction(input: ListarProdutosI
   if (!guarda.ok) return guarda;
   const { session, prisma } = guarda;
 
-  const erro = await validarPedido(prisma, session!, input.tipo, input.filtro);
+  const erro = await validarPedido(prisma, session, input.tipo, input.filtro);
   if (erro) return { ok: false as const, error: erro };
 
   try {
@@ -139,28 +145,13 @@ export async function listarProdutosManutencaoMassaAction(input: ListarProdutosI
   }
 }
 
-export async function listarIdsCorrespondentesAction(input: { tipo: TipoManutencaoMassa; filtro: ManutencaoMassaFiltro }) {
-  const guarda = await guardaBase();
-  if (!guarda.ok) return guarda;
-  const { session, prisma } = guarda;
-
-  const erro = await validarPedido(prisma, session!, input.tipo, input.filtro);
-  if (erro) return { ok: false as const, error: erro };
-
-  try {
-    const ids = await listarIdsCorrespondentes(prisma, input.tipo, input.filtro);
-    return { ok: true as const, ids, total: ids.length };
-  } catch (err) {
-    return { ok: false as const, error: err instanceof Error ? err.message : "Erro ao resolver selecção." };
-  }
-}
-
 // ─── Preview ────────────────────────────────────────────────────────────────
 
 export type PreviewManutencaoMassaInput = {
   tipo: TipoManutencaoMassa;
   filtro: ManutencaoMassaFiltro;
   destino: DestinoInput;
+  selecao?: SelecaoManutencao;
 };
 
 async function previewAction(input: PreviewManutencaoMassaInput) {
@@ -168,10 +159,14 @@ async function previewAction(input: PreviewManutencaoMassaInput) {
   if (!guarda.ok) return guarda;
   const { session, prisma } = guarda;
 
-  const erro = await validarPedido(prisma, session!, input.tipo, input.filtro);
+  const erro = await validarPedido(prisma, session, input.tipo, input.filtro, input.selecao);
   if (erro) return { ok: false as const, error: erro };
 
-  return previewOperacao(prisma, input.tipo, input.filtro, input.destino);
+  try {
+    return await previewOperacao(prisma, input.tipo, input.filtro, input.destino, input.selecao);
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Erro ao pré-visualizar." };
+  }
 }
 
 /** Preview para o tipo FABRICANTE. */
@@ -179,7 +174,7 @@ export async function previewManutencaoFabricanteAction(input: Omit<PreviewManut
   return previewAction({ ...input, tipo: "FABRICANTE" });
 }
 
-/** Preview para o tipo FORNECEDOR (farmácia obrigatória em `filtro.farmaciaId`). */
+/** Preview para o tipo FORNECEDOR (≥1 farmácia em `filtro.farmaciaIds`). */
 export async function previewManutencaoFornecedorAction(input: Omit<PreviewManutencaoMassaInput, "tipo">) {
   return previewAction({ ...input, tipo: "FORNECEDOR" });
 }
@@ -190,7 +185,9 @@ export type AplicarManutencaoMassaActionInput = {
   tipo: TipoManutencaoMassa;
   filtro: ManutencaoMassaFiltro;
   destino: DestinoInput;
-  produtoIdsSubconjunto?: string[];
+  selecao?: SelecaoManutencao;
+  /** Snapshot devolvido pelo preview que o utilizador confirmou. */
+  snapshotHash: string;
   motivo?: string | null;
 };
 
@@ -199,44 +196,48 @@ async function aplicarAction(input: AplicarManutencaoMassaActionInput) {
   if (!guarda.ok) return guarda;
   const { session, prisma } = guarda;
 
-  const erro = await validarPedido(prisma, session!, input.tipo, input.filtro);
+  const erro = await validarPedido(prisma, session, input.tipo, input.filtro, input.selecao);
   if (erro) return { ok: false as const, error: erro };
 
   const resultado = await aplicarManutencaoMassa(prisma, {
     tipo: input.tipo,
     filtro: input.filtro,
     destino: input.destino,
-    produtoIdsSubconjunto: input.produtoIdsSubconjunto,
-    utilizadorId: session!.sub,
+    selecao: input.selecao,
+    snapshotHash: input.snapshotHash,
+    utilizadorId: session.sub,
     motivo: input.motivo,
   });
 
   if (resultado.ok) {
-    await logAudit({
-      actorId: session!.sub,
-      action: "catalogo.manutencao_massa_aplicada",
-      entity: "CatalogoManutencaoOperacao",
-      entityId: resultado.operacaoId,
-      meta: {
-        tipo: input.tipo,
-        farmaciaId: input.tipo === "FORNECEDOR" ? input.filtro.farmaciaId : null,
-        quantidadeSolicitada: resultado.quantidadeSolicitada,
-        quantidadeAlterada: resultado.quantidadeAlterada,
-        quantidadeIgnorada: resultado.quantidadeIgnorada,
-      },
-    });
+    for (const op of resultado.operacoes) {
+      await logAudit({
+        actorId: session.sub,
+        action: "catalogo.manutencao_massa_aplicada",
+        entity: "CatalogoManutencaoOperacao",
+        entityId: op.operacaoId,
+        meta: {
+          tipo: input.tipo,
+          farmaciaId: op.farmaciaId,
+          quantidadeSolicitada: op.quantidadeSolicitada,
+          quantidadeAlterada: op.quantidadeAlterada,
+          quantidadeIgnorada: op.quantidadeIgnorada,
+          snapshotHash: input.snapshotHash,
+        },
+      });
+    }
     revalidatePath("/catalogo/manutencao");
   }
 
   return resultado;
 }
 
-/** Aplica manutenção em massa de FABRICANTE (`filtro.farmaciaId` é ignorado). */
+/** Aplica manutenção em massa de FABRICANTE. */
 export async function aplicarManutencaoFabricanteAction(input: Omit<AplicarManutencaoMassaActionInput, "tipo">) {
   return aplicarAction({ ...input, tipo: "FABRICANTE" });
 }
 
-/** Aplica manutenção em massa de FORNECEDOR (`filtro.farmaciaId` obrigatório). */
+/** Aplica manutenção em massa de FORNECEDOR habitual (≥1 farmácia em `filtro.farmaciaIds`). */
 export async function aplicarManutencaoFornecedorAction(input: Omit<AplicarManutencaoMassaActionInput, "tipo">) {
   return aplicarAction({ ...input, tipo: "FORNECEDOR" });
 }
@@ -331,55 +332,6 @@ export async function reverterOperacaoAction(input: { operacaoId: string; motivo
 }
 
 // ─── Lookups para a UI (selectors/autocomplete) ────────────────────────────
-
-export async function listarFarmaciasAction() {
-  const guarda = await guardaBase();
-  if (!guarda.ok) return guarda;
-  const { session, prisma } = guarda;
-
-  const isGrupo = session!.perfil === "ADMINISTRADOR" || session!.perfil === "GESTOR_GRUPO";
-  const farmacias = await prisma.farmacia.findMany({
-    where: { estado: "ATIVO", ...(isGrupo ? {} : { id: session!.farmaciaId ?? "__nenhuma__" }) },
-    select: { id: true, nome: true },
-    orderBy: { nome: "asc" },
-  });
-  return { ok: true as const, farmacias };
-}
-
-export async function listarClassificacoesAction(nivel1Id?: string | null) {
-  const guarda = await guardaBase();
-  if (!guarda.ok) return guarda;
-  const { prisma } = guarda;
-
-  if (nivel1Id) {
-    const n2 = await prisma.classificacao.findMany({
-      where: { tipo: "NIVEL_2", estado: "ATIVO", classificacaoPaiId: nivel1Id },
-      select: { id: true, nome: true },
-      orderBy: { nome: "asc" },
-    });
-    return { ok: true as const, classificacoes: n2 };
-  }
-  const n1 = await prisma.classificacao.findMany({
-    where: { tipo: "NIVEL_1", estado: "ATIVO" },
-    select: { id: true, nome: true },
-    orderBy: { nome: "asc" },
-  });
-  return { ok: true as const, classificacoes: n1 };
-}
-
-export async function listarTiposArtigoAction() {
-  const guarda = await guardaBase();
-  if (!guarda.ok) return guarda;
-  const { prisma } = guarda;
-
-  const rows = await prisma.produto.findMany({
-    where: { tipoArtigo: { not: null } },
-    select: { tipoArtigo: true },
-    distinct: ["tipoArtigo"],
-    orderBy: { tipoArtigo: "asc" },
-  });
-  return { ok: true as const, tipos: rows.map((r) => r.tipoArtigo!).filter(Boolean) };
-}
 
 export async function pesquisarFabricantesAction(query: string) {
   const guarda = await guardaBase();

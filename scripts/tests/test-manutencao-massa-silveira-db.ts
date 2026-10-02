@@ -150,7 +150,17 @@ async function main() {
       previewOperacao,
       aplicarManutencaoMassa,
       reverterOperacao,
+      resolverAlvos,
+      aplicarSelecao,
+      hashSnapshot,
     } = await import("../../lib/catalogo/manutencao-massa");
+
+    // O apply exige o snapshot do preview; aqui o hash é calculado a partir do conjunto real (o que o preview devolveria),
+    // para os cenários de falha continuarem a exercitar o apply directamente.
+    const aplicar = async (p: typeof prisma, pedido: Omit<Parameters<typeof aplicarManutencaoMassa>[1], "snapshotHash">) => {
+      const alvos = aplicarSelecao(await resolverAlvos(prisma, pedido.tipo, pedido.filtro), pedido.selecao);
+      return aplicarManutencaoMassa(p, { ...pedido, snapshotHash: hashSnapshot(pedido.tipo, pedido.filtro, alvos) });
+    };
 
     const utilizador = await prisma.utilizador.create({
       data: { email: "teste@silveira.local", nome: "Utilizador de Teste", perfil: "ADMINISTRADOR" },
@@ -172,7 +182,7 @@ async function main() {
       const preview = await previewOperacao(
         prisma,
         "FABRICANTE",
-        { designacao: "A-Produto" },
+        { pesquisa: "A-Produto" },
         { modo: "existente", id: fabA.id },
       );
       check(preview.ok === true, "A1: preview devolve ok");
@@ -194,9 +204,9 @@ async function main() {
       const alvo = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "B-Alvo", fabricanteId: fabOrigem.id } });
       const foraDoFiltro = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "B-Fora", fabricanteId: fabOrigem.id } });
 
-      const resultado = await aplicarManutencaoMassa(prisma, {
+      const resultado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: alvo.cnp },
+        filtro: { cnps: [alvo.cnp] },
         destino: { modo: "existente", id: fabDestino.id },
         utilizadorId: utilizador.id,
       });
@@ -235,9 +245,9 @@ async function main() {
       await prisma.produtoFarmacia.create({ data: { produtoId: produto.id, farmaciaId: farm1.id, fornecedorHabitualId: null } });
       await prisma.produtoFarmacia.create({ data: { produtoId: produto.id, farmaciaId: farm2.id, fornecedorHabitualId: forY.id } });
 
-      const resultado = await aplicarManutencaoMassa(prisma, {
+      const resultado = await aplicar(prisma, {
         tipo: "FORNECEDOR",
-        filtro: { farmaciaId: farm1.id, semFornecedor: true },
+        filtro: { farmaciaIds: [farm1.id], semFornecedor: true },
         destino: { modo: "existente", id: forX.id },
         utilizadorId: utilizador.id,
       });
@@ -258,9 +268,9 @@ async function main() {
     {
       const totalOperacoesAntes = await prisma.catalogoManutencaoOperacao.count();
       const fabDestino = await prisma.fabricante.create({ data: { nomeNormalizado: "D-FABRICANTE-DESTINO", estado: "ATIVO" } });
-      const resultado = await aplicarManutencaoMassa(prisma, {
+      const resultado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: 999999999 }, // CNP que não existe
+        filtro: { cnps: [999999999] }, // CNP que não existe
         destino: { modo: "existente", id: fabDestino.id },
         utilizadorId: utilizador.id,
       });
@@ -305,9 +315,9 @@ async function main() {
       const p1 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "F-Elegivel", fabricanteId: fabOrigem.id } });
       const p2 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "F-Alterado-Depois", fabricanteId: fabOrigem.id } });
 
-      const aplicado = await aplicarManutencaoMassa(prisma, {
+      const aplicado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { designacao: "F-" },
+        filtro: { pesquisa: "F-" },
         destino: { modo: "existente", id: fabDestino.id },
         utilizadorId: utilizador.id,
       });
@@ -348,9 +358,9 @@ async function main() {
       const produto = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "G-Produto", fabricanteId: null } });
       const nomeNovo = "G-Fabricante Completamente Novo Lda";
 
-      const r1 = await aplicarManutencaoMassa(prisma, {
+      const r1 = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "novo", nome: nomeNovo },
         utilizadorId: utilizador.id,
       });
@@ -360,9 +370,9 @@ async function main() {
       // (simula reaplicar a mesma operação, ex.: engano do utilizador).
       await prisma.produto.update({ where: { id: produto.id }, data: { fabricanteId: null } });
 
-      const r2 = await aplicarManutencaoMassa(prisma, {
+      const r2 = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "novo", nome: nomeNovo },
         utilizadorId: utilizador.id,
       });
@@ -382,9 +392,9 @@ async function main() {
       const operacoesAntes = await prisma.catalogoManutencaoOperacao.count();
 
       const prismaComFalha = comFalhaForcadaAoCriarAuditoria(prisma);
-      const resultado = await aplicarManutencaoMassa(prismaComFalha, {
+      const resultado = await aplicar(prismaComFalha, {
         tipo: "FABRICANTE",
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "novo", nome: nomeNovo },
         utilizadorId: utilizador.id,
       });
@@ -408,15 +418,15 @@ async function main() {
       const canonico = "I-FABRICANTE CONCORRENTE LDA";
 
       const [r1, r2] = await Promise.all([
-        aplicarManutencaoMassa(prisma, {
+        aplicar(prisma, {
           tipo: "FABRICANTE",
-          filtro: { cnp: p1.cnp },
+          filtro: { cnps: [p1.cnp] },
           destino: { modo: "novo", nome: nomeNovo },
           utilizadorId: utilizador.id,
         }),
-        aplicarManutencaoMassa(prisma, {
+        aplicar(prisma, {
           tipo: "FABRICANTE",
-          filtro: { cnp: p2.cnp },
+          filtro: { cnps: [p2.cnp] },
           destino: { modo: "novo", nome: nomeNovo },
           utilizadorId: utilizador.id,
         }),
@@ -460,7 +470,7 @@ async function main() {
       const preview = await previewOperacao(
         prisma,
         "FABRICANTE",
-        { cnp: produto.cnp },
+        { cnps: [produto.cnp] },
         { modo: "existente", id: fabDestino.id },
       );
       check(preview.ok === true && preview.destino.status === "existente", "J1: preview resolve o destino como válido/existente");
@@ -469,9 +479,9 @@ async function main() {
       // fabricante depois do preview, antes de o pedido de apply chegar.
       await prisma.fabricante.update({ where: { id: fabDestino.id }, data: { estado: "INATIVO" } });
 
-      const resultado = await aplicarManutencaoMassa(prisma, {
+      const resultado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "existente", id: fabDestino.id },
         utilizadorId: utilizador.id,
       });
@@ -488,9 +498,9 @@ async function main() {
       const produto = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "K-Produto", fabricanteId: null } });
       const idForjado = "clforjadoidquenaoexisteabc12";
 
-      const resultado = await aplicarManutencaoMassa(prisma, {
+      const resultado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "existente", id: idForjado },
         utilizadorId: utilizador.id,
       });
@@ -510,12 +520,12 @@ async function main() {
 
       const pedido = {
         tipo: "FABRICANTE" as const,
-        filtro: { cnp: produto.cnp },
+        filtro: { cnps: [produto.cnp] },
         destino: { modo: "existente" as const, id: fabDestino.id },
         utilizadorId: utilizador.id,
       };
 
-      const r1 = await aplicarManutencaoMassa(prisma, pedido);
+      const r1 = await aplicar(prisma, pedido);
       check(r1.ok === true, "L1: primeira aplicação bem-sucedida");
       if (r1.ok) {
         check(r1.quantidadeAlterada === 1 && r1.quantidadeIgnorada === 0, "L2: primeira aplicação alterou o produto");
@@ -523,7 +533,7 @@ async function main() {
 
       // Mesmo pedido, sem alterar nada entretanto — ex.: duplo-clique ou
       // retry de rede no mesmo formulário já submetido.
-      const r2 = await aplicarManutencaoMassa(prisma, pedido);
+      const r2 = await aplicar(prisma, pedido);
       check(r2.ok === true, "L3: segunda aplicação idêntica também é bem-sucedida (não bloqueia o retry)");
       if (r2.ok) {
         check(

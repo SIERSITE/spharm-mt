@@ -160,6 +160,14 @@ function gerarMeta(): ProdutoMeta[] {
 const META = gerarMeta();
 const produtoDivergente = META.find((m) => m.i === IDX_DIVERGENTE)!;
 
+/** Produtos (por índice) com movimento de vendas na janela — 1..10 na Norte e 6..15 na Sul (união 1..15). */
+const PRODUTOS_COM_VENDAS = Array.from({ length: 15 }, (_, k) => k + 1);
+const _hoje = new Date();
+const _m1 = new Date(_hoje.getFullYear(), _hoje.getMonth() - 2, 1);
+const _m2 = new Date(_hoje.getFullYear(), _hoje.getMonth() - 1, 1);
+const _iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const JANELA_VENDAS = { from: _iso(_m1), to: _iso(new Date(_m2.getFullYear(), _m2.getMonth() + 1, 0)) };
+
 type SeedResult = {
   adminUserId: string;
   farmaciaF1Id: string;
@@ -226,6 +234,8 @@ async function seed(databaseUrl: string): Promise<SeedResult> {
       update: {}, create: { nome: "MM E2E Escovas", tipo: "NIVEL_2", classificacaoPaiId: higiene.id },
     });
 
+    const utilTosse = await prisma.utilizacao.upsert({ where: { slug: "mm-e2e-tosse" }, update: {}, create: { slug: "mm-e2e-tosse", nome: "MM E2E Tosse" } });
+    await prisma.vendaMensal.deleteMany({ where: { farmaciaId: { in: [f1.id, f2.id] } } });
     const produtoIdByIndex = new Map<number, string>();
     for (const m of META) {
       const fabricanteId = m.fabricante === "ALFA" ? labAlfa.id : m.fabricante === "BETA" ? labBeta.id : null;
@@ -249,14 +259,30 @@ async function seed(databaseUrl: string): Promise<SeedResult> {
         },
       });
       produtoIdByIndex.set(m.i, p.id);
+      if (m.i % 10 === 0) {
+        await prisma.produtoUtilizacao.upsert({
+          where: { produtoId_utilizacaoId: { produtoId: p.id, utilizacaoId: utilTosse.id } },
+          update: {}, create: { produtoId: p.id, utilizacaoId: utilTosse.id, fonte: "E2E" },
+        });
+      }
+      for (const [farmaciaId, ate] of [[f1.id, 10], [f2.id, 15]] as const) {
+        const desde = farmaciaId === f1.id ? 1 : 6;
+        if (m.i >= desde && m.i <= ate) {
+          for (const mes of [_m1, _m2]) {
+            await prisma.vendaMensal.create({
+              data: { farmaciaId, produtoId: p.id, ano: mes.getFullYear(), mes: mes.getMonth() + 1, quantidade: 10, valorTotal: 100, naturezaVenda: "NORMAL" },
+            });
+          }
+        }
+      }
 
       const fabricanteErpF1 = m.i === IDX_DIVERGENTE ? "MM E2E LAB ALFA" : (m.fabricante ? `MM E2E LAB ${m.fabricante}` : null);
       const fabricanteErpF2 = m.i === IDX_DIVERGENTE ? "MM E2E LAB BETA" : (m.fabricante ? `MM E2E LAB ${m.fabricante}` : null);
 
       await prisma.produtoFarmacia.upsert({
         where: { produtoId_farmaciaId: { produtoId: p.id, farmaciaId: f1.id } },
-        update: { fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1 },
-        create: { produtoId: p.id, farmaciaId: f1.id, fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1 },
+        update: { fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null },
+        create: { produtoId: p.id, farmaciaId: f1.id, fornecedorHabitualId: m.f1TemFornecedor ? fornUm.id : null, fabricanteErpAtual: fabricanteErpF1, fornecedorOrigem: m.i % 2 === 0 ? "MM E2E DIST UM" : null },
       });
       await prisma.produtoFarmacia.upsert({
         where: { produtoId_farmaciaId: { produtoId: p.id, farmaciaId: f2.id } },
@@ -300,377 +326,379 @@ async function contextoParaTenant(browser: import("playwright").Browser, tenant:
   return ctx;
 }
 
-// ─── Locators auxiliares — os campos do formulário de filtro não têm
-// `htmlFor`/`id` a ligar `<label>` ao controlo (confirmado por leitura de
-// `manutencao-massa-client.tsx`): label e input/select são irmãos dentro do
-// mesmo <div>, nunca um `<label>` a envolver o controlo. `getByLabel` não
-// serve aqui — XPath directo ao irmão seguinte é exacto e sem ambiguidade. ──
-function campoPorLabel(page: Page, label: string, tag: "input" | "select") {
-  return page.locator(`xpath=//label[normalize-space(text())="${label}"]/following-sibling::${tag}`);
+// ─── Locators auxiliares ────────────────────────────────────────────────────
+// Os filtros são os COMPONENTES DE VENDAS (SearchableMultiSelect, ToggleRow, …):
+// cada multi-selecção tem um campo «Pesquisar <label>...» e botões-opção.
+function blocoMulti(page: Page, label: string) {
+  return page.locator("div[class*=\"rounded-xl\"]", { has: page.locator(`input[placeholder="Pesquisar ${label.toLowerCase()}..."]`) }).first();
 }
-
+async function escolherMulti(page: Page, label: string, opcao: string) {
+  const bloco = blocoMulti(page, label);
+  await bloco.locator("input").fill(opcao);
+  await bloco.getByRole("button", { name: opcao, exact: true }).click();
+  await bloco.locator("input").fill("");
+  await page.waitForTimeout(450);
+}
+async function opcoesMulti(page: Page, label: string): Promise<string[]> {
+  const bloco = blocoMulti(page, label);
+  const textos = await bloco.locator("button").allInnerTexts();
+  return textos.map((t) => t.replace(/✓/g, "").trim()).filter(Boolean).sort();
+}
+async function abrirFiltros(page: Page) {
+  const painel = page.locator('input[placeholder="Pesquisar farmácia..."]');
+  if (!(await painel.count())) await page.getByRole("button", { name: /^Filtros/ }).click();
+  await painel.first().waitFor({ state: "visible" });
+}
+async function limparFiltros(page: Page) {
+  await page.getByRole("button", { name: /Limpar filtros/ }).click();
+  await page.waitForTimeout(500);
+}
 async function selecionarAba(page: Page, aba: "Fabricantes" | "Fornecedores") {
   await page.getByRole("button", { name: aba, exact: true }).click();
+  await page.waitForTimeout(400);
+}
+async function totalVisivel(page: Page): Promise<number> {
+  const txt = await page.getByTestId("contagem-resultados").innerText();
+  const m = txt.match(/^(\d+)/);
+  return m ? Number(m[1]) : NaN;
+}
+async function contagemSeleccionada(page: Page): Promise<number> {
+  return Number((await page.getByTestId("contagem-selecionados").innerText()).trim());
+}
+async function esperarTotal(page: Page, esperado: number, ms = 8000): Promise<number> {
+  const fim = Date.now() + ms;
+  let v = NaN;
+  while (Date.now() < fim) {
+    v = await totalVisivel(page).catch(() => NaN);
+    if (v === esperado) return v;
+    await page.waitForTimeout(200);
+  }
+  return v;
+}
+async function escolherDestino(page: Page, tipo: "FABRICANTE" | "FORNECEDOR", nome: string) {
+  const campo = page.getByLabel(tipo === "FABRICANTE" ? "Destino: fabricante" : "Destino: fornecedor habitual");
+  await campo.fill(nome);
+  await page.getByTestId("destino-picker").getByRole("button", { name: nome, exact: true }).click();
+  await page.waitForTimeout(300);
+}
+async function lerDd(page: Page, testid: string): Promise<string> {
+  return (await page.getByTestId(testid).innerText()).trim();
 }
 
 // ─── Passo 1 — abrir o ecrã como silveira ────────────────────────────────────
 async function passo1(ctx: BrowserContext): Promise<Page> {
   console.log("\nPasso 1 · abrir /catalogo/manutencao como silveira");
   const page = await ctx.newPage();
-  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.setViewportSize({ width: 1700, height: 1100 });
   await page.goto(`${baseFor("silveira")}/catalogo/manutencao`, { waitUntil: "networkidle" });
   check(await page.getByRole("heading", { name: "Manutenção em massa do catálogo" }).isVisible(), "Passo 1: cabeçalho da página visível");
   check(await page.getByRole("button", { name: "Fabricantes", exact: true }).isVisible(), "Passo 1: aba Fabricantes visível");
   check(await page.getByRole("button", { name: "Fornecedores", exact: true }).isVisible(), "Passo 1: aba Fornecedores visível");
+  check(await page.getByPlaceholder("Pesquisar por CNP ou descrição...").isVisible(), "Passo 1: a barra de filtros é a de Vendas (campo «Produto», datas, «Filtros», «Limpar filtros»)");
+  check((await page.getByLabel("Data início").count()) === 1 && (await page.getByRole("button", { name: /^Filtros/ }).count()) === 1, "Passo 1: datas e botão «Filtros» presentes");
   return page;
 }
 
-// ─── Passo 2 — filtros, várias combinações, contagens exactas ───────────────
-async function passo2(page: Page, seedData: SeedResult) {
-  console.log("\nPasso 2 · filtros (Fabricantes) — contagens exactas contra o que foi semeado");
+// ─── Passo 2 — as opções são as MESMAS de Vendas ─────────────────────────────
+async function passo2(ctx: BrowserContext, page: Page) {
+  console.log("\nPasso 2 · opções e comportamento iguais aos de Vendas (mesmo componente, mesmas opções)");
+  await abrirFiltros(page);
+  const vendas = await ctx.newPage();
+  await vendas.setViewportSize({ width: 1700, height: 1100 });
+  await vendas.goto(`${baseFor("silveira")}/vendas`, { waitUntil: "networkidle" });
+  await vendas.getByRole("button", { name: /^Filtros/ }).click();
+  await vendas.locator('input[placeholder="Pesquisar farmácia..."]').waitFor();
+
+  for (const [rotuloVendas, rotuloManut] of [["Farmácia", "Farmácia"], ["Distribuidor", "Distribuidor"], ["Categoria", "Categoria"], ["Subcategoria", "Subcategoria"], ["Utilização", "Utilização"], ["Fabricante", "Fabricante atual"]] as const) {
+    const a = await opcoesMulti(vendas, rotuloVendas);
+    const b = await opcoesMulti(page, rotuloManut);
+    check(a.length > 0 && JSON.stringify(a) === JSON.stringify(b), `Passo 2: «${rotuloManut}» tem as MESMAS ${a.length} opções que «${rotuloVendas}» em Vendas`, `vendas=${a.slice(0, 5)} manut=${b.slice(0, 5)}`);
+  }
+  // Mesma pesquisa dentro de um multi-select: filtra as opções, igual nos dois.
+  for (const p of [vendas, page]) await blocoMulti(p, p === vendas ? "Categoria" : "Categoria").locator("input").fill("Higiene");
+  const fa = await opcoesMulti(vendas, "Categoria");
+  const fb = await opcoesMulti(page, "Categoria");
+  check(JSON.stringify(fa) === JSON.stringify(fb) && fa.length >= 1 && fa.every((t) => /higiene/i.test(t)), "Passo 2: a pesquisa dentro do multi-select filtra as opções da mesma forma nos dois ecrãs");
+  for (const p of [vendas, page]) await blocoMulti(p, "Categoria").locator("input").fill("");
+  // Subcategoria em cascata: escolher categoria restringe as subcategorias, igual nos dois.
+  for (const p of [vendas, page]) {
+    const b = blocoMulti(p, "Categoria");
+    await b.getByRole("button", { name: "MM E2E Higiene Oral", exact: true }).click();
+  }
+  await vendas.waitForTimeout(300);
+  await page.waitForTimeout(500);
+  const sa = await opcoesMulti(vendas, "Subcategoria");
+  const sb = await opcoesMulti(page, "Subcategoria");
+  check(JSON.stringify(sa) === JSON.stringify(sb), "Passo 2: a cascata categoria → subcategoria dá as mesmas opções nos dois ecrãs", `vendas=${sa.slice(0, 4)} manut=${sb.slice(0, 4)}`);
+  // «Limpar filtros» remove a selecção nos dois.
+  await vendas.getByRole("button", { name: /Limpar filtros/ }).click();
+  await limparFiltros(page);
+  check((await vendas.locator("span.rounded-full", { hasText: "MM E2E Higiene Oral" }).count()) === 0 && (await page.locator("span.rounded-full", { hasText: "MM E2E Higiene Oral" }).count()) === 0, "Passo 2: «Limpar filtros» remove o valor escolhido (chips) nos dois ecrãs");
+  await vendas.close();
+}
+
+// ─── Passo 3 — filtros dos Fabricantes (Fabricante actual + combinações) ─────
+async function passo3(page: Page, seedData: SeedResult) {
+  console.log("\nPasso 3 · filtros (Fabricantes) — contagens exactas contra o que foi semeado");
   await selecionarAba(page, "Fabricantes");
-  await page.waitForTimeout(300);
+  await abrirFiltros(page);
+  await limparFiltros(page);
+  const todos = META.length;
+  check((await esperarTotal(page, todos)) === todos, `Passo 3a: sem filtros = todo o catálogo (${todos})`);
 
-  async function totalVisivel(): Promise<number> {
-    const txt = await page.locator("span", { hasText: "correspondem ao filtro" }).first().innerText();
-    const m = txt.match(/^(\d+)/);
-    return m ? Number(m[1]) : NaN;
-  }
-
-  // a) tipoArtigo = MEDICAMENTO
-  await campoPorLabel(page, "Tipo de artigo", "select").selectOption("MEDICAMENTO");
-  await page.waitForTimeout(400);
-  const esperadoMedicamento = META.filter((m) => m.tipoArtigo === "MEDICAMENTO").length;
-  check((await totalVisivel()) === esperadoMedicamento, `Passo 2a: filtro tipoArtigo=MEDICAMENTO devolve ${esperadoMedicamento}`, `obtido=${await totalVisivel()}`);
-  await campoPorLabel(page, "Tipo de artigo", "select").selectOption("");
-  await page.waitForTimeout(300);
-
-  // b) designação contém
-  await campoPorLabel(page, "Designação contém", "input").fill(`Produto ${String(IDX_DIVERGENTE).padStart(3, "0")}`);
-  await page.waitForTimeout(400);
-  check((await totalVisivel()) === 1, "Passo 2b: filtro por designação exacta devolve 1");
-  await campoPorLabel(page, "Designação contém", "input").fill("");
-  await page.waitForTimeout(300);
-
-  // c) categoria (Nivel 1)
-  await campoPorLabel(page, "Categoria", "select").selectOption(seedData.higieneId);
-  await page.waitForTimeout(400);
-  const esperadoHigiene = META.filter((m) => m.classificacaoNivel1 === "HIGIENE").length;
-  check((await totalVisivel()) === esperadoHigiene, `Passo 2c: filtro Categoria=Higiene devolve ${esperadoHigiene}`);
-
-  // d) subcategoria (Nivel 2) — só aparece com categoria seleccionada
-  await campoPorLabel(page, "Subcategoria", "select").selectOption(seedData.escovasId);
-  await page.waitForTimeout(400);
-  const esperadoEscovas = META.filter((m) => m.temNivel2).length;
-  check((await totalVisivel()) === esperadoEscovas, `Passo 2d: filtro Subcategoria=Escovas devolve ${esperadoEscovas}`);
-  await campoPorLabel(page, "Categoria", "select").selectOption("");
-  await page.waitForTimeout(300);
-
-  // e/f) sem fabricante — o formulário não expõe "fabricante actual" como
-  // campo próprio (é resolvido a partir da grelha noutro fluxo); as duas
-  // checkboxes reais desta aba são "Sem fabricante" e "Fabricante divergente".
-  console.log("  (nota: \"fabricante actual\" não é um campo do formulário desta aba — só \"Sem fabricante\"/\"Fabricante divergente\", cobertos abaixo)");
-  await page.getByLabel("Sem fabricante").check();
-  await page.waitForTimeout(400);
-  const esperadoSemFabricante = META.filter((m) => m.fabricante === null).length;
-  check((await totalVisivel()) === esperadoSemFabricante, `Passo 2f: filtro "Sem fabricante" devolve ${esperadoSemFabricante}`, `obtido=${await totalVisivel()}`);
-  await page.getByLabel("Sem fabricante").uncheck();
-  await page.waitForTimeout(300);
-
-  // g) fabricante divergente
-  await page.getByLabel("Fabricante divergente entre farmácias").check();
-  await page.waitForTimeout(400);
-  check((await totalVisivel()) === 1, "Passo 2g: filtro \"Fabricante divergente entre farmácias\" devolve exactamente 1");
-  check(await page.getByText(produtoDivergente.designacao).isVisible(), "Passo 2g: a linha devolvida é a do produto semeado como divergente");
-  await page.getByLabel("Fabricante divergente entre farmácias").uncheck();
-  await page.waitForTimeout(300);
-
-  // h) pesquisa textual
-  await campoPorLabel(page, "Pesquisa textual (designação/CNP)", "input").fill(String(IDX_DIVERGENTE).padStart(3, "0"));
-  await page.waitForTimeout(400);
-  check((await totalVisivel()) === 1, "Passo 2h: pesquisa textual por \"055\" devolve exactamente 1");
-  await campoPorLabel(page, "Pesquisa textual (designação/CNP)", "input").fill("");
-  await page.waitForTimeout(300);
-
-  console.log("\nPasso 2 (cont.) · filtros (Fornecedores) — farmácia obrigatória + sem fornecedor/fornecedor actual");
-  await selecionarAba(page, "Fornecedores");
-  await page.waitForTimeout(300);
-  check(await page.getByText("Seleccione uma farmácia para pesquisar produtos.").isVisible(), "Passo 2i: sem farmácia seleccionada, a grelha pede farmácia (validação real do filtro)");
-  await campoPorLabel(page, "Farmácia *", "select").selectOption(seedData.farmaciaF1Id);
-  await page.waitForTimeout(400);
-  const esperadoTotalF1 = META.length;
-  check((await totalVisivel()) === esperadoTotalF1, `Passo 2i: com farmácia F1 seleccionada e sem mais filtros, devolve o total (${esperadoTotalF1})`);
-
-  await page.getByLabel("Sem fornecedor").check();
-  await page.waitForTimeout(400);
-  const esperadoSemFornecedorF1 = META.filter((m) => !m.f1TemFornecedor).length;
-  check((await totalVisivel()) === esperadoSemFornecedorF1, `Passo 2j: "Sem fornecedor" em F1 devolve ${esperadoSemFornecedorF1}`, `obtido=${await totalVisivel()}`);
-  await page.getByLabel("Sem fornecedor").uncheck();
-  await page.waitForTimeout(300);
-}
-
-// ─── Passo 3 — selecção individual através de várias páginas ───────────────
-async function passo3(page: Page) {
-  console.log("\nPasso 3 · selecção individual em mais do que uma página, persistente ao paginar");
-  await selecionarAba(page, "Fabricantes");
-  await page.waitForTimeout(300);
-
-  async function contagemSeleccionada(): Promise<number> {
-    const txt = await page.locator("strong").first().innerText();
-    return Number(txt.trim());
-  }
-
-  // Página 1 — marca 2 linhas.
-  await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').check();
-  await page.locator("tbody tr").nth(1).locator('input[type="checkbox"]').check();
-  check((await contagemSeleccionada()) === 2, "Passo 3: 2 seleccionadas na página 1");
-
-  await page.getByRole("button", { name: "Seguinte →" }).click();
-  await page.waitForTimeout(400);
-  await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').check();
-  await page.locator("tbody tr").nth(1).locator('input[type="checkbox"]').check();
-  check((await contagemSeleccionada()) === 4, "Passo 3: 4 seleccionadas depois de marcar mais 2 na página 2");
-
-  await page.getByRole("button", { name: "Seguinte →" }).click();
-  await page.waitForTimeout(400);
-  await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').check();
-  check((await contagemSeleccionada()) === 5, "Passo 3: 5 seleccionadas depois de marcar mais 1 na página 3");
-
-  // Volta à página 1 — as 2 marcadas lá continuam marcadas, contagem total mantém-se.
-  await page.getByRole("button", { name: "← Anterior" }).click();
-  await page.waitForTimeout(300);
-  await page.getByRole("button", { name: "← Anterior" }).click();
-  await page.waitForTimeout(400);
-  check(await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').isChecked(), "Passo 3: ao voltar à página 1, a 1ª linha continua marcada");
-  check(await page.locator("tbody tr").nth(1).locator('input[type="checkbox"]').isChecked(), "Passo 3: ao voltar à página 1, a 2ª linha continua marcada");
-  check((await contagemSeleccionada()) === 5, "Passo 3: a contagem total (5) sobrevive a ir e voltar entre páginas");
-
-  await page.getByRole("button", { name: "Limpar selecção" }).click();
-  await page.waitForTimeout(300);
-  check((await contagemSeleccionada()) === 0, "Passo 3: \"Limpar selecção\" repõe a contagem a 0");
-}
-
-// ─── Passo 4 — "seleccionar todos os N que correspondem" + deselecção ──────
-async function passo4(page: Page): Promise<{ produtoAExcluirDesignacao: string }> {
-  console.log("\nPasso 4 · \"Seleccionar todos os N que correspondem ao filtro\" + deselecção individual");
-  await campoPorLabel(page, "Tipo de artigo", "select").selectOption("MEDICAMENTO");
+  // Fabricante atual — um
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB ALFA");
+  const nAlfa = META.filter((m) => m.fabricante === "ALFA").length;
+  check((await esperarTotal(page, nAlfa)) === nAlfa, `Passo 3b: Fabricante actual = ALFA devolve ${nAlfa}`);
+  // vários
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB BETA");
+  const nAlfaBeta = META.filter((m) => m.fabricante === "ALFA" || m.fabricante === "BETA").length;
+  check((await esperarTotal(page, nAlfaBeta)) === nAlfaBeta, `Passo 3c: ALFA + BETA devolve ${nAlfaBeta}`);
+  // + sem fabricante (OU)
+  await page.getByText("Sem fabricante", { exact: true }).click();
+  await page.waitForTimeout(500);
+  check((await esperarTotal(page, todos)) === todos, `Passo 3d: ALFA + BETA + «Sem fabricante» (OU) devolve ${todos}`);
+  await page.getByText("Sem fabricante", { exact: true }).click();
   await page.waitForTimeout(400);
 
-  const esperado = META.filter((m) => m.tipoArtigo === "MEDICAMENTO").length;
-  await page.getByRole("button", { name: new RegExp(`Seleccionar todos os ${esperado} que correspondem ao filtro`) }).click();
+  // combinação com categoria / subcategoria / tipo / pesquisa
+  await escolherMulti(page, "Categoria", "MM E2E Higiene Oral");
+  const higAB = META.filter((m) => m.classificacaoNivel1 === "HIGIENE" && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
+  check((await esperarTotal(page, higAB)) === higAB, `Passo 3e: fabricantes ALFA+BETA ∧ categoria Higiene = ${higAB}`);
+  await escolherMulti(page, "Subcategoria", "MM E2E Escovas");
+  const escAB = META.filter((m) => m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
+  check((await esperarTotal(page, escAB)) === escAB, `Passo 3f: … ∧ subcategoria Escovas = ${escAB}`);
+  await page.getByLabel("Tipo de artigo").selectOption("MEDICAMENTO");
+  const medEsc = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA")).length;
+  check((await esperarTotal(page, medEsc)) === medEsc, `Passo 3g: … ∧ tipo MEDICAMENTO = ${medEsc}`);
+  await page.getByPlaceholder("Pesquisar por CNP ou descrição...").fill("Produto 0");
+  const pesq = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA") && m.designacao.includes("Produto 0")).length;
+  check((await esperarTotal(page, pesq)) === pesq, `Passo 3h: … ∧ pesquisa «Produto 0» = ${pesq} (todos os filtros em simultâneo)`);
+
+  // limpar UM filtro (chip) e TODOS
+  await page.locator("span.rounded-full", { hasText: "MM E2E Escovas" }).locator("button").click();
+  await page.waitForTimeout(500);
+  const semEsc = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && (m.fabricante === "ALFA" || m.fabricante === "BETA") && m.designacao.includes("Produto 0")).length;
+  check((await esperarTotal(page, semEsc)) === semEsc, `Passo 3i: remover só o chip da subcategoria alarga o resultado (${semEsc})`);
+  await limparFiltros(page);
+  check((await esperarTotal(page, todos)) === todos, "Passo 3j: «Limpar filtros» repõe todo o catálogo");
+
+  // período (movimento de vendas) — o mesmo universo que Vendas: só os produtos vendidos no período
+  await page.getByLabel("Data início").fill(JANELA_VENDAS.from);
+  await page.getByLabel("Data fim").fill(JANELA_VENDAS.to);
+  await page.waitForTimeout(600);
+  const nVendidos = PRODUTOS_COM_VENDAS.length;
+  check((await esperarTotal(page, nVendidos)) === nVendidos, `Passo 3k: com período, só os ${nVendidos} produtos com vendas nesse período (a mesma regra de Vendas)`);
+  await page.getByLabel("Data início").fill("");
+  await page.getByLabel("Data fim").fill("");
   await page.waitForTimeout(400);
 
-  async function contagemSeleccionada(): Promise<number> {
-    const txt = await page.locator("strong").first().innerText();
-    return Number(txt.trim());
-  }
-  check((await contagemSeleccionada()) === esperado, `Passo 4: "seleccionar todos" reporta o total REAL do servidor (${esperado})`, `obtido=${await contagemSeleccionada()}`);
-
-  // Deselecciona 1 item individual (1ª linha da página actual).
-  const primeiraLinha = page.locator("tbody tr").nth(0);
-  const designacaoExcluida = (await primeiraLinha.locator("td").nth(2).innerText()).trim();
-  await primeiraLinha.locator('input[type="checkbox"]').uncheck();
-  await page.waitForTimeout(300);
-  check((await contagemSeleccionada()) === esperado - 1, `Passo 4: deselecção individual dentro de "todos" reduz para ${esperado - 1}`);
-
-  return { produtoAExcluirDesignacao: designacaoExcluida };
-}
-
-// ─── Passo 5 — preview obrigatório ───────────────────────────────────────────
-async function passo5(page: Page, seedData: SeedResult): Promise<number> {
-  console.log("\nPasso 5 · pré-visualização obrigatória antes de aplicar");
-  await page.getByPlaceholder("Pesquisar fabricante existente…").fill("MM E2E LAB GAMA");
-  await page.getByRole("button", { name: "MM E2E LAB GAMA" }).click();
-  await page.waitForTimeout(300);
-
-  await page.getByRole("button", { name: "Pré-visualizar alteração" }).click();
-  await page.getByText("Confirmação obrigatória").waitFor({ timeout: 10000 });
-
-  const totalCorrespondentes = META.filter((m) => m.tipoArtigo === "MEDICAMENTO").length;
-  const totalDd = await page.locator("dt", { hasText: "Total de produtos correspondentes" }).locator("xpath=following-sibling::dd[1]").innerText();
-  check(Number(totalDd) === totalCorrespondentes, `Passo 5: preview mostra o total REAL do filtro (${totalCorrespondentes}) — não o subconjunto seleccionado`, `obtido=${totalDd}`);
-
-  // hasText é substring, case-insensitive — "Destino" também bateria em
-  // "Já no destino"; regex ancorada evita a colisão.
-  const destinoDd = await page.locator("dt", { hasText: /^Destino$/ }).locator("xpath=following-sibling::dd[1]").innerText();
-  check(destinoDd.includes("MM E2E LAB GAMA"), "Passo 5: preview mostra o destino escolhido", destinoDd);
-
-  const jaNoDestinoDd = await page.locator("dt", { hasText: "Já no destino" }).locator("xpath=following-sibling::dd[1]").innerText();
-  check(Number(jaNoDestinoDd) === 0, "Passo 5: nenhum produto já estava em LAB GAMA (fabricante novo neste ensaio)");
-
-  const iraAlterarDd = await page.locator("dt", { hasText: "Vão ser alterados" }).locator("xpath=following-sibling::dd[1]").innerText();
-  check(Number(iraAlterarDd) === totalCorrespondentes, "Passo 5: \"vão ser alterados\" bate com o total (nenhum já no destino)");
-  check(await page.locator("li", { hasText: "MM E2E LAB ALFA" }).count() + await page.locator("li", { hasText: "MM E2E LAB BETA" }).count() + await page.locator("li", { hasText: "(sem valor)" }).count() >= 1, "Passo 5: valores anteriores agrupados aparecem listados");
-
+  // fabricante divergente entre farmácias (específico da aba Fabricantes)
+  await page.getByText("Fabricante divergente entre farmácias", { exact: true }).click();
+  check((await esperarTotal(page, 1)) === 1, "Passo 3l: «Fabricante divergente entre farmácias» devolve exactamente 1");
+  check(await page.getByText(produtoDivergente.designacao).isVisible(), "Passo 3l: …o produto semeado como divergente");
+  await page.getByText("Fabricante divergente entre farmácias", { exact: true }).click();
+  await page.waitForTimeout(400);
   void seedData;
-  return totalCorrespondentes;
 }
 
-// ─── Passo 6/7 — aplicar + persistência após reload ─────────────────────────
-async function passo6e7(page: Page, seedData: SeedResult, produtoExcluidoDesignacao: string, totalCorrespondentes: number) {
-  console.log("\nPasso 6 · aplicar a alteração de fabricante");
-  await page.getByRole("button", { name: /Confirmar e aplicar a \d+ produto\(s\)/ }).click();
-  await page.getByText(/Operação aplicada:/).waitFor({ timeout: 15000 });
-  const msg = await page.getByText(/Operação aplicada:/).innerText();
-  check(msg.includes(`${totalCorrespondentes - 1} alterado(s)`), "Passo 6: mensagem final reporta N-1 alterados (o excluído manualmente ficou de fora)", msg);
+// ─── Passo 4 — selecção, e mudar filtros depois de seleccionar ─────────────
+async function passo4(page: Page) {
+  console.log("\nPasso 4 · selecção entre páginas; mudar os filtros limpa a selecção (nunca fica invisível)");
+  await limparFiltros(page);
+  await esperarTotal(page, META.length);
+  await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').check();
+  await page.locator("tbody tr").nth(1).locator('input[type="checkbox"]').check();
+  check((await contagemSeleccionada(page)) === 2, "Passo 4: 2 seleccionadas na página 1");
+  await page.getByRole("button", { name: "Seguinte →" }).click();
+  await page.waitForTimeout(500);
+  await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').check();
+  check((await contagemSeleccionada(page)) === 3, "Passo 4: 3 seleccionadas (2 da página 1 + 1 da 2) — persistem ao paginar");
+  await page.getByRole("button", { name: "← Anterior" }).click();
+  await page.waitForTimeout(500);
+  check(await page.locator("tbody tr").nth(0).locator('input[type="checkbox"]').isChecked(), "Passo 4: ao voltar à página 1 as marcadas continuam marcadas");
+  check((await totalVisivel(page)) === META.length, "Passo 4: a paginação não altera a contagem total");
 
-  console.log("\nPasso 7 · persistência depois de um refresh REAL");
-  await page.reload({ waitUntil: "networkidle" });
-  await selecionarAba(page, "Fabricantes");
-  await campoPorLabel(page, "Designação contém", "input").fill(produtoExcluidoDesignacao.replace("MM E2E ", ""));
-  await page.waitForTimeout(400);
-  const valorExcluido = await page.locator("tbody tr").nth(0).locator("td").nth(3).innerText();
-  check(!valorExcluido.includes("MM E2E LAB GAMA"), "Passo 7 (fixture): o produto EXCLUÍDO manualmente do lote NÃO foi alterado (prova de que a exclusão foi respeitada)", valorExcluido);
-  await campoPorLabel(page, "Designação contém", "input").fill("");
+  // mudar um filtro com selecção activa
+  await abrirFiltros(page);
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB ALFA");
+  await page.waitForTimeout(500);
+  check((await contagemSeleccionada(page)) === 0, "Passo 4: mudar o filtro com produtos seleccionados LIMPA a selecção (nada de selecção invisível)");
+  check(await page.getByTestId("aviso-selecao").isVisible(), "Passo 4: e avisa explicitamente o utilizador");
+  const pv = page.getByTestId("pre-visualizar");
+  check(await pv.isDisabled(), "Passo 4: sem selecção não há pré-visualização possível");
+  await limparFiltros(page);
+}
+
+// ─── Passo 5 — o fluxo completo de FABRICANTES com snapshot ─────────────────
+async function passo5(page: Page, seedData: SeedResult): Promise<{ excluida: string; alvoCnps: number[] }> {
+  console.log("\nPasso 5 · fluxo: fabricantes actuais + filtros → todos → excluir um → destino → preview verificável");
+  await abrirFiltros(page);
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB ALFA");
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB BETA");
+  await escolherMulti(page, "Categoria", "MM E2E Higiene Oral");
+  const alvo = META.filter((m) => m.classificacaoNivel1 === "HIGIENE" && (m.fabricante === "ALFA" || m.fabricante === "BETA"));
+  check((await esperarTotal(page, alvo.length)) === alvo.length, `Passo 5: filtros → ${alvo.length} produtos`);
+  await page.getByTestId("selecionar-todos").click();
   await page.waitForTimeout(300);
+  check((await contagemSeleccionada(page)) === alvo.length, "Passo 5: «seleccionar todos os resultados» = o total REAL do filtro");
+  const primeira = page.locator("tbody tr").nth(0);
+  const designacaoExcluida = (await primeira.locator("td").nth(2).innerText()).trim();
+  await primeira.locator('input[type="checkbox"]').uncheck();
+  await page.waitForTimeout(300);
+  check((await contagemSeleccionada(page)) === alvo.length - 1, `Passo 5: desmarcar um dentro de «todos» → ${alvo.length - 1}`);
+
+  await escolherDestino(page, "FABRICANTE", "MM E2E LAB GAMA");
+  await page.getByTestId("pre-visualizar").click();
+  await page.getByTestId("preview-panel").waitFor({ timeout: 15000 });
+  check((await lerDd(page, "preview-correspondentes")) === String(alvo.length), "Passo 5: o preview mostra quantos correspondem ao filtro");
+  check((await lerDd(page, "preview-selecionados")) === String(alvo.length - 1), "Passo 5: …e quantos estão SELECCIONADOS (âmbito real da operação)");
+  check((await lerDd(page, "preview-destino")).includes("MM E2E LAB GAMA"), "Passo 5: o preview mostra o fabricante de DESTINO");
+  check((await lerDd(page, "preview-ja-no-destino")) === "0", "Passo 5: nenhum já tinha o destino");
+  check((await lerDd(page, "preview-alterar")) === String(alvo.length - 1), "Passo 5: …vão ser alterados");
+  const painel = await page.getByTestId("preview-panel").innerText();
+  check(painel.includes("Filtros utilizados") && painel.includes("Fabricante actual") && painel.includes("MM E2E LAB ALFA") && painel.includes("MM E2E LAB BETA") && painel.includes("Categoria: MM E2E Higiene Oral"), "Passo 5: o preview lista os filtros utilizados e os fabricantes actuais");
+  check(painel.includes("MM E2E LAB ALFA → ") && painel.includes("MM E2E LAB BETA → "), "Passo 5: …e o actual → destino por valor");
+  void seedData;
+  return { excluida: designacaoExcluida, alvoCnps: alvo.map((m) => m.cnp) };
+}
+
+// ─── Passo 6 — aplicar, só o snapshot, persistência e reversão ─────────────
+async function passo6(page: Page, seedData: SeedResult, excluida: string, alvoCnps: number[]) {
+  console.log("\nPasso 6 · aplicar exactamente o snapshot confirmado; zero alterações fora dele");
+  await page.getByTestId("confirmar-aplicar").click();
+  await page.getByTestId("mensagem-final").waitFor({ timeout: 20000 });
+  const msg = await page.getByTestId("mensagem-final").innerText();
+  check(msg.includes(`${alvoCnps.length - 1} alterado(s)`), `Passo 6: mensagem final = ${alvoCnps.length - 1} alterados`, msg);
 
   const { PrismaClient } = await import("../../generated/prisma/client");
   const { PrismaPg } = await import("@prisma/adapter-pg");
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
   try {
-    const algumAlterado = META.find((m) => m.tipoArtigo === "MEDICAMENTO" && m.designacao !== produtoExcluidoDesignacao)!;
-    const produtoId = seedData.produtoIdByIndex.get(algumAlterado.i)!;
-    const p = await prisma.produto.findUnique({ where: { id: produtoId }, select: { fabricanteId: true, fabricante: { select: { nomeNormalizado: true } } } });
-    check(p?.fabricante?.nomeNormalizado === "MM E2E LAB GAMA", "Passo 7: a BD real confirma o novo fabricante persistido (não é só optimismo do cliente)", JSON.stringify(p));
+    const gama = seedData.labGamaId;
+    const comGama = await prisma.produto.findMany({ where: { fabricanteId: gama, cnp: { gte: 7_300_000, lt: 7_400_000 } }, select: { cnp: true, designacao: true } });
+    const esperados = alvoCnps.filter((c) => !excluida.endsWith(String(c - 7_300_000).padStart(3, "0")));
+    check(comGama.length === alvoCnps.length - 1 && comGama.every((p) => esperados.includes(p.cnp)), "Passo 6: na BD, EXACTAMENTE os produtos do snapshot passaram a LAB GAMA", `obtido=${comGama.length}`);
+    check(!comGama.some((p) => p.designacao === excluida), "Passo 6: o produto desmarcado NÃO foi alterado");
+    const fora = await prisma.produto.count({ where: { cnp: { gte: 7_300_000, lt: 7_400_000, notIn: alvoCnps }, fabricanteId: gama } });
+    check(fora === 0, "Passo 6: nenhum produto FORA do filtro foi alterado");
   } finally {
     await prisma.$disconnect();
   }
-}
 
-// ─── Passo 8/9 — fornecedor preferencial escopado a UMA farmácia ───────────
-async function passo8e9(page: Page, seedData: SeedResult) {
-  console.log("\nPasso 8 · alterar fornecedor preferencial escopado à Farmácia F1");
-  await selecionarAba(page, "Fornecedores");
-  await page.waitForTimeout(300);
-  await campoPorLabel(page, "Farmácia *", "select").selectOption(seedData.farmaciaF1Id);
-  await page.waitForTimeout(400);
-
-  // Escopo: TODO o catálogo de F1 (111 produtos — sem outro filtro além da
-  // farmácia, que É o escopo em si). O formulário desta aba não expõe um
-  // filtro directo por "fornecedor actual" (ver nota no Passo 2) — mas
-  // aplicar a todo o catálogo de F1 continua a ser uma prova tão forte do
-  // Passo 9 (F2 intocada): metade destes 111 já tinha Fornecedor Um e
-  // passa a Fornecedor Três, a outra metade não tinha nenhum e passa a
-  // tê-lo — e em F2 (Passo 9) TODOS os 111 têm de continuar exactamente
-  // como estavam.
-  const alvo = META; // todos os 111 produtos de F1
-  await page.getByRole("button", { name: new RegExp(`Seleccionar todos os ${alvo.length} que correspondem ao filtro`) }).click();
-  await page.waitForTimeout(400);
-
-  await page.getByPlaceholder("Pesquisar fornecedor existente…").fill("MM E2E FORNECEDOR TRES");
-  await page.getByRole("button", { name: "MM E2E Fornecedor Três" }).click();
-  await page.waitForTimeout(300);
-  await page.getByRole("button", { name: "Pré-visualizar alteração" }).click();
-  await page.getByText("Confirmação obrigatória").waitFor({ timeout: 10000 });
-  const farmaciaFiltros = await page.locator("text=Filtros aplicados:").innerText();
-  check(farmaciaFiltros.includes("MM E2E Farmácia Silveira Norte"), "Passo 8: o resumo do preview identifica a farmácia F1 escopada", farmaciaFiltros);
-
-  await page.getByRole("button", { name: /Confirmar e aplicar a \d+ produto\(s\)/ }).click();
-  await page.getByText(/Operação aplicada:/).waitFor({ timeout: 15000 });
-  check(true, "Passo 8: operação de fornecedor aplicada com sucesso");
-
-  console.log("\nPasso 9 · a OUTRA farmácia (F2) fica intocada — prova directa em Postgres");
-  const { PrismaClient } = await import("../../generated/prisma/client");
-  const { PrismaPg } = await import("@prisma/adapter-pg");
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
-  try {
-    const produtoIds = alvo.map((m) => seedData.produtoIdByIndex.get(m.i)!);
-    const f1Rows = await prisma.produtoFarmacia.findMany({
-      where: { produtoId: { in: produtoIds }, farmaciaId: seedData.farmaciaF1Id },
-      select: { fornecedorHabitualId: true },
-    });
-    check(f1Rows.every((r) => r.fornecedorHabitualId === seedData.fornecedorTresId), "Passo 9 (controlo): F1 foi mesmo alterada para Fornecedor Três em todos os produtos-alvo (mesmo os que não tinham fornecedor nenhum)");
-
-    // F2 tem de continuar EXACTAMENTE como estava — metade com Fornecedor
-    // Dois, metade sem nenhum — nunca uniformizada pela operação de F1.
-    const f2RowsPorProduto = await prisma.produtoFarmacia.findMany({
-      where: { produtoId: { in: produtoIds }, farmaciaId: seedData.farmaciaF2Id },
-      select: { produtoId: true, fornecedorHabitualId: true },
-    });
-    const idParaIndex = new Map(META.map((m) => [seedData.produtoIdByIndex.get(m.i)!, m]));
-    const todasIntocadas = f2RowsPorProduto.every((r) => {
-      const meta = idParaIndex.get(r.produtoId)!;
-      const esperado = meta.f2TemFornecedor ? seedData.fornecedorDoisId : null;
-      return r.fornecedorHabitualId === esperado;
-    });
-    const aindaComDois = f2RowsPorProduto.filter((r) => r.fornecedorHabitualId === seedData.fornecedorDoisId).length;
-    check(
-      todasIntocadas,
-      "Passo 9: F2 (farmácia NÃO escopada) continua EXACTAMENTE como estava em TODOS os 111 produtos — nada foi tocado fora do escopo",
-      `aindaComFornecedorDois=${aindaComDois}/${f2RowsPorProduto.length}`
-    );
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
-// ─── Passo 10/11/12 — histórico, reversão, confirmação ─────────────────────
-async function passo10a12(page: Page, seedData: SeedResult, produtoExcluidoDesignacao: string) {
-  console.log("\nPasso 10 · histórico mostra as duas operações (fabricante + fornecedor)");
+  console.log("\nPasso 6b · histórico e reversão");
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Histórico de operações" }).waitFor({ timeout: 10000 });
+  const linhaFabricante = page.locator("tbody tr").filter({ hasText: "FABRICANTE" }).filter({ hasText: "MANUTENCAO_MASSA" }).first();
+  check((await linhaFabricante.innerText()).includes(String(alvoCnps.length - 1)), "Passo 6b: o histórico mostra a contagem real de alterados");
+  await linhaFabricante.getByRole("button", { name: "Reverter" }).click();
+  await page.waitForTimeout(2500);
+  const prisma2 = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
+  try {
+    check((await prisma2.produto.count({ where: { fabricanteId: seedData.labGamaId, cnp: { gte: 7_300_000, lt: 7_400_000 } } })) === 0, "Passo 6b: a reversão restaurou todos os produtos aos fabricantes originais");
+    check((await prisma2.catalogoManutencaoOperacao.count({ where: { origem: "REVERSAO" } })) >= 1, "Passo 6b: nasceu uma operação de REVERSAO (a original nunca é apagada)");
+  } finally {
+    await prisma2.$disconnect();
+  }
+}
 
-  const linhaFabricante = page.locator("tbody tr").filter({ hasText: "FABRICANTE" }).first();
-  const linhaFornecedor = page.locator("tbody tr").filter({ hasText: "FORNECEDOR" }).first();
-  check(await linhaFabricante.isVisible(), "Passo 10: existe uma linha de histórico com tipo FABRICANTE");
-  check(await linhaFornecedor.isVisible(), "Passo 10: existe uma linha de histórico com tipo FORNECEDOR");
-
-  const totalCorrespondentes = META.filter((m) => m.tipoArtigo === "MEDICAMENTO").length;
-  const textoFabricante = await linhaFabricante.innerText();
-  check(textoFabricante.includes(`${totalCorrespondentes - 1}`), "Passo 10: a linha FABRICANTE mostra a contagem real de alterados", textoFabricante);
-
-  const alvoFornecedor = META.length; // Passo 8 aplicou a TODO o catálogo de F1 (ver nota nesse passo)
-  const textoFornecedor = await linhaFornecedor.innerText();
-  check(textoFornecedor.includes(String(alvoFornecedor)), "Passo 10: a linha FORNECEDOR mostra a contagem real de alterados", textoFornecedor);
-  check(textoFornecedor.includes("MM E2E Farmácia Silveira Norte"), "Passo 10: a linha FORNECEDOR identifica a farmácia F1");
-
-  console.log("\nPasso 11 · reverter a operação de FABRICANTE");
+// ─── Passo 7 — preview desactualizado ───────────────────────────────────────
+async function passo7(page: Page, seedData: SeedResult) {
+  console.log("\nPasso 7 · uma alteração entre o preview e a confirmação é detectada (snapshot)");
+  await page.reload({ waitUntil: "networkidle" });
+  await selecionarAba(page, "Fabricantes");
+  await abrirFiltros(page);
+  await escolherMulti(page, "Fabricante atual", "MM E2E LAB ALFA");
+  const nAlfa = META.filter((m) => m.fabricante === "ALFA").length;
+  await esperarTotal(page, nAlfa);
+  await page.getByTestId("selecionar-todos").click();
+  await escolherDestino(page, "FABRICANTE", "MM E2E LAB GAMA");
+  await page.getByTestId("pre-visualizar").click();
+  await page.getByTestId("preview-panel").waitFor({ timeout: 15000 });
   const { PrismaClient } = await import("../../generated/prisma/client");
   const { PrismaPg } = await import("@prisma/adapter-pg");
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
   try {
-    const opFabricante = await prisma.catalogoManutencaoOperacao.findFirst({
-      where: { tipo: "FABRICANTE", origem: "MANUTENCAO_MASSA" },
-      orderBy: { dataCriacao: "desc" },
-      select: { id: true },
-    });
-    check(!!opFabricante, "Passo 11 (fixture): a operação FABRICANTE original existe na BD");
-    if (!opFabricante) throw new Error("Passo 11: operação FABRICANTE original não encontrada — impossível continuar.");
-    const nOperacoesAntes = await prisma.catalogoManutencaoOperacao.count();
+    const alvoMuda = META.find((m) => m.fabricante === "ALFA")!;
+    await prisma.produto.update({ where: { cnp: alvoMuda.cnp }, data: { fabricanteId: seedData.labBetaId } }); // outra pessoa alterou
+    await page.getByTestId("confirmar-aplicar").click();
+    await page.getByTestId("erro-manutencao").waitFor({ timeout: 15000 });
+    check((await page.getByTestId("erro-manutencao").innerText()).includes("mudaram desde a pré-visualização"), "Passo 7: o apply recusa — «os produtos mudaram desde a pré-visualização»");
+    check((await prisma.produto.count({ where: { fabricanteId: seedData.labGamaId, cnp: { gte: 7_300_000, lt: 7_400_000 } } })) === 0, "Passo 7: zero escritas");
+    check(!(await page.getByTestId("preview-panel").count()), "Passo 7: o preview obsoleto é descartado (tem de pré-visualizar de novo)");
+    await prisma.produto.update({ where: { cnp: alvoMuda.cnp }, data: { fabricanteId: seedData.labAlfaId } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
 
-    await linhaFabricante.getByRole("button", { name: "Reverter" }).click();
-    await page.waitForTimeout(1500);
+// ─── Passo 8 — Fornecedores habituais: isolamento por farmácia ─────────────
+async function passo8(page: Page, seedData: SeedResult) {
+  console.log("\nPasso 8 · fornecedor habitual: farmácia obrigatória, isolada, e ambas EXPLÍCITAS");
+  await selecionarAba(page, "Fornecedores");
+  await abrirFiltros(page);
+  await limparFiltros(page);
+  check(await page.getByTestId("farmacia-em-falta").isVisible(), "Passo 8a: sem farmácia seleccionada, pede-se uma farmácia");
 
-    console.log("\nPasso 12 · confirmação da reversão");
-    const nOperacoesDepois = await prisma.catalogoManutencaoOperacao.count();
-    check(nOperacoesDepois === nOperacoesAntes + 1, "Passo 12: nasceu exactamente UMA nova operação (a reversão) — a original nunca é apagada");
+  // Farmácia 1 isolada — fornecedor habitual actual (um) → destino
+  await escolherMulti(page, "Farmácia", "MM E2E Farmácia Silveira Norte");
+  check((await esperarTotal(page, META.length)) === META.length, `Passo 8b: só a farmácia Norte → ${META.length} linhas (não há linhas da Sul)`);
+  await escolherMulti(page, "Fornecedor habitual atual", "MM E2E Fornecedor Um");
+  const comUmF1 = META.filter((m) => m.f1TemFornecedor).length;
+  check((await esperarTotal(page, comUmF1)) === comUmF1, `Passo 8c: Fornecedor habitual actual = Um na Norte → ${comUmF1}`);
+  await page.getByText("Sem fornecedor habitual", { exact: true }).click();
+  const semF1 = META.filter((m) => !m.f1TemFornecedor).length;
+  check((await esperarTotal(page, META.length)) === META.length, "Passo 8d: «Um» OU «sem fornecedor habitual» = todas (OU)");
+  await page.getByText("Sem fornecedor habitual", { exact: true }).click();
+  await page.locator("span.rounded-full", { hasText: "Fornecedor habitual: MM E2E Fornecedor Um" }).locator("button").click();
+  await page.getByText("Sem fornecedor habitual", { exact: true }).click();
+  check((await esperarTotal(page, semF1)) === semF1, `Passo 8e: «sem fornecedor habitual» na Norte → ${semF1}`);
 
-    const reversao = await prisma.catalogoManutencaoOperacao.findFirst({
-      where: { origem: "REVERSAO", operacaoOrigemId: opFabricante!.id },
-      select: { id: true, quantidadeAlterada: true },
-    });
-    check(!!reversao, "Passo 12: existe uma nova CatalogoManutencaoOperacao com origem=REVERSAO a referenciar a original");
+  // aplicar SÓ à Norte
+  await page.getByTestId("selecionar-todos").click();
+  await escolherDestino(page, "FORNECEDOR", "MM E2E Fornecedor Três");
+  await page.getByTestId("pre-visualizar").click();
+  await page.getByTestId("preview-panel").waitFor({ timeout: 15000 });
+  const farmaciasPv = await page.getByTestId("preview-farmacia").count();
+  check(farmaciasPv === 1 && (await page.getByTestId("preview-farmacia").first().innerText()).includes("MM E2E Farmácia Silveira Norte"), "Passo 8f: o preview mostra UMA farmácia (Norte) com actual → destino");
+  await page.getByTestId("confirmar-aplicar").click();
+  await page.getByTestId("mensagem-final").waitFor({ timeout: 20000 });
 
-    const original = await prisma.catalogoManutencaoOperacao.findUnique({ where: { id: opFabricante!.id } });
-    check(!!original, "Passo 12: a operação ORIGINAL continua a existir (nunca apagada)");
-
-    // Produtos revertidos: voltam ao valor ANTERIOR (LAB ALFA/BETA/null,
-    // conforme a semeadura original). Tem de ser um produto que REALMENTE
-    // fez parte do lote aplicado (nunca o excluído manualmente no Passo 4 —
-    // esse nunca mudou, e "continua null depois de reverter" não provaria
-    // nada sobre a reversão em si).
-    const revertido = META.find((m) => m.tipoArtigo === "MEDICAMENTO" && m.designacao !== produtoExcluidoDesignacao)!;
-    const produtoId = seedData.produtoIdByIndex.get(revertido.i)!;
-    const p = await prisma.produto.findUnique({ where: { id: produtoId }, select: { fabricanteId: true } });
-    const fabricanteEsperado = revertido.fabricante === "ALFA" ? seedData.labAlfaId : revertido.fabricante === "BETA" ? seedData.labBetaId : null;
-    check(p?.fabricanteId === fabricanteEsperado, "Passo 12: o produto revertido voltou ao seu valor ORIGINAL de antes da manutenção em massa", JSON.stringify({ obtido: p?.fabricanteId, esperado: fabricanteEsperado }));
+  const { PrismaClient } = await import("../../generated/prisma/client");
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB }) });
+  try {
+    const produtoIds = [...seedData.produtoIdByIndex.values()];
+    const f1 = await prisma.produtoFarmacia.findMany({ where: { produtoId: { in: produtoIds }, farmaciaId: seedData.farmaciaF1Id }, select: { produtoId: true, fornecedorHabitualId: true } });
+    const idParaMeta = new Map(META.map((m) => [seedData.produtoIdByIndex.get(m.i)!, m]));
+    check(f1.every((r) => idParaMeta.get(r.produtoId)!.f1TemFornecedor ? r.fornecedorHabitualId === seedData.fornecedorUmId : r.fornecedorHabitualId === seedData.fornecedorTresId), "Passo 8g: Norte — só os «sem fornecedor» passaram a Três; os que tinham Um ficaram");
+    const f2 = await prisma.produtoFarmacia.findMany({ where: { produtoId: { in: produtoIds }, farmaciaId: seedData.farmaciaF2Id }, select: { produtoId: true, fornecedorHabitualId: true } });
+    check(f2.every((r) => r.fornecedorHabitualId === (idParaMeta.get(r.produtoId)!.f2TemFornecedor ? seedData.fornecedorDoisId : null)), "Passo 8h: a Sul NUNCA foi alterada pela operação da Norte (todos os 111 como estavam)");
   } finally {
     await prisma.$disconnect();
   }
 
+  // AMBAS as farmácias, explicitamente
+  console.log("\nPasso 8 (cont.) · ambas as farmácias seleccionadas EXPLICITAMENTE");
   await page.reload({ waitUntil: "networkidle" });
-  const linhaFabricanteDepois = page.locator("tbody tr").filter({ hasText: "FABRICANTE" }).filter({ hasText: "MANUTENCAO_MASSA" });
-  check(await linhaFabricanteDepois.getByText("Já revertida").isVisible(), "Passo 12: depois de recarregar, a operação original mostra \"Já revertida\"");
+  await selecionarAba(page, "Fornecedores");
+  await abrirFiltros(page);
+  await escolherMulti(page, "Farmácia", "MM E2E Farmácia Silveira Norte");
+  await escolherMulti(page, "Farmácia", "MM E2E Farmácia Silveira Sul");
+  await escolherMulti(page, "Fornecedor habitual atual", "MM E2E Fornecedor Dois");
+  const dois = META.filter((m) => m.f2TemFornecedor).length;
+  check((await esperarTotal(page, dois)) === dois, `Passo 8i: duas farmácias + fornecedor actual «Dois» → ${dois} linhas (só a Sul tem Dois)`);
+  await escolherMulti(page, "Fornecedor habitual atual", "MM E2E Fornecedor Três");
+  const tresNorte = META.filter((m) => !m.f1TemFornecedor).length;
+  check((await esperarTotal(page, dois + tresNorte)) === dois + tresNorte, `Passo 8j: «Dois» ou «Três» nas duas → ${dois + tresNorte} (a Norte passou a ter Três)`);
+  await page.getByTestId("selecionar-todos").click();
+  await escolherDestino(page, "FORNECEDOR", "MM E2E Fornecedor Um");
+  await page.getByTestId("pre-visualizar").click();
+  await page.getByTestId("preview-panel").waitFor({ timeout: 15000 });
+  check((await page.getByTestId("preview-farmacia").count()) === 2, "Passo 8k: o preview mostra as DUAS farmácias, cada uma com o seu actual → destino");
+  await page.getByTestId("confirmar-aplicar").click();
+  await page.getByTestId("mensagem-final").waitFor({ timeout: 20000 });
+  check((await page.getByTestId("mensagem-final").innerText()).includes("2 operações, uma por farmácia"), "Passo 8l: aplicar a duas farmácias cria duas operações (uma por farmácia)");
 }
 
 // ─── Passo 13 — bloqueio de renderização fora de silveira ──────────────────
@@ -722,8 +750,25 @@ async function passo14(seedData: SeedResult) {
       const rAplicar = await aplicarManutencaoFabricanteAction({
         filtro: {},
         destino: { modo: "existente", id: seedData.labGamaId },
+        snapshotHash: "x",
       });
       check(!rAplicar.ok && rAplicar.error === "Funcionalidade não disponível para este tenant.", `Passo 14 (${tenant}): aplicarManutencaoFabricanteAction (escrita) rejeitada ANTES de tocar em Prisma`, JSON.stringify(rAplicar));
+
+      // TODAS as outras actions recusam da mesma forma, antes de qualquer query (preview, fornecedor, histórico, reversão, pesquisas).
+      const A = await import("../../app/catalogo/manutencao/actions");
+      const MSG = "Funcionalidade não disponível para este tenant.";
+      const recusas: Array<[string, { ok: boolean; error?: string }]> = [
+        ["previewManutencaoFabricanteAction", await A.previewManutencaoFabricanteAction({ filtro: {}, destino: { modo: "existente", id: seedData.labGamaId } })],
+        ["previewManutencaoFornecedorAction", await A.previewManutencaoFornecedorAction({ filtro: { farmaciaIds: [seedData.farmaciaF1Id] }, destino: { modo: "existente", id: seedData.fornecedorTresId } })],
+        ["aplicarManutencaoFornecedorAction", await A.aplicarManutencaoFornecedorAction({ filtro: { farmaciaIds: [seedData.farmaciaF1Id] }, destino: { modo: "existente", id: seedData.fornecedorTresId }, snapshotHash: "x" })],
+        ["listarOperacoesRecentesAction", await A.listarOperacoesRecentesAction()],
+        ["reverterOperacaoAction", await A.reverterOperacaoAction({ operacaoId: "qualquer" })],
+        ["pesquisarFabricantesAction", await A.pesquisarFabricantesAction("MM")],
+        ["pesquisarFornecedoresAction", await A.pesquisarFornecedoresAction("MM")],
+      ];
+      for (const [nome, r] of recusas) {
+        check(!r.ok && r.error === MSG, `Passo 14 (${tenant}): ${nome} recusada antes de qualquer query`, JSON.stringify(r).slice(0, 160));
+      }
 
       const nOperacoesDepois = await prisma.catalogoManutencaoOperacao.count();
       check(nOperacoesDepois === nOperacoesAntes, `Passo 14 (${tenant}): nenhuma CatalogoManutencaoOperacao nova foi criada`);
@@ -750,13 +795,13 @@ async function main() {
 
   try {
     const page = await passo1(ctxSilveira);
-    await passo2(page, seedData);
-    await passo3(page);
-    const { produtoAExcluirDesignacao } = await passo4(page);
-    const totalCorrespondentes = await passo5(page, seedData);
-    await passo6e7(page, seedData, produtoAExcluirDesignacao, totalCorrespondentes);
-    await passo8e9(page, seedData);
-    await passo10a12(page, seedData, produtoAExcluirDesignacao);
+    await passo2(ctxSilveira, page);
+    await passo3(page, seedData);
+    await passo4(page);
+    const { excluida, alvoCnps } = await passo5(page, seedData);
+    await passo6(page, seedData, excluida, alvoCnps);
+    await passo7(page, seedData);
+    await passo8(page, seedData);
     await page.close();
 
     await passo13(browser, seedData);
