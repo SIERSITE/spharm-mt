@@ -1,8 +1,8 @@
-# Instalação coordenada — designação autoritativa da Silveirense (aplicação + worker + agent rev96)
+# Instalação coordenada — designação autoritativa da Silveirense (aplicação + worker + agent rev97)
 
 Revisão a instalar: a indicada em `SHA` (SHA final da branch
 `feat/pesquisa-impressao-designacao-silveirense`). **Sem migrations.**
-Pacote do agent: `spharmmt-agent-base-rev96.zip`.
+Pacote do agent: `spharmmt-agent-base-rev97.zip`.
 
 ## Regra final (o que esta entrega faz)
 
@@ -27,13 +27,23 @@ sai do `git rev-parse HEAD`):
 ```bash
 git checkout --detach <SHA> && git status --short          # tem de estar vazio
 PUBLIC_APP_URL=https://app.spharmmt.com npm run agent:package
-# → dist-agent/spharmmt-agent-base-rev96.zip   (+ dist-agent/SPharmMT-Agent/)
-sha256sum dist-agent/spharmmt-agent-base-rev96.zip
+# → dist-agent/spharmmt-agent-base-rev97.zip   (+ dist-agent/SPharmMT-Agent/)
+sha256sum dist-agent/spharmmt-agent-base-rev97.zip
 ```
+
+O build **recusa árvore suja** e grava `MANIFEST.json` na raiz do ZIP (rev, commit completo,
+branch, data UTC, sha256 e tamanho de cada ficheiro). **Verificar antes de distribuir:**
+
+```bash
+unzip -p dist-agent/spharmmt-agent-base-rev97.zip MANIFEST.json | head -8   # rev=97, commit=<SHA>, dirty=false
+```
+
+> A rev96 (ZIP de 12/10/2026) foi retirada: mesmo código de agent, mas sem manifesto e com o
+> commit abreviado de um SHA intermédio (`7fe28b8`) no bundle. Não instalar a rev96.
 
 `PUBLIC_APP_URL` é o endpoint que fica selado em `agent.config.example.json`; usar **o mesmo
 valor que a VPS tem em `/opt/spharmmt/docker/env/platform.env`** (confirmar antes:
-`grep ^PUBLIC_APP_URL /opt/spharmmt/docker/env/platform.env`). A revisão `rev96` vem de
+`grep ^PUBLIC_APP_URL /opt/spharmmt/docker/env/platform.env`). A revisão `rev97` vem de
 `agent/build.mjs`.
 
 ## Instalação — ordem obrigatória
@@ -106,9 +116,9 @@ construída no passo 1.
 *6a. Servir o pacote (Admin Wizard / novas instalações):*
 
 ```bash
-scp dist-agent/spharmmt-agent-base-rev96.zip deploy@<vps>:/tmp/
+scp dist-agent/spharmmt-agent-base-rev97.zip deploy@<vps>:/tmp/
 sudo cp -p /opt/spharmmt/agent-base/spharmmt-agent-base.zip /opt/spharmmt/agent-base/spharmmt-agent-base.zip.anterior
-sudo install -m 0644 -o deploy -g spharmmt /tmp/spharmmt-agent-base-rev96.zip /opt/spharmmt/agent-base/spharmmt-agent-base.zip
+sudo install -m 0644 -o deploy -g spharmmt /tmp/spharmmt-agent-base-rev97.zip /opt/spharmmt/agent-base/spharmmt-agent-base.zip
 ```
 
 *6b. Em cada farmácia (obrigatório na **Silveirense**; recomendado na Segurado, que só passa a
@@ -116,16 +126,17 @@ fazer um GET extra).* Fora de uma corrida do agent (sem `daily-pipeline`/`sync-n
 no PC da farmácia, em PowerShell, com `<AGENT>` = pasta onde o agent está instalado:
 
 ```powershell
-$agent = '<AGENT>'; $zip = 'C:\Temp\spharmmt-agent-base-rev96.zip'
+$agent = '<AGENT>'; $zip = 'C:\Temp\spharmmt-agent-base-rev97.zip'
 Copy-Item $agent "$agent.rev-anterior" -Recurse            # cópia para rollback
-Expand-Archive $zip C:\Temp\agent-rev96 -Force
-robocopy C:\Temp\agent-rev96 $agent /E /XF agent.config.json /XD logs output run
+Expand-Archive $zip C:\Temp\agent-rev97 -Force
+robocopy C:\Temp\agent-rev97 $agent /E /XF agent.config.json /XD logs output run
 ```
 
 Preserva `agent.config.json` (farmácia/tenant/chave), `logs`, `output` e `run`. Confirmar a revisão:
 
 ```powershell
-cd $agent; .\node.exe agent.cjs health          # o banner mostra rev=96
+cd $agent; .\node.exe agent.cjs health          # o banner mostra rev=97
+Get-Content .MANIFEST.json | Select-String '"rev"|"commit"|"builtAtUtc"'
 ```
 
 **7. Reiniciar o necessário.** Web e worker já foram recriados no passo 5. Os agents correm por
