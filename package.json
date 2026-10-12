@@ -196,6 +196,8 @@
     "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts",
     "test:designacao-silveira": "tsx scripts/tests/test-designacao-silveira.ts",
     "test:designacao-silveira-db": "tsx scripts/tests/test-designacao-silveira-db.ts",
+    "test:e2e-pesquisa-vendas": "tsx scripts/e2e/pesquisa-vendas-browser.ts",
+    "test:e2e-atualizar-agora-designacao": "tsx scripts/e2e/atualizar-agora-designacao-browser.ts",
     "diag:designacao-silveira": "tsx scripts/diagnostics/designacao-silveira-diagnostico.ts",
     "admin:definir-codigo-farmacia-designacao": "tsx scripts/admin/definir-codigo-farmacia-designacao.ts"
   },
