@@ -150,6 +150,15 @@ export type SyncResultado = {
   stockAtualizado: number;
   produtosAtualizados: number;
   fabricantesAlterados: number;
+  /**
+   * SÓ tenant silveira, farmácia Silveirense: designações de produto
+   * realmente substituídas por esta sincronização (ver
+   * lib/ingest/designacao-silveira.ts). Ausente (`undefined`) em todas as
+   * outras farmácias/tenants — a UI só mostra o contador quando existe.
+   */
+  designacoesAlteradas?: number;
+  /** Idem: designações comparadas com a da base (alteradas + já iguais + protegidas). */
+  designacoesVerificadas?: number;
 };
 
 export function resultadoVazio(): SyncResultado {
@@ -160,9 +169,15 @@ export function resultadoVazio(): SyncResultado {
 export function parseSyncResultado(raw: unknown): SyncResultado {
   const obj = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const opcional = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
+  const designacoesAlteradas = opcional(obj.designacoesAlteradas);
+  const designacoesVerificadas = opcional(obj.designacoesVerificadas);
   return {
     stockAtualizado: num(obj.stockAtualizado),
     produtosAtualizados: num(obj.produtosAtualizados),
     fabricantesAlterados: num(obj.fabricantesAlterados),
+    ...(designacoesAlteradas !== undefined ? { designacoesAlteradas } : {}),
+    ...(designacoesVerificadas !== undefined ? { designacoesVerificadas } : {}),
   };
 }

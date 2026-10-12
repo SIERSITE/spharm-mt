@@ -126,7 +126,7 @@ import {
 } from "../http-client.js";
 import { tableExists, listColumns } from "./probe-helpers.js";
 import { hojeNaFarmacia } from "../janela.js";
-import { runPipelineForDay, type DailySyncLogger } from "./daily-sync-runner.js";
+import { runPipelineForDay, runDesignacoesRefresh, type DailySyncLogger } from "./daily-sync-runner.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Long-poll — quantos ciclos, quanto tempo cada um.
@@ -455,8 +455,8 @@ export async function syncNow(): Promise<number> {
     let resultado: SyncNowResultado;
     try {
       const counts = await withLocalTimeout(
-        withPool(cfg, (pool) =>
-          runPipelineForDay({
+        withPool(cfg, async (pool) => {
+          const c = await runPipelineForDay({
             pool,
             client,
             farmaciaId,
@@ -464,8 +464,18 @@ export async function syncNow(): Promise<number> {
             schemaProbes: { tableExists, listColumns },
             logger,
             scope: "products-stock", // NUNCA vendas — ver cabeçalho do ficheiro.
-          })
-        ),
+          });
+          // Designações (SÓ se o SaaS disser que esta é a farmácia autoritativa
+          // — tenant silveira / Silveirense): o catálogo inteiro é comparado, não
+          // apenas os produtos com actividade de hoje. Nas outras farmácias é um
+          // GET de 1 pedido e nada mais.
+          const dz = await runDesignacoesRefresh({ pool, client, farmaciaId, logger });
+          if (dz.aplicavel) {
+            c.designacoesAlteradas = (c.designacoesAlteradas ?? 0) + dz.alteradas;
+            c.designacoesVerificadas = (c.designacoesVerificadas ?? 0) + dz.verificadas;
+          }
+          return c;
+        }),
         SYNC_NOW_LOCAL_TIMEOUT_MS,
         "sync-now"
       );
@@ -480,6 +490,9 @@ export async function syncNow(): Promise<number> {
         stockAtualizado: counts.stockUpserted,
         produtosAtualizados: counts.productsUpserted,
         fabricantesAlterados: counts.fabricantesAlterados,
+        // Omitidos fora da farmácia autoritativa — a UI trata a ausência como "não se aplica".
+        ...(counts.designacoesAlteradas !== undefined ? { designacoesAlteradas: counts.designacoesAlteradas } : {}),
+        ...(counts.designacoesVerificadas !== undefined ? { designacoesVerificadas: counts.designacoesVerificadas } : {}),
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -516,6 +529,9 @@ export async function syncNow(): Promise<number> {
     console.log(`  stock actualizado      : ${resultado.stockAtualizado}`);
     console.log(`  produtos actualizados  : ${resultado.produtosAtualizados}`);
     console.log(`  fabricantes alterados  : ${resultado.fabricantesAlterados}`);
+    if (resultado.designacoesAlteradas !== undefined) {
+      console.log(`  designações alteradas  : ${resultado.designacoesAlteradas}`);
+    }
     console.log(`  duração                : ${(wallMs / 1000).toFixed(1)}s`);
     console.log(RULE);
     console.log("✓ sync-now concluído e acked com sucesso.");

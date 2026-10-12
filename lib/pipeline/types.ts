@@ -60,6 +60,9 @@ export type SyncNowDetails = {
   stockAtualizado: number;
   produtosAtualizados: number;
   fabricantesAlterados: number;
+  /** Só tenant silveira / farmácia autoritativa — ver SyncResultado. */
+  designacoesAlteradas?: number;
+  designacoesVerificadas?: number;
 };
 
 /** Payload composto do orquestrador daily-pipeline. */

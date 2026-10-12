@@ -55,6 +55,7 @@ import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import {
   runPipelineForDay,
   runOperationalRefresh,
+  runDesignacoesRefresh,
   type PipelineRunCounts,
   type OperationalRefreshCounts,
 } from "./daily-sync-runner.js";
@@ -907,6 +908,38 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         pipelineLog.log(`✗ refresh-operacional ERROR: ${msg} — repetível na corrida seguinte`);
       }
       pipelineLog.log("");
+    }
+
+    // 1d) Designações — SÓ farmácia autoritativa (tenant silveira / Silveirense).
+    //
+    // O SaaS decide (GET .../products/designacoes); em qualquer outra farmácia
+    // isto é um único GET e nada mais. Compara o catálogo INTEIRO do ERP
+    // (activos e retirados) com a designação da base, em cada corrida diária,
+    // independentemente de o ERP ter marcado o produto como alterado. O
+    // refresh operacional acima já passa por aqui pelo endpoint de produtos
+    // para os activos; este passo cobre também os retirados e é a mesma regra
+    // do servidor. Falha aqui é PARTIAL (idempotente, repete-se amanhã).
+    {
+      const t0 = Date.now();
+      try {
+        const dz = await withPool(cfg, async (pool) =>
+          runDesignacoesRefresh({ pool, client, farmaciaId, logger: dailySyncLog }),
+        );
+        if (dz.aplicavel) {
+          const dur = Date.now() - t0;
+          steps.push({ name: "designacoes", status: "OK", durationMs: dur });
+          pipelineLog.log(
+            `  designações: lidas=${dz.lidas} verificadas=${dz.verificadas} alteradas=${dz.alteradas} já iguais=${dz.jaIguais}`,
+          );
+        }
+      } catch (err) {
+        const dur = Date.now() - t0;
+        const msg = err instanceof Error ? err.message : String(err);
+        steps.push({ name: "designacoes", status: "ERROR", durationMs: dur, message: msg });
+        if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
+        errorMessage = errorMessage ?? `designações falhou: ${msg}`;
+        pipelineLog.log(`✗ designações ERROR: ${msg} — repetível na corrida seguinte`);
+      }
     }
 
     // 2) aggregate-month (skippable)

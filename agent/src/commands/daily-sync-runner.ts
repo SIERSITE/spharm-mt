@@ -93,6 +93,13 @@ export type PipelineRunCounts = {
    * corrida — a mesma que já lê `catalogPlan` — que os tem à mão.
    */
   fabricantesAlterados: number;
+  /**
+   * Designações de produto realmente substituídas pelo SaaS nesta corrida
+   * (SÓ farmácia autoritativa do tenant silveira — o servidor decide; nas
+   * outras fica `undefined`). Soma do endpoint de produtos e do passo leve.
+   */
+  designacoesAlteradas?: number;
+  designacoesVerificadas?: number;
 };
 
 /**
@@ -519,6 +526,13 @@ async function pipelineProducts(
       if (c) {
         counts.fabricantesAlterados += (c.preenchidos?.fabricante ?? 0) + (c.substituidos?.fabricante ?? 0);
       }
+      // O SaaS só devolve `designacoes` com modo AUTORITATIVA para a farmácia
+      // autoritativa; nas outras farmácias/tenants o contador nem aparece.
+      const dz = response.designacoes;
+      if (dz && dz.modo === "AUTORITATIVA") {
+        counts.designacoesAlteradas = (counts.designacoesAlteradas ?? 0) + dz.alteradas;
+        counts.designacoesVerificadas = (counts.designacoesVerificadas ?? 0) + dz.verificadas;
+      }
       logger.log(
         `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length} (${response.durationMs}ms)`
       );
@@ -882,6 +896,108 @@ export async function runPipelineForDay(opts: {
     logger.log("▶ Pipeline 3: SALES-LINES — saltado (scope=products-stock, ver sync-now)");
   }
   return counts;
+}
+
+const DESIGNACOES_BATCH = 1000;
+
+/**
+ * A leitura do passo leve de designações: TODO o catálogo que o ERP tem em
+ * `dbo.Stocks` (activos E retirados — a designação de um artigo retirado
+ * também é observada), só (CodigoID, Codigo, Nome Comercial). Sem filtro de
+ * data nem de "alterado": a regra é comparar sempre o valor actual do ERP
+ * com o do SaaS. Exportada para teste estático.
+ */
+export function buildDesignacoesSql(): string {
+  return `
+    SELECT TOP (@n)
+      s.CodigoID          AS externalProductId,
+      s.[Codigo]          AS cnp,
+      s.[Nome Comercial]  AS designacao
+    FROM [dbo].[Stocks] s
+    WHERE s.[Processa_Stocks] <> 0
+      AND s.CodigoID > @lastId
+    ORDER BY s.CodigoID
+  `;
+}
+
+export type DesignacoesRefreshCounts = {
+  /** `false` quando esta farmácia não é a autoritativa — nada foi lido nem enviado. */
+  aplicavel: boolean;
+  lidas: number;
+  verificadas: number;
+  alteradas: number;
+  jaIguais: number;
+  ignoradasManual: number;
+  semProduto: number;
+};
+
+/**
+ * Passo leve de designações — SÓ corre se o SaaS disser que esta farmácia é
+ * a autoritativa (`GET …/products/designacoes`: tenant silveira, Silveirense).
+ * Em qualquer outro caso não lê o ERP nem envia nada.
+ *
+ * Existe porque `scope:"date"` só relê produtos com actividade do dia, e a
+ * regra manda comparar a designação do ERP com a da base em CADA sincronização
+ * — também no "Sincronizar agora" — mesmo para produtos que o ERP não marcou
+ * como alterados. O servidor aplica a regra (e só escreve onde difere).
+ */
+export async function runDesignacoesRefresh(opts: {
+  pool: SqlPool;
+  client: SaasClient | null;
+  farmaciaId: string;
+  logger: DailySyncLogger;
+  dryRun?: boolean;
+}): Promise<DesignacoesRefreshCounts> {
+  const { pool, client, farmaciaId, logger } = opts;
+  const zero: DesignacoesRefreshCounts = {
+    aplicavel: false, lidas: 0, verificadas: 0, alteradas: 0, jaIguais: 0, ignoradasManual: 0, semProduto: 0,
+  };
+  if (!client || opts.dryRun) return zero;
+
+  const estado = await client.designacoesEstado(farmaciaId, 30_000);
+  if (estado.erroConfiguracao) {
+    // Nunca silencioso: o técnico vê porque nenhuma designação está a ser verificada.
+    logger.log(`  Designações: configuração do SaaS inválida (${estado.erroConfiguracao.codigo}) — ${estado.erroConfiguracao.mensagem}`);
+  }
+  if (!estado.autoritativa) {
+    logger.log("  Designações: esta farmácia não é a autoritativa — passo saltado.");
+    return zero;
+  }
+
+  const out: DesignacoesRefreshCounts = { ...zero, aplicavel: true };
+  const sqlText = buildDesignacoesSql();
+  let lastId = -1;
+  logger.raw(DOUBLE_RULE);
+  logger.log(`▶ Designações — catálogo inteiro (batch=${DESIGNACOES_BATCH}, só cnp + designação)`);
+  logger.raw(DOUBLE_RULE);
+  while (true) {
+    const rs = await pool
+      .request()
+      .input("lastId", sql.Int, lastId)
+      .input("n", sql.Int, DESIGNACOES_BATCH)
+      .query<{ externalProductId: number; cnp: unknown; designacao: unknown }>(sqlText);
+    if (rs.recordset.length === 0) break;
+    out.lidas += rs.recordset.length;
+    const items = rs.recordset
+      .map((r) => ({
+        cnp: Number(r.cnp),
+        designacao: r.designacao === null || r.designacao === undefined ? null : String(r.designacao),
+      }))
+      .filter((i) => Number.isFinite(i.cnp));
+    const resp = await client.bootstrapProductsDesignacoes({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+    out.verificadas += resp.verificadas;
+    out.alteradas += resp.alteradas;
+    out.jaIguais += resp.jaIguais;
+    out.ignoradasManual += resp.ignoradasManual;
+    out.semProduto += resp.semProduto;
+    const last = rs.recordset[rs.recordset.length - 1];
+    if (last && typeof last.externalProductId === "number") lastId = last.externalProductId;
+    if (rs.recordset.length < DESIGNACOES_BATCH) break;
+  }
+  logger.log(
+    `  Designações: lidas=${out.lidas} verificadas=${out.verificadas} alteradas=${out.alteradas} já iguais=${out.jaIguais} protegidas=${out.ignoradasManual}`
+  );
+  return out;
 }
 
 /**

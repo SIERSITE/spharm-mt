@@ -217,6 +217,12 @@ export function SyncNowWidget({ farmacias }: Props) {
           {mensagemEstado} — Stock actualizado: {status.resultado.stockAtualizado} · Produtos
           actualizados: {status.resultado.produtosAtualizados} · Fabricantes alterados:{" "}
           {status.resultado.fabricantesAlterados}
+          {status.resultado.designacoesAlteradas !== undefined ? (
+            <>
+              {" "}
+              · Designações alteradas: {status.resultado.designacoesAlteradas}
+            </>
+          ) : null}
         </div>
       ) : null}
       {(status?.estado === "FALHOU" || status?.estado === "EXPIRADO") ? (

@@ -111,6 +111,41 @@ export class SaasClient {
    * para o agent resolver `--farmacia <nome>` → cuid antes do
    * primeiro upload.
    */
+  /**
+   * GET /api/ingest/v1/bootstrap/products/designacoes?farmaciaId=…
+   * Esta farmácia é a autoritativa para a designação? (SÓ tenant silveira;
+   * em qualquer outro caso `autoritativa:false`.)
+   */
+  async designacoesEstado(
+    farmaciaId: string,
+    timeoutMs?: number
+  ): Promise<{ ok: boolean; aplica: boolean; autoritativa: boolean; modo: string; erroConfiguracao?: { codigo: string; mensagem: string } }> {
+    return this.request("GET", `/api/ingest/v1/bootstrap/products/designacoes?farmaciaId=${encodeURIComponent(farmaciaId)}`, { timeoutMs });
+  }
+
+  /**
+   * POST /api/ingest/v1/bootstrap/products/designacoes
+   * Passo leve da farmácia autoritativa: só (cnp, designação). 409 se esta
+   * farmácia não for a autoritativa (nada é escrito).
+   */
+  async bootstrapProductsDesignacoes(
+    body: { farmaciaId: string; items: Array<{ cnp: number; designacao: string | null }> },
+    timeoutMs?: number
+  ): Promise<{
+    ok: true;
+    recebidas: number;
+    semCnp: number;
+    verificadas: number;
+    alteradas: number;
+    jaIguais: number;
+    ignoradasVazias: number;
+    ignoradasManual: number;
+    semProduto: number;
+    durationMs: number;
+  }> {
+    return this.request("POST", "/api/ingest/v1/bootstrap/products/designacoes", { body, timeoutMs });
+  }
+
   async listFarmacias(timeoutMs?: number): Promise<{
     ok: boolean;
     tenantSlug: string;
@@ -672,6 +707,12 @@ export type SyncNowResultado = {
   stockAtualizado: number;
   produtosAtualizados: number;
   fabricantesAlterados: number;
+  /**
+   * Só farmácia autoritativa da designação (tenant silveira). Omitido nas
+   * restantes — o SaaS e a UI tratam a ausência como "não se aplica".
+   */
+  designacoesAlteradas?: number;
+  designacoesVerificadas?: number;
 };
 
 export type PendingOrderLine = {
@@ -842,5 +883,21 @@ export type BootstrapBatchResponse = {
     preenchidos: Record<string, number>;
     substituidos: Record<string, number>;
     preservados: Record<string, number>;
+  };
+  /**
+   * Designações de produto (SÓ tenant silveira — ver lib/ingest/
+   * designacao-silveira.ts no SaaS). Ausente nos outros tenants.
+   */
+  designacoes?: {
+    modo: "AUTORITATIVA" | "SO_CRIACAO";
+    criadas: number;
+    verificadas: number;
+    alteradas: number;
+    jaIguais: number;
+    ignoradasOrigemNaoAutoritativa: number;
+    ignoradasVazias: number;
+    ignoradasManual: number;
+    erros: number;
+    erroConfiguracao?: { codigo: string; mensagem: string };
   };
 };
