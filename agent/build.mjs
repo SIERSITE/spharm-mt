@@ -32,6 +32,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as https from "node:https";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,7 +97,12 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // designacoesVerificadas/designacoesAlteradas no ack. Exige a aplicação
 // SaaS desta mesma entrega (endpoint …/products/designacoes). Fora do tenant
 // silveira / da Silveirense é um único GET e nada mais.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "96";
+// rev97 — MESMO código de agent que a rev96 (diff vazio em agent/ entre 7fe28b8 e
+// 886acd6); muda só o empacotamento: o ZIP passa a levar MANIFEST.json (rev,
+// commit completo, data UTC, sha256 de cada ficheiro) e o build recusa
+// árvore suja. A rev96 ficou sem manifesto e com o commit abreviado dum
+// SHA intermédio no agent.cjs, o que não permitia provar a sua origem.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "97";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
@@ -2261,6 +2267,53 @@ function writeReadme() {
 // Wizard (STANDALONE) descarrega-o e injecta o agent.config.json por
 // farmácia localmente. NÃO contém dados de tenant/farmácia — só o
 // runtime/template comum (inclui agent.config.example.json, não o real).
+function readGit(args) {
+  try {
+    return execSync(`git ${args}`, { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+// MANIFEST.json: prova de origem do pacote. Escreve-se SEMPRE por último
+// (depois de todos os ficheiros) e não se auto-referencia. Nunca leva
+// segredos nem config de tenant.
+function writeManifest() {
+  const commitFull = readGit("rev-parse HEAD") || "unknown";
+  const dirty = readGit("status --porcelain").length > 0;
+  if (dirty && process.env.AGENT_PACKAGE_ALLOW_DIRTY !== "1") {
+    throw new Error(
+      "Árvore git com alterações por commitar — o pacote não seria reprodutível a partir de um commit. " +
+        "Faz commit (ou AGENT_PACKAGE_ALLOW_DIRTY=1 só para ensaios; o manifesto fica com dirty=true)."
+    );
+  }
+  const files = {};
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name !== "MANIFEST.json") {
+        files[path.relative(DIST_ROOT, full).split(path.sep).join("/")] = {
+          sha256: createHash("sha256").update(fs.readFileSync(full)).digest("hex"),
+          bytes: fs.statSync(full).size,
+        };
+      }
+    }
+  };
+  walk(DIST_ROOT);
+  const manifest = {
+    name: "spharmmt-agent-base",
+    rev: AGENT_REV,
+    commit: commitFull,
+    branch: readGit("rev-parse --abbrev-ref HEAD"),
+    builtAtUtc: new Date().toISOString(),
+    dirty,
+    files,
+  };
+  fs.writeFileSync(path.join(DIST_ROOT, "MANIFEST.json"), JSON.stringify(manifest, null, 2) + "\u000a", "utf8");
+  log(`  ✓ MANIFEST.json (rev${AGENT_REV} commit ${commitFull.slice(0, 7)}, ${Object.keys(files).length} ficheiros)`);
+}
+
 function zipBase() {
   const zipName = `spharmmt-agent-base-rev${AGENT_REV}.zip`;
   const zipPath = path.join(REPO_ROOT, "dist-agent", zipName);
@@ -2303,6 +2356,7 @@ async function main() {
     copyResources(saasEndpoint);
     writeBatchWrappers();
     writeReadme();
+    writeManifest();
     const base = zipBase();
     const dur = ((Date.now() - t0) / 1000).toFixed(1);
     log("─".repeat(60));
