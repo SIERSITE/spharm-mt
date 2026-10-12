@@ -46,7 +46,7 @@ async function main() {
     "OMEGA 3 1000 MG 60 CAPS.", "GEL DE BANHO DERMATOLOGICO 500 ML", "PENSOS RAPIDOS 20 UN.", "ALCOOL 70 250 ML",
     "ACIDO FOLICO 5 MG 20 COMP.", "TRAMADOL 50 MG 20 CAPS.", "FUROSEMIDA 40 MG 60 COMP.", "NAPROXENO 500 MG 20 COMP.",
   ];
-  const rows = [];
+  const rows: unknown[] = [];
   nomes.forEach((descricao, i) => {
     const codigo = String(5_000_100 + i * 7);
     farmacias.forEach((farmacia, fi) => {

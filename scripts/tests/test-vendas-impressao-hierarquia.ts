@@ -55,7 +55,7 @@ function linha(codigo: string, farmacia: string, total: number): SalesReportRow 
     valorBrutoManutencao: 0,
     existencia: 3,
     semVendasNoPeriodo: total === 0,
-  } as SalesReportRow;
+  } as unknown as SalesReportRow;
 }
 
 const rows = [
@@ -93,7 +93,7 @@ console.log("\n=== C. Não depende só da cor ===");
 {
   const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   const bloco = css.slice(css.indexOf("HIERARQUIA FORTE"));
-  ok("cabeçalho da tabela: fundo escuro + texto branco + bold", /hierarchy-strong thead th \{[^}]*background: #1f2937[^}]*color: #ffffff[^}]*font-weight: 700/s.test(bloco));
+  ok("cabeçalho da tabela: fundo escuro + texto branco + bold", /hierarchy-strong thead th \{[^}]*background: #1f2937[^}]*color: #ffffff[^}]*font-weight: 700/.test(bloco));
   ok("início de cada artigo: borda superior de 2px", /tbody\.row-group > tr:first-child > td \{\s*border-top: 2px solid/.test(bloco));
   ok("blocos alternados com tons distintos (branco ↔ #e5e7eb)", /tbody\.row-group td \{ background: #ffffff/.test(bloco) && /row-group-alt td \{ background: #e5e7eb/.test(bloco));
   const sub = bloco.slice(bloco.indexOf("tr.subtotal-row td {"));
