@@ -22,6 +22,7 @@ import {
 } from "@/lib/tabela/ordenacao";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
+import { construirPredicadoPesquisa } from "@/lib/reporting/pesquisa-produto";
 import {
   avgDaily,
   coverageDays,
@@ -488,14 +489,17 @@ function stockFromWhere(
     conds.push(Prisma.sql`pf."produtoId" = ANY(${produtoIds})`);
   }
   if (q && q.length > 0) {
-    const like = `%${q}%`;
-    conds.push(Prisma.sql`(
-      p.designacao ILIKE ${like}
-      OR p.cnp::text ILIKE ${like}
-      OR f.nome ILIKE ${like}
-      OR COALESCE(p.dci, '') ILIKE ${like}
-      OR COALESCE(p."codigoATC", '') ILIKE ${like}
-    )`);
+    // Mesma regra de pesquisa de todos os relatórios (termos AND, sem caixa
+    // nem acentos — lib/reporting/pesquisa-termos.ts). Aqui cada termo pode
+    // casar com designação, CNP, fabricante, DCI ou ATC.
+    const predicado = construirPredicadoPesquisa(q, {
+      colunasExtra: [
+        Prisma.sql`f.nome`,
+        Prisma.sql`COALESCE(p.dci, '')`,
+        Prisma.sql`COALESCE(p."codigoATC", '')`,
+      ],
+    });
+    if (predicado) conds.push(Prisma.sql`(${predicado})`);
   }
   const recorrencia = janelaRecorrencia();
   return Prisma.sql`

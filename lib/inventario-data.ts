@@ -47,6 +47,7 @@ import { custoUnitario as custoUnitarioDaFarmacia } from "@/lib/produtos/custo-f
 import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { resolverProdutoIdsPorLaboratoriosSelecionados } from "@/lib/reporting/resolver-laboratorio-selecionado";
+import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
 
 export type EstadoInventario =
   | "NORMAL"
@@ -293,17 +294,9 @@ export async function getInventarioData(
   const prodIdCond = produtoIdFilter
     ? Prisma.sql`AND pf."produtoId" = ANY(${produtoIdFilter})`
     : Prisma.empty;
-  const pesquisaCond =
-    filters.pesquisa && filters.pesquisa.trim()
-      ? (() => {
-          const q = filters.pesquisa!.trim();
-          const asNumber = Number(q);
-          if (Number.isFinite(asNumber) && Number.isInteger(asNumber)) {
-            return Prisma.sql`AND (p."cnp" = ${asNumber} OR p."designacao" ILIKE ${"%" + q + "%"})`;
-          }
-          return Prisma.sql`AND p."designacao" ILIKE ${"%" + q + "%"}`;
-        })()
-      : Prisma.empty;
+  // Regra única de pesquisa por artigo (termos AND, sem caixa nem acentos,
+  // CNP parcial) — lib/reporting/pesquisa-produto.ts.
+  const pesquisaCond = construirCondicaoPesquisa(filters.pesquisa);
 
   const rows = await prisma.$queryRaw<
     Array<{

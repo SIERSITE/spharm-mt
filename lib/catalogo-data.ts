@@ -1,4 +1,5 @@
 import "server-only";
+import { condicoesPrismaPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { getPrisma } from "@/lib/prisma";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
@@ -32,7 +33,7 @@ export { pesquisarLaboratorios, resolverFiltroLaboratorioWhere, carregarLaborato
  * Server-only — mutações vão por server actions noutro lado.
  *
  * Filtros suportados na lista:
- *   search (CNP exacto, designacao/dci/codigoATC ILIKE), fabricanteId,
+ *   search (termos AND em designação/DCI/ATC, ou CNP exacto), fabricanteId,
  *   productType, classificacaoN1Id, verificationStatus, estado.
  *
  * Paginado: page 1-based, pageSize cap 200, default 50.
@@ -237,17 +238,10 @@ export async function loadCatalogoListData(
   if (filters.origem) Object.assign(where, whereOrigem(filters.origem));
 
   if (filters.search && filters.search.trim().length > 0) {
-    const q = filters.search.trim();
-    const ors: Prisma.ProdutoWhereInput[] = [
-      { designacao: { contains: q, mode: "insensitive" } },
-      { dci: { contains: q, mode: "insensitive" } },
-      { codigoATC: { contains: q, mode: "insensitive" } },
-    ];
-    const cnpNum = Number(q);
-    if (Number.isFinite(cnpNum) && cnpNum > 0) {
-      ors.push({ cnp: cnpNum });
-    }
-    where.OR = ors;
+    // Termos AND (lib/reporting/pesquisa-termos.ts): cada termo tem de
+    // aparecer em designação, DCI ou ATC; um termo só de dígitos também
+    // casa com o CNP exacto.
+    where.AND = condicoesPrismaPesquisa(filters.search, ["designacao", "dci", "codigoATC"]);
   }
 
   const [total, rows, resumo] = await Promise.all([

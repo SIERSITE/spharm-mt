@@ -33,7 +33,7 @@ import { readFileSync } from "node:fs";
 import { Prisma } from "../../generated/prisma/client";
 import { construirCondicaoPesquisa } from "../../lib/reporting/pesquisa-produto";
 import { construirCondicaoPesquisa as reexportadaPorMargens } from "../../lib/margens-data";
-import { normalizarOpcao } from "../../components/reporting/filter-select";
+import { correspondeAPesquisa } from "../../lib/reporting/pesquisa-termos";
 
 let pass = 0;
 let fail = 0;
@@ -207,43 +207,24 @@ console.log("\n=== F. UI clara e sem contradição client-side ===");
     /function CompactInput\([\s\S]{0,900}<Search /.test(src("components/reporting/vendas-filtros.tsx")) && cv.includes("CompactInput"),
   );
 
-  // O bug de contaminação client-side: já não deve existir NENHUM sítio
-  // a comparar `artigo` com `.toLowerCase()` simples contra
-  // codigo/descricao — tem de ser sempre via normalizarOpcao (o mesmo
-  // helper accent-insensitive já usado nos filtros de Margens).
+  // O bug de contaminação client-side: já não deve existir NENHUM sítio a
+  // comparar `artigo` com `.toLowerCase()` simples, nem a procurar a frase
+  // inteira como subcadeia contígua — tudo passa pela regra partilhada
+  // (lib/reporting/pesquisa-termos.ts: termos AND, sem caixa nem acentos).
   ok(
-    "importa normalizarOpcao do módulo partilhado (não reimplementa remoção de acentos)",
-    cv.includes('from "@/components/reporting/filter-select"') && cv.includes("normalizarOpcao"),
+    "importa correspondeAPesquisa do módulo partilhado (não reimplementa a regra)",
+    cv.includes('from "@/lib/reporting/pesquisa-termos"') && cv.includes("correspondeAPesquisa"),
   );
   const comparacoesAntigas = (cv.match(/\.includes\(artigo\.toLowerCase\(\)\)/g) ?? []).length;
   eq("zero comparações antigas (artigo.toLowerCase(), sem remover acentos) ainda no ficheiro", comparacoesAntigas, 0);
-  const comparacoesNovas = (cv.match(/normalizarOpcao\(`\$\{row\.codigo\} \$\{row\.descricao\}`\)\.includes\(normalizarOpcao\(artigo\)\)/g) ?? [])
-    .length;
+  const frasesInteiras = (cv.match(/\.includes\(normalizarOpcao\(artigo\)\)/g) ?? []).length;
+  eq("zero comparações da frase inteira (normalizarOpcao(artigo)) ainda no ficheiro", frasesInteiras, 0);
+  const comparacoesNovas = (cv.match(/correspondeAPesquisa\(`\$\{row\.codigo\} \$\{row\.descricao\}`, artigo\)/g) ?? []).length;
   ok(
-    "todos os refinamentos client-side (baseFiltered, reportByFarmacia, groupRows, comparativo) usam normalizarOpcao dos dois lados",
+    "todos os refinamentos client-side (baseFiltered, reportByFarmacia, groupRows, comparativo) usam a regra partilhada",
     comparacoesNovas >= 4,
     `encontradas ${comparacoesNovas}`,
   );
 }
 
-console.log("\n=== G. Prova directa: o filtro client-side já não esconde o que o servidor encontra ===");
-{
-  // Reproduz EXACTAMENTE a expressão usada em vendas-client.tsx — não
-  // uma cópia paralela, a MESMA lógica, para provar o comportamento
-  // real e não um "sósia" dela.
-  function passaFiltroArtigo(row: { codigo: string; descricao: string }, artigo: string): boolean {
-    if (!artigo.trim()) return true;
-    return normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo));
-  }
-  const avene = { codigo: "90001", descricao: "Avène Eau Thermale" };
-  ok('"avene" (sem acento, minúsculas) encontra "Avène"', passaFiltroArtigo(avene, "avene"));
-  ok('"AVENE" (maiúsculas) encontra "Avène"', passaFiltroArtigo(avene, "AVENE"));
-  ok('"avéne" (acento trocado) encontra "Avène"', passaFiltroArtigo(avene, "avéne"));
-  const ventilan = { codigo: "8322628", descricao: "VENTILAN INALADOR R AER 100 MCG/D 200 D" };
-  ok('"VENTILAN" encontra o inalador', passaFiltroArtigo(ventilan, "VENTILAN"));
-  ok('"ventilan" (minúsculas) encontra o mesmo', passaFiltroArtigo(ventilan, "ventilan"));
-  ok('"8322" (CNP parcial) encontra pelo código', passaFiltroArtigo(ventilan, "8322"));
-}
 
-console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);
-process.exit(fail === 0 ? 0 : 1);

@@ -1,6 +1,7 @@
 "use client";
 
 import { ArtigoLink } from "@/components/stock/artigo-link";
+import { correspondeAPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { runVendasReport } from "@/app/vendas/actions";
@@ -18,7 +19,6 @@ import {
   passaFiltroFabricanteSelecionado,
   type SharedReportFilters,
 } from "@/lib/reporting/filters-shared";
-import { normalizarOpcao } from "@/components/reporting/filter-select";
 import {
   FiltrosToggleButton,
   LimparFiltrosButton,
@@ -371,13 +371,14 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // Mesma regra do servidor (lib/reporting/pesquisa-termos.ts: termos,
+        // todos obrigatórios, sem caixa nem acentos). O servidor já
         // filtra sem distinguir acentos (unaccent); este refinamento
         // client-side tinha de fazer o MESMO, senão escondia de novo
         // uma linha que o servidor tinha correctamente encontrado
         // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
         // filtro descartava-a outra vez por "avène" !== "avene").
-        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
+        !correspondeAPesquisa(`${row.codigo} ${row.descricao}`, artigo)
       ) {
         return false;
       }
@@ -424,13 +425,14 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // Mesma regra do servidor (lib/reporting/pesquisa-termos.ts: termos,
+        // todos obrigatórios, sem caixa nem acentos). O servidor já
         // filtra sem distinguir acentos (unaccent); este refinamento
         // client-side tinha de fazer o MESMO, senão escondia de novo
         // uma linha que o servidor tinha correctamente encontrado
         // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
         // filtro descartava-a outra vez por "avène" !== "avene").
-        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
+        !correspondeAPesquisa(`${row.codigo} ${row.descricao}`, artigo)
       ) {
         continue;
       }
@@ -728,10 +730,10 @@ export function VendasClient({
         }
         if (
           artigo.trim() &&
-          // Ver comentário equivalente em baseFiltered — normalizarOpcao
+          // Ver comentário equivalente em baseFiltered —
           // (não .toLowerCase() cru) para não esconder de novo uma linha
           // que o servidor já encontrou sem distinguir acentos.
-          !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
+          !correspondeAPesquisa(`${row.codigo} ${row.descricao}`, artigo)
         ) {
           return false;
         }
@@ -783,13 +785,14 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // Mesma regra do servidor (lib/reporting/pesquisa-termos.ts: termos,
+        // todos obrigatórios, sem caixa nem acentos). O servidor já
         // filtra sem distinguir acentos (unaccent); este refinamento
         // client-side tinha de fazer o MESMO, senão escondia de novo
         // uma linha que o servidor tinha correctamente encontrado
         // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
         // filtro descartava-a outra vez por "avène" !== "avene").
-        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
+        !correspondeAPesquisa(`${row.codigo} ${row.descricao}`, artigo)
       ) {
         continue;
       }

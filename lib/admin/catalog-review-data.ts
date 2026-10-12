@@ -1,4 +1,5 @@
 import "server-only";
+import { condicoesPrismaPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { getPrisma } from "@/lib/prisma";
 import {
   Prisma,
@@ -83,14 +84,9 @@ export async function loadReviewListData(
   if (filters.tipoRevisao) where.tipoRevisao = filters.tipoRevisao;
   if (filters.prioridade) where.prioridade = filters.prioridade;
   if (filters.search && filters.search.trim().length > 0) {
-    const q = filters.search.trim();
-    const numeric = /^\d+$/.test(q) ? Number(q) : null;
-    where.produto = {
-      OR: [
-        { designacao: { contains: q, mode: "insensitive" } },
-        ...(numeric != null ? [{ cnp: numeric }] : []),
-      ],
-    };
+    // Termos AND (lib/reporting/pesquisa-termos.ts); um termo só de dígitos
+    // também casa com o CNP exacto.
+    where.produto = { AND: condicoesPrismaPesquisa(filters.search, ["designacao"]) };
   }
 
   const skip = (page - 1) * pageSize;

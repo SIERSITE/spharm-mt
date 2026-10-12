@@ -3,6 +3,8 @@
 import { getPrisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { Prisma } from "@/generated/prisma/client";
+import { construirPredicadoPesquisa } from "@/lib/reporting/pesquisa-produto";
+import { termosDePesquisa } from "@/lib/reporting/pesquisa-termos";
 
 export type ProductSearchResult = {
   id: string;
@@ -13,24 +15,6 @@ export type ProductSearchResult = {
 };
 
 const MAX_LIMIT = 25;
-
-function buildWhere(query: string): Prisma.ProdutoWhereInput | null {
-  const q = query.trim();
-  if (q.length < 2) return null;
-
-  if (/^\d+$/.test(q)) {
-    const n = Number(q);
-    if (!Number.isFinite(n)) return null;
-    return { cnp: n };
-  }
-
-  return {
-    OR: [
-      { designacao: { contains: q, mode: "insensitive" } },
-      { fabricante: { is: { nomeNormalizado: { contains: q, mode: "insensitive" } } } },
-    ],
-  };
-}
 
 function toNum(v: unknown): number | null {
   if (v == null) return null;
@@ -77,19 +61,44 @@ export async function searchProductsAction(input: {
 }): Promise<ProductSearchResult[]> {
   await requirePermission("reports.write");
 
-  const where = buildWhere(input.query);
-  if (!where) return [];
+  const q = input.query.trim();
+  if (q.length < 2) return [];
   if (!input.farmaciaId) return [];
+
+  // Regra única de pesquisa (lib/reporting/pesquisa-produto.ts): termos AND,
+  // sem caixa nem acentos, CNP parcial. Aqui cada termo também pode casar
+  // com o nome do fabricante.
+  const predicado = construirPredicadoPesquisa(q, {
+    colunasExtra: [Prisma.sql`f."nomeNormalizado"`],
+  });
+  if (!predicado) return [];
 
   const prisma = await getPrisma();
   const limit = Math.min(input.limit ?? 20, MAX_LIMIT);
 
+  // Um CNP escrito por inteiro vem primeiro, mesmo que a pesquisa parcial
+  // devolva mais do que o limite.
+  const termos = termosDePesquisa(q);
+  const cnpExacto = termos.length === 1 && /^\d+$/.test(termos[0]) ? termos[0] : null;
+  const ordemCnp = cnpExacto
+    ? Prisma.sql`(p."cnp"::text = ${cnpExacto}) DESC,`
+    : Prisma.empty;
+  const ids = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT p."id"
+    FROM "Produto" p
+    LEFT JOIN "Fabricante" f ON f."id" = p."fabricanteId"
+    WHERE ${predicado}
+    ORDER BY ${ordemCnp} p."designacao" ASC
+    LIMIT ${limit}
+  `);
+  if (ids.length === 0) return [];
+
+  const ordem = new Map(ids.map((r, i) => [r.id, i]));
   const produtos = (await prisma.produto.findMany({
-    where,
-    take: limit,
-    orderBy: [{ designacao: "asc" }],
+    where: { id: { in: ids.map((r) => r.id) } },
     select: buildSelect(input.farmaciaId),
   })) as unknown as RawHit[];
+  produtos.sort((x, y) => (ordem.get(x.id) ?? 0) - (ordem.get(y.id) ?? 0));
 
   return produtos.map((p) => projectHit(p, true));
 }
