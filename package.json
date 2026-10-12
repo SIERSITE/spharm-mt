@@ -193,7 +193,11 @@
     "test:pesquisa-termos-db": "tsx scripts/tests/test-pesquisa-termos-db.ts",
     "test:margens-custo-cnp8322628": "tsx scripts/tests/test-margens-custo-cnp8322628.ts",
     "test:vendas-pdf-layout": "tsx scripts/tests/test-vendas-pdf-layout.ts",
-    "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts"
+    "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts",
+    "test:designacao-silveira": "tsx scripts/tests/test-designacao-silveira.ts",
+    "test:designacao-silveira-db": "tsx scripts/tests/test-designacao-silveira-db.ts",
+    "diag:designacao-silveira": "tsx scripts/diagnostics/designacao-silveira-diagnostico.ts",
+    "admin:definir-codigo-farmacia-designacao": "tsx scripts/admin/definir-codigo-farmacia-designacao.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
