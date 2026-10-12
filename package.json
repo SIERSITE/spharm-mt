@@ -168,6 +168,8 @@
     "test:painel-resultado-transferencias": "tsx scripts/tests/test-painel-resultado-transferencias.ts",
     "test:reimpressao-documentos-db": "tsx scripts/tests/test-reimpressao-documentos-db.ts",
     "test:e2e-encomendas-finalizacao": "tsx scripts/e2e/encomendas-finalizacao-browser.ts",
+    "test:finalizacao-grupo-estado": "tsx scripts/tests/test-finalizacao-grupo-estado.ts",
+    "test:e2e-encomendas-grupo-finalizacao": "tsx scripts/e2e/encomendas-grupo-finalizacao-browser.ts",
     "test:e2e-transferencias-manutencao": "tsx scripts/e2e/transferencias-manutencao-browser.ts",
     "test:documentos-finalizacao": "tsx scripts/tests/test-documentos-finalizacao.ts",
     "test:finalizacao-grupo-direta": "tsx scripts/tests/test-finalizacao-grupo-direta.ts",
