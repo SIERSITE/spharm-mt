@@ -281,6 +281,11 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
 # ter escrita sem volta.
 COPY scripts/catalog ./scripts/catalog
 COPY scripts/diagnostics ./scripts/diagnostics
+# Operação ÚNICA de Garantia (reposição das 36 manutenções de Vendas):
+# CLI + operacao.ts + executar.ts + dados.json. Entra inteiro porque a pasta
+# só tem estes ficheiros, todos necessários — o pré-diagnóstico (em
+# scripts/diagnostics) importa de scripts/ops/garantia-manutencoes-vendas.
+COPY scripts/ops ./scripts/ops
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na
 # raiz de scripts/, não em catalog-master/. Sem ele, o `fill-rules`

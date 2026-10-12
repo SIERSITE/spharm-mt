@@ -149,6 +149,13 @@ catalog:encerrar-revisoes-falsas
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
 env:doctor
+# Reposição ÚNICA do histórico da Manutenção de Vendas no tenant garantia
+# (36 registos). Pré-diagnóstico READ-ONLY e o CLI (dry-run por omissão;
+# --apply exige --confirmar-tenant=garantia). Corre sempre com
+# --tenant=garantia explícito (control plane); relatórios em /relatorios
+# (bind mount). Ver notes/garantia-manutencoes-vendas.md.
+diag:garantia-manutencoes-vendas
+ops:garantia-manutencoes-vendas
 
 # ── Vendas: classificação, reagregação, reconciliação ────────────────
 # A sequência que fecha uma correcção do universo de vendas, por ordem

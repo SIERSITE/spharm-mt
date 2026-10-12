@@ -79,54 +79,139 @@ O mapa de Vendas (`getVendasData`, `incluirManutencao`) lê exactamente estas ta
   divergente ⇒ `CONFLITO`.
 * Nunca elimina nem modifica manutenções existentes.
 
-## 5. Comandos
+## 5. Operação na VPS (Docker, imagem `migrator`)
 
-**Dry-run** (sem escritas; pode correr na VPS):
+A operação corre **sempre** na imagem `migrator` (o processo administrativo real do projecto;
+nada de `npx tsx` no host). Web, worker e PostgreSQL **não são reiniciados nem substituídos**:
+só se constrói a imagem `-migrator` e se corre um contentor efémero (`run --rm`) contra a rede
+interna. Nenhuma migration.
 
+Variáveis comuns (copiar uma vez por sessão):
+
+```bash
+SHA=<SHA final da branch ops/garantia-reposicao-manutencao-vendas>
+CLONE=<clone do repositório na VPS>
+REL=/opt/spharmmt/relatorios/garantia-manutencoes-vendas
+DC="sudo docker compose -p spharmmt --profile tools \
+  --env-file /opt/spharmmt/docker/env/platform.env \
+  --env-file /opt/spharmmt/docker/env/stack.env"
+RUN="$DC run --rm -v $REL:/relatorios migrate"      # relatórios persistem FORA do contentor
 ```
-npx tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts --tenant=garantia --relatorio=/tmp/garantia-dry-run.json
+
+### 5.1 Obter a revisão exacta e construir só o `migrator`
+
+```bash
+cd "$CLONE" && git fetch origin ops/garantia-reposicao-manutencao-vendas
+git checkout --detach "$SHA" && git rev-parse HEAD            # tem de imprimir $SHA
+git status --short                                            # tem de estar VAZIO
+sudo mkdir -p "$REL" && sudo chmod 0750 "$REL"
+
+export APP_BUILD_CONTEXT="$CLONE" APP_REVISION="$SHA"
+cd /opt/spharmmt/docker/compose && $DC build migrate          # só a imagem -migrator
+
+# a imagem sabe que revisão é, e traz o CLI, os módulos e os dados
+docker image inspect spharmmt-app:local-migrator --format '{{range .Config.Env}}{{println .}}{{end}}' | grep ^APP_REVISION=
+$DC run --rm migrate ls -l scripts/ops/garantia-reposicao-manutencoes-vendas.ts \
+  scripts/ops/garantia-manutencoes-vendas/operacao.ts scripts/ops/garantia-manutencoes-vendas/executar.ts \
+  scripts/ops/garantia-manutencoes-vendas/dados.json
+$DC run --rm migrate sha256sum scripts/ops/garantia-manutencoes-vendas/dados.json
+#   esperado: 83a6c0355f19f3fe748e69deeff2d5cf93342ca2c4fe3432090f70795b8d994e
+$RUN npm run ops:garantia-manutencoes-vendas -- --help        # exit 0
 ```
 
-> ### ⚠ DESTRUTIVO / ESCREVE NA BASE REAL — só depois de rever o dry-run (0 bloqueios, 36 novas)
-> ```
-> npx tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts --tenant=garantia \
->   --apply --confirmar-tenant=garantia --utilizador-email=<email> --relatorio=/tmp/garantia-apply.json
-> ```
-> **Guardar `/tmp/garantia-apply.json`**: é o que permite reverter.
+(Se a tag da imagem não for `spharmmt-app:local-migrator`, usar `APP_IMAGE`/`APP_TAG` do
+`stack.env` com o sufixo `-migrator`.)
 
-**Verificação posterior (SQL, só leitura):**
+### 5.2 Diagnóstico de leitura (antes do dry-run)
 
-```sql
-SELECT count(*) AS cabecalhos FROM "VendaManutencao" WHERE left("id",4) = 'hg1_';                         -- 36
-SELECT count(*) AS celulas    FROM "VendaManutencaoCelula"   WHERE left("manutencaoId",4) = 'hg1_';       -- 1105
-SELECT count(*) AS pvp        FROM "VendaManutencaoFarmacia" WHERE left("manutencaoId",4) = 'hg1_';       -- 180
--- totais por farmácia de cada manutenção (comparar com `totals` do dados.json)
-SELECT m.id, m.cnp, m."mesInicialAno", m."mesInicialMes", m."numMeses", m."quantidadeTotal",
-       f.nome, sum(c.quantidade) AS total
-FROM "VendaManutencao" m
-JOIN "VendaManutencaoCelula" c ON c."manutencaoId" = m.id
-JOIN "Farmacia" f ON f.id = c."farmaciaId"
+Mostra as 5 farmácias do tenant e a que cada coluna resolve, os **utilizadores activos** (escolher o
+email para o apply), se já existem registos `hg1_` e as contagens actuais. Só faz `SELECT`.
+
+```bash
+$RUN npm run diag:garantia-manutencoes-vendas -- --tenant=garantia
+#   esperado: ESTADO=PRONTO_PARA_DRY_RUN  (hg1_ = 0/0/0; as 5 colunas resolvidas)
+```
+
+Contagens por SQL (opcional; só leitura). A base é a que o diagnóstico imprime (`base host:porta/NOME`):
+
+```bash
+DB=<NOME da base impresso acima>
+docker exec -i spharmmt-postgres sh -c "psql -U \"\${POSTGRES_USER:-postgres}\" -d $DB -v ON_ERROR_STOP=1" <<'SQL'
+SET default_transaction_read_only = on;
+SELECT id, nome, estado FROM "Farmacia" ORDER BY nome;
+SELECT email, perfil FROM "Utilizador" WHERE estado = 'ATIVO' ORDER BY email;
+SELECT count(*) AS hg1_cabecalhos FROM "VendaManutencao" WHERE left(id,4) = 'hg1_';          -- 0
+SELECT (SELECT count(*) FROM "VendaManutencao") AS manutencoes,
+       (SELECT count(*) FROM "VendaManutencaoCelula") AS celulas,
+       (SELECT count(*) FROM "VendaManutencaoFarmacia") AS farmacias_pvp;
+SQL
+```
+
+### 5.3 Dry-run (zero escritas) e análise do relatório
+
+```bash
+$RUN npm run ops:garantia-manutencoes-vendas -- --tenant=garantia --relatorio=/relatorios/dry-run-$SHA.json
+# o relatório fica em $REL/dry-run-<SHA>.json (persistente). Resumo:
+sudo node -e '
+const r=require(process.argv[1]);
+console.log(JSON.stringify({tipo:r.tipo,revisao:r.revisaoCodigo,base:r.baseDados,sha256:r.ficheiroSha256,totais:r.totais,
+  farmacias:Object.fromEntries(Object.entries(r.farmacias).map(([k,v])=>[k,v&&v.nome+" "+v.id])),
+  bloqueios:r.bloqueios,antes:r.contagensAntes.desteConjunto,depois:r.contagensDepois.desteConjunto},null,2))' "$REL/dry-run-$SHA.json"
+```
+
+**Só avançar para o apply se o resumo mostrar exactamente:** `manutencoesRecebidas: 36`,
+`novas: 36` (ou menos só se alguma já existir de forma idêntica), `conflitos: 0`, `bloqueios: []`,
+`cnpDistintos: 24` = `cnpEncontrados: 24`, as **cinco** farmácias resolvidas com o nome/id esperado,
+e `antes` = `depois` (zero escritas).
+
+> ### ⚠ APPLY — DESTRUTIVO: ESCREVE na base real do tenant garantia
+> Só depois da análise acima. Uma só transacção; qualquer falha reverte tudo.
+> ```bash
+> $RUN npm run ops:garantia-manutencoes-vendas -- --tenant=garantia \
+>   --apply --confirmar-tenant=garantia --utilizador-email=<email escolhido no diagnóstico> \
+>   --relatorio=/relatorios/apply-$SHA.json
+> ```
+> **Guardar `$REL/apply-<SHA>.json`**: é o que permite reverter.
+
+### 5.4 Verificação posterior
+
+```bash
+$RUN npm run diag:garantia-manutencoes-vendas -- --tenant=garantia      # hg1_ = 36 / 1105 / 180 (estado JA_EXISTEM_REGISTOS_HG1, exit 1: é o esperado depois do apply)
+docker exec -i spharmmt-postgres sh -c "psql -U \"\${POSTGRES_USER:-postgres}\" -d $DB -v ON_ERROR_STOP=1" <<'SQL'
+SET default_transaction_read_only = on;
+SELECT count(*) AS cabecalhos FROM "VendaManutencao" WHERE left("id",4) = 'hg1_';                        -- 36
+SELECT count(*) AS celulas    FROM "VendaManutencaoCelula"   WHERE left("manutencaoId",4) = 'hg1_';      -- 1105
+SELECT count(*) AS pvp        FROM "VendaManutencaoFarmacia" WHERE left("manutencaoId",4) = 'hg1_';      -- 180
+SELECT (SELECT count(*) FROM "VendaManutencaoCelula" c WHERE NOT EXISTS (SELECT 1 FROM "VendaManutencao" m WHERE m.id = c."manutencaoId"))
+     + (SELECT count(*) FROM "VendaManutencaoFarmacia" f WHERE NOT EXISTS (SELECT 1 FROM "VendaManutencao" m WHERE m.id = f."manutencaoId")) AS orfaos;   -- 0
+SELECT m.id, m.cnp, m."mesInicialAno", m."mesInicialMes", m."numMeses", m."quantidadeTotal", f.nome, sum(c.quantidade) AS total
+FROM "VendaManutencao" m JOIN "VendaManutencaoCelula" c ON c."manutencaoId" = m.id JOIN "Farmacia" f ON f.id = c."farmaciaId"
 WHERE left(m.id,4) = 'hg1_'
 GROUP BY m.id, m.cnp, m."mesInicialAno", m."mesInicialMes", m."numMeses", m."quantidadeTotal", f.nome
-ORDER BY m.cnp, m."mesInicialAno", m."mesInicialMes", f.nome;
--- órfãos (têm de ser 0)
-SELECT (SELECT count(*) FROM "VendaManutencaoCelula" c WHERE NOT EXISTS (SELECT 1 FROM "VendaManutencao" m WHERE m.id = c."manutencaoId"))
-     + (SELECT count(*) FROM "VendaManutencaoFarmacia" f WHERE NOT EXISTS (SELECT 1 FROM "VendaManutencao" m WHERE m.id = f."manutencaoId"));
--- evidência do sistema antigo (data de compra, quantity, totals, prints)
-SELECT "entityId", "metaJson" FROM "AuditLog" WHERE action = 'venda_manutencao.reposicao_historica';
+ORDER BY m.cnp, m."mesInicialAno", m."mesInicialMes", f.nome;     -- comparar com os `totals` do dados.json
+SELECT "entityId", "metaJson" FROM "AuditLog" WHERE action = 'venda_manutencao.reposicao_historica';   -- 36 linhas
+SQL
 ```
 
-**Reversão** (remove SÓ os registos listados no relatório do `--apply`; recusa se algum foi
-alterado depois; células e PVP saem por cascata; o AuditLog de criação fica e ganha uma linha
-de reversão):
+Repetir o apply é seguro (idempotente: 36 `JA_EXISTENTE`).
 
+### 5.5 Reversão (só os registos do relatório do apply)
+
+Recusa-se se algum registo foi alterado depois da operação; células e PVP saem por cascata; o
+AuditLog de criação fica e ganha uma linha de reversão.
+
+```bash
+# 1) simulação (dry-run da reversão): lista os 36 alvos e não escreve
+$RUN npm run ops:garantia-manutencoes-vendas -- --tenant=garantia \
+  --reverter=/relatorios/apply-$SHA.json --relatorio=/relatorios/reversao-dry-run-$SHA.json
 ```
-# 1) dry-run da reversão
-npx tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts --tenant=garantia --reverter=/tmp/garantia-apply.json
-# 2) ⚠ DESTRUTIVO — apaga os 36 registos criados pela operação
-npx tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts --tenant=garantia \
-  --reverter=/tmp/garantia-apply.json --apply --confirmar-tenant=garantia [--utilizador-email=<email>]
-```
+
+> ### ⚠ REVERSÃO EFECTIVA — DESTRUTIVA: apaga os 36 registos criados pela operação
+> ```bash
+> $RUN npm run ops:garantia-manutencoes-vendas -- --tenant=garantia \
+>   --reverter=/relatorios/apply-$SHA.json --apply --confirmar-tenant=garantia \
+>   --utilizador-email=<email> --relatorio=/relatorios/reversao-apply-$SHA.json
+> ```
 
 ## 6. Limitações reais
 
@@ -136,9 +221,11 @@ npx tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts --tenant=garantia \
    feita** (exigiria migration; fora do âmbito pedido).
 2. **`quantidadeTotal` ≠ `quantity` antiga** (soma de todas as farmácias vs. valor por
    farmácia). É a única forma coerente com o invariante da aplicação; a matriz está intacta.
-   Se alguém usar «Recalcular» na UI sobre um destes registos, a distribuição será refeita a
-   partir de `quantidadeTotal` (peso histórico) e a matriz antiga perde-se — é o comportamento
-   normal da funcionalidade.
+   **⚠ Não usar «Recalcular» nestes registos se se pretende preservar os valores do sistema
+   anterior:** a acção substitui a matriz histórica por uma distribuição nova calculada a partir de
+   `quantidadeTotal` (peso histórico das farmácias) e os valores originais perdem-se (só ficam
+   o relatório do apply e o `dados.json`). É o comportamento normal da funcionalidade, que não foi
+   alterado.
 3. **PVP de referência NULL**: o mapa de Vendas valoriza estes registos a 0 € e a UI de detalhe
    assinala «sem PVP» (comportamento já existente; nunca se inventa preço).
 4. **Pré-existente no mapa de Vendas** (não alterado): com `incluirManutencao` mas sem vendas

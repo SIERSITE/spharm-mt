@@ -178,6 +178,8 @@
     "test:reporting-uniformizacao": "tsx scripts/tests/test-reporting-uniformizacao.ts",
     "test:vendas-manutencao": "tsx scripts/tests/test-vendas-manutencao.ts",
     "test:garantia-manutencoes-vendas-db": "tsx scripts/tests/test-garantia-manutencoes-vendas-db.ts",
+    "ops:garantia-manutencoes-vendas": "tsx scripts/ops/garantia-reposicao-manutencoes-vendas.ts",
+    "diag:garantia-manutencoes-vendas": "tsx scripts/diagnostics/garantia-manutencoes-vendas-pre-diagnostico.ts",
     "test:vendas-incluir-manutencao": "tsx scripts/tests/test-vendas-incluir-manutencao.ts",
     "test:encomenda-grupo-decisao-linha": "tsx scripts/tests/test-encomenda-grupo-decisao-linha.ts",
     "test:eliminacao-encomenda-transferencia": "tsx scripts/tests/test-eliminacao-encomenda-transferencia.ts",
