@@ -564,6 +564,9 @@ export function buildVendasReport(input: {
       // report-html.ts. Os restantes ficam no default ("comfortable")
       // até serem validados e migrados um a um.
       density: "compact",
+      // Impressão/PDF: hierarquia que sobrevive a papel e a preto e branco
+      // (borda forte por artigo, blocos alternados, TOTAL ARTIGO escuro).
+      hierarchy: "strong",
       tableDensity: tableDensityFor(numMeses),
       // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
       // um mês não tem como saber que a coluna de custo é um snapshot

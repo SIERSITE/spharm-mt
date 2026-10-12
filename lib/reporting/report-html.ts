@@ -784,8 +784,73 @@ const STYLES = `
   .page.density-compact .footer-note { max-width: 80%; }
   .page.density-compact .footer-brand { white-space: nowrap; }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     HIERARQUIA FORTE — meta.hierarchy:"strong" (Vendas, 2026-10)
+     Escopado a .page.density-compact.hierarchy-strong: zero efeito em
+     qualquer relatório que não a peça. A separação entre artigos NÃO
+     depende só da cor — bordas, peso tipográfico e espaçamento
+     preservam a hierarquia em papel e em impressão monocromática:
+
+       cabeçalho .......... fundo escuro, texto branco, bold
+       início do artigo ... borda superior de 2px (preta)
+       artigos alternados . branco ↔ cinzento nítido (#e5e7eb)
+       linhas da farmácia . peso normal, separador ponteado (subordinadas)
+       TOTAL ARTIGO ....... bold, fundo azul-acinzentado ~25% mais escuro
+                            que o bloco, bordas superior/inferior de 2px
+
+     Fundos moderados (nenhum acima de ~25% de tinta, excepto a linha de
+     cabeçalho, uma só) para não gastar tinta em excesso.
+     ═══════════════════════════════════════════════════════════════════ */
+  .page.density-compact.hierarchy-strong thead th {
+    background: #1f2937 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid #111827;
+    border-bottom: 2px solid #000000;
+  }
+  .page.density-compact.hierarchy-strong tbody td {
+    border-left: 1px solid #d1d5db;
+    border-right: 1px solid #d1d5db;
+    border-bottom: 1px dotted #9ca3af;
+    color: #374151;
+  }
+  .page.density-compact.hierarchy-strong tbody.row-group td { background: #ffffff !important; }
+  .page.density-compact.hierarchy-strong tbody.row-group-alt td { background: #e5e7eb !important; }
+  /* Início de cada artigo: borda forte — inclui as células que cobrem várias linhas (CNP/Descrição). */
+  .page.density-compact.hierarchy-strong tbody.row-group > tr:first-child > td {
+    border-top: 2px solid #111827;
+  }
+  /* Tons condicionais (zero/positivo) continuam a ler-se por cima do fundo do bloco. */
+  .page.density-compact.hierarchy-strong tbody td.cell-tone-danger  { background: #fbd5d5 !important; color: #7f1d1d; }
+  .page.density-compact.hierarchy-strong tbody td.cell-tone-success { background: #c9ecd6 !important; color: #14532d; }
+  .page.density-compact.hierarchy-strong tbody td.cell-tone-info    { background: #dce8f9 !important; }
+  /* TOTAL ARTIGO: por último, para ganhar aos tons e ao fundo do bloco. */
+  .page.density-compact.hierarchy-strong tbody.row-group tr.subtotal-row td {
+    background: #b9c4d0 !important;
+    color: #000000;
+    font-weight: 700;
+    padding-top: 3.5px;
+    padding-bottom: 3.5px;
+    border-top: 2px solid #111827;
+    border-bottom: 2px solid #111827;
+    border-left: 1px solid #6b7280;
+    border-right: 1px solid #6b7280;
+  }
+  .page.density-compact.hierarchy-strong tbody.row-group tr.subtotal-row td:first-child {
+    border-left: 4px solid #111827;
+  }
+  .page.density-compact.hierarchy-strong .totals-tbody td {
+    background: #9ca3af !important;
+    color: #000000;
+    font-weight: 800;
+    border-top: 3px double #111827;
+    border-bottom: 2px solid #111827;
+  }
+
   @media print {
     html, body { width: 100%; }
+    /* Um artigo nunca se separa do seu TOTAL ARTIGO (quando o motor o permite). */
+    tr.subtotal-row { break-before: avoid; page-break-before: avoid; }
     .page { padding: 0; }
     thead { display: table-header-group; }
     /* SEM "tfoot { display: table-footer-group }" — a tabela já não usa
@@ -807,7 +872,9 @@ const STYLES = `
 export function renderReportHtml(report: Report): string {
   const orientation = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
   const styles = STYLES.replace("__ORIENTATION__", orientation);
-  const pageClass = isCompact(report) ? "page density-compact" : "page";
+  const pageClass = isCompact(report)
+    ? `page density-compact${report.meta?.hierarchy === "strong" ? " hierarchy-strong" : ""}`
+    : "page";
 
   return `<!doctype html>
 <html lang="pt-PT">

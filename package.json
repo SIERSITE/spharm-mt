@@ -192,7 +192,8 @@
     "test:pesquisa-termos": "tsx scripts/tests/test-pesquisa-termos.ts",
     "test:pesquisa-termos-db": "tsx scripts/tests/test-pesquisa-termos-db.ts",
     "test:margens-custo-cnp8322628": "tsx scripts/tests/test-margens-custo-cnp8322628.ts",
-    "test:vendas-pdf-layout": "tsx scripts/tests/test-vendas-pdf-layout.ts"
+    "test:vendas-pdf-layout": "tsx scripts/tests/test-vendas-pdf-layout.ts",
+    "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

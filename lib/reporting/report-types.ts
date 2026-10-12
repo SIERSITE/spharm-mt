@@ -239,6 +239,18 @@ export type ReportMeta = {
    *     legível, nunca a ponto de cortar texto.
    */
   tableDensity?: "cozy" | "tight" | "ultratight";
+  /**
+   * Hierarquia visual dos blocos agrupados (`GROUP_KEY`) em HTML/PDF/impressão.
+   * Só tem efeito com `density: "compact"`.
+   *
+   *   · omisso/"normal" — azuis/cinzentos suaves de sempre.
+   *   · "strong"        — separação que NÃO depende só da cor: borda forte no
+   *     início de cada bloco, blocos alternados em tons bem distintos, linha
+   *     de subtotal em negrito com fundo escuro e bordas fortes, cabeçalho de
+   *     tabela de alto contraste. Pensado para papel e impressoras
+   *     monocromáticas (Vendas, 2026-10). Nunca afecta o Excel.
+   */
+  hierarchy?: "normal" | "strong";
 };
 
 /**
