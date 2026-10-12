@@ -1,0 +1,838 @@
+{
+  "tipo": "dry-run",
+  "revisaoCodigo": "teste",
+  "tenant": "garantia",
+  "baseDados": "localhost:0/teste",
+  "ficheiroSha256": "83a6c0355f19f3fe748e69deeff2d5cf93342ca2c4fe3432090f70795b8d994e",
+  "dataHora": "2026-10-12T10:10:36.714Z",
+  "totais": {
+    "manutencoesRecebidas": 36,
+    "linhasMensais": 221,
+    "cnpDistintos": 24,
+    "cnpEncontrados": 24,
+    "cnpNaoEncontrados": [],
+    "novas": 36,
+    "jaExistentes": 0,
+    "conflitos": 0,
+    "manutencoesComTotaisDiferentesDaQuantidade": 6
+  },
+  "farmacias": {
+    "Garantia": {
+      "id": "cmv53cy4m000y8wlqq80h5maq",
+      "nome": "Farmácia Garantia",
+      "estado": "ATIVO",
+      "via": "nome"
+    },
+    "Principal": {
+      "id": "cmv53cy4s000z8wlqc57ip6iw",
+      "nome": "Farmácia Principal",
+      "estado": "ATIVO",
+      "via": "nome"
+    },
+    "Castelo": {
+      "id": "cmv53cy4y00108wlq83vuomtv",
+      "nome": "Farmácia Castelo",
+      "estado": "ATIVO",
+      "via": "nome"
+    },
+    "Pereiro": {
+      "id": "cmv53cy5300118wlqfzamucv9",
+      "nome": "Farmácia Pereiro",
+      "estado": "ATIVO",
+      "via": "nome"
+    },
+    "Nogueira": {
+      "id": "cmv53cy5800128wlqbgfon6ib",
+      "nome": "Farmácia Nogueira",
+      "estado": "ATIVO",
+      "via": "nome"
+    }
+  },
+  "errosValidacao": [],
+  "bloqueios": [],
+  "itens": [
+    {
+      "indice": 1,
+      "cnp": 7408120,
+      "dataCompra": "2026-09-18",
+      "numMeses": 6,
+      "mesInicial": "2026-09",
+      "quantidadeLegada": 5,
+      "quantidadeTotal": 25,
+      "totaisLegados": [
+        5,
+        5,
+        5,
+        5,
+        5
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_8f2cc5e954797b7096dcbef6",
+      "celulas": 30,
+      "produtoId": "cmv53cy5i00138wlq74js5nfj",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 2,
+      "cnp": 7389940,
+      "dataCompra": "2026-09-18",
+      "numMeses": 6,
+      "mesInicial": "2026-09",
+      "quantidadeLegada": 6,
+      "quantidadeTotal": 30,
+      "totaisLegados": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_36256141047fcd8640b95a28",
+      "celulas": 30,
+      "produtoId": "cmv53cy6400148wlqj6xnls7d",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 3,
+      "cnp": 7399592,
+      "dataCompra": "2026-09-18",
+      "numMeses": 6,
+      "mesInicial": "2026-03",
+      "quantidadeLegada": 10,
+      "quantidadeTotal": 50,
+      "totaisLegados": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_b1de12accdd7db9d3148c4ba",
+      "celulas": 30,
+      "produtoId": "cmv53cy6b00158wlqlh6u2p0i",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 4,
+      "cnp": 7385849,
+      "dataCompra": "2026-09-18",
+      "numMeses": 6,
+      "mesInicial": "2026-03",
+      "quantidadeLegada": 18,
+      "quantidadeTotal": 90,
+      "totaisLegados": [
+        18,
+        18,
+        18,
+        18,
+        18
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_21ddc33f7bc689c11e5c8fe0",
+      "celulas": 30,
+      "produtoId": "cmv53cy6j00168wlq89zb67o9",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 5,
+      "cnp": 5664032,
+      "dataCompra": "2026-09-14",
+      "numMeses": 6,
+      "mesInicial": "2026-05",
+      "quantidadeLegada": 6,
+      "quantidadeTotal": 30,
+      "totaisLegados": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_ddfe876e38d8b8abd0bc9b26",
+      "celulas": 30,
+      "produtoId": "cmv53cy6r00178wlqvzcfhkpg",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 6,
+      "cnp": 5788484,
+      "dataCompra": "2026-09-14",
+      "numMeses": 6,
+      "mesInicial": "2026-05",
+      "quantidadeLegada": 15,
+      "quantidadeTotal": 75,
+      "totaisLegados": [
+        15,
+        15,
+        15,
+        15,
+        15
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_300b79d372a2cf6214488f03",
+      "celulas": 30,
+      "produtoId": "cmv53cy6y00188wlqig83lo4f",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 7,
+      "cnp": 3854585,
+      "dataCompra": "2026-09-14",
+      "numMeses": 6,
+      "mesInicial": "2026-05",
+      "quantidadeLegada": 60,
+      "quantidadeTotal": 300,
+      "totaisLegados": [
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_462ba6c3c296e4a1b38ff90b",
+      "celulas": 30,
+      "produtoId": "cmv53cy7500198wlqc1gpyv8a",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 8,
+      "cnp": 5440987,
+      "dataCompra": "2026-09-14",
+      "numMeses": 6,
+      "mesInicial": "2026-05",
+      "quantidadeLegada": 80,
+      "quantidadeTotal": 400,
+      "totaisLegados": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_e50bd6a2ca487ab49524711f",
+      "celulas": 30,
+      "produtoId": "cmv53cy7e001a8wlqhbemx8ln",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 9,
+      "cnp": 7395517,
+      "dataCompra": "2026-07-24",
+      "numMeses": 6,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 60,
+      "quantidadeTotal": 302,
+      "totaisLegados": [
+        60,
+        60,
+        92,
+        37,
+        53
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_1c51d7d136b01184b50b65db",
+      "celulas": 30,
+      "produtoId": "cmv53cy7l001b8wlquuy1juij",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 10,
+      "cnp": 5647177,
+      "dataCompra": "2026-07-24",
+      "numMeses": 6,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 80,
+      "quantidadeTotal": 400,
+      "totaisLegados": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_4dafe52fa59b34c451d4ecbf",
+      "celulas": 30,
+      "produtoId": "cmv53cy7u001c8wlqxzc2aw1p",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 11,
+      "cnp": 5269287,
+      "dataCompra": "2026-07-24",
+      "numMeses": 6,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 95,
+      "quantidadeTotal": 475,
+      "totaisLegados": [
+        95,
+        95,
+        95,
+        95,
+        95
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_1dccf1a266c8f6187e754c7b",
+      "celulas": 30,
+      "produtoId": "cmv53cy81001d8wlqwwz5cw45",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 12,
+      "cnp": 2195782,
+      "dataCompra": "2026-07-24",
+      "numMeses": 6,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 70,
+      "quantidadeTotal": 350,
+      "totaisLegados": [
+        70,
+        70,
+        70,
+        70,
+        70
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_a81189d35254b687fca864cc",
+      "celulas": 30,
+      "produtoId": "cmv53cy86001e8wlqqw2lguvv",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 13,
+      "cnp": 7370312,
+      "dataCompra": "2026-06-25",
+      "numMeses": 6,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 30,
+      "quantidadeTotal": 150,
+      "totaisLegados": [
+        30,
+        30,
+        30,
+        30,
+        30
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_deefdac5f6a98fbdac41161b",
+      "celulas": 30,
+      "produtoId": "cmv53cy8d001f8wlqbnb55x67",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 14,
+      "cnp": 5788484,
+      "dataCompra": "2026-05-12",
+      "numMeses": 4,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 35,
+      "quantidadeTotal": 174,
+      "totaisLegados": [
+        35,
+        35,
+        34,
+        35,
+        35
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_d2182069aa24e59e76de082f",
+      "celulas": 20,
+      "produtoId": "cmv53cy6y00188wlqig83lo4f",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 15,
+      "cnp": 5440987,
+      "dataCompra": "2026-05-12",
+      "numMeses": 4,
+      "mesInicial": "2026-01",
+      "quantidadeLegada": 420,
+      "quantidadeTotal": 2100,
+      "totaisLegados": [
+        420,
+        420,
+        420,
+        420,
+        420
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_35a7c709a121795b8627ef3c",
+      "celulas": 20,
+      "produtoId": "cmv53cy7e001a8wlqhbemx8ln",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 16,
+      "cnp": 5423702,
+      "dataCompra": "2026-04-23",
+      "numMeses": 1,
+      "mesInicial": "2026-04",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_2d95fe7d48f1bcf69abcf049",
+      "celulas": 5,
+      "produtoId": "cmv53cy8j001g8wlqlyf5o04n",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 17,
+      "cnp": 9689208,
+      "dataCompra": "2026-04-23",
+      "numMeses": 1,
+      "mesInicial": "2026-04",
+      "quantidadeLegada": 30,
+      "quantidadeTotal": 150,
+      "totaisLegados": [
+        30,
+        30,
+        30,
+        30,
+        30
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_d5883d681c222fd1b13c2c0a",
+      "celulas": 5,
+      "produtoId": "cmv53cy8o001h8wlqg0wpvs7e",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 18,
+      "cnp": 5894605,
+      "dataCompra": "2025-09-14",
+      "numMeses": 4,
+      "mesInicial": "2025-09",
+      "quantidadeLegada": 100,
+      "quantidadeTotal": 675,
+      "totaisLegados": [
+        170,
+        158,
+        170,
+        66,
+        111
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_18901f29336363ff65a21bf2",
+      "celulas": 20,
+      "produtoId": "cmv53cy8t001i8wlq2yvez3qd",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 19,
+      "cnp": 3854585,
+      "dataCompra": "2026-01-14",
+      "numMeses": 4,
+      "mesInicial": "2025-09",
+      "quantidadeLegada": 40,
+      "quantidadeTotal": 192,
+      "totaisLegados": [
+        28,
+        50,
+        50,
+        34,
+        30
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_26304156895fc2a117c94571",
+      "celulas": 20,
+      "produtoId": "cmv53cy7500198wlqc1gpyv8a",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 20,
+      "cnp": 5440987,
+      "dataCompra": "2026-01-14",
+      "numMeses": 4,
+      "mesInicial": "2025-09",
+      "quantidadeLegada": 70,
+      "quantidadeTotal": 357,
+      "totaisLegados": [
+        46,
+        69,
+        122,
+        50,
+        70
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_3013a1dc93fbcc261dea505b",
+      "celulas": 20,
+      "produtoId": "cmv53cy7e001a8wlqhbemx8ln",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 21,
+      "cnp": 7395517,
+      "dataCompra": "2025-10-10",
+      "numMeses": 6,
+      "mesInicial": "2025-04",
+      "quantidadeLegada": 30,
+      "quantidadeTotal": 150,
+      "totaisLegados": [
+        30,
+        30,
+        30,
+        30,
+        30
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_c889d7e84982a0bd7a99b125",
+      "celulas": 30,
+      "produtoId": "cmv53cy7l001b8wlquuy1juij",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 22,
+      "cnp": 9200949,
+      "dataCompra": "2025-02-12",
+      "numMeses": 8,
+      "mesInicial": "2025-02",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_c4a0e49338e923e74085384f",
+      "celulas": 40,
+      "produtoId": "cmv53cy8z001j8wlqwfgr8ksw",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 23,
+      "cnp": 3854585,
+      "dataCompra": "2025-09-04",
+      "numMeses": 4,
+      "mesInicial": "2025-05",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_affa39ef9fb2e500ef2e0aa7",
+      "celulas": 20,
+      "produtoId": "cmv53cy7500198wlqc1gpyv8a",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 24,
+      "cnp": 7370312,
+      "dataCompra": "2025-01-01",
+      "numMeses": 6,
+      "mesInicial": "2025-01",
+      "quantidadeLegada": 28,
+      "quantidadeTotal": 140,
+      "totaisLegados": [
+        28,
+        28,
+        28,
+        28,
+        28
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_2764efdd449fcc0bc52627a9",
+      "celulas": 30,
+      "produtoId": "cmv53cy8d001f8wlqbnb55x67",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 25,
+      "cnp": 7386227,
+      "dataCompra": "2025-01-01",
+      "numMeses": 6,
+      "mesInicial": "2025-01",
+      "quantidadeLegada": 30,
+      "quantidadeTotal": 150,
+      "totaisLegados": [
+        30,
+        30,
+        30,
+        30,
+        30
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_991314c14ba6d3d3f71dfaed",
+      "celulas": 30,
+      "produtoId": "cmv53cy94001k8wlqe59drzl9",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 26,
+      "cnp": 5788484,
+      "dataCompra": "2025-05-07",
+      "numMeses": 5,
+      "mesInicial": "2025-01",
+      "quantidadeLegada": 25,
+      "quantidadeTotal": 125,
+      "totaisLegados": [
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_d0cacbfc425e70325e903b59",
+      "celulas": 25,
+      "produtoId": "cmv53cy6y00188wlqig83lo4f",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 27,
+      "cnp": 5440987,
+      "dataCompra": "2025-05-07",
+      "numMeses": 4,
+      "mesInicial": "2025-01",
+      "quantidadeLegada": 200,
+      "quantidadeTotal": 1000,
+      "totaisLegados": [
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_bb400874a94a3101b8aca0ca",
+      "celulas": 20,
+      "produtoId": "cmv53cy7e001a8wlqhbemx8ln",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 28,
+      "cnp": 5751425,
+      "dataCompra": "2025-05-02",
+      "numMeses": 9,
+      "mesInicial": "2024-07",
+      "quantidadeLegada": 15,
+      "quantidadeTotal": 75,
+      "totaisLegados": [
+        15,
+        15,
+        15,
+        15,
+        15
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_6179e506147a119ffd502e1d",
+      "celulas": 45,
+      "produtoId": "cmv53cy99001l8wlq73h7ad2k",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 29,
+      "cnp": 5568803,
+      "dataCompra": "2025-05-02",
+      "numMeses": 6,
+      "mesInicial": "2024-11",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_1c491900b2d47a4ff1161180",
+      "celulas": 30,
+      "produtoId": "cmv53cy9f001m8wlq9aziu9wz",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 30,
+      "cnp": 5755202,
+      "dataCompra": "2025-05-02",
+      "numMeses": 9,
+      "mesInicial": "2024-08",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_f01ebff498290e3006ddf928",
+      "celulas": 45,
+      "produtoId": "cmv53cy9k001n8wlq351cpxtd",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 31,
+      "cnp": 5816350,
+      "dataCompra": "2025-05-02",
+      "numMeses": 2,
+      "mesInicial": "2025-01",
+      "quantidadeLegada": 10,
+      "quantidadeTotal": 50,
+      "totaisLegados": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_65ec4f7e8666260ae91006a7",
+      "celulas": 10,
+      "produtoId": "cmv53cy9q001o8wlqdw49dmsa",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 32,
+      "cnp": 5751433,
+      "dataCompra": "2025-05-02",
+      "numMeses": 8,
+      "mesInicial": "2024-08",
+      "quantidadeLegada": 48,
+      "quantidadeTotal": 235,
+      "totaisLegados": [
+        48,
+        47,
+        48,
+        48,
+        44
+      ],
+      "totaisDiferemDaQuantidade": true,
+      "headerId": "hg1_45c9759e548694dba98965aa",
+      "celulas": 40,
+      "produtoId": "cmv53cy9v001p8wlq63cxwlvx",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 33,
+      "cnp": 3311180,
+      "dataCompra": "2024-04-03",
+      "numMeses": 12,
+      "mesInicial": "2024-04",
+      "quantidadeLegada": 10,
+      "quantidadeTotal": 50,
+      "totaisLegados": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_e229c600284d7af35abdf93d",
+      "celulas": 60,
+      "produtoId": "cmv53cya2001q8wlqemy8i0ro",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 34,
+      "cnp": 2195782,
+      "dataCompra": "2024-04-03",
+      "numMeses": 12,
+      "mesInicial": "2024-04",
+      "quantidadeLegada": 80,
+      "quantidadeTotal": 400,
+      "totaisLegados": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_b7a5dc50150469ff806c46f1",
+      "celulas": 60,
+      "produtoId": "cmv53cy86001e8wlqqw2lguvv",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 35,
+      "cnp": 5269287,
+      "dataCompra": "2024-04-03",
+      "numMeses": 12,
+      "mesInicial": "2024-04",
+      "quantidadeLegada": 50,
+      "quantidadeTotal": 250,
+      "totaisLegados": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_f07be3359cf32d0c77c38dc1",
+      "celulas": 60,
+      "produtoId": "cmv53cy81001d8wlqwwz5cw45",
+      "estado": "NOVO"
+    },
+    {
+      "indice": 36,
+      "cnp": 7395517,
+      "dataCompra": "2024-04-05",
+      "numMeses": 12,
+      "mesInicial": "2024-04",
+      "quantidadeLegada": 25,
+      "quantidadeTotal": 125,
+      "totaisLegados": [
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "totaisDiferemDaQuantidade": false,
+      "headerId": "hg1_dec3225b76abf4007cb6f703",
+      "celulas": 60,
+      "produtoId": "cmv53cy7l001b8wlquuy1juij",
+      "estado": "NOVO"
+    }
+  ],
+  "contagensAntes": {
+    "vendaManutencao": 1,
+    "vendaManutencaoCelula": 1,
+    "vendaManutencaoFarmacia": 1,
+    "farmacia": 5,
+    "produto": 24,
+    "desteConjunto": {
+      "cabecalhos": 0,
+      "celulas": 0,
+      "farmaciasPvp": 0
+    }
+  },
+  "contagensDepois": {
+    "vendaManutencao": 1,
+    "vendaManutencaoCelula": 1,
+    "vendaManutencaoFarmacia": 1,
+    "farmacia": 5,
+    "produto": 24,
+    "desteConjunto": {
+      "cabecalhos": 0,
+      "celulas": 0,
+      "farmaciasPvp": 0
+    }
+  },
+  "criado": null,
+  "erros": [],
+  "rollback": null
+}
