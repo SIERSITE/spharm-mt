@@ -33,10 +33,13 @@
  * de espaço técnicas (NBSP, tabs, quebras) normalizados — capitalização e
  * pontuação preservadas.
  *
- * Uma designação protegida por `camposManuais` (ficha escrita à mão no
- * SPharm.MT) mantém-se protegida — é a mesma protecção que a ingestão já
- * tinha antes desta regra e que `bulkUpsertProdutosByCnp` documenta. Fica
- * contada à parte (`ignoradasManual`) para ser visível.
+ * `camposManuais`: a designação é a ÚNICA excepção. O CNP identifica um
+ * produto comum a todas as farmácias e a designação é única no catálogo
+ * partilhado; por isso a designação válida da Silveirense substitui a actual
+ * MESMO que `"designacao"` esteja em `camposManuais`. Todos os outros campos
+ * em `camposManuais` (flagGenerico, flagMnsrmNCompart, …) continuam
+ * protegidos — esta regra nem lhes toca. As outras farmácias nunca alteram a
+ * designação de um produto existente, manual ou não.
  *
  * ── Que farmácia é a Silveirense ─────────────────────────────────────
  *
@@ -101,7 +104,9 @@ export function decidirDesignacao(input: {
   if (input.modo === "SO_CRIACAO") {
     return nova === input.existente.designacao ? "IGUAL" : "IGNORADA_ORIGEM";
   }
-  if (input.existente.camposManuais.includes("designacao")) return "IGNORADA_MANUAL";
+  // LEGACY (outros tenants): a protecção de `camposManuais` mantém-se. AUTORITATIVA
+  // (Silveirense, tenant silveira): a designação ignora `camposManuais`.
+  if (input.modo === "LEGACY" && input.existente.camposManuais.includes("designacao")) return "IGNORADA_MANUAL";
   return nova === input.existente.designacao ? "IGUAL" : "ALTERAR";
 }
 
@@ -118,7 +123,7 @@ export type EstatisticasDesignacao = {
   ignoradasOrigemNaoAutoritativa: number;
   /** Recebida vazia/só espaços — ignorada. */
   ignoradasVazias: number;
-  /** (só autoritativa) protegida por `camposManuais` — não substituída. */
+  /** Protegida por `camposManuais` — só modo LEGACY; na Silveirense é sempre 0 (a designação ignora `camposManuais`). */
   ignoradasManual: number;
   /** Erros ao aplicar (itens que falharam no caminho de recurso). */
   erros: number;
@@ -314,7 +319,6 @@ export async function aplicarDesignacoesAutoritativas(
       FROM (VALUES ${Prisma.join(valores)}) AS v(cnp, d)
       WHERE p."cnp" = v.cnp
         AND p."designacao" IS DISTINCT FROM v.d
-        AND NOT ('designacao' = ANY(p."camposManuais"))
       RETURNING p."cnp"
     `);
     // O nº REAL de escritas manda (uma alteração concorrente entre a leitura

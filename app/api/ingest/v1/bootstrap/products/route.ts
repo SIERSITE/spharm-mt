@@ -490,7 +490,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             // SO_CRIACAO (tenant silveira, farmácia não autoritativa): num
             // produto existente a designação nunca é tocada.
             designacao:
-              modoDesignacao === "SO_CRIACAO" || manual.has("designacao") || designacaoNova === ""
+              modoDesignacao === "SO_CRIACAO" ||
+              (modoDesignacao !== "AUTORITATIVA" && manual.has("designacao")) ||
+              designacaoNova === ""
                 ? undefined
                 : a.designacao,
             flagGenerico: manual.has("flagGenerico") ? undefined : a.flagGenerico,

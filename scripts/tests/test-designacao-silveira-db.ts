@@ -256,8 +256,21 @@ async function main() {
       const c = novoCnp();
       await prisma.produto.create({ data: { cnp: c, designacao: "Escrita à mão", camposManuais: ["designacao"], origemDados: "MANUAL" } });
       const r = await sync("silveira", silv, [{ cnp: c, designacao: "ERP tenta substituir" }]);
-      check((await desig(c)) === "Escrita à mão" && r.estatisticas?.ignoradasManual === 1 && r.estatisticas?.alteradas === 0,
-        "designação protegida por camposManuais não é substituída (ignoradasManual=1) — protecção anterior preservada");
+      check((await desig(c)) === "ERP tenta substituir" && r.estatisticas?.ignoradasManual === 0 && r.estatisticas?.alteradas === 1,
+        "designação em camposManuais: a Silveirense SUBSTITUI-A (alteradas=1, ignoradasManual=0) — a designação é a única excepção");
+      const seg2 = await sync("silveira", seg, [{ cnp: c, designacao: "A Segurado tenta" }]);
+      check((await desig(c)) === "ERP tenta substituir" && seg2.estatisticas?.ignoradasOrigemNaoAutoritativa === 1, "…a Segurado nunca substitui, nem a designação manual nem a da Silveirense");
+      const vazio = await sync("silveira", silv, [{ cnp: c, designacao: "   " }]);
+      check((await desig(c)) === "ERP tenta substituir" && vazio.estatisticas?.ignoradasVazias === 1, "…e uma designação vazia nunca substitui");
+      const cf = novoCnp();
+      await prisma.produto.create({ data: { cnp: cf, designacao: "Antes", flagGenerico: true, camposManuais: ["designacao", "flagGenerico"] } });
+      await sync("silveira", silv, [{ cnp: cf, designacao: "Depois" }]);
+      const pf = await prisma.produto.findUnique({ where: { cnp: cf } });
+      check(pf?.designacao === "Depois" && pf.flagGenerico === true && pf.camposManuais.includes("flagGenerico"), "os OUTROS campos em camposManuais (flagGenerico) continuam protegidos: a designação muda, o flag não");
+      const cg = novoCnp();
+      await prisma.produto.create({ data: { cnp: cg, designacao: "Manual garantia", camposManuais: ["designacao"] } });
+      await sync("garantia", seg, [{ cnp: cg, designacao: "ERP garantia" }]);
+      check((await desig(cg)) === "Manual garantia", "outros tenants (LEGACY): a designação manual continua protegida");
       const c2 = novoCnp();
       await sync("silveira", silv, [{ cnp: c2, designacao: `  Dolo${NBSP}Neurobion   500\t mg \n 20 comp.  ` }]);
       check((await desig(c2)) === "Dolo Neurobion 500 mg 20 comp.", "espaços exteriores e técnicos normalizados; capitalização e pontuação preservadas");
@@ -295,12 +308,12 @@ async function main() {
         { cnp: ausente, designacao: "NÃO EXISTE" },
         { cnp: novoCnp(), designacao: "   " },
       ]);
-      check((await desig(a)) === "A NOVA" && r.alteradas === 1, "altera só o que difere (alteradas=1), normalizando espaços");
+      check((await desig(a)) === "A NOVA" && r.alteradas === 2, "altera só o que difere (a e m), normalizando espaços");
       const depoisB = (await prisma.$queryRaw<{ x: string }[]>`SELECT xmin::text AS x FROM "Produto" WHERE cnp = ${b}`)[0].x;
       check(antesB === depoisB && r.jaIguais === 1, "o produto já igual NÃO é escrito (xmin inalterado)");
-      check((await desig(m)) === "M MANUAL" && r.ignoradasManual === 1, "ficha manual protegida");
+      check((await desig(m)) === "M do ERP" && r.ignoradasManual === 0, "passo leve: a designação em camposManuais também é substituída pela Silveirense");
       check((await prisma.produto.findUnique({ where: { cnp: ausente } })) === null && r.semProduto === 1, "nunca cria produtos (semProduto=1)");
-      check(r.ignoradasVazias === 1 && r.verificadas === 3, "vazias ignoradas; verificadas = alteradas + iguais + manuais");
+      check(r.ignoradasVazias === 1 && r.verificadas === 3 && r.alteradas === 2, "vazias ignoradas; verificadas = alteradas (2) + iguais (1)");
       const r2 = await D.aplicarDesignacoesAutoritativas(prisma, [{ cnp: a, designacao: "A NOVA" }, { cnp: b, designacao: "B IGUAL" }]);
       check(r2.alteradas === 0 && r2.jaIguais === 2, "segunda passagem: idempotente");
     }

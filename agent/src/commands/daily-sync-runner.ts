@@ -16,7 +16,7 @@
 
 import sql from "mssql";
 import type { SqlPool } from "../sql-client.js";
-import type { SaasClient } from "../http-client.js";
+import { SaasApiError, type SaasClient } from "../http-client.js";
 import { ALIAS_FONTE_VENDA, validarSelect } from "../sql-validador.js";
 import type { BootstrapBatchResponse } from "../http-client.js";
 import {
@@ -954,7 +954,19 @@ export async function runDesignacoesRefresh(opts: {
   };
   if (!client || opts.dryRun) return zero;
 
-  const estado = await client.designacoesEstado(farmaciaId, 30_000);
+  let estado: Awaited<ReturnType<SaasClient["designacoesEstado"]>>;
+  try {
+    estado = await client.designacoesEstado(farmaciaId, 30_000);
+  } catch (err) {
+    // Servidor SaaS anterior a esta funcionalidade (rollback da aplicação, ou
+    // agent instalado antes da aplicação): não há endpoint ⇒ nada a fazer. Só o
+    // 404 é tolerado; qualquer outro erro propaga (sync-now FALHOU / daily PARTIAL).
+    if (err instanceof SaasApiError && err.statusCode === 404 && !/farmacia_not_found/.test(err.bodySnippet ?? "")) {
+      logger.log("  Designações: o SaaS não tem este passo (404) — saltado.");
+      return zero;
+    }
+    throw err;
+  }
   if (estado.erroConfiguracao) {
     // Nunca silencioso: o técnico vê porque nenhuma designação está a ser verificada.
     logger.log(`  Designações: configuração do SaaS inválida (${estado.erroConfiguracao.codigo}) — ${estado.erroConfiguracao.mensagem}`);

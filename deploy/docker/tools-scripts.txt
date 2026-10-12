@@ -149,6 +149,12 @@ catalog:encerrar-revisoes-falsas
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
 env:doctor
+# Autoridade da designação da Silveirense (tenant silveira): diagnóstico
+# READ-ONLY e atribuição idempotente de Farmacia.codigoANF (dry-run por
+# omissão). O diagnóstico lê SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF do
+# ambiente do container (platform.env).
+diag:designacao-silveira
+admin:definir-codigo-farmacia-designacao
 
 # ── Vendas: classificação, reagregação, reconciliação ────────────────
 # A sequência que fecha uma correcção do universo de vendas, por ordem

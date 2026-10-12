@@ -68,14 +68,17 @@ async function main() {
     }
     console.log("");
     if (!d.resolucao.aplica) {
+      console.log("ESTADO=NAO_APLICA");
       console.log(`  Resultado: a regra não se aplica ao tenant "${slug}" (só ao tenant silveira).`);
       process.exit(0);
     }
     if (d.resolucao.valida) {
+      console.log("ESTADO=VALIDA");
       console.log(`  Resultado: VÁLIDA — "${d.resolucao.farmaciaNome}" é a farmácia autoritativa para a designação.`);
       console.log("  A outra(s) farmácia(s) só escrevem a designação ao CRIAR produtos.");
       process.exit(0);
     }
+    console.log(`ESTADO=INVALIDA:${d.resolucao.codigo}`);
     console.log(`  Resultado: INVÁLIDA (${d.resolucao.codigo}) — ${d.resolucao.mensagem}`);
     console.log("  Enquanto assim, NENHUMA farmácia altera designações existentes (modo seguro); a criação de produtos novos continua.");
     for (const a of d.accoes) console.log(`   → ${a}`);

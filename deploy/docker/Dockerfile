@@ -245,7 +245,8 @@ COPY lib ./lib
 COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
 COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts \
-     scripts/admin/package-agent.ts ./scripts/admin/
+     scripts/admin/package-agent.ts \
+     scripts/admin/definir-codigo-farmacia-designacao.ts ./scripts/admin/
 # Idem para `scripts/catalog-master`: a maioria dos ficheiros é de
 # investigação do catálogo (builders, matrizes, relatórios, simulador) e
 # corre na máquina de quem analisa. Os que entram são os operacionais —

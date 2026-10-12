@@ -153,10 +153,11 @@ blocos alternados branco ↔ `#e5e7eb`; farmácias subordinadas (peso normal, se
 * **Outra farmácia** (modo `SO_CRIACAO`): só escreve a designação ao **criar** o produto;
   num produto existente nunca a altera.
 * Vazia/só espaços: nunca substitui, em nenhum modo.
-* **Ficha manual** (`camposManuais ∋ "designacao"`): continua protegida, mesmo da Silveirense —
-  é a protecção que já existia; fica visível em `ignoradasManual`. *Decisão a confirmar: se a
-  Silveirense deve também sobrepor fichas manuais, é uma linha em `decidirDesignacao` + o `CASE`
-  do SQL.*
+* **`camposManuais`** (decisão final): o CNP é um produto comum e a designação é única no
+  catálogo partilhado, por isso a designação não vazia da Silveirense substitui a actual **mesmo
+  que `"designacao"` esteja em `camposManuais`** — excepção exclusiva da designação. Os outros
+  campos em `camposManuais` continuam protegidos; outros tenants e as outras farmácias
+  mantêm-se como descrito. `ignoradasManual` só é > 0 em modo LEGACY.
 * **Identificação:** `Farmacia.codigoANF` (sem espaços exteriores, sem maiúsculas) =
   `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`. Nunca o nome, nunca um id, nunca «a primeira».
 * **Ordem/concorrência:** o `ON CONFLICT` da Segurado devolve a designação existente; o da
@@ -213,15 +214,14 @@ Comandos e resultados completos: ver a mensagem de entrega (e `npm run test:*` a
 
 ## 9. Limitações restantes
 
-* **Agent:** o passo de designações do catálogo inteiro e o contador exigem uma nova revisão do
-  agent (não publicada nem versionada aqui). Sem ela, o servidor já impede a reversão pela
-  Segurado e aplica a regra aos produtos que o agent antigo envia (do dia + refresh nocturno),
-  mas «Atualizar agora» não compara o catálogo inteiro nem mostra o contador.
+* **Agent:** a rev96 (incluída nesta entrega; ver `notes/instalacao-designacao-silveira.md`) é
+  necessária para o passo do catálogo inteiro e para o contador. Com o agent antigo o servidor já
+  impede a reversão pela Segurado e aplica a regra aos produtos que ele envia, mas «Atualizar
+  agora» não compara o catálogo inteiro.
 * A leitura no ERP do passo leve não foi exercida contra um SQL Server real (o ERP é a única
   peça simulada nos ensaios).
 * Produtos **retirados** só são observados pelo passo leve (agent novo); o endpoint de
   produtos não os recebe no refresh.
-* Fichas manuais mantêm a designação (decisão acima).
 * `pdf-parse` (dependência declarada) não está no `node_modules` do repositório principal desta
   máquina; 5 ficheiros de teste antigos que o importam não compilam em `tsc` e os testes que o
   usam falham aí com `ERR_MODULE_NOT_FOUND` (pré-existente, igual na revisão de produção). Na

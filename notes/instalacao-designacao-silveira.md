@@ -1,0 +1,177 @@
+# Instalação coordenada — designação autoritativa da Silveirense (aplicação + worker + agent rev96)
+
+Revisão a instalar: a indicada em `SHA` (SHA final da branch
+`feat/pesquisa-impressao-designacao-silveirense`). **Sem migrations.**
+Pacote do agent: `spharmmt-agent-base-rev96.zip`.
+
+## Regra final (o que esta entrega faz)
+
+* Tenant `silveira`. A **Silveirense** (identificada por `Farmacia.codigoANF` =
+  `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`) é a fonte da designação: uma designação
+  **não vazia** substitui sempre a actual — **mesmo que `"designacao"` esteja em
+  `camposManuais`** (é a única excepção a essa protecção).
+* **Todos os outros campos** em `camposManuais` (`flagGenerico`, `flagMnsrmNCompart`, …) continuam
+  protegidos; fabricantes, fornecedores e classificações não são tocados.
+* Designação vazia nunca substitui. As outras farmácias só definem a designação ao **criar** o
+  produto; depois, nunca a substituem (manual ou não).
+* Outros tenants: comportamento inalterado (a protecção de `camposManuais` mantém-se).
+* Um só caminho de escrita: `bulkUpsertProdutosByCnp` (modo `AUTORITATIVA`) e o passo leve
+  (`aplicarDesignacoesAutoritativas`), ambos governados por `decidirDesignacao`.
+
+## Gerar o pacote do agent
+
+Na máquina de build, com o checkout **limpo e no SHA final** (o carimbo `commit=` do bundle
+sai do `git rev-parse HEAD`):
+
+```bash
+git checkout --detach <SHA> && git status --short          # tem de estar vazio
+PUBLIC_APP_URL=https://app.spharmmt.com npm run agent:package
+# → dist-agent/spharmmt-agent-base-rev96.zip   (+ dist-agent/SPharmMT-Agent/)
+sha256sum dist-agent/spharmmt-agent-base-rev96.zip
+```
+
+`PUBLIC_APP_URL` é o endpoint que fica selado em `agent.config.example.json`; usar **o mesmo
+valor que a VPS tem em `/opt/spharmmt/docker/env/platform.env`** (confirmar antes:
+`grep ^PUBLIC_APP_URL /opt/spharmmt/docker/env/platform.env`). A revisão `rev96` vem de
+`agent/build.mjs`.
+
+## Instalação — ordem obrigatória
+
+Convenções (na VPS): `DC` = compose da stack.
+
+```bash
+SHA=<SHA final>
+DC="sudo docker compose -p spharmmt --profile tools \
+  --env-file /opt/spharmmt/docker/env/platform.env \
+  --env-file /opt/spharmmt/docker/env/stack.env"
+cd /opt/spharmmt/docker/compose
+```
+
+**0. Preparação.**
+
+```bash
+cd <clone do repositório> && git fetch origin && git checkout --detach "$SHA" && git status --short   # vazio
+sudo /opt/spharmmt/scripts/backup-platform.sh --label pre-designacao
+docker exec spharmmt-app printenv APP_REVISION          # anotar: é a REVISÃO ANTERIOR (rollback)
+```
+
+**1. Imagem de ferramentas nova (só o `migrator`; não toca em web/worker).** O diagnóstico novo
+vive nela.
+
+```bash
+export APP_BUILD_CONTEXT=<clone do repositório> APP_REVISION="$SHA"
+cd /opt/spharmmt/docker/compose && $DC build migrate
+```
+
+**2. Diagnóstico ANTES** (read-only):
+
+```bash
+$DC run --rm migrate npm run diag:designacao-silveira -- --tenant=silveira
+```
+
+Esperado antes de configurar: `ESTADO=INVALIDA:NAO_CONFIGURADO`, com a lista das farmácias
+(id, nome, `codigoANF`, estado).
+
+**3. Identificar o `codigoANF` real da Silveirense** (na lista do passo 2). Se já tem código, usar esse
+valor no passo 5. Se **não tem**, atribuir (idempotente; dry-run por omissão):
+
+```bash
+$DC run --rm migrate npm run admin:definir-codigo-farmacia-designacao -- \
+  --tenant=silveira --farmacia-id=<ID da Silveirense> --codigo=<ANF>            # dry-run
+$DC run --rm migrate npm run admin:definir-codigo-farmacia-designacao -- \
+  --tenant=silveira --farmacia-id=<ID da Silveirense> --codigo=<ANF> --apply    # escreve
+```
+
+(O `--farmacia-id` é obrigatório: o comando nunca escolhe a farmácia, nem por nome nem pela
+posição. Recusa um código já usado por outra farmácia.)
+
+**4. Configurar a variável** (persistida em `platform.env`; sobrevive ao `install-platform.sh`
+desta revisão em diante):
+
+```bash
+ANF=<ANF>      # só letras, dígitos . _ -
+F=/opt/spharmmt/docker/env/platform.env
+if grep -q '^SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=' "$F"; then
+  sudo sed -i "s/^SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=.*/SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=${ANF}/" "$F"
+else
+  echo "SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=${ANF}" | sudo tee -a "$F" >/dev/null
+fi
+grep ^SILVEIRA_DESIGNACAO "$F"
+```
+
+**5. Instalar aplicação e worker** (deploy rápido: constrói, recria só `web` e `worker`, recusa-se
+se houver migrations — não há — e faz rollback automático se o healthcheck falhar):
+
+```bash
+sudo /opt/spharmmt/scripts/deploy-app.sh --clone <clone do repositório> "$SHA"
+```
+
+Os containers são recriados e passam a ler a variável do passo 4. A imagem `migrator` já foi
+construída no passo 1.
+
+**6. Instalar o novo agent.**
+
+*6a. Servir o pacote (Admin Wizard / novas instalações):*
+
+```bash
+scp dist-agent/spharmmt-agent-base-rev96.zip deploy@<vps>:/tmp/
+sudo cp -p /opt/spharmmt/agent-base/spharmmt-agent-base.zip /opt/spharmmt/agent-base/spharmmt-agent-base.zip.anterior
+sudo install -m 0644 -o deploy -g spharmmt /tmp/spharmmt-agent-base-rev96.zip /opt/spharmmt/agent-base/spharmmt-agent-base.zip
+```
+
+*6b. Em cada farmácia (obrigatório na **Silveirense**; recomendado na Segurado, que só passa a
+fazer um GET extra).* Fora de uma corrida do agent (sem `daily-pipeline`/`sync-now` activos),
+no PC da farmácia, em PowerShell, com `<AGENT>` = pasta onde o agent está instalado:
+
+```powershell
+$agent = '<AGENT>'; $zip = 'C:\Temp\spharmmt-agent-base-rev96.zip'
+Copy-Item $agent "$agent.rev-anterior" -Recurse            # cópia para rollback
+Expand-Archive $zip C:\Temp\agent-rev96 -Force
+robocopy C:\Temp\agent-rev96 $agent /E /XF agent.config.json /XD logs output run
+```
+
+Preserva `agent.config.json` (farmácia/tenant/chave), `logs`, `output` e `run`. Confirmar a revisão:
+
+```powershell
+cd $agent; .\node.exe agent.cjs health          # o banner mostra rev=96
+```
+
+**7. Reiniciar o necessário.** Web e worker já foram recriados no passo 5. Os agents correm por
+tarefa agendada: não há processo a reiniciar; a próxima corrida (`daily-pipeline` ou
+`sync-now`) usa o código novo.
+
+**8. Diagnóstico DEPOIS** (tem de dar `ESTADO=VALIDA`, exit 0):
+
+```bash
+cd /opt/spharmmt/docker/compose && $DC run --rm migrate npm run diag:designacao-silveira -- --tenant=silveira
+# (compara também com o que a app vê:)
+docker exec spharmmt-app printenv SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF
+```
+
+**9. «Atualizar agora» na Silveirense** (/stock → escolher a farmácia → «Sincronizar agora»).
+
+**10. Confirmar o contador.** O botão mostra «… · Designações alteradas: N». Na base:
+
+```sql
+-- execuções recentes (details guarda designacoesAlteradas/Verificadas)
+SELECT "startedAt", status, details FROM "PipelineRun" WHERE kind = 'sync-now' ORDER BY "startedAt" DESC LIMIT 3;
+```
+
+Uma 2.ª execução deve mostrar `Designações alteradas: 0` (idempotente). Na Segurado o botão
+**não** mostra o contador de designações.
+
+## Rollback coordenado
+
+A ordem é inversa e **qualquer combinação é segura**: o agent novo tolera um SaaS sem o endpoint
+(404 ⇒ passo saltado, registado no log) e o agent antigo funciona com o SaaS novo (só não faz
+o passo do catálogo inteiro).
+
+1. **Agents** (PC da farmácia): parar tarefas, restaurar a cópia:
+   `Remove-Item $agent -Recurse -Force; Rename-Item "$agent.rev-anterior" (Split-Path $agent -Leaf)`.
+2. **Pacote servido:** `sudo mv /opt/spharmmt/agent-base/spharmmt-agent-base.zip.anterior /opt/spharmmt/agent-base/spharmmt-agent-base.zip`.
+3. **Aplicação/worker:** `sudo /opt/spharmmt/scripts/deploy-app.sh --clone <clone> <REVISÃO ANTERIOR>`
+   (sem migrations; a imagem anterior também fica etiquetada `…:rollback-<rev>`).
+4. **Variável** (opcional): deixar — nas revisões antigas é ignorada. Para a remover, apagar a
+   linha em `platform.env` e recriar web/worker.
+5. As designações **já substituídas** pela Silveirense não são repostas automaticamente; se for
+   preciso, restaurar da cópia `pre-designacao` (`restore-platform.sh --list`).

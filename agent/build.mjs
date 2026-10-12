@@ -89,7 +89,14 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // auditável no SaaS com status="ABORTED" e o motivo exacto. NÃO
 // empacotado nem publicado por este bloco — só o contador local
 // avançou.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "95";
+// rev96 — designação autoritativa (tolera um SaaS sem o endpoint: 404 ⇒ passo saltado) da Silveirense: passo leve do catálogo
+// completo (`runDesignacoesRefresh`: só CNP + Nome Comercial, em lotes de
+// 1000) corrido pelo `daily-pipeline` e por `sync-now` ("Sincronizar
+// agora") SÓ quando o SaaS responde `autoritativa:true`; contadores
+// designacoesVerificadas/designacoesAlteradas no ack. Exige a aplicação
+// SaaS desta mesma entrega (endpoint …/products/designacoes). Fora do tenant
+// silveira / da Silveirense é um único GET e nada mais.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "96";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
