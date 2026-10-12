@@ -214,7 +214,7 @@ Comandos e resultados completos: ver a mensagem de entrega (e `npm run test:*` a
 
 ## 9. Limitações restantes
 
-* **Agent:** a rev96 (incluída nesta entrega; ver `notes/instalacao-designacao-silveira.md`) é
+* **Agent:** a rev97 (incluída nesta entrega; ver `notes/instalacao-designacao-silveira.md`) é
   necessária para o passo do catálogo inteiro e para o contador. Com o agent antigo o servidor já
   impede a reversão pela Segurado e aplica a regra aos produtos que ele envia, mas «Atualizar
   agora» não compara o catálogo inteiro.
