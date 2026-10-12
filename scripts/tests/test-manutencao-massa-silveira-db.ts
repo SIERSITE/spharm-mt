@@ -312,12 +312,12 @@ async function main() {
       const fabOrigem = await prisma.fabricante.create({ data: { nomeNormalizado: "F-FABRICANTE-ORIGEM", estado: "ATIVO" } });
       const fabDestino = await prisma.fabricante.create({ data: { nomeNormalizado: "F-FABRICANTE-DESTINO", estado: "ATIVO" } });
       const fabIntruso = await prisma.fabricante.create({ data: { nomeNormalizado: "F-FABRICANTE-INTRUSO", estado: "ATIVO" } });
-      const p1 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "F-Elegivel", fabricanteId: fabOrigem.id } });
-      const p2 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "F-Alterado-Depois", fabricanteId: fabOrigem.id } });
+      const p1 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "Freversaoteste Elegivel", fabricanteId: fabOrigem.id } });
+      const p2 = await prisma.produto.create({ data: { cnp: proximoCnp(), designacao: "Freversaoteste AlteradoDepois", fabricanteId: fabOrigem.id } });
 
       const aplicado = await aplicar(prisma, {
         tipo: "FABRICANTE",
-        filtro: { pesquisa: "F-" },
+        filtro: { pesquisa: "Freversaoteste" },
         destino: { modo: "existente", id: fabDestino.id },
         utilizadorId: utilizador.id,
       });
