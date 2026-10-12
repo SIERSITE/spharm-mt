@@ -223,6 +223,23 @@ async function main() {
     `);
     check(picker.length === 1 && picker[0].designacao === PARA_CICLUM, "picker (Manutenção de vendas): 'parace ciclum' ⇒ o artigo");
 
+    // Um número curto junto de palavras é designação, não CNP: o CNP do «OMEGA 6»
+    // (8100036) contém um «3» e não pode aparecer em «omega 3».
+    await prisma.produto.create({ data: { cnp: 8_100_036, designacao: "OMEGA 6 PLUS 60 CAPS.", tipoArtigo: "PARAFARMACIA", estado: "VALIDADO" } });
+    await prisma.produto.create({ data: { cnp: 8_100_037, designacao: "OMEGA 3 FORTE 60 CAPS.", tipoArtigo: "PARAFARMACIA", estado: "VALIDADO" } });
+    const omega = await prisma.$queryRaw<{ designacao: string }[]>(Prisma.sql`
+      SELECT p."designacao" FROM "Produto" p WHERE 1 = 1 ${construirCondicaoPesquisa("omega 3")} ORDER BY p."designacao"
+    `);
+    check(omega.length === 1 && omega[0].designacao === "OMEGA 3 FORTE 60 CAPS.", "«omega 3» encontra só o OMEGA 3 (o «3» do CNP do OMEGA 6 não conta)", JSON.stringify(omega));
+    const dose = await prisma.$queryRaw<{ designacao: string }[]>(Prisma.sql`
+      SELECT p."designacao" FROM "Produto" p WHERE 1 = 1 ${construirCondicaoPesquisa("omega 8100036")} ORDER BY p."designacao"
+    `);
+    check(dose.length === 1 && dose[0].designacao === "OMEGA 6 PLUS 60 CAPS.", "«omega» + CNP completo (4+ dígitos) combinam por AND");
+    const curto = await prisma.$queryRaw<{ designacao: string }[]>(Prisma.sql`
+      SELECT p."designacao" FROM "Produto" p WHERE 1 = 1 ${construirCondicaoPesquisa("81000")} ORDER BY p."cnp"
+    `);
+    check(curto.length >= 6, "um único termo numérico curto continua a procurar no CNP");
+
     const { construirPredicadoPesquisa } = await import("../../lib/reporting/pesquisa-produto");
     const predEnc = construirPredicadoPesquisa("generis parace", { colunasExtra: [Prisma.sql`f."nomeNormalizado"`] });
     const enc = await prisma.$queryRaw<{ designacao: string }[]>(Prisma.sql`

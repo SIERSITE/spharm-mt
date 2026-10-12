@@ -110,8 +110,8 @@ console.log("\nB · pesquisa por designação");
 
   eq(
     construirCondicaoPesquisa("DEPURALINA").values,
-    ["%DEPURALINA%"],
-    "maiúsculas passam ao ILIKE tal como vieram",
+    ["%depuralina%"],
+    "maiúsculas são normalizadas antes do ILIKE (a comparação continua sem distinguir caixa)",
   );
   // Termo misto (letras + dígitos) trata-se como designação.
   check(

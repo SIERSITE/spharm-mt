@@ -60,7 +60,15 @@ export function construirPredicadoPesquisa(
     ];
     // Só faz sentido procurar no CNP quando o termo são mesmo dígitos.
     // "depuralina" contra `cnp::text` nunca casa e só custa tempo.
-    if (/^\d+$/.test(termo)) {
+    //
+    // Num pedido com VÁRIOS termos, um número curto é quase sempre parte do
+    // nome ("omega 3", "ciclum 650") e não um pedaço de CNP — "3" apareceria
+    // no CNP de metade do catálogo. Por isso, com mais de um termo, só um
+    // número de 4+ dígitos também casa o CNP ("8500 ciclum"). Um pedido de um
+    // só termo numérico continua a comparar o CNP, qualquer que seja o
+    // comprimento (o comportamento de sempre).
+    const podeSerCnp = /^\d+$/.test(termo) && (termos.length === 1 || termo.length >= 4);
+    if (podeSerCnp) {
       return Prisma.sql`(p."cnp"::text LIKE ${padrao} OR ${Prisma.join(textuais, " OR ")})`;
     }
     return textuais.length === 1 ? textuais[0] : Prisma.sql`(${Prisma.join(textuais, " OR ")})`;

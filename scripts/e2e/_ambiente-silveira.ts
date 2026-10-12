@@ -55,6 +55,7 @@ export type Ambiente = {
   controlUrl: string;
   prisma: import("../../generated/prisma/client").PrismaClient;
   /** Chamada HTTP de "agent": Bearer + X-Tenant-Slug. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- corpo JSON arbitrário das respostas dos endpoints
   agente: (method: "GET" | "POST", caminho: string, corpo?: unknown) => Promise<{ status: number; json: any }>;
   /** Sessão forjada para o tenant (cookie `session`). */
   tokenSessao: (sub: string, email: string) => Promise<string>;
@@ -153,6 +154,7 @@ export async function criarAmbiente(nome: string, envExtra: Record<string, strin
       },
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- idem
     let json: any = null;
     try { json = await r.json(); } catch { /* sem corpo */ }
     return { status: r.status, json };

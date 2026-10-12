@@ -71,6 +71,7 @@ async function main() {
       let verificadas = p.json?.designacoes?.modo === "AUTORITATIVA" ? p.json.designacoes.verificadas : undefined;
       // 3. passo de designações (só se o SaaS disser que é autoritativa)
       const est = await amb.agente("GET", `/api/ingest/v1/bootstrap/products/designacoes?farmaciaId=${farmaciaId}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- resposta JSON do endpoint
       let passoLeve: any = null;
       if (est.json?.autoritativa) {
         const r = await amb.agente("POST", "/api/ingest/v1/bootstrap/products/designacoes", { farmaciaId, items: erpCatalogo });

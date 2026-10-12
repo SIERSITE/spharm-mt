@@ -29,7 +29,13 @@ async function main() {
     options: { tenant: { type: "string" }, "database-url": { type: "string" } },
     strict: true,
   });
-  const slug = values.tenant?.trim() || "silveira";
+  console.log("SPharm.MT · autoridade da designação (Silveirense) · READ-ONLY");
+  const slug = values.tenant?.trim() ?? "";
+  if (!slug) {
+    // Mesma convenção dos restantes diagnósticos: o destino identifica-se sempre, nunca há um por omissão.
+    console.error("✗ --tenant <slug> é obrigatório (ex.: --tenant=silveira). Opcional: --database-url=<base local de teste>.");
+    process.exit(2);
+  }
 
   let url = values["database-url"]?.trim();
   if (url) {
@@ -52,7 +58,6 @@ async function main() {
   try {
     await prisma.$executeRawUnsafe("set session default_transaction_read_only = on");
     const d = await diagnosticarDesignacao(prisma, slug);
-    console.log("SPharm.MT · autoridade da designação (Silveirense) · READ-ONLY");
     console.log(`  tenant: ${d.tenant}`);
     console.log(`  ${ENV_CODIGO_ANF_DESIGNACAO}: ${d.variavelDefinida ? `"${d.codigoConfigurado}"` : "(NÃO definida neste ambiente)"}`);
     console.log("");

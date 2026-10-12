@@ -227,4 +227,25 @@ console.log("\n=== F. UI clara e sem contradição client-side ===");
   );
 }
 
+console.log("\n=== G. Prova directa: o filtro client-side já não esconde o que o servidor encontra ===");
+{
+  // Usa a MESMA função que vendas-client.tsx importa (correspondeAPesquisa) —
+  // não uma cópia paralela — para provar o comportamento real.
+  function passaFiltroArtigo(row: { codigo: string; descricao: string }, artigo: string): boolean {
+    if (!artigo.trim()) return true;
+    return correspondeAPesquisa(`${row.codigo} ${row.descricao}`, artigo);
+  }
+  const avene = { codigo: "90001", descricao: "Avène Eau Thermale" };
+  ok('"avene" (sem acento, minúsculas) encontra "Avène"', passaFiltroArtigo(avene, "avene"));
+  ok('"AVENE" (maiúsculas) encontra "Avène"', passaFiltroArtigo(avene, "AVENE"));
+  ok('"avéne" (acento trocado) encontra "Avène"', passaFiltroArtigo(avene, "avéne"));
+  const ventilan = { codigo: "8322628", descricao: "VENTILAN INALADOR R AER 100 MCG/D 200 D" };
+  ok('"VENTILAN" encontra o inalador', passaFiltroArtigo(ventilan, "VENTILAN"));
+  ok('"ventilan" (minúsculas) encontra o mesmo', passaFiltroArtigo(ventilan, "ventilan"));
+  ok('"8322" (CNP parcial) encontra pelo código', passaFiltroArtigo(ventilan, "8322"));
+  const para = { codigo: "5880034", descricao: "PARACETAMOL CICLUM 650 MG 20 COMP." };
+  ok('"parace ciclum" encontra o paracetamol (o defeito)', passaFiltroArtigo(para, "parace ciclum"));
+}
 
+console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);
+process.exit(fail === 0 ? 0 : 1);

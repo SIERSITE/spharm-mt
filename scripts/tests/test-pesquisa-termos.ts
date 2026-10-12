@@ -89,8 +89,13 @@ console.log("\n=== C. Predicado SQL ===");
 
   const cnp = construirCondicaoPesquisa("5880034");
   ok("termo só de dígitos também compara o CNP em texto", cnp.sql.includes('p."cnp"::text LIKE'));
-  const misto = construirCondicaoPesquisa("parace 650");
-  ok("só o termo numérico toca no CNP", (misto.sql.match(/cnp/g) ?? []).length === 1);
+  const misto = construirCondicaoPesquisa("parace 8500");
+  ok("com vários termos, um número de 4+ dígitos também toca no CNP (e só ele)", (misto.sql.match(/cnp/g) ?? []).length === 1);
+  const dose = construirCondicaoPesquisa("parace 650");
+  ok("com vários termos, um número curto (dose) é só designação — nunca CNP", !dose.sql.includes('p."cnp"'));
+  const omega = construirCondicaoPesquisa("omega 3");
+  ok("«omega 3» nunca vai ao CNP (o '3' está no CNP de metade do catálogo)", !omega.sql.includes('p."cnp"'));
+  ok("um único termo numérico, mesmo curto, continua a comparar o CNP", construirCondicaoPesquisa("58").sql.includes('p."cnp"::text LIKE'));
 
   const extra = construirCondicaoPesquisa("lab x", { colunasExtra: [Prisma.sql`f."nomeNormalizado"`] });
   ok("colunas extra entram em OR dentro de cada termo", /\(unaccent_immutable\(p\."designacao"\)[^)]*\) OR unaccent_immutable\(f\./.test(extra.sql.replace(/\s+/g, " ")) || extra.sql.includes('f."nomeNormalizado"'));
