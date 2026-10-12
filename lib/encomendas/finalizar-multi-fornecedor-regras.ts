@@ -178,6 +178,16 @@ export function deriveGrupoDraftIdempotencyKey(batchKey: string, farmaciaId: str
   return createHash("sha256").update(`${batchKey}:grupo-draft:${farmaciaId}`).digest("hex");
 }
 
+/**
+ * Chave de idempotência da encomenda ÚNICA (um só fornecedor) que o modo grupo
+ * cria para uma farmácia — o ramo sem divisão por fornecedor. Dá-lhe a mesma
+ * garantia que o ramo multi-fornecedor já tinha: um retry do MESMO pedido
+ * (resposta perdida, duplo envio) devolve a encomenda existente.
+ */
+export function deriveGrupoSimplesIdempotencyKey(batchKey: string, farmaciaId: string): string {
+  return createHash("sha256").update(`${batchKey}:grupo-simples:${farmaciaId}`).digest("hex");
+}
+
 /** Chave de idempotência (batchKey) da DIVISÃO desse rascunho transitório, por farmácia. */
 export function deriveGrupoFinalizacaoBatchKey(batchKey: string, farmaciaId: string): string {
   return createHash("sha256").update(`${batchKey}:grupo-fin:${farmaciaId}`).digest("hex");

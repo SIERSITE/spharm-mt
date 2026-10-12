@@ -52,6 +52,19 @@ import type { EstadoAutosave } from "@/lib/encomendas/use-autosave-encomenda";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
+  TEMPO_AVISO_DEMORA_MS,
+  guardarDocumentosPendentes,
+  lerDocumentosPendentes,
+  limparDocumentosPendentes,
+  mensagemDeErro,
+  mensagemErroFinalizacaoInesperado,
+  novasChavesFinalizacaoGrupo,
+  type ChavesFinalizacaoGrupo,
+  type DocumentosPendentes,
+  type FaseFinalizacaoGrupo,
+  type PedidoDocumentos,
+} from "@/lib/encomendas/finalizacao-grupo-estado";
+import {
   CabecalhoOrdenavel,
   useOrdenacao,
 } from "@/components/ui/cabecalho-ordenavel";
@@ -269,7 +282,15 @@ export function OrderCreateClient({
   const searchParams = useSearchParams();
   const [busy, startTransition] = useTransition();
   const [generating, startGenerate] = useTransition();
-  const [gerandoPlano, startGerarPlano] = useTransition();
+  // Finalização do grupo: máquina de estados explícita (ver
+  // lib/encomendas/finalizacao-grupo-estado.ts) — NÃO uma transição React.
+  const [faseGrupo, setFaseGrupo] = useState<FaseFinalizacaoGrupo>({ tipo: "inativo" });
+  const gerandoPlano = faseGrupo.tipo === "persistindo";
+  /** Trava síncrona contra duplo clique (o estado React só actualiza no render seguinte). */
+  const grupoEmVooRef = useRef(false);
+  /** Chaves de idempotência da tentativa em curso — reutilizadas nos «tentar de novo»; limpas ao cancelar/concluir. */
+  const chavesGrupoRef = useRef<ChavesFinalizacaoGrupo | null>(null);
+  const [avisoDemoraGrupo, setAvisoDemoraGrupo] = useState(false);
   const [flash, setFlash] = useState<{ type: "ok" | "err" | "info"; msg: string } | null>(null);
 
   const canGroupMode = CAN_GROUP_PERFIS.has(userPerfil);
@@ -466,29 +487,91 @@ export function OrderCreateClient({
   const [confirmarFinalizarGrupo, setConfirmarFinalizarGrupo] = useState(false);
 
   /**
-   * Chamada UMA vez, logo a seguir a qualquer finalização bem sucedida —
-   * busca os documentos (Report) que o painel de resultado mostra.
-   * Nunca cria nem altera nada: só lê o que já foi persistido.
+   * Documentos pendentes: o que JÁ foi persistido (ids) + o último erro da
+   * preparação. Guardado também em sessionStorage, para sobreviver a um
+   * refresh entre a finalização e os documentos.
    */
-  function mostrarResultadoFinalizacao(input: {
-    listaEncomendaIds: string[];
-    transferenciaIds: string[];
-    incluirConsolidado?: boolean;
-  }) {
+  const [docsPendentes, setDocsPendentes] = useState<DocumentosPendentes | null>(null);
+  const docsEmVooRef = useRef(false);
+  const [avisoDemoraDocs, setAvisoDemoraDocs] = useState(false);
+
+  /**
+   * Prepara os documentos (Report) do painel de resultado a partir de ids JÁ
+   * persistidos. Só LÊ — nunca cria nem altera nada, por isso repetir é
+   * sempre seguro. Qualquer resultado, rejeição ou excepção termina num
+   * estado visível (resultado OU painel de erro com «tentar de novo») e o
+   * «ocupado» liberta-se SEMPRE em `finally`.
+   */
+  async function prepararDocumentos(pedido: PedidoDocumentos): Promise<void> {
+    if (docsEmVooRef.current) return;
+    docsEmVooRef.current = true;
+    setAvisoDemoraDocs(false);
     setCarregandoResultado(true);
-    startTransition(async () => {
-      const r = await buildDocumentosFinalizacaoAction(input);
-      setCarregandoResultado(false);
+    setDocsPendentes({ ...pedido, erro: null });
+    guardarDocumentosPendentes(typeof window === "undefined" ? null : window.sessionStorage, pedido);
+    try {
+      const r = await buildDocumentosFinalizacaoAction(pedido);
       if (!r.ok) {
-        setFlash({
-          type: "err",
-          msg: `Finalizado, mas não foi possível preparar os documentos para impressão/PDF/email: ${r.error}`,
-        });
+        setDocsPendentes({ ...pedido, erro: r.error });
         return;
       }
       setResultadoFinal(r);
-    });
+      setDocsPendentes(null);
+      limparDocumentosPendentes(typeof window === "undefined" ? null : window.sessionStorage);
+    } catch (e) {
+      setDocsPendentes({ ...pedido, erro: mensagemDeErro(e) });
+    } finally {
+      docsEmVooRef.current = false;
+      setCarregandoResultado(false);
+    }
   }
+
+  /** Compatível com os restantes modos (farmácia/consolidação): dispara e não espera. */
+  function mostrarResultadoFinalizacao(input: PedidoDocumentos) {
+    void prepararDocumentos(input);
+  }
+
+  /** O pedido de documentos demorou demais: liberta o ecrã (a operação já está persistida) e oferece «tentar de novo». */
+  function abandonarPreparacaoDocumentos() {
+    docsEmVooRef.current = false;
+    setCarregandoResultado(false);
+    setAvisoDemoraDocs(false);
+    setDocsPendentes((p) =>
+      p ? { ...p, erro: "A preparação dos documentos está a demorar mais do que o esperado." } : p,
+    );
+  }
+
+  // Recuperação após refresh: a finalização já ficou gravada mas os documentos
+  // não chegaram a ser preparados. Reabre-se o painel de erro com os ids
+  // guardados — nunca se volta a finalizar.
+  useEffect(() => {
+    const guardado = lerDocumentosPendentes(typeof window === "undefined" ? null : window.sessionStorage);
+    if (guardado) {
+      setDocsPendentes({
+        ...guardado,
+        erro: "A página foi recarregada antes de os documentos estarem prontos. A finalização já estava concluída.",
+      });
+    }
+  }, []);
+
+  // Avisos de demora (nunca repetem nem desbloqueiam a operação em silêncio).
+  useEffect(() => {
+    if (faseGrupo.tipo !== "persistindo") {
+      setAvisoDemoraGrupo(false);
+      return;
+    }
+    const t = setTimeout(() => setAvisoDemoraGrupo(true), TEMPO_AVISO_DEMORA_MS);
+    return () => clearTimeout(t);
+  }, [faseGrupo]);
+  useEffect(() => {
+    if (!carregandoResultado) {
+      setAvisoDemoraDocs(false);
+      return;
+    }
+    const t = setTimeout(() => setAvisoDemoraDocs(true), TEMPO_AVISO_DEMORA_MS);
+    return () => clearTimeout(t);
+  }, [carregandoResultado]);
+
   const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
 
   const utilizador = useUtilizador();
@@ -1592,9 +1675,9 @@ export function OrderCreateClient({
 
     const resumo = calcularResumoGrupo(decisoes);
     if (resumo.encomendas.length === 0 && resumo.transferencias.length === 0) {
-      setFlash({
-        type: "err",
-        msg: 'Sem linhas accionáveis — todas as decisões são "Não fazer" ou têm quantidade 0.',
+      setFaseGrupo({
+        tipo: "erro",
+        mensagem: 'Sem linhas accionáveis — todas as decisões são "Não fazer" ou têm quantidade 0.',
       });
       return;
     }
@@ -1611,39 +1694,72 @@ export function OrderCreateClient({
       if (!deveUsarFinalizacaoMultiFornecedor(bucket)) continue;
       const validacao = validarLinhasParaFinalizacaoMultiFornecedor(bucket);
       if (!validacao.ok) {
-        setFlash({ type: "err", msg: `${nomeFarmacia(farmaciaId)}: ${validacao.error}` });
+        setFaseGrupo({ tipo: "erro", mensagem: `${nomeFarmacia(farmaciaId)}: ${validacao.error}` });
         return;
       }
     }
 
-    startGerarPlano(async () => {
-      // Uma chave por tentativa — dá a `finalizarEncomendaMultiFornecedor`
-      // (reutilizada internamente para qualquer farmácia com mais de um
-      // fornecedor) a mesma protecção de idempotência que já tem no
-      // fluxo manual. Sem retry automático neste botão (ver comentário em
-      // `gerarPlanoGrupoAction`) — protege sobretudo contra entrega
-      // duplicada ao nível da rede, não contra um segundo clique humano.
-      const encomendaBatchKey = crypto.randomUUID().replace(/-/g, "");
+    void executarFinalizacaoGrupo(decisoes);
+  }
+
+  /**
+   * FASE 1 — persistência (encomendas + transferências). Uma só operação em
+   * voo (trava síncrona); termina SEMPRE em: concluída (segue para a fase 2)
+   * ou erro visível DENTRO do modal. As chaves de idempotência são geradas
+   * uma vez por tentativa e reutilizadas nos «tentar de novo» — um retry
+   * depois de uma resposta perdida nunca duplica nada.
+   */
+  async function executarFinalizacaoGrupo(decisoes: DecisaoLinhaGrupoInput[]): Promise<void> {
+    if (grupoEmVooRef.current) return;
+    grupoEmVooRef.current = true;
+    const correlacaoId = crypto.randomUUID();
+    const incluirConsolidado = modoGeracaoGrupo === "consolidada";
+    chavesGrupoRef.current ??= novasChavesFinalizacaoGrupo(() => crypto.randomUUID());
+    const chaves = chavesGrupoRef.current;
+    setAvisoDemoraGrupo(false);
+    setFaseGrupo({ tipo: "persistindo", correlacaoId });
+    let persistido: { listaEncomendaIds: string[]; transferenciaIds: string[] } | null = null;
+    try {
       const result = await gerarPlanoGrupoAction({
         nome: nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`,
         decisoes,
         contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
-        encomendaBatchKey,
+        encomendaBatchKey: chaves.encomendaBatchKey,
+        transferenciaBatchKey: chaves.transferenciaBatchKey,
+        correlacaoId,
       });
       if (!result.ok) {
-        setFlash({ type: "err", msg: result.error });
+        setFaseGrupo({ tipo: "erro", mensagem: result.error });
         return;
       }
-      setConfirmarFinalizarGrupo(false);
-      setLinhas([]);
-      setHasProposal(false);
-      setProposalMeta(null);
-      mostrarResultadoFinalizacao({
+      persistido = {
         listaEncomendaIds: result.listasEncomenda.map((l) => l.listaEncomendaId),
         transferenciaIds: result.transferencias.map((t) => t.transferenciaId),
-        incluirConsolidado: modoGeracaoGrupo === "consolidada",
-      });
-    });
+      };
+    } catch (e) {
+      setFaseGrupo({ tipo: "erro", mensagem: mensagemErroFinalizacaoInesperado(e) });
+      return;
+    } finally {
+      grupoEmVooRef.current = false;
+    }
+
+    // Persistido. A partir daqui NUNCA se repete a finalização: o modal fecha
+    // e só os documentos (fase 2) podem falhar/repetir-se.
+    chavesGrupoRef.current = null;
+    setFaseGrupo({ tipo: "inativo" });
+    setConfirmarFinalizarGrupo(false);
+    setLinhas([]);
+    setHasProposal(false);
+    setProposalMeta(null);
+    void prepararDocumentos({ ...persistido, incluirConsolidado, correlacaoId });
+  }
+
+  /** Cancelar o modal liberta as chaves (uma nova tentativa é uma nova operação). */
+  function cancelarFinalizacaoGrupo() {
+    if (grupoEmVooRef.current) return;
+    chavesGrupoRef.current = null;
+    setFaseGrupo({ tipo: "inativo" });
+    setConfirmarFinalizarGrupo(false);
   }
 
   // ─── Prefill (vindo do Relatório de Vendas) ────────────────────────────────
@@ -2794,6 +2910,28 @@ export function OrderCreateClient({
   // Ponto 8 — «RESULTADO» substitui o ecrã assim que HÁ algo finalizado
   // para mostrar, para qualquer um dos três modos. Nunca uma navegação
   // automática: é o próprio painel («Concluir») que decide sair.
+  // A finalização JÁ está concluída mas os documentos falharam (ou foi um
+  // refresh): painel próprio, com «tentar de novo» (só ids, sem recriar nada)
+  // e «Concluir» — o utilizador nunca fica preso.
+  if (docsPendentes?.erro && !carregandoResultado && !resultadoFinal) {
+    return (
+      <PainelErroDocumentos
+        pendente={docsPendentes}
+        onTentarNovamente={() => void prepararDocumentos({
+          listaEncomendaIds: docsPendentes.listaEncomendaIds,
+          transferenciaIds: docsPendentes.transferenciaIds,
+          incluirConsolidado: docsPendentes.incluirConsolidado,
+          correlacaoId: docsPendentes.correlacaoId,
+        })}
+        onConcluir={() => {
+          limparDocumentosPendentes(typeof window === "undefined" ? null : window.sessionStorage);
+          setDocsPendentes(null);
+          router.push("/encomendas");
+        }}
+      />
+    );
+  }
+
   if (resultadoFinal) {
     return (
       <PainelResultadoFinalizacao
@@ -2813,8 +2951,18 @@ export function OrderCreateClient({
           role="status"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
         >
-          <div className="rounded-xl bg-white px-6 py-4 text-[13px] font-medium text-slate-700 shadow-xl">
+          <div className="max-w-sm rounded-xl bg-white px-6 py-4 text-[13px] font-medium text-slate-700 shadow-xl">
             A preparar os documentos…
+            {avisoDemoraDocs && (
+              <div className="mt-2 text-[12px] font-normal text-amber-800">
+                Está a demorar mais do que o esperado. A finalização já está gravada — pode sair deste passo e
+                tentar preparar os documentos de novo.
+                <button type="button" onClick={abandonarPreparacaoDocumentos}
+                  className="mt-2 block rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+                  Sair deste passo
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3675,7 +3823,7 @@ export function OrderCreateClient({
                     etapa de confirmação (forma de gerar + resumo) e só
                     ela chama `handleGerarPlano`. Nenhum RASCUNHO fica à
                     espera de um segundo passo noutro ecrã. */}
-                <button type="button" onClick={() => setConfirmarFinalizarGrupo(true)}
+                <button type="button" onClick={() => { setFaseGrupo({ tipo: "inativo" }); setConfirmarFinalizarGrupo(true); }}
                   disabled={
                     gerandoPlano ||
                     !resumoGrupoAtual ||
@@ -3709,7 +3857,10 @@ export function OrderCreateClient({
           modoGeracao={modoGeracaoGrupo}
           onModoGeracaoChange={setModoGeracaoGrupo}
           busy={gerandoPlano}
-          onCancelar={() => setConfirmarFinalizarGrupo(false)}
+          erro={faseGrupo.tipo === "erro" ? faseGrupo.mensagem : null}
+          demora={gerandoPlano && avisoDemoraGrupo}
+          onIrParaEncomendas={() => router.push("/encomendas")}
+          onCancelar={cancelarFinalizacaoGrupo}
           onConfirmar={handleGerarPlano}
         />
       )}
@@ -4183,6 +4334,9 @@ function ConfirmarFinalizacaoGrupoModal({
   modoGeracao,
   onModoGeracaoChange,
   busy,
+  erro,
+  demora,
+  onIrParaEncomendas,
   onCancelar,
   onConfirmar,
 }: {
@@ -4192,6 +4346,11 @@ function ConfirmarFinalizacaoGrupoModal({
   modoGeracao: "separada" | "consolidada";
   onModoGeracaoChange: (v: "separada" | "consolidada") => void;
   busy: boolean;
+  /** Erro da finalização — mostrado AQUI, porque o `flash` da página fica atrás deste modal. */
+  erro: string | null;
+  /** A finalização está a demorar: avisa, sem repetir nem fingir que terminou. */
+  demora: boolean;
+  onIrParaEncomendas: () => void;
   onCancelar: () => void;
   onConfirmar: () => void;
 }) {
@@ -4241,6 +4400,18 @@ function ConfirmarFinalizacaoGrupoModal({
             </ul>
           </div>
         </div>
+        {erro && (
+          <div role="alert" className="mx-5 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
+            {erro}
+          </div>
+        )}
+        {demora && (
+          <div role="status" className="mx-5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+            A finalização está a demorar mais do que o esperado. Não carregue de novo: a operação pode ainda estar a
+            concluir no servidor. Pode verificar em{" "}
+            <button type="button" onClick={onIrParaEncomendas} className="font-semibold underline">Encomendas</button>.
+          </div>
+        )}
         <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50 px-5 py-3">
           <button type="button" onClick={onCancelar} disabled={busy}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
@@ -4248,7 +4419,7 @@ function ConfirmarFinalizacaoGrupoModal({
           </button>
           <button type="button" onClick={onConfirmar} disabled={busy}
             className="rounded-lg border border-cyan-500 bg-cyan-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-            {busy ? "A finalizar…" : "Confirmar e finalizar"}
+            {busy ? "A finalizar…" : erro ? "Tentar novamente" : "Confirmar e finalizar"}
           </button>
         </div>
       </div>
@@ -4263,6 +4434,44 @@ function ConfirmarFinalizacaoGrupoModal({
 // componente de Imprimir/PDF/Email dos restantes relatórios (Ponto 9:
 // mesma linguagem visual, nenhuma infra nova) — para cada documento já
 // construído pelo servidor (`buildDocumentosFinalizacaoAction`).
+function PainelErroDocumentos({
+  pendente,
+  onTentarNovamente,
+  onConcluir,
+}: {
+  pendente: DocumentosPendentes;
+  onTentarNovamente: () => void;
+  onConcluir: () => void;
+}) {
+  const nEnc = pendente.listaEncomendaIds.length;
+  const nTransf = pendente.transferenciaIds.length;
+  return (
+    <div className="space-y-4" data-testid="painel-erro-documentos">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <h2 className="text-[16px] font-semibold text-amber-900">Finalização concluída — documentos por preparar</h2>
+        <p className="mt-1 text-[13px] text-amber-900">
+          {nEnc} encomenda{nEnc === 1 ? "" : "s"}
+          {nTransf > 0 ? ` e ${nTransf} transferência${nTransf === 1 ? "" : "s"}` : ""} já ficaram gravadas
+          {" "}— não é preciso (nem se deve) finalizar outra vez.
+        </p>
+        <p role="alert" className="mt-2 text-[12px] text-amber-800">
+          Não foi possível preparar os documentos para impressão/PDF/email: {pendente.erro}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onTentarNovamente}
+          className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700">
+          Tentar preparar documentos novamente
+        </button>
+        <button type="button" onClick={onConcluir}
+          className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
+          Concluir
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PainelResultadoFinalizacao({
   resultado,
   onConcluir,

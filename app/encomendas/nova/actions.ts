@@ -60,6 +60,7 @@ import {
 import {
   validarLinhasParaFinalizacaoMultiFornecedor,
   deriveGrupoDraftIdempotencyKey,
+  deriveGrupoSimplesIdempotencyKey,
   deriveGrupoFinalizacaoBatchKey,
 } from "@/lib/encomendas/finalizar-multi-fornecedor-regras";
 import { randomUUID } from "node:crypto";
@@ -752,6 +753,8 @@ export type GerarPlanoGrupoInput = {
    * `transferenciaBatchKey`.
    */
   encomendaBatchKey?: string | null;
+  /** Chave de correlação dos logs estruturados (gerada pelo cliente). Nunca afecta o resultado. */
+  correlacaoId?: string | null;
 };
 
 export type DocumentoEncomendaGrupoGerado = {
@@ -799,6 +802,17 @@ function validarDecisoes(decisoes: unknown): decisoes is DecisaoLinhaGrupoInput[
     return true;
   });
 }
+
+/**
+ * Log estruturado (uma linha JSON) das etapas da finalização do grupo. Só
+ * contagens, durações e a chave de correlação — nunca produtos, notas,
+ * nomes nem outros dados pessoais.
+ */
+function logGrupo(evento: string, dados: Record<string, string | number | boolean | null>): void {
+  console.log(JSON.stringify({ evento, ts: new Date().toISOString(), ...dados }));
+}
+const correlacaoSegura = (v: string | null | undefined): string | null =>
+  typeof v === "string" && /^[A-Za-z0-9-]{1,64}$/.test(v) ? v : null;
 
 export async function gerarPlanoGrupoAction(
   input: GerarPlanoGrupoInput
@@ -867,6 +881,17 @@ export async function gerarPlanoGrupoAction(
   }
 
   const encomendaBatchKeyEfetivo = input.encomendaBatchKey ?? randomUUID();
+  const correlacao = correlacaoSegura(input.correlacaoId);
+  const t0Plano = Date.now();
+  logGrupo("group-finalization-start", {
+    correlacao,
+    tenant: tenantSlug,
+    nDecisoes: input.decisoes.length,
+    nFarmacias: porFarmacia.size,
+    nDirecoes: porDirecao.size,
+    comChaveEncomendas: input.encomendaBatchKey != null,
+    comChaveTransferencias: input.transferenciaBatchKey != null,
+  });
 
   try {
     const resultadoListas: DocumentoEncomendaGrupoGerado[] = [];
@@ -893,6 +918,11 @@ export async function gerarPlanoGrupoAction(
             origem: l.origem ?? "PROPOSTA",
           })),
           contexto: input.contexto ?? undefined,
+          // Só com chave do cliente (a UI envia-a sempre): um retry do mesmo
+          // pedido devolve a encomenda existente em vez de criar outra.
+          clientIdempotencyKey: input.encomendaBatchKey
+            ? deriveGrupoSimplesIdempotencyKey(input.encomendaBatchKey, farmaciaId)
+            : undefined,
         });
         resultadoListas.push({
           farmaciaId,
@@ -1028,8 +1058,19 @@ export async function gerarPlanoGrupoAction(
     revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
 
+    logGrupo("group-finalization-persisted", {
+      correlacao,
+      ms: Date.now() - t0Plano,
+      nEncomendas: resultadoListas.length,
+      nTransferencias: resultadoTransferencias.length,
+    });
     return { ok: true, listasEncomenda: resultadoListas, transferencias: resultadoTransferencias };
   } catch (err) {
+    logGrupo("group-finalization-failed", {
+      correlacao,
+      ms: Date.now() - t0Plano,
+      motivo: (err instanceof Error ? err.name : "desconhecido").slice(0, 60),
+    });
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
 }
@@ -1053,6 +1094,8 @@ export type DocumentosFinalizacaoInput = {
    * apresentação, nenhuma ListaEncomenda multi-farmácia é criada).
    */
   incluirConsolidado?: boolean;
+  /** Chave de correlação dos logs estruturados (a mesma da finalização). Nunca afecta o resultado. */
+  correlacaoId?: string | null;
 };
 
 export type DocumentosFinalizacaoResultado =
@@ -1075,6 +1118,15 @@ export async function buildDocumentosFinalizacaoAction(
   input: DocumentosFinalizacaoInput
 ): Promise<DocumentosFinalizacaoResultado> {
   const session = await requirePermission("reports.write");
+
+  const correlacao = correlacaoSegura(input.correlacaoId);
+  const t0Docs = Date.now();
+  logGrupo("group-documents-start", {
+    correlacao,
+    nEncomendas: input.listaEncomendaIds.length,
+    nTransferencias: input.transferenciaIds.length,
+    incluirConsolidado: input.incluirConsolidado === true,
+  });
 
   try {
     const detalhesEncomendas = (
@@ -1114,6 +1166,13 @@ export async function buildDocumentosFinalizacaoAction(
     const transferenciaTodas =
       detalhesTransferencias.length > 1 ? buildTransferenciaDocumentoReport(detalhesTransferencias) : undefined;
 
+    logGrupo("group-documents-success", {
+      correlacao,
+      ms: Date.now() - t0Docs,
+      nEncomendas: encomendaIndividual.length,
+      nTransferencias: transferenciaIndividual.length,
+      comConsolidado: encomendaConsolidada !== undefined,
+    });
     return {
       ok: true,
       encomendaIndividual,
@@ -1122,6 +1181,11 @@ export async function buildDocumentosFinalizacaoAction(
       transferenciaTodas,
     };
   } catch (err) {
+    logGrupo("group-documents-failed", {
+      correlacao,
+      ms: Date.now() - t0Docs,
+      motivo: (err instanceof Error ? err.name : "desconhecido").slice(0, 60),
+    });
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
 }
