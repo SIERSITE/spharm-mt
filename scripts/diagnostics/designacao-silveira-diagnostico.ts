@@ -2,9 +2,9 @@
  * scripts/diagnostics/designacao-silveira-diagnostico.ts
  *
  * READ-ONLY. Mostra se a autoridade da designação da Silveirense está bem
- * configurada no tenant: que farmácias existem, que codigoANF têm, o valor
- * de SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF no ambiente DESTE processo,
- * e qual farmácia a resolução escolheria — ou porque falha.
+ * configurada no tenant: que farmácias existem (id, nome, estado), o valor
+ * de SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID no ambiente DESTE processo,
+ * e se esse id é o de uma farmácia activa — ou porque falha.
  *
  * Só faz SELECT. Não escreve, não toca no ERP, não altera configuração.
  *
@@ -21,7 +21,7 @@ import "dotenv/config";
 import { parseArgs } from "node:util";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client";
-import { ENV_CODIGO_ANF_DESIGNACAO } from "../../lib/ingest/designacao-silveira";
+import { ENV_FARMACIA_ID_DESIGNACAO } from "../../lib/ingest/designacao-silveira";
 import { diagnosticarDesignacao } from "../../lib/ingest/designacao-silveira-admin";
 
 async function main() {
@@ -59,12 +59,12 @@ async function main() {
     await prisma.$executeRawUnsafe("set session default_transaction_read_only = on");
     const d = await diagnosticarDesignacao(prisma, slug);
     console.log(`  tenant: ${d.tenant}`);
-    console.log(`  ${ENV_CODIGO_ANF_DESIGNACAO}: ${d.variavelDefinida ? `"${d.codigoConfigurado}"` : "(NÃO definida neste ambiente)"}`);
+    console.log(`  ${ENV_FARMACIA_ID_DESIGNACAO}: ${d.variavelDefinida ? `"${d.idConfigurado}"` : "(NÃO definida neste ambiente)"}`);
     console.log("");
     console.log("  Farmácias:");
     for (const f of d.farmacias) {
       const marca = d.resolucao.aplica && d.resolucao.valida && d.resolucao.farmaciaId === f.id ? "  ◀ AUTORITATIVA" : "";
-      console.log(`   · ${f.nome.padEnd(28)} id=${f.id}  codigoANF=${f.codigoANF ?? "—"}  estado=${f.estado}  produtos=${f.produtosNaFarmacia}${marca}`);
+      console.log(`   · ${f.nome.padEnd(28)} id=${f.id}  estado=${f.estado}  produtos=${f.produtosNaFarmacia}${marca}`);
     }
     console.log("");
     if (!d.resolucao.aplica) {

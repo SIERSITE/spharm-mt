@@ -70,7 +70,7 @@ designação da Segurado.
 `daily-pipeline.ts`, `http-client.ts`).
 
 **Ferramentas:** `scripts/diagnostics/designacao-silveira-diagnostico.ts`,
-`scripts/admin/definir-codigo-farmacia-designacao.ts`, geradores/rasterizador de validação visual.
+geradores/rasterizador de validação visual.
 
 **Testes:** ver §8. **Sem migration.**
 
@@ -87,11 +87,12 @@ designação da Segurado.
 * **Designação: a decisão é do servidor.** O agent nunca sabe quem é a Silveirense; pergunta
   (`GET …/products/designacoes`). Isto evita um segundo sítio de configuração e garante que um
   agent antigo, ou um reprocessamento, passa pela mesma regra no único ponto de escrita.
-* **Sem migration:** a farmácia é identificada por `Farmacia.codigoANF` (coluna existente),
-  comparada com `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`. Uma coluna nova do tipo
+* **Sem migration:** a farmácia é identificada pelo `Farmacia.id` (coluna existente) configurado em
+  `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID` e comparado com a farmácia autenticada no pedido do
+  agent (as farmácias não têm `codigoANF`). Uma coluna nova do tipo
   «autoridade» seria exactamente o mecanismo `autoridadeCatalogo` abandonado.
-* **Modo seguro:** configuração que não identifique **exactamente uma** farmácia activa
-  (`NAO_CONFIGURADO`/`NAO_ENCONTRADA`/`AMBIGUA`/`INATIVA`) ⇒ ninguém altera designações
+* **Modo seguro:** configuração que não identifique uma farmácia activa
+  (`NAO_CONFIGURADO`/`NAO_ENCONTRADA`/`INATIVA`) ⇒ ninguém altera designações
   existentes; criação de produtos novos continua; o erro vai na resposta e no log.
 * **Passo leve** (`POST …/products/designacoes`): `sync-now` não pode reenviar o catálogo inteiro
   pelo endpoint de produtos (lotes de 50, com enriquecimento; excederia os 8 min locais). O
@@ -158,8 +159,9 @@ blocos alternados branco ↔ `#e5e7eb`; farmácias subordinadas (peso normal, se
   que `"designacao"` esteja em `camposManuais`** — excepção exclusiva da designação. Os outros
   campos em `camposManuais` continuam protegidos; outros tenants e as outras farmácias
   mantêm-se como descrito. `ignoradasManual` só é > 0 em modo LEGACY.
-* **Identificação:** `Farmacia.codigoANF` (sem espaços exteriores, sem maiúsculas) =
-  `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`. Nunca o nome, nunca um id, nunca «a primeira».
+* **Identificação:** `Farmacia.id` (comparação exacta, só aparas) =
+  `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID`. O id nunca está no código; nunca o nome, nunca
+  `codigoANF`, nunca «a primeira».
 * **Ordem/concorrência:** o `ON CONFLICT` da Segurado devolve a designação existente; o da
   Silveirense substitui. Seja qual for a ordem (25 rondas concorrentes testadas), fica a da
   Silveirense.
@@ -173,14 +175,12 @@ blocos alternados branco ↔ `#e5e7eb`; farmácias subordinadas (peso normal, se
 ### Configuração operacional (obrigatória antes de activar)
 
 1. Diagnóstico read-only: `npm run diag:designacao-silveira -- --tenant=silveira`.
-   Mostra farmácias (id, nome, codigoANF, estado), o valor da variável **no ambiente do
-   processo**, e qual resolve — ou porque falha, com o que fazer.
-2. Se a Silveirense **já tem** `codigoANF`: usar esse valor no passo 4.
-3. Se **não tem**: `npm run admin:definir-codigo-farmacia-designacao -- --tenant=silveira
-   --farmacia-id=<id> --codigo=<ANF>` (dry-run) e repetir com `--apply`. Idempotente; recusa
-   código já usado por outra farmácia ou substituir um código existente sem `--forcar`.
-4. Definir no ambiente da app `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=<código>` e reiniciar.
-5. Repetir o passo 1 (no mesmo ambiente da app): tem de dizer **VÁLIDA**.
+   Mostra farmácias (id, nome, estado), o valor da variável **no ambiente do processo**, e se é o
+   id de uma farmácia activa — ou porque falha, com o que fazer.
+2. Confirmar na lista o `Farmacia.id` da Silveirense.
+3. (não há passo de escrita na base.)
+4. Definir no ambiente da app `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=<id>` e recriar web e worker.
+5. Repetir o passo 1 (no mesmo ambiente da app): tem de dizer `ESTADO=VALIDA`.
 
 > **Sem os passos 3–4 o tenant fica em modo seguro: nenhuma farmácia altera designações
 > existentes (nem a Silveirense).** Isto é uma mudança face a hoje («a última escreve»).

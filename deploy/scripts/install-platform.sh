@@ -579,14 +579,14 @@ write_env() {
   info "ENABLE_AGENT_BOOTSTRAP: ${enable_agent_bootstrap}"
 
   # Farmácia autoritativa da DESIGNAÇÃO dos produtos (tenant silveira):
-  # o Farmacia.codigoANF da Silveirense. Preservada entre reinstalações —
-  # sem ela o tenant fica em modo seguro (ninguém altera designações
-  # existentes). Vazia = não configurada. Ver lib/ingest/designacao-silveira.ts.
-  local silveira_designacao_anf
-  silveira_designacao_anf=$(env_value_or_keep "$SPHARMMT_ENV_FILE" SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF "")
-  [[ "$silveira_designacao_anf" =~ ^[A-Za-z0-9._-]*$ ]] \
-    || die_precond "SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF só pode ter letras, dígitos, '.', '_' e '-' (recebido: '${silveira_designacao_anf}')"
-  info "SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF: ${silveira_designacao_anf:-(não definida)}"
+  # o Farmacia.id da Silveirense. Preservada entre reinstalações — sem ela
+  # o tenant fica em modo seguro (ninguém altera designações existentes).
+  # Vazia = não configurada. Ver lib/ingest/designacao-silveira.ts.
+  local silveira_designacao_farmacia_id
+  silveira_designacao_farmacia_id=$(env_value_or_keep "$SPHARMMT_ENV_FILE" SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID "")
+  [[ "$silveira_designacao_farmacia_id" =~ ^[A-Za-z0-9]*$ ]] \
+    || die_precond "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID só pode ter letras e dígitos (recebido: '${silveira_designacao_farmacia_id}')"
+  info "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID: ${silveira_designacao_farmacia_id:-(não definida)}"
 
   # Scheduler: o interruptor geral e a lista de jobs activos. Preservados
   # pela mesma razão — quem os liga em produção não pode vê-los voltar a
@@ -710,15 +710,15 @@ ENABLE_AGENT_BOOTSTRAP=${enable_agent_bootstrap}
 TENANT_FALLBACK_ENABLED=1
 
 # ── Designação autoritativa (tenant silveira) ────────────────────────
-# Farmacia.codigoANF da Silveirense — a ÚNICA farmácia que substitui
+# Farmacia.id da Silveirense — a ÚNICA farmácia que substitui
 # Produto.designacao. PRESERVADA entre reinstalações. Para definir/mudar:
 #
-#   sudo SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=<código> ./install-platform.sh
+#   sudo SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=<id> ./install-platform.sh
 #
 # (ou, sem reinstalar a plataforma, editar esta linha e recriar web e
-# worker; mas a reinstalação seguinte só a mantém se o valor estiver aqui).
+# worker; a reinstalação seguinte mantém o valor que estiver aqui).
 # Vazia = modo seguro. Lida em runtime — recriar o container chega.
-SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=${silveira_designacao_anf}
+SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=${silveira_designacao_farmacia_id}
 
 # ── ZIP base do agent ────────────────────────────────────────────────
 # De onde o Admin Wizard descarrega o template do agent para depois lhe

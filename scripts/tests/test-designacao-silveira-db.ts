@@ -59,9 +59,10 @@ async function main() {
     const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDe(db) }) });
     const D = await import("../../lib/ingest/designacao-silveira");
 
-    const silv = await prisma.farmacia.create({ data: { nome: "Farmácia Silveirense", codigoANF: "ANF-SILV-01" } });
-    const seg = await prisma.farmacia.create({ data: { nome: "Farmácia Segurado", codigoANF: "ANF-SEG-02" } });
-    const ENV = { [D.ENV_CODIGO_ANF_DESIGNACAO]: "ANF-SILV-01" };
+    // As farmácias NÃO têm codigoANF (como em produção): só o Farmacia.id conta.
+    const silv = await prisma.farmacia.create({ data: { nome: "Farmácia Silveirense" } });
+    const seg = await prisma.farmacia.create({ data: { nome: "Farmácia Segurado" } });
+    const ENV = { [D.ENV_FARMACIA_ID_DESIGNACAO]: silv.id };
 
     let proximo = 9_200_000;
     const novoCnp = () => ++proximo;
@@ -83,27 +84,26 @@ async function main() {
     const desig = async (cnp: number) => (await prisma.produto.findUnique({ where: { cnp }, select: { designacao: true } }))?.designacao ?? null;
 
     // ═══ Resolução da farmácia ════════════════════════════════════════════
-    console.log("\n=== R. Identificação da farmácia (codigoANF, nunca o nome nem 'a primeira') ===");
+    console.log("\n=== R. Identificação da farmácia (Farmacia.id da variável de ambiente, nunca o nome nem 'a primeira') ===");
     {
       const ok1 = await D.resolverAutoridadeDesignacao(prisma, "silveira", ENV);
-      check(ok1.aplica && ok1.valida && ok1.farmaciaId === silv.id, "silveira + codigoANF configurado → a Silveirense");
-      const caixa = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_CODIGO_ANF_DESIGNACAO]: "  anf-silv-01 " });
-      check(caixa.aplica && caixa.valida && caixa.farmaciaId === silv.id, "comparação sem espaços exteriores nem maiúsculas");
-      const nome = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_CODIGO_ANF_DESIGNACAO]: "Farmácia Silveirense" });
-      check(nome.aplica && !nome.valida && nome.codigo === "NAO_ENCONTRADA", "o texto do nome NÃO identifica a farmácia (só o código)");
+      check(ok1.aplica && ok1.valida && ok1.farmaciaId === silv.id, "silveira + Farmacia.id configurado → a Silveirense");
+      const comEspacos = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: `  ${silv.id} ` });
+      check(comEspacos.aplica && comEspacos.valida && comEspacos.farmaciaId === silv.id, "espaços exteriores no valor são ignorados");
+      const nome = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: "Farmácia Silveirense" });
+      check(nome.aplica && !nome.valida && nome.codigo === "NAO_ENCONTRADA", "o texto do nome NÃO identifica a farmácia (só o id exacto)");
+      const maiusc = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: silv.id.toUpperCase() });
+      check(maiusc.aplica && !maiusc.valida && maiusc.codigo === "NAO_ENCONTRADA", "o id é comparado exactamente (sem maiúsculas/minúsculas trocadas)");
       const sem = await D.resolverAutoridadeDesignacao(prisma, "silveira", {});
       check(sem.aplica && !sem.valida && sem.codigo === "NAO_CONFIGURADO", "sem configuração → falha explícita NAO_CONFIGURADO (nunca escolhe uma)");
-      const outro = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_CODIGO_ANF_DESIGNACAO]: "X-INEXISTENTE" });
-      check(outro.aplica && !outro.valida && outro.codigo === "NAO_ENCONTRADA", "código sem farmácia → NAO_ENCONTRADA");
-      const dup = await prisma.farmacia.create({ data: { nome: "Farmácia Duplicada", codigoANF: "anf-silv-01" } });
-      const amb = await D.resolverAutoridadeDesignacao(prisma, "silveira", ENV);
-      check(amb.aplica && !amb.valida && amb.codigo === "AMBIGUA", "duas farmácias com o mesmo código → AMBIGUA");
-      await prisma.farmacia.update({ where: { id: dup.id }, data: { codigoANF: null, estado: "INATIVO" } });
+      const vazia = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: "   " });
+      check(vazia.aplica && !vazia.valida && vazia.codigo === "NAO_CONFIGURADO", "valor só com espaços → NAO_CONFIGURADO");
+      const outro = await D.resolverAutoridadeDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: "cmsmx87dk000201obow8qp7et" });
+      check(outro.aplica && !outro.valida && outro.codigo === "NAO_ENCONTRADA", "id sem farmácia neste tenant → NAO_ENCONTRADA");
       await prisma.farmacia.update({ where: { id: silv.id }, data: { estado: "INATIVO" } });
       const ina = await D.resolverAutoridadeDesignacao(prisma, "silveira", ENV);
       check(ina.aplica && !ina.valida && ina.codigo === "INATIVA", "farmácia inactiva → INATIVA");
       await prisma.farmacia.update({ where: { id: silv.id }, data: { estado: "ATIVO" } });
-      await prisma.farmacia.delete({ where: { id: dup.id } });
       for (const t of ["garantia", "sier", "outro"]) {
         const e = await D.resolverAutoridadeDesignacao(prisma, t, ENV);
         check(!e.aplica, `tenant ${t}: a regra não se aplica (nem lê a configuração)`);
@@ -319,50 +319,33 @@ async function main() {
     }
 
     // ═══ Utilitários operacionais ═════════════════════════════════════════
-    console.log("\n=== A. Diagnóstico read-only e comando administrativo idempotente ===");
+    console.log("\n=== A. Diagnóstico read-only (sem escrita de configuração) ===");
     {
       const A = await import("../../lib/ingest/designacao-silveira-admin");
-      const sem = await prisma.farmacia.create({ data: { nome: "Farmácia Sem Código" } });
       const d1 = await A.diagnosticarDesignacao(prisma, "silveira", {});
-      check(d1.resolucao.aplica && !d1.resolucao.valida && d1.accoes.some((a) => a.includes(sem.id)), "diagnóstico sem configuração: indica o que fazer e lista as farmácias sem código (com id)");
+      check(d1.resolucao.aplica && !d1.resolucao.valida && d1.accoes.some((a) => a.includes(D.ENV_FARMACIA_ID_DESIGNACAO)) && d1.farmacias.some((f) => f.id === silv.id), "diagnóstico sem configuração: lista as farmácias (com id) e diz que variável definir");
       const d2 = await A.diagnosticarDesignacao(prisma, "silveira", ENV);
-      check(d2.resolucao.aplica && d2.resolucao.valida && d2.accoes.length === 0 && d2.farmacias.length >= 3, "diagnóstico com configuração válida: sem acções");
+      check(d2.resolucao.aplica && d2.resolucao.valida && d2.accoes.length === 0 && d2.farmacias.length >= 2, "diagnóstico com configuração válida: sem acções");
       const d3 = await A.diagnosticarDesignacao(prisma, "garantia", ENV);
       check(!d3.resolucao.aplica, "diagnóstico noutro tenant: a regra não se aplica");
+      const d4 = await A.diagnosticarDesignacao(prisma, "silveira", { [D.ENV_FARMACIA_ID_DESIGNACAO]: "idErrado123" });
+      check(!d4.resolucao.aplica || (!d4.resolucao.valida && d4.resolucao.codigo === "NAO_ENCONTRADA" && d4.accoes.length === 1), "diagnóstico com id errado: NAO_ENCONTRADA e uma acção");
 
-      const antes = await prisma.farmacia.findUnique({ where: { id: sem.id } });
-      const dry = await A.definirCodigoFarmacia(prisma, { farmaciaId: sem.id, codigo: "ANF-NOVO-77", aplicar: false });
-      const depoisDry = await prisma.farmacia.findUnique({ where: { id: sem.id } });
-      check(dry.ok && dry.accao === "ATRIBUIR" && !dry.aplicado && depoisDry?.codigoANF === antes?.codigoANF, "dry-run: diz o que faria e NÃO escreve");
-      const ap = await A.definirCodigoFarmacia(prisma, { farmaciaId: sem.id, codigo: "ANF-NOVO-77", aplicar: true });
-      check(ap.ok && ap.aplicado && (await prisma.farmacia.findUnique({ where: { id: sem.id } }))?.codigoANF === "ANF-NOVO-77", "--apply: atribui o código");
-      const xminAntes = (await prisma.$queryRaw<{ x: string }[]>`SELECT xmin::text AS x FROM "Farmacia" WHERE id = ${sem.id}`)[0].x;
-      const rep = await A.definirCodigoFarmacia(prisma, { farmaciaId: sem.id, codigo: "anf-novo-77", aplicar: true });
-      const xminDepois = (await prisma.$queryRaw<{ x: string }[]>`SELECT xmin::text AS x FROM "Farmacia" WHERE id = ${sem.id}`)[0].x;
-      check(rep.ok && rep.accao === "SEM_ALTERACAO" && xminAntes === xminDepois, "idempotente: repetir (até com outra capitalização) não escreve");
-      const uso = await A.definirCodigoFarmacia(prisma, { farmaciaId: seg.id, codigo: "ANF-NOVO-77", aplicar: true });
-      check(!uso.ok && uso.erro === "CODIGO_EM_USO", "recusa um código já usado por outra farmácia (evitaria ambiguidade)");
-      const outro = await A.definirCodigoFarmacia(prisma, { farmaciaId: silv.id, codigo: "ANF-OUTRO", aplicar: true });
-      check(!outro.ok && outro.erro === "JA_TEM_OUTRO_CODIGO" && (await prisma.farmacia.findUnique({ where: { id: silv.id } }))?.codigoANF === "ANF-SILV-01", "recusa substituir um código existente sem --forcar");
-      const nada = await A.definirCodigoFarmacia(prisma, { farmaciaId: "inexistente", codigo: "X", aplicar: true });
-      check(!nada.ok && nada.erro === "FARMACIA_INEXISTENTE", "id inexistente: recusa (nunca escolhe outra farmácia)");
-      const vazio = await A.definirCodigoFarmacia(prisma, { farmaciaId: sem.id, codigo: "   ", aplicar: true });
-      check(!vazio.ok && vazio.erro === "CODIGO_INVALIDO", "código vazio: recusa");
-
-      // O CLI real, contra esta base local
+      // O CLI real, contra esta base local (read-only)
       const cli = (args: string[], env: Record<string, string> = {}) =>
         spawnSync("npx", ["tsx", ...args], { encoding: "utf8", shell: process.platform === "win32", env: { ...process.env, ...env } });
       const u = urlDe(db);
-      const c1 = cli(["scripts/diagnostics/designacao-silveira-diagnostico.ts", `--database-url=${u}`, "--tenant=silveira"], { [D.ENV_CODIGO_ANF_DESIGNACAO]: "ANF-SILV-01" });
-      check(c1.status === 0 && /VÁLIDA/.test(c1.stdout) && /AUTORITATIVA/.test(c1.stdout), "CLI diagnóstico: exit 0 e identifica a farmácia autoritativa", c1.stdout + c1.stderr);
-      const c2 = cli(["scripts/diagnostics/designacao-silveira-diagnostico.ts", `--database-url=${u}`, "--tenant=silveira"], { [D.ENV_CODIGO_ANF_DESIGNACAO]: "" });
-      check(c2.status === 1 && /INVÁLIDA \(NAO_CONFIGURADO\)/.test(c2.stdout), "CLI diagnóstico sem configuração: exit 1 e diz porquê", c2.stdout + c2.stderr);
-      const c3 = cli(["scripts/admin/definir-codigo-farmacia-designacao.ts", `--database-url=${u}`, `--farmacia-id=${seg.id}`, "--codigo=ANF-SEG-02"]);
-      check(c3.status === 0 && /Sem alteração/.test(c3.stdout), "CLI admin: repetir o código que já existe → «Sem alteração»", c3.stdout + c3.stderr);
-      const c4 = cli(["scripts/admin/definir-codigo-farmacia-designacao.ts", `--database-url=${u}`, "--codigo=X"]);
-      check(c4.status === 2, "CLI admin: sem --farmacia-id recusa (nunca escolhe a farmácia)");
-      const c5 = cli(["scripts/admin/definir-codigo-farmacia-designacao.ts", "--database-url=postgresql://u:p@db.exemplo.com/x", `--farmacia-id=${seg.id}`, "--codigo=X"]);
-      check(c5.status === 2 && /não é local/.test(c5.stderr), "CLI admin: recusa --database-url não local");
+      const xminAntes = (await prisma.$queryRaw<{ x: string }[]>`SELECT xmin::text AS x FROM "Farmacia" WHERE id = ${silv.id}`)[0].x;
+      const c1 = cli(["scripts/diagnostics/designacao-silveira-diagnostico.ts", `--database-url=${u}`, "--tenant=silveira"], { [D.ENV_FARMACIA_ID_DESIGNACAO]: silv.id });
+      check(c1.status === 0 && /ESTADO=VALIDA/.test(c1.stdout) && /AUTORITATIVA/.test(c1.stdout), "CLI diagnóstico: exit 0, ESTADO=VALIDA e identifica a farmácia autoritativa", c1.stdout + c1.stderr);
+      check(!/codigoANF/.test(c1.stdout), "o diagnóstico já não fala de codigoANF");
+      const c2 = cli(["scripts/diagnostics/designacao-silveira-diagnostico.ts", `--database-url=${u}`, "--tenant=silveira"], { [D.ENV_FARMACIA_ID_DESIGNACAO]: "" });
+      check(c2.status === 1 && /ESTADO=INVALIDA:NAO_CONFIGURADO/.test(c2.stdout), "CLI diagnóstico sem configuração: exit 1, ESTADO=INVALIDA:NAO_CONFIGURADO", c2.stdout + c2.stderr);
+      const c3 = cli(["scripts/diagnostics/designacao-silveira-diagnostico.ts", `--database-url=${u}`, "--tenant=silveira"], { [D.ENV_FARMACIA_ID_DESIGNACAO]: "idErrado123" });
+      check(c3.status === 1 && /ESTADO=INVALIDA:NAO_ENCONTRADA/.test(c3.stdout), "CLI diagnóstico com id inexistente: ESTADO=INVALIDA:NAO_ENCONTRADA");
+      const xminDepois = (await prisma.$queryRaw<{ x: string }[]>`SELECT xmin::text AS x FROM "Farmacia" WHERE id = ${silv.id}`)[0].x;
+      check(xminAntes === xminDepois, "o diagnóstico não escreveu em Farmacia (xmin inalterado)");
+      check(!(await import("node:fs")).existsSync("scripts/admin/definir-codigo-farmacia-designacao.ts"), "o comando que escrevia Farmacia.codigoANF deixou de existir");
     }
 
     await prisma.$disconnect();

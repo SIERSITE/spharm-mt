@@ -6,8 +6,9 @@ Pacote do agent: `spharmmt-agent-base-rev96.zip`.
 
 ## Regra final (o que esta entrega faz)
 
-* Tenant `silveira`. A **Silveirense** (identificada por `Farmacia.codigoANF` =
-  `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`) é a fonte da designação: uma designação
+* Tenant `silveira`. A **Silveirense** (o `Farmacia.id` configurado em
+  `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID`, comparado com a farmácia autenticada no pedido do
+  agent; **não** depende de `codigoANF`, que as farmácias não têm) é a fonte da designação: uma designação
   **não vazia** substitui sempre a actual — **mesmo que `"designacao"` esteja em
   `camposManuais`** (é a única excepção a essa protecção).
 * **Todos os outros campos** em `camposManuais` (`flagGenerico`, `flagMnsrmNCompart`, …) continuam
@@ -70,31 +71,22 @@ $DC run --rm migrate npm run diag:designacao-silveira -- --tenant=silveira
 ```
 
 Esperado antes de configurar: `ESTADO=INVALIDA:NAO_CONFIGURADO`, com a lista das farmácias
-(id, nome, `codigoANF`, estado).
+(id, nome, estado, nº de produtos).
 
-**3. Identificar o `codigoANF` real da Silveirense** (na lista do passo 2). Se já tem código, usar esse
-valor no passo 5. Se **não tem**, atribuir (idempotente; dry-run por omissão):
-
-```bash
-$DC run --rm migrate npm run admin:definir-codigo-farmacia-designacao -- \
-  --tenant=silveira --farmacia-id=<ID da Silveirense> --codigo=<ANF>            # dry-run
-$DC run --rm migrate npm run admin:definir-codigo-farmacia-designacao -- \
-  --tenant=silveira --farmacia-id=<ID da Silveirense> --codigo=<ANF> --apply    # escreve
-```
-
-(O `--farmacia-id` é obrigatório: o comando nunca escolhe a farmácia, nem por nome nem pela
-posição. Recusa um código já usado por outra farmácia.)
+**3. Identificar a Silveirense** na lista do passo 2, pelo **`Farmacia.id`**. Em produção é
+`cmsmx87dk000201obow8qp7et` — confirmar que a linha com esse id é «Farmácia Silveirense». Não se
+escreve nada na base: **não há** código ANF a criar nem comando de configuração.
 
 **4. Configurar a variável** (persistida em `platform.env`; sobrevive ao `install-platform.sh`
-desta revisão em diante):
+desta revisão em diante). O id vive **só** aqui, nunca no código:
 
 ```bash
-ANF=<ANF>      # só letras, dígitos . _ -
+FID=cmsmx87dk000201obow8qp7et      # o Farmacia.id da Silveirense (só letras e dígitos)
 F=/opt/spharmmt/docker/env/platform.env
-if grep -q '^SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=' "$F"; then
-  sudo sed -i "s/^SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=.*/SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=${ANF}/" "$F"
+if grep -q '^SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=' "$F"; then
+  sudo sed -i "s/^SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=.*/SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=${FID}/" "$F"
 else
-  echo "SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF=${ANF}" | sudo tee -a "$F" >/dev/null
+  echo "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID=${FID}" | sudo tee -a "$F" >/dev/null
 fi
 grep ^SILVEIRA_DESIGNACAO "$F"
 ```
@@ -145,7 +137,7 @@ tarefa agendada: não há processo a reiniciar; a próxima corrida (`daily-pipel
 ```bash
 cd /opt/spharmmt/docker/compose && $DC run --rm migrate npm run diag:designacao-silveira -- --tenant=silveira
 # (compara também com o que a app vê:)
-docker exec spharmmt-app printenv SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF
+docker exec spharmmt-app printenv SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID
 ```
 
 **9. «Atualizar agora» na Silveirense** (/stock → escolher a farmácia → «Sincronizar agora»).

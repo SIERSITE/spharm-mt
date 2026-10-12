@@ -19,7 +19,7 @@
  */
 import Module from "node:module";
 import { chromium, type Page } from "playwright";
-import { criarAmbiente, baseFor, CODIGO_ANF_SILVEIRENSE } from "./_ambiente-silveira";
+import { criarAmbiente, baseFor, FARMACIA_ID_SILVEIRENSE } from "./_ambiente-silveira";
 
 const M = Module as unknown as { _resolveFilename: (r: string, ...a: unknown[]) => string };
 const resolverOriginal = M._resolveFilename;
@@ -44,14 +44,14 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 const JANELA = { from: iso(mesAtras(2)), to: iso(new Date(mesAtras(1).getFullYear(), mesAtras(1).getMonth() + 1, 0)) };
 
 async function main() {
-  const amb = await criarAmbiente("pesquisa", { SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF: CODIGO_ANF_SILVEIRENSE });
+  const amb = await criarAmbiente("pesquisa", { SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID: FARMACIA_ID_SILVEIRENSE });
   const browser = await chromium.launch({
     args: ["--host-resolver-rules=MAP silveira.localhost [::1]"],
   });
   try {
     // ── Dados: três artigos com vendas nos dois últimos meses ───────────
     const user = await amb.prisma.utilizador.create({ data: { email: "e2e-pesquisa@spharm.test", nome: "E2E Pesquisa", perfil: "ADMINISTRADOR" } });
-    const f = await amb.prisma.farmacia.create({ data: { nome: "E2E Farmácia Silveirense", codigoANF: CODIGO_ANF_SILVEIRENSE } });
+    const f = await amb.prisma.farmacia.create({ data: { id: FARMACIA_ID_SILVEIRENSE, nome: "E2E Farmácia Silveirense" } });
     const artigos: Array<[number, string]> = [[8_500_001, ALVO], [8_500_002, OUTRO], [8_500_003, IBU]];
     for (const [cnp, designacao] of artigos) {
       const p = await amb.prisma.produto.create({ data: { cnp, designacao, tipoArtigo: "MEDICAMENTO", estado: "VALIDADO" } });

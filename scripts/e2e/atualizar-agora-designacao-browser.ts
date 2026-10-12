@@ -22,7 +22,7 @@
  */
 import Module from "node:module";
 import { chromium, type Page } from "playwright";
-import { criarAmbiente, baseFor, CODIGO_ANF_SILVEIRENSE, type Ambiente } from "./_ambiente-silveira";
+import { criarAmbiente, baseFor, FARMACIA_ID_SILVEIRENSE, type Ambiente } from "./_ambiente-silveira";
 
 const M = Module as unknown as { _resolveFilename: (r: string, ...a: unknown[]) => string };
 const resolverOriginal = M._resolveFilename;
@@ -45,12 +45,12 @@ type Linha = { cnp: number; designacao: string | null };
 const lista = (nomes: (n: number) => string): Linha[] => CNPS.map((cnp, i) => ({ cnp, designacao: nomes(i + 1) }));
 
 async function main() {
-  const amb: Ambiente = await criarAmbiente("atualizar", { SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF: CODIGO_ANF_SILVEIRENSE });
+  const amb: Ambiente = await criarAmbiente("atualizar", { SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID: FARMACIA_ID_SILVEIRENSE });
   const browser = await chromium.launch({ args: ["--host-resolver-rules=MAP silveira.localhost [::1]"] });
   try {
     const user = await amb.prisma.utilizador.create({ data: { email: "e2e-atualizar@spharm.test", nome: "E2E Atualizar", perfil: "ADMINISTRADOR" } });
-    const silv = await amb.prisma.farmacia.create({ data: { nome: "E2E Farmácia Silveirense", codigoANF: CODIGO_ANF_SILVEIRENSE } });
-    const seg = await amb.prisma.farmacia.create({ data: { nome: "E2E Farmácia Segurado", codigoANF: "ANF-SEG-E2E" } });
+    const silv = await amb.prisma.farmacia.create({ data: { id: FARMACIA_ID_SILVEIRENSE, nome: "E2E Farmácia Silveirense" } });
+    const seg = await amb.prisma.farmacia.create({ data: { nome: "E2E Farmácia Segurado" } });
     const desig = async (cnp: number) => (await amb.prisma.produto.findUnique({ where: { cnp }, select: { designacao: true } }))?.designacao ?? null;
 
     // ── "Agent" simulado: o mesmo protocolo de sync-now.ts, ERP = lista ───

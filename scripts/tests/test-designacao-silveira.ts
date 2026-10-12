@@ -11,13 +11,13 @@
  *
  * Corre com:  npx tsx scripts/tests/test-designacao-silveira.ts
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   contarDecisoes,
   decidirDesignacao,
   modoParaFarmacia,
-  normalizarCodigoANF,
+  normalizarFarmaciaId,
   normalizarDesignacao,
   type EstadoAutoridadeDesignacao,
 } from "../../lib/ingest/designacao-silveira";
@@ -40,7 +40,7 @@ console.log("\n=== A. normalizarDesignacao ===");
   ok("espaços técnicos internos reduzidos a um", normalizarDesignacao(`A${NBSP}${NBSP}B\t\tC \n D`) === "A B C D");
   ok("capitalização, acentos e pontuação intactos", normalizarDesignacao("Água Oxigenada 10 Vol., 250 ml (Gen.)") === "Água Oxigenada 10 Vol., 250 ml (Gen.)");
   ok("é idempotente", normalizarDesignacao(normalizarDesignacao("  A   B ")) === "A B");
-  ok("normalizarCodigoANF: trim + minúsculas", normalizarCodigoANF("  ANF-01 ") === "anf-01" && normalizarCodigoANF(null) === "");
+  ok("normalizarFarmaciaId: só aparas (o id compara-se exacto)", normalizarFarmaciaId("  cmsmx87dk000201obow8qp7et ") === "cmsmx87dk000201obow8qp7et" && normalizarFarmaciaId(null) === "" && normalizarFarmaciaId("AbC") === "AbC");
 }
 
 console.log("\n=== B. decidirDesignacao (o contrato que o SQL cumpre) ===");
@@ -72,8 +72,8 @@ console.log("\n=== C. contarDecisoes (observabilidade) ===");
 
 console.log("\n=== D. modoParaFarmacia ===");
 {
-  const valida: EstadoAutoridadeDesignacao = { aplica: true, valida: true, farmaciaId: "S", farmaciaNome: "Silveirense", codigoANF: "X" };
-  const invalida: EstadoAutoridadeDesignacao = { aplica: true, valida: false, codigo: "AMBIGUA", mensagem: "m" };
+  const valida: EstadoAutoridadeDesignacao = { aplica: true, valida: true, farmaciaId: "S", farmaciaNome: "Silveirense" };
+  const invalida: EstadoAutoridadeDesignacao = { aplica: true, valida: false, codigo: "NAO_ENCONTRADA", mensagem: "m" };
   ok("Silveirense → AUTORITATIVA", modoParaFarmacia(valida, "S") === "AUTORITATIVA");
   ok("outra farmácia → SO_CRIACAO", modoParaFarmacia(valida, "G") === "SO_CRIACAO");
   ok("configuração inválida → SO_CRIACAO para TODAS (modo seguro)", modoParaFarmacia(invalida, "S") === "SO_CRIACAO" && modoParaFarmacia(invalida, "G") === "SO_CRIACAO");
@@ -84,11 +84,16 @@ console.log("\n=== E. Identificação segura — nada hardcoded, nada pelo nome 
 {
   const mod = src("lib/ingest/designacao-silveira.ts");
   const codigo = mod.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-  ok("usa Farmacia.codigoANF + variável de ambiente", codigo.includes("codigoANF") && codigo.includes("SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF"));
+  ok("usa Farmacia.id vindo da variável de ambiente SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID", codigo.includes("SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID") && /farmacia\.findUnique\(\{ where: \{ id: configurado/.test(codigo));
+  ok("não depende de codigoANF (nem no módulo, nem no diagnóstico)", !/codigoANF|CODIGO_ANF/.test(codigo) && !/codigoANF|CODIGO_ANF/.test(src("lib/ingest/designacao-silveira-admin.ts")) && !/codigoANF|CODIGO_ANF/.test(src("scripts/diagnostics/designacao-silveira-diagnostico.ts")));
+  ok("o id de produção NÃO está no código (só na variável de ambiente)", !/cmsmx87dk000201obow8qp7et/.test(codigo) && !/cmsmx87dk000201obow8qp7et/.test(src("lib/ingest/bulk.ts")) && !/cmsmx87dk000201obow8qp7et/.test(src("app/api/ingest/v1/bootstrap/products/route.ts")));
+  ok("o comando que escrevia codigoANF deixou de existir (ficheiro, Dockerfile, tools, package.json)",
+    !existsSync("scripts/admin/definir-codigo-farmacia-designacao.ts") && !/definir-codigo/.test(src("deploy/docker/Dockerfile") + src("deploy/docker/tools-scripts.txt") + src("package.json")));
+  ok("install-platform.sh preserva SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID", src("deploy/scripts/install-platform.sh").includes("env_value_or_keep \"$SPHARMMT_ENV_FILE\" SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID"));
   ok("não compara o nome visível da farmácia", !/\.nome\s*(===|==|\.toLowerCase|\.includes)/.test(codigo) && !/Silveirense/i.test(codigo));
   ok("não há ids/cuids gravados no código", !/c[a-z0-9]{24}/.test(codigo.replace(/\b(resolverAutoridadeDesignacao|normalizarCodigoANF|upsertProdutosComDesignacao)\b/g, "")));
   ok("não escolhe 'a primeira farmácia' (sem findFirst/[0] sobre farmácias)", !/farmacia\.findFirst/.test(codigo));
-  ok("exige exactamente uma (NAO_ENCONTRADA / AMBIGUA)", codigo.includes("NAO_ENCONTRADA") && codigo.includes("AMBIGUA") && codigo.includes("candidatas.length > 1"));
+  ok("falha explícita se não existe / inactiva / não configurada", codigo.includes("NAO_ENCONTRADA") && codigo.includes("INATIVA") && codigo.includes("NAO_CONFIGURADO"));
   ok("o gate de tenant é a constante dedicada, distinta da de manutenção em massa", src("lib/tenant-constants.ts").includes('TENANT_DESIGNACAO_AUTORITATIVA = "silveira"'));
   ok("o agent não conhece a Silveirense (a autoridade vem sempre do servidor)", !/silveira|silveirense|segurado/i.test(src("agent/src/commands/sync-now.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")));
   ok("nenhuma autoridade genérica: sem autoridadeCatalogo / 'farmácia principal' no código novo", !/autoridadeCatalogo|farmaciaPrincipal/i.test(mod));
@@ -179,7 +184,7 @@ console.log("\n=== J. Sem migration ===");
   // A última migration da revisão em produção (4b6396a) é 20260930100000_...:
   // qualquer outra, mais recente, seria desta entrega.
   const novas = readdirSync("prisma/migrations").filter((m) => /^\d{14}_/.test(m) && m.slice(0, 14) > "20260930100000");
-  ok("nenhuma migration nova (usa Farmacia.codigoANF, que já existe)", novas.length === 0, novas.join(","));
+  ok("nenhuma migration nova (a farmácia é identificada por Farmacia.id, que já existe)", novas.length === 0, novas.join(","));
   ok("schema.prisma sem campo novo de autoridade", !/designacaoAutoritativa|autoridadeCatalogo/i.test(src("prisma/schema.prisma")));
 }
 

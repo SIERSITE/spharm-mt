@@ -32,7 +32,8 @@ export const PORT = process.env.E2E_PORT ?? "3100";
 export const SECRET = "e2e-test-secret-e2e-test-secret-0123456789";
 const TENANT_ENC_SECRET = "e2e-tenant-encryption-secret-0123456789abcdef";
 export const INGEST_KEY = "e2e-ingest-key-0123456789abcdef0123456789";
-export const CODIGO_ANF_SILVEIRENSE = "ANF-SILV-E2E";
+// Id fixo da Silveirense nos ensaios (a app lê-o da variável de ambiente; as farmácias não têm codigoANF).
+export const FARMACIA_ID_SILVEIRENSE = "cmte2esilveirense000000001";
 
 {
   const h = new URL(ADMIN_URL).hostname;

@@ -43,22 +43,24 @@
  *
  * ── Que farmácia é a Silveirense ─────────────────────────────────────
  *
- * Pelo identificador estável que a base já tem — `Farmacia.codigoANF` —
- * comparado com a variável de ambiente `SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF`.
- * Nunca pelo texto visível do nome, nunca por um id aleatório gravado no
- * código, nunca "a primeira farmácia". Se a configuração não identificar
- * EXACTAMENTE uma farmácia ACTIVA, a resolução falha de forma explícita
- * (erro tipado, registado e devolvido na resposta da ingestão) e o tenant
- * fica em modo seguro: NINGUÉM altera designações existentes até se corrigir
- * a configuração (criação de produtos novos continua a funcionar).
+ * Pelo `Farmacia.id` configurado na variável de ambiente
+ * `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID`, comparado com a farmácia
+ * autenticada no pedido do agent (`farmaciaId`, validado contra o tenant).
+ * O id vive SÓ no ambiente — nunca no código. Nunca pelo nome, nunca por
+ * `codigoANF` (as farmácias não o têm), nunca "a primeira farmácia". Se o id
+ * não estiver definido, não existir neste tenant ou a farmácia estiver
+ * inactiva, a resolução falha de forma explícita (erro tipado, registado e
+ * devolvido na resposta da ingestão) e o tenant fica em modo seguro: NINGUÉM
+ * altera designações existentes até se corrigir a configuração (a criação de
+ * produtos novos continua a funcionar).
  *
- * Sem migration: usa uma coluna que já existe.
+ * Sem migration nem escrita de configuração na base.
  */
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { TENANT_DESIGNACAO_AUTORITATIVA } from "@/lib/tenant-constants";
 import { bulkUpsertProdutosByCnp } from "@/lib/ingest/bulk";
 
-export const ENV_CODIGO_ANF_DESIGNACAO = "SILVEIRA_DESIGNACAO_AUTORITATIVA_CODIGO_ANF";
+export const ENV_FARMACIA_ID_DESIGNACAO = "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID";
 
 // ─── Regra pura ──────────────────────────────────────────────────────
 
@@ -180,24 +182,30 @@ export function contarDecisoes(
 
 // ─── Identificação da farmácia ───────────────────────────────────────
 
-export type CodigoErroAutoridade = "NAO_CONFIGURADO" | "NAO_ENCONTRADA" | "AMBIGUA" | "INATIVA";
+export type CodigoErroAutoridade = "NAO_CONFIGURADO" | "NAO_ENCONTRADA" | "INATIVA";
 
 export type EstadoAutoridadeDesignacao =
   | { aplica: false }
-  | { aplica: true; valida: true; farmaciaId: string; farmaciaNome: string; codigoANF: string }
+  | { aplica: true; valida: true; farmaciaId: string; farmaciaNome: string }
   | { aplica: true; valida: false; codigo: CodigoErroAutoridade; mensagem: string };
 
-/** Comparação do código: sem espaços exteriores e sem distinguir maiúsculas. */
-export function normalizarCodigoANF(v: string | null | undefined): string {
-  return (v ?? "").trim().toLowerCase();
+/** O id configurado, sem espaços exteriores. Vazio = não configurado. */
+export function normalizarFarmaciaId(v: string | null | undefined): string {
+  return (v ?? "").trim();
 }
 
 /**
  * Resolve qual é a farmácia autoritativa do tenant. Fora do tenant `silveira`
  * devolve `{ aplica: false }` SEM tocar na base nem na configuração.
  *
- * Falha de forma explícita (`valida: false` + código + mensagem) se a
- * configuração não identificar exactamente UMA farmácia activa.
+ * O id vem EXCLUSIVAMENTE de `SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID`
+ * (nunca do código) e tem de ser o `Farmacia.id` EXACTO de uma farmácia ACTIVA
+ * do tenant. Falha de forma explícita (`valida: false` + código + mensagem)
+ * se não estiver definido, não existir ou a farmácia estiver inactiva.
+ *
+ * A comparação com a farmácia que está a sincronizar faz-se em
+ * `modoParaFarmacia`: o `farmaciaId` do pedido do agent (já validado como
+ * pertencente ao tenant por `assertFarmaciaInTenant`) tem de ser igual a este.
  */
 export async function resolverAutoridadeDesignacao(
   prisma: Pick<PrismaClient, "farmacia">,
@@ -206,46 +214,34 @@ export async function resolverAutoridadeDesignacao(
 ): Promise<EstadoAutoridadeDesignacao> {
   if (tenantSlug !== TENANT_DESIGNACAO_AUTORITATIVA) return { aplica: false };
 
-  const configurado = normalizarCodigoANF(env[ENV_CODIGO_ANF_DESIGNACAO]);
+  const configurado = normalizarFarmaciaId(env[ENV_FARMACIA_ID_DESIGNACAO]);
   if (configurado === "") {
     return {
       aplica: true,
       valida: false,
       codigo: "NAO_CONFIGURADO",
-      mensagem: `${ENV_CODIGO_ANF_DESIGNACAO} não está definida: nenhuma farmácia é autoritativa para a designação.`,
+      mensagem: `${ENV_FARMACIA_ID_DESIGNACAO} não está definida: nenhuma farmácia é autoritativa para a designação.`,
     };
   }
 
-  const farmacias = await prisma.farmacia.findMany({
-    select: { id: true, nome: true, codigoANF: true, estado: true },
-  });
-  const candidatas = farmacias.filter((f) => normalizarCodigoANF(f.codigoANF) === configurado);
-  if (candidatas.length === 0) {
+  const f = await prisma.farmacia.findUnique({ where: { id: configurado }, select: { id: true, nome: true, estado: true } });
+  if (!f) {
     return {
       aplica: true,
       valida: false,
       codigo: "NAO_ENCONTRADA",
-      mensagem: `Nenhuma farmácia do tenant tem codigoANF "${configurado}".`,
+      mensagem: `${ENV_FARMACIA_ID_DESIGNACAO}="${configurado}" não é o id de nenhuma farmácia deste tenant.`,
     };
   }
-  if (candidatas.length > 1) {
-    return {
-      aplica: true,
-      valida: false,
-      codigo: "AMBIGUA",
-      mensagem: `${candidatas.length} farmácias do tenant têm codigoANF "${configurado}" — tem de ser exactamente uma.`,
-    };
-  }
-  const f = candidatas[0];
   if (f.estado !== "ATIVO") {
     return {
       aplica: true,
       valida: false,
       codigo: "INATIVA",
-      mensagem: `A farmácia com codigoANF "${configurado}" não está ACTIVA (${f.estado}).`,
+      mensagem: `A farmácia "${f.nome}" (${f.id}) não está ACTIVA (${f.estado}).`,
     };
   }
-  return { aplica: true, valida: true, farmaciaId: f.id, farmaciaNome: f.nome, codigoANF: f.codigoANF ?? configurado };
+  return { aplica: true, valida: true, farmaciaId: f.id, farmaciaNome: f.nome };
 }
 
 /** O modo de escrita da designação para a farmácia que está a sincronizar. */
