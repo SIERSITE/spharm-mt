@@ -49,7 +49,13 @@ import {
 } from "@/lib/ingest/bootstrap";
 import { abrirOuContinuarCorrida } from "@/lib/ingest/produto-run";
 import {
-  bulkUpsertProdutosByCnp,
+  contarDecisoes,
+  normalizarDesignacao,
+  resolverModoDesignacao,
+  upsertProdutosComDesignacao,
+  type EstatisticasDesignacao,
+} from "@/lib/ingest/designacao-silveira";
+import {
   bulkUpsertProdutoFarmaciaProducts,
   dedupeByKey,
   type ProdutoFarmaciaProductRow,
@@ -120,6 +126,22 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
   if (farmaciaErr) return farmaciaErr;
 
+  // 3a. Quem manda na designação (SÓ tenant silveira — ver
+  // lib/ingest/designacao-silveira.ts). Nos outros tenants `modoDesignacao`
+  // é "LEGACY" e nada abaixo muda. Se a configuração do tenant silveira
+  // for inválida (ou a leitura falhar), o modo é SO_CRIACAO — ninguém
+  // altera designações existentes — e o erro vai explícito na resposta.
+  const { autoridade, modo: modoDesignacao } = await resolverModoDesignacao(
+    ctx.prisma,
+    ctx.tenant.slug,
+    farmaciaId,
+  );
+  if (autoridade.aplica && !autoridade.valida) {
+    console.error(
+      `[bootstrap/products] designacao: configuração inválida (${autoridade.codigo}) — modo seguro, designações existentes não são alteradas`,
+    );
+  }
+
   // 3b. Fronteira da corrida, marcada pelo relógio da BASE.
   //
   // O agent também envia um `runStartedAt`, mas vem do relógio da máquina
@@ -186,6 +208,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // sobreviverem ao bloco try e chegarem à resposta.
   let produtosNovos = 0;
   let produtosAtualizados = 0;
+  // Observabilidade da designação (só quando há regra: tenant silveira).
+  let designacoesVazias = 0;
+  let estatDesignacao: EstatisticasDesignacao | null = null;
   let catalogoErp: {
     candidatos: number;
     preenchidos: Record<string, number>;
@@ -212,6 +237,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       continue;
     }
     if (designacao === null) {
+      designacoesVazias++;
       skipped.push({ index: i, reason: "missing_designacao", externalId: externalProductId ?? undefined });
       continue;
     }
@@ -224,7 +250,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       index: i,
       cnp,
       externalProductId,
-      designacao,
+      // Tenant silveira: o valor escrito é o do ERP só com os espaços
+      // técnicos normalizados. Nos restantes, exactamente como sempre.
+      designacao: modoDesignacao === "LEGACY" ? designacao : (normalizarDesignacao(designacao) ?? designacao),
       flagGenerico: asBoolOrFalse(raw.generico),
       flagMnsrmNCompart: asBoolOrFalse(raw.mnsrmNCompart),
       pvp: asDecimalOrNull(raw.pvp),
@@ -255,21 +283,24 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     // mostra se uma farmácia está a trazer catálogo novo ou a reforçar o
     // que já existe. Contado ANTES do upsert, senão já não há diferença.
     const cnpsDoLote = dedup.map((a) => a.cnp);
-    produtosAtualizados = await ctx.prisma.produto.count({
-      where: { cnp: { in: cnpsDoLote } },
-    });
-    produtosNovos = cnpsDoLote.length - produtosAtualizados;
-
-    const cnpToId = await bulkUpsertProdutosByCnp(
+    // Upsert do Produto com a regra da designação (tenant silveira) — ver
+    // lib/ingest/designacao-silveira.ts. Em LEGACY (todos os outros tenants)
+    // é o bulkUpsertProdutosByCnp de sempre.
+    const up = await upsertProdutosComDesignacao(
       ctx.prisma,
+      modoDesignacao,
       dedup.map((a) => ({
         cnp: a.cnp,
         externalProductId: a.externalProductId,
         designacao: a.designacao,
         flagGenerico: a.flagGenerico,
         flagMnsrmNCompart: a.flagMnsrmNCompart,
-      }))
+      })),
     );
+    produtosAtualizados = up.existentes;
+    produtosNovos = cnpsDoLote.length - produtosAtualizados;
+    estatDesignacao = up.estatisticas;
+    const cnpToId = up.cnpToId;
 
     // rev46 — o ERP da farmácia já conhece DCI, ATC, Grupo Homogéneo e
     // Fabricante. Corre DEPOIS do upsert do Produto, para que os produtos
@@ -456,8 +487,12 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             externalProductId: a.externalProductId ?? undefined,
             // `undefined` no Prisma significa "nao mexer" — e' assim que
             // se preserva sem precisar de um segundo caminho de escrita.
+            // SO_CRIACAO (tenant silveira, farmácia não autoritativa): num
+            // produto existente a designação nunca é tocada.
             designacao:
-              manual.has("designacao") || designacaoNova === "" ? undefined : a.designacao,
+              modoDesignacao === "SO_CRIACAO" || manual.has("designacao") || designacaoNova === ""
+                ? undefined
+                : a.designacao,
             flagGenerico: manual.has("flagGenerico") ? undefined : a.flagGenerico,
             flagMnsrmNCompart: manual.has("flagMnsrmNCompart")
               ? undefined
@@ -513,6 +548,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         upserted++;
         produtoIdsFallback.push(produto.id);
       } catch (err) {
+        if (estatDesignacao) estatDesignacao.erros++;
         errors.push({
           index: a.index,
           reason: "upsert_failed",
@@ -578,10 +614,26 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // quantos ficaram em fila. Sem isto, a diferença entre "o pipeline
   // correu e não havia nada a fazer" e "o pipeline não correu" só se via
   // indo à base. Campo extra e opcional: agents antigos ignoram-no.
+  // Designações (tenant silveira): contagens apenas — nunca payloads nem
+  // designações completas nos logs/resposta.
+  let designacoes: Record<string, unknown> | null = null;
+  if (autoridade.aplica) {
+    const est: EstatisticasDesignacao = estatDesignacao ?? contarDecisoes(modoDesignacao, []);
+    est.ignoradasVazias += designacoesVazias;
+    designacoes = {
+      modo: modoDesignacao,
+      ...est,
+      ...(autoridade.valida ? {} : { erroConfiguracao: { codigo: autoridade.codigo, mensagem: autoridade.mensagem } }),
+    };
+    console.log(
+      `[bootstrap/products] designacao ${JSON.stringify({ tenant: ctx.tenant.slug, farmaciaId, ...designacoes, erroConfiguracao: undefined, erroConfiguracaoCodigo: autoridade.valida ? undefined : autoridade.codigo })}`,
+    );
+  }
   return NextResponse.json({
     ...response,
     produtosNovos,
     produtosAtualizados,
+    ...(designacoes ? { designacoes } : {}),
     ...(catalogoErp ? { catalogoErp } : {}),
     ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
     ...(gruposLaboratoriais ? { gruposLaboratoriais } : {}),

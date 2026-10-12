@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { PrismaClient } from "@/generated/prisma/client";
+import type { ModoDesignacao } from "@/lib/ingest/designacao-silveira";
 
 /**
  * lib/ingest/bulk.ts
@@ -181,8 +182,26 @@ export type ProdutoRow = {
  */
 export async function bulkUpsertProdutosByCnp(
   db: DbClient,
-  rows: ProdutoRow[]
+  rows: ProdutoRow[],
+  opcoes: {
+    /**
+     * Quem manda na designação de um produto que JÁ existe — ver
+     * `lib/ingest/designacao-silveira.ts`. Omisso/`LEGACY`/`AUTORITATIVA`:
+     * a designação recebida (não vazia, não manual) substitui a existente
+     * (o valor já vem normalizado do chamador). `SO_CRIACAO`: o valor
+     * recebido só é usado no INSERT — num produto existente a designação
+     * fica exactamente como está.
+     */
+    designacao?: ModoDesignacao;
+  } = {}
 ): Promise<Map<number, string>> {
+  const designacaoNoConflito =
+    opcoes.designacao === "SO_CRIACAO"
+      ? Prisma.sql`"Produto"."designacao"`
+      : Prisma.sql`CASE
+        WHEN 'designacao' = ANY("Produto"."camposManuais") THEN "Produto"."designacao"
+        ELSE COALESCE(NULLIF(btrim(EXCLUDED."designacao"), ''), "Produto"."designacao")
+      END`;
   const map = new Map<number, string>();
   if (rows.length === 0) return map;
   const values = rows.map(
@@ -201,10 +220,7 @@ export async function bulkUpsertProdutosByCnp(
       "externalProductId" = COALESCE(EXCLUDED."externalProductId", "Produto"."externalProductId"),
       -- Designacao: vazio do ERP nao apaga, e mao escrita nao e
       -- sobreposta. Ver o bloco de comentario acima da funcao.
-      "designacao" = CASE
-        WHEN 'designacao' = ANY("Produto"."camposManuais") THEN "Produto"."designacao"
-        ELSE COALESCE(NULLIF(btrim(EXCLUDED."designacao"), ''), "Produto"."designacao")
-      END,
+      "designacao" = ${designacaoNoConflito},
       "flagGenerico" = CASE
         WHEN 'flagGenerico' = ANY("Produto"."camposManuais") THEN "Produto"."flagGenerico"
         ELSE EXCLUDED."flagGenerico"

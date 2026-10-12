@@ -29,3 +29,12 @@ export const TENANT_GRUPOS_LABORATORIAIS = "garantia";
  * só decide QUEM pode ver/usar o ecrã.
  */
 export const TENANT_CATALOGO_MASSA = "silveira";
+
+/**
+ * Tenant onde a designação (`Produto.designacao`) de um produto passa a ser
+ * decidida pela farmácia Silveirense (ver `lib/ingest/designacao-silveira.ts`).
+ * Decisão DISTINTA de `TENANT_CATALOGO_MASSA` (mesmo valor hoje, podem divergir)
+ * e NÃO é uma "farmácia principal" genérica: vale só para este campo e só
+ * neste tenant — os outros ficam com o comportamento de sempre.
+ */
+export const TENANT_DESIGNACAO_AUTORITATIVA = "silveira";
