@@ -228,3 +228,19 @@ Comandos e resultados completos: ver a mensagem de entrega (e `npm run test:*` a
   worktree desta entrega foi instalado à parte (`--no-save`) só para poder fazer `next build`.
 * Os testes `test-ordenacao-tabelas`, `test-sync-on-demand`, `test-pipeline…`, etc. que já
   falhavam na revisão de produção continuam a falhar exactamente nos mesmos pontos (ver §8).
+
+## 10. Resultados (execução final)
+
+* `notes/resultados-testes-2026-10.txt` — uma linha por ficheiro de `scripts/tests/`, esta branch
+  vs revisão de produção `4b6396a`, na mesma máquina. **Nenhuma regressão**: os 55 ficheiros que
+  não terminam em «0 falhas» (dependências em falta como `pdf-parse`, rede, ou falhas já
+  existentes — `test-ordenacao-tabelas` 3, `test-sync-on-demand` 1, `test-fronteira-cliente-servidor`,
+  `test-vendas-fontes`, `test-ui-catalogo`, `test-perfis-utilizadores`, `test-diagnostico-tools` 14,
+  …) têm output idêntico nas duas revisões, excepto contadores a mais dos testes novos.
+* E2E de browser, código final: `test:e2e-pesquisa-vendas` **9 OK / 0 falhas**;
+  `test:e2e-atualizar-agora-designacao` **25 OK / 0 falhas**.
+* **Controlo negativo** — o mesmo E2E de pesquisa corrido contra um build da revisão de produção
+  `4b6396a` **reproduz o defeito**: «parace» ✔, «parace ciclum» ✘ (zero resultados), «ciclum
+  parace» ✘, «PARÁCE   cíclum» ✘, «8500 ciclum» ✘ (5 OK / 4 falhas); na branch nova, 9/9.
+* Bases de teste: PostgreSQL 16 em Docker (porta 55490), criadas e apagadas pelos próprios
+  testes; nenhuma base real tocada.

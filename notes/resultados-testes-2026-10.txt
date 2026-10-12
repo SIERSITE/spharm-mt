@@ -1,0 +1,161 @@
+# Resultados da suite scripts/tests/test-*.ts — branch feat/pesquisa-impressao-designacao-silveirense vs revisão de produção 4b6396a
+# Postgres descartável (docker postgres:16, porta 55490). Uma linha por ficheiro: <teste> | <esta branch> | <revisão de produção>.
+# '—' = o teste não existe na revisão de produção. Ficheiros sem linha de resumo mostram o fim do output.
+# test-pesquisa-produto-live, test-migration-live-postgres e test-control-schema correm à parte (exigem URL própria) — ver a nota de auditoria.
+
+test-acerto-stock-apresentacao | 44 ok, 0 falhas | 44 ok, 0 falhas
+test-agent-fabricante-daily-sync | 22 ok, 0 falhas | 22 ok, 0 falhas
+test-aggregate-lock | 44 ok, 0 falhas | 44 ok, 0 falhas
+test-agrupar-produto | PASSOU — 37 OK, 0 falhas | PASSOU — 37 OK, 0 falhas
+test-artigo-panel | H1 (Inventário): usa ArtigoLink (painel), não um <Link>/router.push directo para a ficha 3 | H1 (Inventário): usa ArtigoLink (painel), não um <Link>/router.push directo para a ficha 3
+test-candidatos-grupo-laboratorial | ificação estática) [OK] C1: sem qualquer referência a escrita/Prisma — só lê e agrupa 12 o | ificação estática) [OK] C1: sem qualquer referência a escrita/Prisma — só lê e agrupa 12 o
+test-canonical-mapping | ✓ nivel2 não é categoria técnica ───────────────────────────────────────────────────── | ✓ nivel2 não é categoria técnica ─────────────────────────────────────────────────────
+test-catalog-classifier | 33 ok, 0 falhas | 33 ok, 0 falhas
+test-catalog-from-erp | 53 ok, 0 falhas | 53 ok, 0 falhas
+test-catalog-master | catalog-master — 57 asserções passaram, 0 falharam. ✓ todos os testes passaram | catalog-master — 57 asserções passaram, 0 falharam. ✓ todos os testes passaram
+test-catalog-normalizers-limite | 26 ok, 0 falhas | 26 ok, 0 falhas
+test-catalog-rescue-routes | 48 ok, 0 falhas | 48 ok, 0 falhas
+test-catalogo-filtro-laboratorio | s um grupo na lista — nunca é ligado incondicionalmente para todos os tenants [OK] S2: o c | s um grupo na lista — nunca é ligado incondicionalmente para todos os tenants [OK] S2: o c
+test-catalogo-massa-silveira-ingest-db | 18 ok, 0 falhas | 18 ok, 0 falhas
+test-catalogo-nacional-parser | 36 ok, 0 falhas | 36 ok, 0 falhas
+test-classificacao-provisoria | 64 ok, 0 falhas | 64 ok, 0 falhas
+test-classificar-grupos-laboratoriais-garantia | 32 ok, 0 falhas | 32 ok, 0 falhas
+test-codigos-saida | 26 ok, 0 falhas | 26 ok, 0 falhas
+test-compras-qualidade | 28 ok, 0 falhas | 28 ok, 0 falhas
+test-consolidacao-corrida-criacao-db | autosave de cada farmácia também grava ao desmontar (navegação programática) 32 ok, 0 falh | autosave de cada farmácia também grava ao desmontar (navegação programática) 32 ok, 0 falh
+test-consolidacao-fornecedor-linha-db | oto__ (node:internal/modules/esm/loader:661:26) at async extrairTexto (C:\projetos\spharm- | ) at nextResolve (node:internal/modules/esm/hooks:785:28) { code: 'ERR_MODULE_NOT_FOUND' }
+test-consolidacao-multi-fornecedor-db | 23 ok, 0 falhas | 23 ok, 0 falhas
+test-consolidacao-notas-conflito-auth-db | 32 ok, 0 falhas | 32 ok, 0 falhas
+test-consolidacao-resposta-perdida-db | 53 ok, 0 falhas | 53 ok, 0 falhas
+test-correccoes-2026-09 | 87 ok, 0 falhas | 87 ok, 0 falhas
+test-create-client-workflow | ✓ erro de múltiplas flags ✓ durationMs registado ✓ Todos os asserts passaram. | ✓ erro de múltiplas flags ✓ durationMs registado ✓ Todos os asserts passaram.
+test-criar-transferencia-db | 18 ok, 0 falhas | 18 ok, 0 falhas
+test-cron-auth | ✓ recusa header inválido ────────────────────────────────────────────────────────� | ✓ recusa header inválido ────────────────────────────────────────────────────────�
+test-custo-vendas-margens | PASSOU — 22 OK, 0 falhas | PASSOU — 22 OK, 0 falhas
+test-db-providers | onstructor ✓ NeonProvider sem projectId → erro de constructor ✓ Todos os asserts passaram. | onstructor ✓ NeonProvider sem projectId → erro de constructor ✓ Todos os asserts passaram.
+test-dci-equivalent-substitution | d=2 (excluiu o dci=null) — expected 2, got 2 ────────────────────────────────────────────� | d=2 (excluiu o dci=null) — expected 2, got 2 ────────────────────────────────────────────�
+test-dependentes-terminais | 23 ok, 19 falhas | 23 ok, 19 falhas
+test-designacao-silveira | PASSOU — 63 OK, 0 falhas | —
+test-designacao-silveira-db | PASSOU — 65 OK, 0 falhas | —
+test-diagnostico-tools | 92 ok, 14 falhas | 87 ok, 14 falhas
+test-documentos-finalizacao | 47 ok, 0 falhas | 47 ok, 0 falhas
+test-documentos-pdf-texto | nonymous> (C:\projetos\spharm-mt-wt\scripts\tests\test-documentos-pdf-texto.ts:202:2) Node | ] } Node.js v24.14.1
+test-eliminacao-encomenda-transferencia | PASSOU — 57 OK, 0 falhas | PASSOU — 57 OK, 0 falhas
+test-encomenda-autosave | ] I8: o fallback local nunca grava tokens/passwords (só produtoId/quantidade/notas) 33 ok, | ] I8: o fallback local nunca grava tokens/passwords (só produtoId/quantidade/notas) 33 ok,
+test-encomenda-grupo-decisao-linha | FALHOU — 84 OK, 2 falhas | FALHOU — 84 OK, 2 falhas
+test-encomenda-grupo-multi-fornecedor-db | 1 de F2 [OK] E2: os 3 documentos cobrem 3 fornecedores distintos (Alfa, Beta, Gama) — nenh | 1 de F2 [OK] E2: os 3 documentos cobrem 3 fornecedores distintos (Alfa, Beta, Gama) — nenh
+test-encomenda-idempotencia-db | 40 ok, 0 falhas | 40 ok, 0 falhas
+test-encomendas-dci-integration | _divergente contabilizada — expected 1, got 1 ───────────────────────────────────────────� | _divergente contabilizada — expected 1, got 1 ───────────────────────────────────────────�
+test-encomendas-substitution | ✓ ordenado desc — got [1000, 10] ─────────────────────────────────────────────────────� | ✓ ordenado desc — got [1000, 10] ─────────────────────────────────────────────────────�
+test-enrich-catalog-fase6-grupos-laboratoriais | 44 ok, 0 falhas | 44 ok, 0 falhas
+test-env | ✓ DATABASE_URL inclui scope web ──────────────────────────────────────────────────────� | ✓ DATABASE_URL inclui scope web ──────────────────────────────────────────────────────�
+test-estrato-operacional | 16 ok, 0 falhas | 16 ok, 0 falhas
+test-excessos-transferencias | 161 ok, 0 falhas | 161 ok, 0 falhas
+test-export-cabecalho-laboratorio |  (a filtragem real já aconteceu antes, no servidor) [OK] L2: colunas idênticas 27 ok, 0 fa |  (a filtragem real já aconteceu antes, no servidor) [OK] L2: colunas idênticas 27 ok, 0 fa
+test-export-mesma-ordem-do-ecra | de linhas são diferentes entre si (confirma que o teste está mesmo a comparar ordens disti | de linhas são diferentes entre si (confirma que o teste está mesmo a comparar ordens disti
+test-fabricante-baseline-erp | 26 ok, 0 falhas | 26 ok, 0 falhas
+test-fabricante-correcao-tier-aware | 142 ok, 0 falhas | 142 ok, 0 falhas
+test-fabricante-idempotencia | 17 ok, 0 falhas | 17 ok, 0 falhas
+test-falha-infraestrutura | 21 ok, 0 falhas | 21 ok, 0 falhas
+test-fase1-economia-ordenacao | FALHOU — 149 OK, 3 falhas | FALHOU — 149 OK, 3 falhas
+test-ficha-manual | PASSOU — 96 OK, 0 falhas | PASSOU — 96 OK, 0 falhas
+test-filtro-global-residual | 37 ok, 0 falhas | 37 ok, 0 falhas
+test-filtro-sem-classificacao | 19 ok, 0 falhas | 19 ok, 0 falhas
+test-filtros-catalogo | 36 ok, 0 falhas | 36 ok, 0 falhas
+test-filtros-estado-inicial | 17 ok, 0 falhas | 17 ok, 0 falhas
+test-finalizacao-grupo-direta | ebe número real (TR-######) ao nascer já finalizada — via lib/documentos/numeracao.ts 12 o | ebe número real (TR-######) ao nascer já finalizada — via lib/documentos/numeracao.ts 12 o
+test-finalizar-multi-fornecedor | nhas\n\nTotal: 1 encomenda", esperado "Farmácia B\n Fornecedor Z — 3 linhas\n\nTotal: 1 en | nhas\n\nTotal: 1 encomenda", esperado "Farmácia B\n Fornecedor Z — 3 linhas\n\nTotal: 1 en
+test-finalizar-multi-fornecedor-db | oto__ (node:internal/modules/esm/loader:661:26) at async extrairTexto (C:\projetos\spharm- | ) at nextResolve (node:internal/modules/esm/hooks:785:28) { code: 'ERR_MODULE_NOT_FOUND' }
+test-fronteira-cliente-servidor | FALHOU — 4 OK, 1 falhas | FALHOU — 4 OK, 1 falhas
+test-global-catalog | 138 ok, 0 falhas | 138 ok, 0 falhas
+test-global-catalog-clinica | 60 ok, 0 falhas | 60 ok, 0 falhas
+test-global-sem-classificacao | 30 ok, 0 falhas | 30 ok, 0 falhas
+test-historico-inline-refetch | PASSOU — 18 OK, 0 falhas | PASSOU — 18 OK, 0 falhas
+test-historico-lote | PASSOU — 27 OK, 0 falhas | PASSOU — 27 OK, 0 falhas
+test-historico-produto-12meses | PASSOU — 55 OK, 0 falhas | PASSOU — 55 OK, 0 falhas
+test-import-catalogo-nacional-completo | heiro [OK] I4: create() foi tentado duas vezes (uma por corrida) — a segunda tentativa é q | heiro [OK] I4: create() foi tentado duas vezes (uma por corrida) — a segunda tentativa é q
+test-importar-grupos-laboratoriais-garantia | 91 ok, 0 falhas | 91 ok, 0 falhas
+test-infomed-detail-fetcher | ✓ >= 1 embalagens (got 3) ════════════════════════════════════════════════════════� | fetch failed — HTTP 503 Service Unavailable · Med #2 — guid 8d1009b06d6111e2bad3a03a774f6c
+test-integracao-filtros-relatorios-grupos-laboratoriais | nventário devolvem EXACTAMENTE os produtos que a relação ProdutoGrupoLaboratorial material | nventário devolvem EXACTAMENTE os produtos que a relação ProdutoGrupoLaboratorial material
+test-internal-substitution | nica farmácia → sem transferência possível ──────────────────────────────────────────────� | nica farmácia → sem transferência possível ──────────────────────────────────────────────�
+test-ipf-freshness | ima do threshold — expected false, got false ───────────────────────────────────────────── | ima do threshold — expected false, got false ─────────────────────────────────────────────
+test-janela-residual | 33 ok, 0 falhas | 33 ok, 0 falhas
+test-knowledge-enrichment | 288 ok, 0 falhas | 288 ok, 0 falhas
+test-linhas-manuais | PASSOU — 67 OK, 0 falhas | PASSOU — 67 OK, 0 falhas
+test-lista-codigos | PASSOU — 110 OK, 0 falhas | PASSOU — 110 OK, 0 falhas
+test-lista-codigos-comportamento | PASSOU — 82 OK, 0 falhas | PASSOU — 82 OK, 0 falhas
+test-lote-ingestao-hash | fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) ─────────────────────────────────� | fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) ─────────────────────────────────�
+test-manutencao-massa-atomicidade-db | 36 ok, 0 falhas | "hashMs":346,"transacaoMs":58562,"destinoMs":4,"updateMs":25386,"operacaoMs":13,"itensMs":
+test-manutencao-massa-filtros-db | 107 ok, 0 falhas | 107 ok, 0 falhas
+test-manutencao-massa-silveira | 65 ok, 0 falhas | 65 ok, 0 falhas
+test-manutencao-massa-silveira-db | cada submissão cria a sua própria operação de auditoria, nunca deduplicada (obtido 2 opera | cada submissão cria a sua própria operação de auditoria, nunca deduplicada (obtido 2 opera
+test-mapper-porta-de-entrada | 45 ok, 0 falhas | 45 ok, 0 falhas
+test-margens | 118 ok, 0 falhas | 118 ok, 0 falhas
+test-margens-custo-cnp8322628 | PASSOU — 16 OK, 0 falhas | PASSOU — 16 OK, 0 falhas
+test-medicamento-mapping |  {others_fallback} (got "others_fallback") ──────────────────────────────────────────────� |  {others_fallback} (got "others_fallback") ──────────────────────────────────────────────�
+test-metricas-catalogo-grupo-laboratorial | á antes da correcção [OK] B1: sem pontuação, a forma crua já era igual à canónica — por is | á antes da correcção [OK] B1: sem pontuação, a forma crua já era igual à canónica — por is
+test-motores-2026-09 | 89 ok, 0 falhas | 89 ok, 0 falhas
+test-movimentos-ledger | 39 ok, 0 falhas | 39 ok, 0 falhas
+test-namespaces-acordo | 15 ok, 0 falhas | 15 ok, 0 falhas
+test-neon-provider | ) ✗ 1 falha(s): - happy path até connection_uri; SELECT 1 falha esperada (URL 127.0.0.1:1) | ) ✗ 1 falha(s): - happy path até connection_uri; SELECT 1 falha esperada (URL 127.0.0.1:1)
+test-operational-metrics |  mapeia para Infinity (transferencias legacy) ──────────────────────────────────────────── |  mapeia para Infinity (transferencias legacy) ────────────────────────────────────────────
+test-ordenacao-tabelas | FALHOU — 47 OK, 3 falhas | FALHOU — 47 OK, 3 falhas
+test-orders-list-drafts | 10 ok, 0 falhas | 10 ok, 0 falhas
+test-outros-nao-e-por-classificar | 50 ok, 0 falhas | 50 ok, 0 falhas
+test-painel-resultado-transferencias | 11 ok, 0 falhas | 11 ok, 0 falhas
+test-password-coerencia | 58 ok, 0 falhas | 58 ok, 0 falhas
+test-perfis-utilizadores | 76 ok, 8 falhas | 76 ok, 8 falhas
+test-pesquisa-produto | PASSOU — 41 OK, 0 falhas | PASSOU — 39 OK, 0 falhas
+test-pesquisa-termos | PASSOU — 51 OK, 0 falhas | —
+test-pesquisa-termos-db | PASSOU — 32 OK, 0 falhas | —
+test-pipeline-diario | 40 ok, 0 falhas | 40 ok, 0 falhas
+test-portao-sessao | 72 ok, 0 falhas | 72 ok, 0 falhas
+test-precedencia-tenant | 39 ok, 0 falhas | 39 ok, 0 falhas
+test-preselection | 66 ok, 0 falhas | 66 ok, 0 falhas
+test-produto-run | 14 ok, 0 falhas | 14 ok, 0 falhas
+test-projeccao-estado | 43 ok, 0 falhas | 43 ok, 0 falhas
+test-proposal-context | o {"nomeFicheiro":"encomenda-agosto.xlsx","encontrados":410,"naoEncontrados":3}, obtido {" | o {"nomeFicheiro":"encomenda-agosto.xlsx","encontrados":410,"naoEncontrados":3}, obtido {"
+test-proposta-fornecedor-habitual-db | fluencia a proposta) [OK] X8: proposal.ts não contém nenhuma resolução por texto do ERP 50 | fluencia a proposta) [OK] X8: proposal.ts não contém nenhuma resolução por texto do ERP 50
+test-proposta-pending-qty-db | 11 ok, 0 falhas | 11 ok, 0 falhas
+test-propostas-fabricante-por-cnp | 21 ok, 0 falhas | 21 ok, 0 falhas
+test-pvp-referencia | 29 ok, 0 falhas | 29 ok, 0 falhas
+test-reconciliacao-classificacao-grupos-laboratoriais | 13 ok, 0 falhas | 13 ok, 0 falhas
+test-reconciliacao-dry-run | 19 ok, 0 falhas | 19 ok, 0 falhas
+test-reconciliar-dia | 97 ok, 0 falhas | 97 ok, 0 falhas
+test-reconciliar-grupos-laboratoriais-garantia | 68 ok, 0 falhas | 68 ok, 0 falhas
+test-reconstruir-rascunho | l1 não foi mutado (imutabilidade — enriquecerLinhasRascunho devolve objectos NOVOS) (esper | l1 não foi mutado (imutabilidade — enriquecerLinhasRascunho devolve objectos NOVOS) (esper
+test-reimpressao-documentos-db |  D3: outbox nunca reiniciado/reenviado — attemptCount e state intactos (nenhuma exportação |  D3: outbox nunca reiniciado/reenviado — attemptCount e state intactos (nenhuma exportação
+test-reporting-redesign | PASSOU — 132 OK, 0 falhas | PASSOU — 132 OK, 0 falhas
+test-reporting-uniformizacao | 107 ok, 0 falhas | 107 ok, 0 falhas
+test-resolver-grupo-laboratorial | 47 ok, 0 falhas | 47 ok, 0 falhas
+test-resolver-laboratorio-selecionado | K] H1: valor tipado (grupo:gTeva) e nome solto (BIAL) resolvidos e unidos correctamente 17 | K] H1: valor tipado (grupo:gTeva) e nome solto (BIAL) resolvidos e unidos correctamente 17
+test-retail-cnp-7488585 | — passar `--online` para validar fetch real. ────────────────────────────────────────────� | — passar `--online` para validar fetch real. ────────────────────────────────────────────�
+test-revisao-global | 65 ok, 0 falhas | 65 ok, 0 falhas
+test-runner-promocao-clinica | 44 ok, 0 falhas | 44 ok, 0 falhas
+test-seguranca-origem | 18 ok, 0 falhas | 18 ok, 0 falhas
+test-selecao-fornecedor-massa | 38 ok, 0 falhas | 38 ok, 0 falhas
+test-server-actions-origins | ════════════════════════════════════════════ 33 ok · 0 falhas ═══════════════� | ════════════════════════════════════════════ 33 ok · 0 falhas ═══════════════�
+test-simular-grupos-laboratoriais-garantia | 25 ok, 0 falhas | 25 ok, 0 falhas
+test-sync-on-demand | FALHOU — 146 OK, 1 falhas | FALHOU — 146 OK, 1 falhas
+test-target-db | 87 ok, 0 falhas | 87 ok, 0 falhas
+test-task-bar |  a trocar de workspace) [OK] L6: o título da tarefa reflecte o filtro principal — duas aná |  a trocar de workspace) [OK] L6: o título da tarefa reflecte o filtro principal — duas aná
+test-tenant-resolution | s to a child process with shell option true can lead to security vulnerabilities, as the a | s to a child process with shell option true can lead to security vulnerabilities, as the a
+test-transferencia-por-id | PASSOU — 31 OK, 0 falhas | PASSOU — 31 OK, 0 falhas
+test-transferencia-snapshot-reimpressao-db | ) at Object.<anonymous> (C:\projetos\spharm-mt-wt\scripts\tests\test-transferencia-snapsho | ] } Node.js v24.14.1
+test-transferencias-manutencao-escopo-db | 6 ok, 0 falhas | 6 ok, 0 falhas
+test-ui-catalogo | 32 ok, 7 falhas | 32 ok, 7 falhas
+test-update-fabricantes-from-xlsx | PASSOU — 9 OK, 0 falhas | PASSOU — 9 OK, 0 falhas
+test-utilizacoes | 23 ok, 0 falhas | 23 ok, 0 falhas
+test-utilizacoes-ciclo | 12 ok, 0 falhas | 12 ok, 0 falhas
+test-utilizacoes-constraints |  o nome do tenant vem do control plane: SELECT "dbName" FROM "Tenant" WHERE slug='<slug>'; |  o nome do tenant vem do control plane: SELECT "dbName" FROM "Tenant" WHERE slug='<slug>';
+test-utilizacoes-snc | ──────────────────────────────────────────────────────────────────� | ──────────────────────────────────────────────────────────────────�
+test-vendas-apenas-com-stock | PASSOU — 34 OK, 0 falhas | PASSOU — 34 OK, 0 falhas
+test-vendas-fontes | 382 ok, 6 falhas | 382 ok, 6 falhas
+test-vendas-impressao-hierarquia | PASSOU — 23 OK, 0 falhas | —
+test-vendas-incluir-manutencao | PASSOU — 19 OK, 0 falhas | PASSOU — 19 OK, 0 falhas
+test-vendas-manutencao | er edição manual anterior [OK] H24: mantém a distribuição sazonal (10/90), nunca a editada | er edição manual anterior [OK] H24: mantém a distribuição sazonal (10/90), nunca a editada
+test-vendas-para-encomenda | PASSOU — 65 OK, 0 falhas | PASSOU — 65 OK, 0 falhas
+test-vendas-pdf-layout | PASSOU — 41 OK, 0 falhas | PASSOU — 41 OK, 0 falhas
+test-vendas-periodo | 47 ok, 0 falhas | 47 ok, 0 falhas
+test-vendas-stock-sempre-ativo | 4 ok, 0 falhas | 4 ok, 0 falhas
+test-workspace-isolamento | 24 ok, 0 falhas | 24 ok, 0 falhas
