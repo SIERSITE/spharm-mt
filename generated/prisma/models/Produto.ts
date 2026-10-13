@@ -543,6 +543,7 @@ export type ProdutoWhereInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawListRelationFilter
   movimentos?: Prisma.MovimentoArtigoListRelationFilter
   vendaManutencoes?: Prisma.VendaManutencaoListRelationFilter
+  regulamentar?: Prisma.ProdutoRegulamentarListRelationFilter
   grupoLaboratorial?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialNullableScalarRelationFilter, Prisma.ProdutoGrupoLaboratorialWhereInput> | null
 }
 
@@ -612,6 +613,7 @@ export type ProdutoOrderByWithRelationInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawOrderByRelationAggregateInput
   movimentos?: Prisma.MovimentoArtigoOrderByRelationAggregateInput
   vendaManutencoes?: Prisma.VendaManutencaoOrderByRelationAggregateInput
+  regulamentar?: Prisma.ProdutoRegulamentarOrderByRelationAggregateInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialOrderByWithRelationInput
 }
 
@@ -684,6 +686,7 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawListRelationFilter
   movimentos?: Prisma.MovimentoArtigoListRelationFilter
   vendaManutencoes?: Prisma.VendaManutencaoListRelationFilter
+  regulamentar?: Prisma.ProdutoRegulamentarListRelationFilter
   grupoLaboratorial?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialNullableScalarRelationFilter, Prisma.ProdutoGrupoLaboratorialWhereInput> | null
 }, "id" | "cnp">
 
@@ -848,6 +851,7 @@ export type ProdutoCreateInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -914,6 +918,7 @@ export type ProdutoUncheckedCreateInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -980,6 +985,7 @@ export type ProdutoUpdateInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -1046,6 +1052,7 @@ export type ProdutoUncheckedUpdateInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -1853,6 +1860,20 @@ export type ProdutoUpdateOneWithoutMovimentosNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutMovimentosInput, Prisma.ProdutoUpdateWithoutMovimentosInput>, Prisma.ProdutoUncheckedUpdateWithoutMovimentosInput>
 }
 
+export type ProdutoCreateNestedOneWithoutRegulamentarInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutRegulamentarInput, Prisma.ProdutoUncheckedCreateWithoutRegulamentarInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutRegulamentarInput
+  connect?: Prisma.ProdutoWhereUniqueInput
+}
+
+export type ProdutoUpdateOneRequiredWithoutRegulamentarNestedInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutRegulamentarInput, Prisma.ProdutoUncheckedCreateWithoutRegulamentarInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutRegulamentarInput
+  upsert?: Prisma.ProdutoUpsertWithoutRegulamentarInput
+  connect?: Prisma.ProdutoWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutRegulamentarInput, Prisma.ProdutoUpdateWithoutRegulamentarInput>, Prisma.ProdutoUncheckedUpdateWithoutRegulamentarInput>
+}
+
 export type ProdutoCreateWithoutFabricanteInput = {
   id?: string
   cnp: number
@@ -1915,6 +1936,7 @@ export type ProdutoCreateWithoutFabricanteInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -1980,6 +2002,7 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -2120,6 +2143,7 @@ export type ProdutoCreateWithoutGrupoLaboratorialInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutGrupoLaboratorialInput = {
@@ -2185,6 +2209,7 @@ export type ProdutoUncheckedCreateWithoutGrupoLaboratorialInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutGrupoLaboratorialInput = {
@@ -2266,6 +2291,7 @@ export type ProdutoUpdateWithoutGrupoLaboratorialInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutGrupoLaboratorialInput = {
@@ -2331,6 +2357,7 @@ export type ProdutoUncheckedUpdateWithoutGrupoLaboratorialInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutClassificacaoNivel1Input = {
@@ -2395,6 +2422,7 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -2460,6 +2488,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -2535,6 +2564,7 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -2600,6 +2630,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -2707,6 +2738,7 @@ export type ProdutoCreateWithoutUtilizacoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -2772,6 +2804,7 @@ export type ProdutoUncheckedCreateWithoutUtilizacoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -2853,6 +2886,7 @@ export type ProdutoUpdateWithoutUtilizacoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -2918,6 +2952,7 @@ export type ProdutoUncheckedUpdateWithoutUtilizacoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -2983,6 +3018,7 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -3048,6 +3084,7 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -3129,6 +3166,7 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3194,6 +3232,7 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3259,6 +3298,7 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -3324,6 +3364,7 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -3405,6 +3446,7 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3470,6 +3512,7 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3535,6 +3578,7 @@ export type ProdutoCreateWithoutManutencaoMassaItensInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -3600,6 +3644,7 @@ export type ProdutoUncheckedCreateWithoutManutencaoMassaItensInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -3681,6 +3726,7 @@ export type ProdutoUpdateWithoutManutencaoMassaItensInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3746,6 +3792,7 @@ export type ProdutoUncheckedUpdateWithoutManutencaoMassaItensInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -3811,6 +3858,7 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -3876,6 +3924,7 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -3957,6 +4006,7 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4022,6 +4072,7 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4087,6 +4138,7 @@ export type ProdutoCreateWithoutVendasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -4152,6 +4204,7 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -4233,6 +4286,7 @@ export type ProdutoUpdateWithoutVendasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4298,6 +4352,7 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4363,6 +4418,7 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -4428,6 +4484,7 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -4509,6 +4566,7 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4574,6 +4632,7 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4639,6 +4698,7 @@ export type ProdutoCreateWithoutVendaManutencoesInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -4704,6 +4764,7 @@ export type ProdutoUncheckedCreateWithoutVendaManutencoesInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -4785,6 +4846,7 @@ export type ProdutoUpdateWithoutVendaManutencoesInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4850,6 +4912,7 @@ export type ProdutoUncheckedUpdateWithoutVendaManutencoesInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -4915,6 +4978,7 @@ export type ProdutoCreateWithoutComprasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -4980,6 +5044,7 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -5061,6 +5126,7 @@ export type ProdutoUpdateWithoutComprasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5126,6 +5192,7 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5191,6 +5258,7 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -5256,6 +5324,7 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -5337,6 +5406,7 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5402,6 +5472,7 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5467,6 +5538,7 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -5532,6 +5604,7 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -5613,6 +5686,7 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5678,6 +5752,7 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5743,6 +5818,7 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -5808,6 +5884,7 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -5889,6 +5966,7 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -5954,6 +6032,7 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6019,6 +6098,7 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -6084,6 +6164,7 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -6165,6 +6246,7 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6230,6 +6312,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6295,6 +6378,7 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -6360,6 +6444,7 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -6441,6 +6526,7 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6506,6 +6592,7 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6571,6 +6658,7 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -6636,6 +6724,7 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -6717,6 +6806,7 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6782,6 +6872,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -6847,6 +6938,7 @@ export type ProdutoCreateWithoutLinhasTransferenciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -6912,6 +7004,7 @@ export type ProdutoUncheckedCreateWithoutLinhasTransferenciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -6993,6 +7086,7 @@ export type ProdutoUpdateWithoutLinhasTransferenciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7058,6 +7152,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasTransferenciaInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7123,6 +7218,7 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -7188,6 +7284,7 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -7269,6 +7366,7 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7334,6 +7432,7 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7399,6 +7498,7 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -7464,6 +7564,7 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -7545,6 +7646,7 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7610,6 +7712,7 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7675,6 +7778,7 @@ export type ProdutoCreateWithoutIngestVendasLinhasRawInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -7740,6 +7844,7 @@ export type ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
   movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -7821,6 +7926,7 @@ export type ProdutoUpdateWithoutIngestVendasLinhasRawInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7886,6 +7992,7 @@ export type ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -7951,6 +8058,7 @@ export type ProdutoCreateWithoutMovimentosInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
 }
 
@@ -8016,6 +8124,7 @@ export type ProdutoUncheckedCreateWithoutMovimentosInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedCreateNestedManyWithoutProdutoInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
 }
 
@@ -8097,6 +8206,7 @@ export type ProdutoUpdateWithoutMovimentosInput = {
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8161,6 +8271,287 @@ export type ProdutoUncheckedUpdateWithoutMovimentosInput = {
   utilizacoes?: Prisma.ProdutoUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
+  vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
+  grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
+}
+
+export type ProdutoCreateWithoutRegulamentarInput = {
+  id?: string
+  cnp: number
+  externalProductId?: number | null
+  designacao: string
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
+  fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
+  classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
+  classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
+  linhasTransferencia?: Prisma.LinhaTransferenciaCreateNestedManyWithoutProdutoInput
+  manutencaoMassaItens?: Prisma.CatalogoManutencaoOperacaoItemCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  utilizacoes?: Prisma.ProdutoUtilizacaoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
+  movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutProdutoInput
+  vendaManutencoes?: Prisma.VendaManutencaoCreateNestedManyWithoutProdutoInput
+  grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput
+}
+
+export type ProdutoUncheckedCreateWithoutRegulamentarInput = {
+  id?: string
+  cnp: number
+  externalProductId?: number | null
+  designacao: string
+  fabricanteId?: string | null
+  classificacaoNivel1Id?: string | null
+  classificacaoNivel2Id?: string | null
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
+  linhasTransferencia?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutProdutoInput
+  manutencaoMassaItens?: Prisma.CatalogoManutencaoOperacaoItemUncheckedCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  utilizacoes?: Prisma.ProdutoUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
+  movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutProdutoInput
+  vendaManutencoes?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutProdutoInput
+  grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedOneWithoutProdutoInput
+}
+
+export type ProdutoCreateOrConnectWithoutRegulamentarInput = {
+  where: Prisma.ProdutoWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutRegulamentarInput, Prisma.ProdutoUncheckedCreateWithoutRegulamentarInput>
+}
+
+export type ProdutoUpsertWithoutRegulamentarInput = {
+  update: Prisma.XOR<Prisma.ProdutoUpdateWithoutRegulamentarInput, Prisma.ProdutoUncheckedUpdateWithoutRegulamentarInput>
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutRegulamentarInput, Prisma.ProdutoUncheckedCreateWithoutRegulamentarInput>
+  where?: Prisma.ProdutoWhereInput
+}
+
+export type ProdutoUpdateToOneWithWhereWithoutRegulamentarInput = {
+  where?: Prisma.ProdutoWhereInput
+  data: Prisma.XOR<Prisma.ProdutoUpdateWithoutRegulamentarInput, Prisma.ProdutoUncheckedUpdateWithoutRegulamentarInput>
+}
+
+export type ProdutoUpdateWithoutRegulamentarInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
+  classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
+  classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
+  linhasTransferencia?: Prisma.LinhaTransferenciaUpdateManyWithoutProdutoNestedInput
+  manutencaoMassaItens?: Prisma.CatalogoManutencaoOperacaoItemUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  utilizacoes?: Prisma.ProdutoUtilizacaoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
+  movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
+  vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
+}
+
+export type ProdutoUncheckedUpdateWithoutRegulamentarInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasTransferencia?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutProdutoNestedInput
+  manutencaoMassaItens?: Prisma.CatalogoManutencaoOperacaoItemUncheckedUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  utilizacoes?: Prisma.ProdutoUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
+  movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
@@ -8271,6 +8662,7 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8336,6 +8728,7 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8533,6 +8926,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8598,6 +8992,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8707,6 +9102,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8772,6 +9168,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
   movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutProdutoNestedInput
   vendaManutencoes?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutProdutoNestedInput
+  regulamentar?: Prisma.ProdutoRegulamentarUncheckedUpdateManyWithoutProdutoNestedInput
   grupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateOneWithoutProdutoNestedInput
 }
 
@@ -8845,6 +9242,7 @@ export type ProdutoCountOutputType = {
   ingestVendasLinhasRaw: number
   movimentos: number
   vendaManutencoes: number
+  regulamentar: number
 }
 
 export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -8868,6 +9266,7 @@ export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extension
   ingestVendasLinhasRaw?: boolean | ProdutoCountOutputTypeCountIngestVendasLinhasRawArgs
   movimentos?: boolean | ProdutoCountOutputTypeCountMovimentosArgs
   vendaManutencoes?: boolean | ProdutoCountOutputTypeCountVendaManutencoesArgs
+  regulamentar?: boolean | ProdutoCountOutputTypeCountRegulamentarArgs
 }
 
 /**
@@ -9020,6 +9419,13 @@ export type ProdutoCountOutputTypeCountVendaManutencoesArgs<ExtArgs extends runt
   where?: Prisma.VendaManutencaoWhereInput
 }
 
+/**
+ * ProdutoCountOutputType without action
+ */
+export type ProdutoCountOutputTypeCountRegulamentarArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProdutoRegulamentarWhereInput
+}
+
 
 export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -9087,6 +9493,7 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   ingestVendasLinhasRaw?: boolean | Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>
   movimentos?: boolean | Prisma.Produto$movimentosArgs<ExtArgs>
   vendaManutencoes?: boolean | Prisma.Produto$vendaManutencoesArgs<ExtArgs>
+  regulamentar?: boolean | Prisma.Produto$regulamentarArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.Produto$grupoLaboratorialArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["produto"]>
@@ -9257,6 +9664,7 @@ export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs
   ingestVendasLinhasRaw?: boolean | Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>
   movimentos?: boolean | Prisma.Produto$movimentosArgs<ExtArgs>
   vendaManutencoes?: boolean | Prisma.Produto$vendaManutencoesArgs<ExtArgs>
+  regulamentar?: boolean | Prisma.Produto$regulamentarArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.Produto$grupoLaboratorialArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -9297,6 +9705,11 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     ingestVendasLinhasRaw: Prisma.$IngestVendaLinhaRawPayload<ExtArgs>[]
     movimentos: Prisma.$MovimentoArtigoPayload<ExtArgs>[]
     vendaManutencoes: Prisma.$VendaManutencaoPayload<ExtArgs>[]
+    /**
+     * Dados regulamentares do INFARMED, uma linha por versão importada.
+     * A versão em vigor é a de `InfarmedImportacao.ativa`.
+     */
+    regulamentar: Prisma.$ProdutoRegulamentarPayload<ExtArgs>[]
     /**
      * Grupo laboratorial PESQUISÁVEL efectivo — nunca confundir com
      * `fabricante`/`fabricanteId` acima (identidade LEGAL). Ver GrupoLaboratorial.
@@ -9813,6 +10226,7 @@ export interface Prisma__ProdutoClient<T, Null = never, ExtArgs extends runtime.
   ingestVendasLinhasRaw<T extends Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$IngestVendaLinhaRawPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   movimentos<T extends Prisma.Produto$movimentosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$movimentosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MovimentoArtigoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   vendaManutencoes<T extends Prisma.Produto$vendaManutencoesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$vendaManutencoesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendaManutencaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  regulamentar<T extends Prisma.Produto$regulamentarArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$regulamentarArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoRegulamentarPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   grupoLaboratorial<T extends Prisma.Produto$grupoLaboratorialArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$grupoLaboratorialArgs<ExtArgs>>): Prisma.Prisma__ProdutoGrupoLaboratorialClient<runtime.Types.Result.GetResult<Prisma.$ProdutoGrupoLaboratorialPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -10820,6 +11234,30 @@ export type Produto$vendaManutencoesArgs<ExtArgs extends runtime.Types.Extension
   take?: number
   skip?: number
   distinct?: Prisma.VendaManutencaoScalarFieldEnum | Prisma.VendaManutencaoScalarFieldEnum[]
+}
+
+/**
+ * Produto.regulamentar
+ */
+export type Produto$regulamentarArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProdutoRegulamentar
+   */
+  select?: Prisma.ProdutoRegulamentarSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProdutoRegulamentar
+   */
+  omit?: Prisma.ProdutoRegulamentarOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProdutoRegulamentarInclude<ExtArgs> | null
+  where?: Prisma.ProdutoRegulamentarWhereInput
+  orderBy?: Prisma.ProdutoRegulamentarOrderByWithRelationInput | Prisma.ProdutoRegulamentarOrderByWithRelationInput[]
+  cursor?: Prisma.ProdutoRegulamentarWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProdutoRegulamentarScalarFieldEnum | Prisma.ProdutoRegulamentarScalarFieldEnum[]
 }
 
 /**

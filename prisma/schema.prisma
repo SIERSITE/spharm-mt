@@ -435,6 +435,9 @@ model Produto {
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
   movimentos            MovimentoArtigo[]
   vendaManutencoes      VendaManutencao[]
+  /// Dados regulamentares do INFARMED, uma linha por versão importada.
+  /// A versão em vigor é a de `InfarmedImportacao.ativa`.
+  regulamentar          ProdutoRegulamentar[]
   /// Grupo laboratorial PESQUISÁVEL efectivo — nunca confundir com
   /// `fabricante`/`fabricanteId` acima (identidade LEGAL). Ver GrupoLaboratorial.
   grupoLaboratorial     ProdutoGrupoLaboratorial?
@@ -3252,4 +3255,100 @@ model KnowledgeEnrichmentCache {
   @@index([versao, evidenceType])
   @@index([persistido])
   @@index([reavaliadoVersao])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Dados regulamentares do INFARMED (ficheiro público "allPackages")
+// ─────────────────────────────────────────────────────────────────────
+//
+// Camada SEPARADA de `Produto`: guarda uma cópia fiel, versionada e com
+// proveniência do ficheiro oficial. Nada daqui é lido pelas regras de
+// designação, custo, preço praticado, stock ou encomendas, e a importação
+// nunca escreve em `Produto`/`ProdutoFarmacia`. `Produto.dci`,
+// `formaFarmaceutica`, `dosagem` e `embalagem` continuam a ser a ficha
+// curada (com proteção de campos manuais); aqui está o que o INFARMED diz.
+//
+// Ligação ao catálogo EXCLUSIVAMENTE por `Nº registo` = `Produto.cnp`.
+
+enum InfarmedImportacaoEstado {
+  /// Reservada no arranque da transação de aplicação.
+  EM_CURSO
+  /// Dados gravados; pode estar ativa ou ter sido substituída.
+  APLICADA
+  /// Foi a versão ativa e foi desfeita por rollback (os dados ficam).
+  REVERTIDA
+  /// Falhou (download, validação ou escrita); nenhum dado ficou.
+  FALHADA
+}
+
+model InfarmedImportacao {
+  id                       String                   @id @default(cuid())
+  /// CARGA_INICIAL | MENSAL | MANUAL
+  origem                   String
+  urlOrigem                String?
+  nomeFicheiro             String?
+  sha256                   String
+  descarregadoEm           DateTime
+  estado                   InfarmedImportacaoEstado @default(EM_CURSO)
+  /// No máximo UMA linha ativa (índice único parcial na migration).
+  ativa                    Boolean                  @default(false)
+  versaoAnteriorId         String?
+  linhasLidas              Int                      @default(0)
+  linhasRejeitadas         Int                      @default(0)
+  cnpDistintos             Int                      @default(0)
+  produtosAssociados       Int                      @default(0)
+  cnpNaoEncontrados        Int                      @default(0)
+  registosNovos            Int                      @default(0)
+  registosAlterados        Int                      @default(0)
+  registosIguais           Int                      @default(0)
+  camposAlterados          Int                      @default(0)
+  deixaramDeEstarPresentes Int                      @default(0)
+  erro                     String?
+  relatorio                Json?
+  iniciadaEm               DateTime                 @default(now())
+  terminadaEm              DateTime?
+  revertidaEm              DateTime?
+
+  registos ProdutoRegulamentar[]
+
+  @@index([sha256])
+  @@index([estado, ativa])
+}
+
+model ProdutoRegulamentar {
+  id                    String   @id @default(cuid())
+  importacaoId          String
+  produtoId             String
+  /// Cópia de `Produto.cnp` (auditoria; a ligação é `produtoId`).
+  cnp                   Int
+  /// Identificador (texto): nunca um número.
+  cnpem                 String?
+  substanciaAtiva       String?
+  nomeMedicamento       String?
+  formaFarmaceutica     String?
+  dosagem               String?
+  tamanhoEmbalagem      String?
+  /// PVP regulamentar numérico. NULL quando o preço é livre ou vazio.
+  pvp                   Decimal? @db.Decimal(12, 4)
+  /// `Preço (PVP)` = "preço livre". Nunca se converte em 0.
+  precoLivre            Boolean  @default(false)
+  pvpNotificado         Decimal? @db.Decimal(12, 4)
+  /// `Preço Utente` — regime geral.
+  precoUtenteGeral      Decimal? @db.Decimal(12, 4)
+  /// `Preço Pensionistas` — regime especial.
+  precoUtenteEspecial   Decimal? @db.Decimal(12, 4)
+  /// "Comercializado" | "Não comercializado" | "Temporariamente indisponível"
+  estadoComercializacao String?
+  generico              Boolean?
+  /// false = o CNP existia na versão anterior e deixou de estar no ficheiro
+  /// (os dados são os da última versão em que esteve presente).
+  presenteNoFicheiro    Boolean  @default(true)
+  atualizadoEm          DateTime @default(now())
+
+  importacao InfarmedImportacao @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+  produto    Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([importacaoId, produtoId])
+  @@index([produtoId])
+  @@index([cnpem, importacaoId])
 }

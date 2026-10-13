@@ -113,7 +113,9 @@ export const ModelName = {
   SyncRequest: 'SyncRequest',
   MovimentoArtigo: 'MovimentoArtigo',
   IngestStocksMovRaw: 'IngestStocksMovRaw',
-  KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache'
+  KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache',
+  InfarmedImportacao: 'InfarmedImportacao',
+  ProdutoRegulamentar: 'ProdutoRegulamentar'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -1309,6 +1311,61 @@ export const KnowledgeEnrichmentCacheScalarFieldEnum = {
 } as const
 
 export type KnowledgeEnrichmentCacheScalarFieldEnum = (typeof KnowledgeEnrichmentCacheScalarFieldEnum)[keyof typeof KnowledgeEnrichmentCacheScalarFieldEnum]
+
+
+export const InfarmedImportacaoScalarFieldEnum = {
+  id: 'id',
+  origem: 'origem',
+  urlOrigem: 'urlOrigem',
+  nomeFicheiro: 'nomeFicheiro',
+  sha256: 'sha256',
+  descarregadoEm: 'descarregadoEm',
+  estado: 'estado',
+  ativa: 'ativa',
+  versaoAnteriorId: 'versaoAnteriorId',
+  linhasLidas: 'linhasLidas',
+  linhasRejeitadas: 'linhasRejeitadas',
+  cnpDistintos: 'cnpDistintos',
+  produtosAssociados: 'produtosAssociados',
+  cnpNaoEncontrados: 'cnpNaoEncontrados',
+  registosNovos: 'registosNovos',
+  registosAlterados: 'registosAlterados',
+  registosIguais: 'registosIguais',
+  camposAlterados: 'camposAlterados',
+  deixaramDeEstarPresentes: 'deixaramDeEstarPresentes',
+  erro: 'erro',
+  relatorio: 'relatorio',
+  iniciadaEm: 'iniciadaEm',
+  terminadaEm: 'terminadaEm',
+  revertidaEm: 'revertidaEm'
+} as const
+
+export type InfarmedImportacaoScalarFieldEnum = (typeof InfarmedImportacaoScalarFieldEnum)[keyof typeof InfarmedImportacaoScalarFieldEnum]
+
+
+export const ProdutoRegulamentarScalarFieldEnum = {
+  id: 'id',
+  importacaoId: 'importacaoId',
+  produtoId: 'produtoId',
+  cnp: 'cnp',
+  cnpem: 'cnpem',
+  substanciaAtiva: 'substanciaAtiva',
+  nomeMedicamento: 'nomeMedicamento',
+  formaFarmaceutica: 'formaFarmaceutica',
+  dosagem: 'dosagem',
+  tamanhoEmbalagem: 'tamanhoEmbalagem',
+  pvp: 'pvp',
+  precoLivre: 'precoLivre',
+  pvpNotificado: 'pvpNotificado',
+  precoUtenteGeral: 'precoUtenteGeral',
+  precoUtenteEspecial: 'precoUtenteEspecial',
+  estadoComercializacao: 'estadoComercializacao',
+  generico: 'generico',
+  presenteNoFicheiro: 'presenteNoFicheiro',
+  atualizadoEm: 'atualizadoEm'
+} as const
+
+export type ProdutoRegulamentarScalarFieldEnum = (typeof ProdutoRegulamentarScalarFieldEnum)[keyof typeof ProdutoRegulamentarScalarFieldEnum]
 
 
 export const SortOrder = {

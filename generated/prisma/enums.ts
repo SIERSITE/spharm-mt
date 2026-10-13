@@ -325,3 +325,13 @@ export const EstadoSyncRequest = {
 } as const
 
 export type EstadoSyncRequest = (typeof EstadoSyncRequest)[keyof typeof EstadoSyncRequest]
+
+
+export const InfarmedImportacaoEstado = {
+  EM_CURSO: 'EM_CURSO',
+  APLICADA: 'APLICADA',
+  REVERTIDA: 'REVERTIDA',
+  FALHADA: 'FALHADA'
+} as const
+
+export type InfarmedImportacaoEstado = (typeof InfarmedImportacaoEstado)[keyof typeof InfarmedImportacaoEstado]

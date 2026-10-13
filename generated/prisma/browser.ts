@@ -769,3 +769,13 @@ export type IngestStocksMovRaw = Prisma.IngestStocksMovRawModel
  * caso mais caro se ficasse de fora.
  */
 export type KnowledgeEnrichmentCache = Prisma.KnowledgeEnrichmentCacheModel
+/**
+ * Model InfarmedImportacao
+ * 
+ */
+export type InfarmedImportacao = Prisma.InfarmedImportacaoModel
+/**
+ * Model ProdutoRegulamentar
+ * 
+ */
+export type ProdutoRegulamentar = Prisma.ProdutoRegulamentarModel
