@@ -615,7 +615,7 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
             Nenhuma linha — adicione produtos abaixo.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="tabela-fixa" data-testid="tabela-detalhe-encomenda">
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-400">
@@ -644,6 +644,7 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
                 {linhas.map((l, rowIndex) => (
                   <tr
                     key={l.id}
+                    data-selecionada={linhasSeleccionadas.has(l.id) ? "true" : undefined}
                     data-testid={l.fornecedorSugeridoInativo || linhasComErro.has(l.produtoId) ? "linha-fornecedor-inativo" : undefined}
                     className={`border-b border-slate-50 ${editable && (l.fornecedorSugeridoInativo || linhasComErro.has(l.produtoId)) ? CLASSE_LINHA_FORNECEDOR_INATIVO : ""}`}
                   >

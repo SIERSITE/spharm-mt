@@ -988,7 +988,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
             </div>
           </div>
 
-          <div className="max-h-[calc(100vh-500px)] min-h-[320px] overflow-y-auto">
+          <div className="tabela-fixa min-h-[320px]" style={{ ["--tabela-fixa-reserva" as string]: "500px" }} data-testid="tabela-consolidacao">
             <table className="min-w-full table-fixed text-left">
               <colgroup>
                 <col className="w-[26%]" />

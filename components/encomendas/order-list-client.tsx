@@ -435,7 +435,7 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white">
-          <div className="overflow-x-auto">
+          <div className="tabela-fixa" data-testid="tabela-lista-encomendas">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-400">
@@ -465,7 +465,7 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
                   const isAnulando = anulandoId === o.id;
                   return (
                   <Fragment key={o.id}>
-                  <tr className="border-b border-slate-50 hover:bg-slate-25">
+                  <tr data-selecionada={selecionadas.has(o.id) ? "true" : undefined} className="border-b border-slate-50 hover:bg-slate-25">
                     <td className="px-4 py-3">
                       {reimprimivel(o) && (
                         <input type="checkbox" checked={selecionadas.has(o.id)} onChange={() => toggleSelecionada(o.id)} />

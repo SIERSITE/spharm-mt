@@ -2746,6 +2746,8 @@ export function OrderCreateClient({
     return (
       <tr
         key={l.key}
+        data-tabela-linha={isSubLinha ? "subordinada" : undefined}
+        data-selecionada={linhasSeleccionadas.has(l.key) ? "true" : undefined}
         className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""} ${isSubLinha ? "bg-slate-50/20" : ""}`}
       >
         {mode !== "consolidacao" && (
@@ -3311,7 +3313,7 @@ export function OrderCreateClient({
             </div>
           ) : (
             <>
-            <div className="overflow-x-auto">
+            <div className="tabela-fixa" data-testid="tabela-proposta">
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
@@ -4224,7 +4226,7 @@ function ProdutoGrupoHeader({
   ];
   return (
     <>
-      <tr className="border-b border-slate-100 bg-slate-50">
+      <tr data-tabela-linha="grupo" className="border-b border-slate-100 bg-slate-50">
         <td colSpan={colSpan} className="px-3 py-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="font-semibold text-slate-900">{grupo.designacao}</span>
