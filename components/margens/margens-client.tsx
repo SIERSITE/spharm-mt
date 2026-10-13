@@ -17,7 +17,7 @@
  */
 
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ArtigoLink } from "@/components/stock/artigo-link";
@@ -34,7 +34,7 @@ import {
   type ValorOrdenavel,
 } from "@/lib/tabela/ordenacao";
 import { ReportActions } from "@/components/reporting/report-actions";
-import { runMargensReport } from "@/app/relatorios/margens/actions";
+import { runMargensComparacaoCnpem, runMargensReport } from "@/app/relatorios/margens/actions";
 import type {
   ReportFilterOptions,
   SharedReportFilters,
@@ -44,6 +44,7 @@ import {
   buildMargensAggReport,
 } from "@/lib/reporting/adapters/margens";
 import type {
+  ComparacaoCnpem,
   MargensResult,
   MargemRow,
   MargensAgg,
@@ -51,7 +52,7 @@ import type {
 } from "@/lib/margens-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
 /**
  * As vistas de Margens.
@@ -228,6 +229,8 @@ export function MargensClient({
   const [, setEstadoChip] = campo("estadoChip");
 
   const [result, setResult] = useState<MargensResult | null>(null);
+  /** Os filtros EXATOS com que `result` foi calculado (a comparação usa os mesmos). */
+  const [filtrosResultado, setFiltrosResultado] = useState<SharedReportFilters>({});
   const [hasGenerated, setHasGenerated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -238,6 +241,7 @@ export function MargensClient({
       try {
         const r = await runMargensReport(filters);
         setResult(r);
+        setFiltrosResultado(filters);
         setHasGenerated(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -276,6 +280,7 @@ export function MargensClient({
         try {
           setError(null);
           setResult(await runMargensReport(JSON.parse(filtrosSerial)));
+          setFiltrosResultado(JSON.parse(filtrosSerial) as SharedReportFilters);
         } catch (err) {
           setError(err instanceof Error ? err.message : String(err));
         }
@@ -554,7 +559,13 @@ export function MargensClient({
             )}
 
             {nivel === "produto" ? (
-              <TabelaProduto rows={rowsOrdenadasProduto} ordenacao={ordenacao} onOrdenar={alternar} />
+              <TabelaProduto
+                rows={rowsOrdenadasProduto}
+                ordenacao={ordenacao}
+                onOrdenar={alternar}
+                filtros={filtrosResultado}
+                resultadoId={result}
+              />
             ) : (
               <TabelaAgg rows={linhasAgregadas(result, nivel)} header={NIVEL_HEADER[nivel]} />
             )}
@@ -630,15 +641,112 @@ function KPI({
 
 // ── Tabela Por Produto ────────────────────────────────────────────
 
+/** Estado da comparação por CNPEM de uma linha expandida. */
+type EstadoComparacao =
+  | { tipo: "a-carregar" }
+  | { tipo: "erro"; mensagem: string }
+  | { tipo: "pronto"; dados: ComparacaoCnpem };
+
+const N_COLUNAS_PRODUTO = 18;
+
+const MAPA_VAZIO: Map<number, EstadoComparacao> = new Map();
+
+/** Identidade estável (por referência) de um resultado — para saber quando muda. */
+const IDS_RESULTADO = new WeakMap<object, number>();
+let seqResultado = 0;
+function identidadeDe(o: unknown): number {
+  if (typeof o !== "object" || o === null) return 0;
+  let v = IDS_RESULTADO.get(o);
+  if (v === undefined) {
+    v = ++seqResultado;
+    IDS_RESULTADO.set(o, v);
+  }
+  return v;
+}
+
+/** Chave estável de uma linha: o mesmo artigo na mesma farmácia. */
+const chaveLinha = (r: Pick<MargemRow, "cnp" | "farmaciaId">) => `${r.cnp}:${r.farmaciaId}`;
+
 function TabelaProduto({
   rows,
   ordenacao,
   onOrdenar,
+  filtros,
+  resultadoId,
 }: {
   rows: MargemRow[];
   ordenacao: EstadoOrdenacao<ColunaMargens>;
   onOrdenar: (c: ColunaMargens) => void;
+  /** Filtros com que o resultado foi calculado — a comparação usa os mesmos. */
+  filtros: SharedReportFilters;
+  /** Identidade do resultado: muda quando o relatório é recalculado. */
+  resultadoId: unknown;
 }) {
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const filtrosSerial = JSON.stringify(filtros);
+  // Identidade do cálculo a que as comparações pertencem: o resultado E os
+  // filtros. Qualquer alteração do relatório (período, farmácias, …) muda-a,
+  // e as comparações guardadas deixam de valer — as linhas expandidas voltam
+  // a pedir os dados novos. Derivado no render (sem setState em efeitos).
+  const chaveAtual = `${identidadeDe(resultadoId)}|${filtrosSerial}`;
+  const [cache, setCache] = useState<{ chave: string; mapa: Map<number, EstadoComparacao> }>({
+    chave: chaveAtual,
+    mapa: new Map(),
+  });
+  const comparacoes = cache.chave === chaveAtual ? cache.mapa : MAPA_VAZIO;
+  const chaveRef = useRef(chaveAtual);
+  const pedidos = useRef(new Set<string>());
+  const [tentativa, setTentativa] = useState(0);
+
+  const guardar = (chave: string, cnp: number, est: EstadoComparacao | null) => {
+    if (chaveRef.current !== chave) return; // resposta de um cálculo que já não é o atual
+    setCache((prev) => {
+      const mapa = new Map(prev.chave === chave ? prev.mapa : []);
+      if (est) mapa.set(cnp, est);
+      else mapa.delete(cnp);
+      return { chave, mapa };
+    });
+  };
+
+  const cnpsExpandidos = useMemo(() => {
+    const out = new Set<number>();
+    for (const r of rows) if (expandidas.has(chaveLinha(r))) out.add(r.cnp);
+    return out;
+  }, [rows, expandidas]);
+
+  // Pede (UMA vez por artigo e por cálculo) a comparação das linhas
+  // expandidas. Só quando se expande — nunca em lote para todo o mapa.
+  useEffect(() => {
+    chaveRef.current = chaveAtual;
+    for (const cnp of cnpsExpandidos) {
+      const pk = `${chaveAtual}|${cnp}`;
+      if (pedidos.current.has(pk)) continue;
+      pedidos.current.add(pk);
+      const chave = chaveAtual;
+      const f = JSON.parse(filtrosSerial) as SharedReportFilters;
+      runMargensComparacaoCnpem(f, cnp).then(
+        (dados) => guardar(chave, cnp, { tipo: "pronto", dados }),
+        (err) => guardar(chave, cnp, { tipo: "erro", mensagem: err instanceof Error ? err.message : String(err) }),
+      );
+    }
+    // `guardar` só usa refs e o setter — estável.
+  }, [cnpsExpandidos, chaveAtual, filtrosSerial, tentativa]);
+
+  function alternarLinha(r: MargemRow) {
+    const k = chaveLinha(r);
+    setExpandidas((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(k)) novo.delete(k);
+      else novo.add(k);
+      return novo;
+    });
+  }
+  function tentarOutraVez(cnp: number) {
+    pedidos.current.delete(`${chaveAtual}|${cnp}`);
+    guardar(chaveAtual, cnp, null);
+    setTentativa((n) => n + 1);
+  }
+
   if (rows.length === 0) {
     return (
       <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-6 py-12 text-center text-[12px] text-slate-500">
@@ -646,12 +754,16 @@ function TabelaProduto({
       </section>
     );
   }
+  const umaFarmacia = (filtros.farmaciaNomes?.length ?? 0) === 1;
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-      <div className="overflow-x-auto">
+      <div className="tabela-fixa" data-testid="tabela-margens-produto">
         <table className="min-w-full text-left text-[12px]">
-          <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+          <thead className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
             <tr>
+              <th scope="col" className="w-8 py-2 pl-1 pr-1">
+                <span className="sr-only">Comparar com o mesmo CNPEM</span>
+              </th>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="cnp" className="py-2 pr-3">CNP</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="designacao" className="py-2 pr-3">Descrição</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="categoria" className="py-2 pr-3">Categoria</CabecalhoOrdenavel>
@@ -664,70 +776,211 @@ function TabelaProduto({
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoUnitario" align="right" className="py-2 pr-3 text-right">Custo unit. est.</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoEstimado" align="right" className="py-2 pr-3 text-right">Custo est.</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemEur" align="right" className="py-2 pr-3 text-right">Margem €</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemUnitaria" align="right" className="py-2 pr-3 text-right" title="Margem total ÷ quantidade líquida (sem arredondamentos intermédios)">Margem unitária</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemPct" align="right" className="py-2 pr-3 text-right">Margem %</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="estado" className="py-2 pr-3">Estado</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="precoUtenteGeral" align="right" className="py-2 pr-3 text-right" title="Preço do utente — regime geral (INFARMED)">Preço utente — regime geral</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="precoUtenteEspecial" align="right" className="py-2 pr-3 text-right" title="Preço do utente — regime especial (INFARMED)">Preço utente — regime especial</CabecalhoOrdenavel>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
-              <tr key={`${r.cnp}:${r.farmaciaId}`}>
-                <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
-                <td className="py-2 pr-3 text-slate-800">
-                  <ArtigoLink cnp={Number(r.cnp)} className="hover:text-emerald-600 hover:underline">
-                    {r.designacao}
-                  </ArtigoLink>
-                </td>
-                <td className="py-2 pr-3 text-slate-600">
-                  <div className="flex flex-col leading-tight">
-                    <span>{r.categoria ?? "—"}</span>
-                    {/* Nivel 2 (grupo) por baixo do Nivel 1 quando difere — */}
-                    {/* o resolver devolve `grupo === categoria` se só houver  */}
-                    {/* um nível, evita repetição visual.                     */}
-                    {r.grupo && r.grupo !== r.categoria ? (
-                      <span className="text-[10px] text-slate-400">{r.grupo}</span>
-                    ) : r.categoria && r.categoria !== SEM_CLASSIFICACAO_LABEL ? (
-                      // Classificado ao nível da família e nada mais. NÃO é
-                      // "por classificar" — tem categoria, falta-lhe
-                      // granularidade dentro dela.
-                      <span className="text-[10px] italic text-slate-300">sem detalhe</span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
-                <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                  {fmtCurrency(r.pvpUnitario)}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
-                  {r.taxaIva === null ? "—" : `${r.taxaIva}%`}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                  {fmtCurrency(r.valorVendidoSemIva)}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                  {fmtCurrency(r.custoUnitario)}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                  {fmtCurrency(r.custoEstimado)}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums font-medium text-slate-800">
-                  {fmtCurrency(r.margemEur)}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums">{fmtPct(r.margemPct)}</td>
-                <td className="py-2 pr-3">
-                  <span
-                    className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${MARGEM_BADGE[r.estado]}`}
-                  >
-                    {MARGEM_LABEL[r.estado]}
-                  </span>
-                </td>
-              </tr>
-            ))}
+          <tbody>
+            {rows.map((r) => {
+              const k = chaveLinha(r);
+              const aberta = expandidas.has(k);
+              const painelId = `comparacao-${r.cnp}-${r.farmaciaId}`;
+              const comp = comparacoes.get(r.cnp);
+              return (
+                <Fragment key={k}>
+                  <LinhaMargem
+                    r={r}
+                    botao={
+                      r.cnpem ? (
+                        <button
+                          type="button"
+                          onClick={() => alternarLinha(r)}
+                          aria-expanded={aberta}
+                          aria-controls={painelId}
+                          aria-label={`${aberta ? "Fechar" : "Abrir"} a comparação com o mesmo CNPEM — ${r.designacao}`}
+                          title={`Comparar com os artigos do mesmo CNPEM (${r.cnpem})`}
+                          data-testid="expandir-cnpem"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:border-indigo-400 hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                        >
+                          {aberta ? <ChevronDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
+                        </button>
+                      ) : (
+                        <span title="CNPEM não disponível" className="text-slate-300" aria-label="CNPEM não disponível">–</span>
+                      )
+                    }
+                  />
+                  {aberta && (
+                    <ComparacaoCnpemLinhas
+                      id={painelId}
+                      origem={r}
+                      estado={comp}
+                      umaFarmacia={umaFarmacia}
+                      onRepetir={() => tentarOutraVez(r.cnp)}
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </section>
+  );
+}
+
+/**
+ * UMA linha do mapa. Usada pelo mapa principal E pela comparação por CNPEM:
+ * as colunas, a ordem, os formatos e o arredondamento são, por construção,
+ * os mesmos.
+ */
+function LinhaMargem({
+  r,
+  botao,
+  etiqueta,
+  linha,
+}: {
+  r: MargemRow;
+  /** Conteúdo da 1.ª coluna (botão de expandir). */
+  botao?: React.ReactNode;
+  /** Distintivo junto da descrição (Produto analisado / Mesmo CNPEM / …). */
+  etiqueta?: React.ReactNode;
+  linha?: "comparacao" | "comparacao-analisado";
+}) {
+  return (
+    <tr data-tabela-linha={linha} data-cnp={r.cnp} data-farmacia={r.farmacia}>
+      <td className="py-2 pl-1 pr-1 align-top">{botao}</td>
+      <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
+      <td className="py-2 pr-3 text-slate-800">
+        <ArtigoLink cnp={Number(r.cnp)} className="hover:text-emerald-600 hover:underline">
+          {r.designacao}
+        </ArtigoLink>
+        {etiqueta}
+      </td>
+      <td className="py-2 pr-3 text-slate-600">
+        <div className="flex flex-col leading-tight">
+          <span>{r.categoria ?? "—"}</span>
+          {/* Nivel 2 (grupo) por baixo do Nivel 1 quando difere — */}
+          {/* o resolver devolve `grupo === categoria` se só houver  */}
+          {/* um nível, evita repetição visual.                     */}
+          {r.grupo && r.grupo !== r.categoria ? (
+            <span className="text-[10px] text-slate-400">{r.grupo}</span>
+          ) : r.categoria && r.categoria !== SEM_CLASSIFICACAO_LABEL ? (
+            // Classificado ao nível da família e nada mais. NÃO é
+            // "por classificar" — tem categoria, falta-lhe
+            // granularidade dentro dela.
+            <span className="text-[10px] italic text-slate-300">sem detalhe</span>
+          ) : null}
+        </div>
+      </td>
+      <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
+      <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-600">{fmtCurrency(r.pvpUnitario)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+        {r.taxaIva === null ? "—" : `${r.taxaIva}%`}
+      </td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-600">{fmtCurrency(r.valorVendidoSemIva)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-600">{fmtCurrency(r.custoUnitario)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-600">{fmtCurrency(r.custoEstimado)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums font-medium text-slate-800">{fmtCurrency(r.margemEur)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-800" data-col="margem-unitaria">
+        {fmtCurrency(r.margemUnitaria)}
+      </td>
+      <td className="py-2 pr-3 text-right tabular-nums">{fmtPct(r.margemPct)}</td>
+      <td className="py-2 pr-3">
+        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${MARGEM_BADGE[r.estado]}`}>
+          {MARGEM_LABEL[r.estado]}
+        </span>
+      </td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-700" data-col="utente-geral">
+        {fmtCurrency(r.precoUtenteGeral)}
+      </td>
+      <td className="py-2 pr-3 text-right tabular-nums text-slate-700" data-col="utente-especial">
+        {fmtCurrency(r.precoUtenteEspecial)}
+      </td>
+    </tr>
+  );
+}
+
+const ETIQUETA_BASE = "ml-2 inline-flex rounded-full border px-1.5 py-0.5 align-middle text-[10px] font-semibold";
+
+/** As linhas da comparação por CNPEM, logo abaixo da linha expandida. */
+function ComparacaoCnpemLinhas({
+  id,
+  origem,
+  estado,
+  umaFarmacia,
+  onRepetir,
+}: {
+  id: string;
+  origem: MargemRow;
+  estado: EstadoComparacao | undefined;
+  umaFarmacia: boolean;
+  onRepetir: () => void;
+}) {
+  const onde = umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas";
+  const mensagem = (texto: React.ReactNode, tom: "neutro" | "erro" = "neutro") => (
+    <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem">
+      <td />
+      <td colSpan={N_COLUNAS_PRODUTO - 1} className={`py-2 pr-3 text-[12px] ${tom === "erro" ? "text-rose-700" : "text-slate-600"}`} role={tom === "erro" ? "alert" : "status"}>
+        {texto}
+      </td>
+    </tr>
+  );
+  if (!estado || estado.tipo === "a-carregar") return mensagem("A carregar a comparação por CNPEM…");
+  if (estado.tipo === "erro") {
+    return mensagem(
+      <>
+        Falha ao carregar a comparação: {estado.mensagem}{" "}
+        <button type="button" onClick={onRepetir} className="underline">Tentar de novo</button>
+      </>,
+      "erro",
+    );
+  }
+  const d = estado.dados;
+  if (d.estado === "SEM_CNPEM") return mensagem("CNPEM não disponível");
+  const analisado = d.linhas.find((l) => l.cnp === origem.cnp && l.farmaciaId === origem.farmaciaId);
+  const comparaveis = d.linhas.filter((l) => l !== analisado);
+  if (d.outrosArtigos === 0 && comparaveis.length === 0) {
+    return mensagem(`Não existem outros artigos com o mesmo CNPEM ${onde}`);
+  }
+  return (
+    <>
+      <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem">
+        <td />
+        <td colSpan={N_COLUNAS_PRODUTO - 1} className="py-1.5 pr-3 text-[11px] font-semibold text-indigo-800">
+          Mesmo CNPEM {d.cnpem} — {d.outrosArtigos} outro{d.outrosArtigos === 1 ? "" : "s"} artigo{d.outrosArtigos === 1 ? "" : "s"} {umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas"}
+        </td>
+      </tr>
+      {analisado && (
+        <LinhaMargem
+          r={analisado}
+          linha="comparacao-analisado"
+          etiqueta={<span className={`${ETIQUETA_BASE} border-emerald-400 bg-emerald-50 text-emerald-800`} data-testid="etiqueta-analisado">Produto analisado</span>}
+        />
+      )}
+      {comparaveis.map((l) => (
+        <LinhaMargem
+          key={chaveLinha(l)}
+          r={l}
+          linha="comparacao"
+          etiqueta={
+            <>
+              <span className={`${ETIQUETA_BASE} border-indigo-300 bg-indigo-50 text-indigo-800`} data-testid="etiqueta-comparavel">Mesmo CNPEM</span>
+              {l.semVendasNoPeriodo && (
+                <span className={`${ETIQUETA_BASE} border-slate-400 bg-white text-slate-700`} data-testid="etiqueta-sem-vendas">Sem vendas no período</span>
+              )}
+              {l.retirado && (
+                <span className={`${ETIQUETA_BASE} border-rose-300 bg-rose-50 text-rose-700`}>Retirado</span>
+              )}
+            </>
+          }
+        />
+      ))}
+    </>
   );
 }
 
@@ -743,9 +996,9 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
   }
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-      <div className="overflow-x-auto">
+      <div className="tabela-fixa" data-testid="tabela-margens-agregada">
         <table className="min-w-full text-left text-[12px]">
-          <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+          <thead className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
             <tr>
               <th className="py-2 pr-3">{header}</th>
               <th className="py-2 pr-3 text-right">Qtd</th>
@@ -808,8 +1061,11 @@ type ColunaMargens =
   | "custoUnitario"
   | "custoEstimado"
   | "margemEur"
+  | "margemUnitaria"
   | "margemPct"
-  | "estado";
+  | "estado"
+  | "precoUtenteGeral"
+  | "precoUtenteEspecial";
 
 /**
  * A severidade dos estados de margem.

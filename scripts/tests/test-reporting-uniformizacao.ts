@@ -414,7 +414,7 @@ console.log("\nH · HTML renderizado");
     organization: "Grupo",
   });
   const htmlM = renderReportHtml(relMargens);
-  check(htmlM.includes('class="page density-compact"'), "H4: Margens Por Produto também renderiza compacto");
+  check(/class="page density-compact( hierarchy-strong)?"/.test(htmlM), "H4: Margens Por Produto também renderiza compacto (agora com a hierarquia forte de Vendas)");
   check(htmlM.slice(htmlM.indexOf("<body>")).includes(">Silveirense<"), "H5: nome curto no corpo de Margens");
 }
 

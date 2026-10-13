@@ -354,6 +354,11 @@ export function buildMargensProdutoReport(input: {
       orientation: "landscape",
       organization: input.organization,
       density: "compact",
+      // Impressão/PDF: a mesma hierarquia forte de Vendas (borda por artigo, blocos
+      // alternados, TOTAL ARTIGO escuro) — legível a preto e branco. O cabeçalho repete-se
+      // em cada página (thead display:table-header-group) e o TOTAL ARTIGO não se separa
+      // do artigo. Nunca afecta o Excel.
+      hierarchy: "strong",
       footer: "SPharm.MT · Margens operacional",
     },
   };
