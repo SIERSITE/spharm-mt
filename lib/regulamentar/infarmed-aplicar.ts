@@ -426,10 +426,10 @@ export async function aplicarVersaoInfarmed(
     if ("saltada" in resultado) {
       rel.resultado = "JA_PROCESSADA";
       rel.motivo = "Outra execução aplicou esta versão entretanto.";
-      rel.importacaoId = resultado.saltada;
+      rel.importacaoId = resultado.saltada ?? null;
       return rel;
     }
-    rel.importacaoId = resultado.id;
+    rel.importacaoId = resultado.id ?? null;
     rel.resultado = "APLICADA";
     rel.depois = await contagens(prisma);
     rel.operacionalIntacto = operacionalIgual(antes, rel.depois);

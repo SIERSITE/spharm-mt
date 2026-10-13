@@ -1,6 +1,7 @@
 import "server-only";
 import { condicoesPrismaPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { getPrisma } from "@/lib/prisma";
+import { carregarFichaRegulamentar, type FichaRegulamentar } from "@/lib/regulamentar/consulta";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
 import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
@@ -241,7 +242,17 @@ export async function loadCatalogoListData(
     // Termos AND (lib/reporting/pesquisa-termos.ts): cada termo tem de
     // aparecer em designação, DCI ou ATC; um termo só de dígitos também
     // casa com o CNP exacto.
-    where.AND = condicoesPrismaPesquisa(filters.search, ["designacao", "dci", "codigoATC"]);
+    const condicoes = condicoesPrismaPesquisa(filters.search, ["designacao", "dci", "codigoATC"]);
+    // CNPEM: um termo só de dígitos (6+) também encontra os produtos com
+    // esse CNPEM na versão regulamentar ativa do INFARMED (igualdade exata).
+    const unico = filters.search.trim();
+    if (/^d{6,}$/.test(unico)) {
+      where.AND = [
+        { OR: [{ AND: condicoes }, { regulamentar: { some: { cnpem: unico, importacao: { ativa: true } } } }] },
+      ];
+    } else {
+      where.AND = condicoes;
+    }
   }
 
   const [total, rows, resumo] = await Promise.all([
@@ -457,6 +468,12 @@ export type CatalogoArticle = {
   retiradoStatus: CatalogoRetiradoStatus;
   /** Código interno do ERP — fora do âmbito da classificação. */
   interno: boolean;
+  /**
+   * Informação regulamentar do INFARMED (versão ativa). Separada dos
+   * campos acima: nunca os substitui nem é lida pelas regras de designação,
+   * custo ou preço praticado.
+   */
+  regulamentar: FichaRegulamentar | null;
 };
 
 export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle | null> {
@@ -558,6 +575,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     })),
     retiradoStatus: aggregateRetiradoStatus(p.produtosFarmacia),
     interno: p.cnp <= MIN_CNP_CATALOGAVEL,
+    regulamentar: await carregarFichaRegulamentar(prisma, p.id),
   };
 }
 

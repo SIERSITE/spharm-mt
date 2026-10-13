@@ -94,6 +94,72 @@ export default async function CatalogArticlePage({ params }: ArticlePageProps) {
   );
 }
 
+function fmtEur(n: number | null): string {
+  return n == null ? "—" : `${fmtMoney(n)} €`;
+}
+
+/**
+ * Dados do ficheiro público do INFARMED. Ficam numa secção própria, com o
+ * rótulo da fonte e da versão, para nunca se confundirem com os dados
+ * comerciais e operacionais da farmácia (PVP praticado, custo, stock).
+ */
+function RegulamentarSection({ article }: { article: CatalogoArticle }) {
+  const r = article.regulamentar;
+  return (
+    <section
+      aria-labelledby="regulamentar-titulo"
+      data-testid="seccao-regulamentar"
+      className="rounded-[20px] border border-indigo-200 bg-indigo-50/40 px-5 py-4"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="regulamentar-titulo" className="text-[13px] font-semibold uppercase tracking-[0.12em] text-indigo-800">
+          Informação regulamentar — INFARMED
+        </h2>
+        {r && (
+          <span className="text-[11px] text-slate-500">
+            Atualizado em {fmtDate(r.atualizadoEm)} · ficheiro {r.versao.sha256.slice(0, 12)}
+          </span>
+        )}
+      </div>
+      {!r ? (
+        <p className="mt-2 text-[13px] text-slate-600">
+          Sem dados regulamentares: este CNP não consta do ficheiro do INFARMED importado.
+        </p>
+      ) : (
+        <>
+          {!r.presenteNoFicheiro && (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12px] text-amber-800" data-testid="regulamentar-ausente">
+              Este CNP deixou de constar do ficheiro mais recente do INFARMED; os valores abaixo são os da última versão em que constou.
+            </p>
+          )}
+          <dl className="mt-3 grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2 xl:grid-cols-3">
+            {[
+              ["Nº registo / CNP", String(article.cnp)],
+              ["CNPEM", or(r.cnpem)],
+              ["Substância ativa / DCI", or(r.substanciaAtiva)],
+              ["Nome (INFARMED)", or(r.nomeMedicamento)],
+              ["Forma farmacêutica", or(r.formaFarmaceutica)],
+              ["Dosagem", or(r.dosagem)],
+              ["Tamanho da embalagem", or(r.tamanhoEmbalagem)],
+              ["PVP", r.precoLivre ? "Preço livre" : fmtEur(r.pvp)],
+              ["PVP notificado", fmtEur(r.pvpNotificado)],
+              ["Preço utente — regime geral", fmtEur(r.precoUtenteGeral)],
+              ["Preço utente — regime especial", fmtEur(r.precoUtenteEspecial)],
+              ["Comercialização", or(r.estadoComercializacao)],
+              ["Genérico", r.generico == null ? "—" : r.generico ? "Sim" : "Não"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex flex-col">
+                <dt className="text-[11px] uppercase tracking-wide text-slate-500">{k}</dt>
+                <dd className="font-medium text-slate-900" data-regulamentar={k}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+    </section>
+  );
+}
+
 function ArticleView({ article }: { article: CatalogoArticle }) {
   const tipo = rotuloProductType(article.productType);
 
@@ -316,6 +382,8 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
           ]}
         />
       </section>
+
+      <RegulamentarSection article={article} />
 
       {/* Uma classificação deduzida diz que o é, e mostra em que se
           baseou. Sem o raciocínio, "provisória · 0,87" não permite a
