@@ -68,6 +68,8 @@ import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
 export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "IVA_POR_APURAR";
 
 export type MargemRow = {
+  /** Id do produto (ligação à comparação por CNPEM). */
+  produtoId: string;
   cnp: number;
   designacao: string;
   categoria: string | null;
@@ -116,6 +118,24 @@ export type MargemRow = {
   margemPct: number | null;         // null fora de FIAVEL
   coberturaCusto: number;           // 0..1 — pondera por unidades vendidas
   estado: EstadoMargem;
+  /**
+   * Margem por unidade: margem total (SEM arredondar) ÷ `qtdVendida` (a
+   * quantidade que o próprio mapa usa, já com as devoluções/anulações
+   * assinadas). `null` quando não há margem calculável (IVA ou custo
+   * desconhecidos) ou a quantidade líquida é ≤ 0. Mantém a precisão
+   * interna: o arredondamento é só de apresentação. Nunca se soma.
+   */
+  margemUnitaria: number | null;
+  /** CNPEM (INFARMED, versão ativa), ou null. */
+  cnpem: string | null;
+  /** Preço utente — regime geral (INFARMED). NÃO entra em nenhum cálculo de margem. */
+  precoUtenteGeral: number | null;
+  /** Preço utente — regime especial (INFARMED). NÃO entra em nenhum cálculo de margem. */
+  precoUtenteEspecial: number | null;
+  /** O artigo existe na farmácia mas não teve vendas no período (só na comparação por CNPEM). */
+  semVendasNoPeriodo: boolean;
+  /** ProdutoFarmacia.flagRetirado. */
+  retirado: boolean;
 };
 
 export type MargensAgg = {
@@ -254,9 +274,33 @@ export function derivarUnitarios(
   };
 }
 
+export type OpcoesMargens = {
+  /**
+   * Comparação por CNPEM: devolve, em `porProduto`, TODOS os artigos que têm
+   * exatamente este CNPEM (versão ativa do INFARMED) e existem em
+   * `ProdutoFarmacia` de pelo menos uma das farmácias selecionadas — com ou
+   * sem vendas no período — calculados pelo MESMO motor. Só o período, as
+   * farmácias e os dois interruptores de naturezas se mantêm; os filtros de
+   * seleção de produtos (pesquisa, categoria, fabricante, lista de CNP…)
+   * ficam de fora, porque o objetivo é ver os restantes artigos do CNPEM.
+   */
+  comparacaoCnpem?: string;
+};
+
 export async function getMargensData(
-  filters: SharedReportFilters = {},
+  filtersEntrada: SharedReportFilters = {},
+  opcoes: OpcoesMargens = {},
 ): Promise<MargensResult> {
+  const comparacao = opcoes.comparacaoCnpem?.trim() || null;
+  const filters: SharedReportFilters = comparacao
+    ? {
+        farmaciaNomes: filtersEntrada.farmaciaNomes,
+        from: filtersEntrada.from,
+        to: filtersEntrada.to,
+        incluirCredito: filtersEntrada.incluirCredito,
+        incluirTransferencias: filtersEntrada.incluirTransferencias,
+      }
+    : filtersEntrada;
   const prisma = await getPrisma();
   const { ids: farmaciaIds, nomeById } = await resolveFarmacias(prisma, filters.farmaciaNomes);
   if (farmaciaIds.length === 0) {
@@ -350,8 +394,32 @@ export async function getMargensData(
   // naturezas (NORMAL+CREDITO+TRANSFERENCIA) sem opção de desligar.
   const naturezas = naturezasIncluidas(filters);
 
+  // Universo de linhas. Mapa normal: só o que vendeu no período (agg).
+  // Comparação por CNPEM: todo o par produto×farmácia que EXISTE
+  // (ProdutoFarmacia) com este CNPEM na versão ativa do INFARMED, com ou sem
+  // vendas — o ficheiro do INFARMED sozinho nunca cria linhas.
+  const universoSql = comparacao
+    ? Prisma.sql`
+      SELECT pf0."produtoId", pf0."farmaciaId",
+             COALESCE(agg.qty, 0)::numeric AS qty,
+             COALESCE(agg.valor_bruto, 0)::numeric AS valor_bruto,
+             (agg."produtoId" IS NULL) AS sem_vendas
+      FROM "ProdutoFarmacia" pf0
+      JOIN "ProdutoRegulamentar" pr0 ON pr0."produtoId" = pf0."produtoId"
+      JOIN ativa a0 ON a0.id = pr0."importacaoId"
+      LEFT JOIN agg ON agg."produtoId" = pf0."produtoId" AND agg."farmaciaId" = pf0."farmaciaId"
+      WHERE pr0."cnpem" = ${comparacao}
+        AND pf0."farmaciaId" = ANY(${farmaciaIds})`
+    : Prisma.sql`SELECT agg."produtoId", agg."farmaciaId", agg.qty, agg.valor_bruto, false AS sem_vendas FROM agg`;
+
   const rows = await prisma.$queryRaw<
     Array<{
+      produtoId: string;
+      cnpem: string | null;
+      precoUtenteGeral: string | null;
+      precoUtenteEspecial: string | null;
+      sem_vendas: boolean;
+      retirado: boolean;
       cnp: number;
       designacao: string;
       fabricante: string | null;
@@ -378,31 +446,43 @@ export async function getMargensData(
         AND vm."naturezaVenda" = ANY(${naturezas})
         AND (vm."ano" * 12 + vm."mes") BETWEEN ${minIdx} AND ${maxIdx}
       GROUP BY 1, 2
+    ),
+    ativa AS (SELECT id FROM "InfarmedImportacao" WHERE "ativa" LIMIT 1),
+    src AS (
+      ${universoSql}
     )
     SELECT
+      p."id"                        AS "produtoId",
+      prg."cnpem"                   AS cnpem,
+      prg."precoUtenteGeral"::text  AS "precoUtenteGeral",
+      prg."precoUtenteEspecial"::text AS "precoUtenteEspecial",
+      src.sem_vendas                AS sem_vendas,
+      COALESCE(pf."flagRetirado", false) AS retirado,
       p."cnp"                       AS cnp,
       p."designacao"                AS designacao,
       fab."nomeNormalizado"         AS fabricante,
       p."classificacaoNivel1Id",
       p."classificacaoNivel2Id",
-      agg."farmaciaId"              AS "farmaciaId",
+      src."farmaciaId"              AS "farmaciaId",
       pf."categoriaOrigem",
       pf."subcategoriaOrigem",
-      agg.qty::text                 AS qty,
-      agg.valor_bruto::text         AS valor_bruto,
+      src.qty::text                 AS qty,
+      src.valor_bruto::text         AS valor_bruto,
       pf."pmc"::text                AS pmc,
       pf."puc"::text                AS puc,
       pf."taxaIvaPercent"           AS "taxaIvaPercent"
-    FROM agg
-    JOIN "Produto" p ON p.id = agg."produtoId"
+    FROM src
+    JOIN "Produto" p ON p.id = src."produtoId"
     LEFT JOIN "Fabricante" fab ON fab.id = p."fabricanteId"
     LEFT JOIN "ProdutoFarmacia" pf
-      ON pf."produtoId" = agg."produtoId" AND pf."farmaciaId" = agg."farmaciaId"
+      ON pf."produtoId" = src."produtoId" AND pf."farmaciaId" = src."farmaciaId"
+    LEFT JOIN "ProdutoRegulamentar" prg
+      ON prg."produtoId" = p.id AND prg."importacaoId" = (SELECT id FROM ativa)
     WHERE 1 = 1
       ${distrCond}
       ${prodIdCond}
       ${pesquisaCond}
-    ORDER BY p."designacao" ASC
+    ORDER BY p."designacao" ASC, src."farmaciaId" ASC
   `);
 
   // ── Classificações em batch para resolveCategoria ───────────────
@@ -455,9 +535,19 @@ export async function getMargensData(
 
     // Margem só quando temos AMBOS: IVA conhecido (para descontar) +
     // custo conhecido. Caso contrário é não fiável — null e estado SEM_*.
+    const semVendas = r.sem_vendas === true;
+    // Sem vendas no período não há margem para calcular — nem 0 inventado.
     const margemEur =
-      ivaOk && custoOk
+      ivaOk && custoOk && !semVendas
         ? rounded2((valorVendidoSemIva as number) - (custoEstimado as number))
+        : null;
+    // Margem unitária: o MESMO cálculo da margem, mas a partir dos valores
+    // SEM arredondar (bruto, taxa, custo unitário) e dividida pela mesma
+    // quantidade do mapa. Quantidade ≤ 0 → null (nunca dividir por zero nem
+    // por uma quantidade líquida negativa).
+    const margemUnitaria =
+      ivaOk && custoOk && !semVendas && qty > 0
+        ? (toF(r.valor_bruto) / (1 + (taxaIva as number) / 100) - qty * (custoUnitarioBase as number)) / qty
         : null;
 
     // Cobertura = mass-fracção de unidades onde podemos calcular. Aqui é
@@ -473,6 +563,7 @@ export async function getMargensData(
 
     const margemPct =
       estado === "FIAVEL" &&
+      !semVendas &&
       valorVendidoSemIva !== null &&
       valorVendidoSemIva > 0 &&
       margemEur !== null
@@ -502,6 +593,7 @@ export async function getMargensData(
     const custoUnitario = custoUnitarioBase;
 
     return {
+      produtoId: r.produtoId,
       cnp: r.cnp,
       designacao: r.designacao,
       categoria: cat.categoria,
@@ -523,6 +615,12 @@ export async function getMargensData(
       margemPct,
       coberturaCusto: cobertura,
       estado,
+      margemUnitaria,
+      cnpem: r.cnpem,
+      precoUtenteGeral: numOrNull(r.precoUtenteGeral),
+      precoUtenteEspecial: numOrNull(r.precoUtenteEspecial),
+      semVendasNoPeriodo: semVendas,
+      retirado: r.retirado === true,
     };
   });
 
@@ -665,3 +763,39 @@ export const MARGEM_LABELS: Record<EstadoMargem, string> = {
   SEM_CUSTO: "Sem custo",
   IVA_POR_APURAR: "IVA por apurar",
 };
+
+// ── Comparação por CNPEM ────────────────────────────────────────────
+
+export type ComparacaoCnpem =
+  | { estado: "SEM_CNPEM" }
+  | {
+      estado: "OK";
+      cnpem: string;
+      /** Todos os pares artigo×farmácia do CNPEM na seleção (inclui o analisado). */
+      linhas: MargemRow[];
+      /** Artigos DISTINTOS do CNPEM, além do analisado, que existem nas farmácias selecionadas. */
+      outrosArtigos: number;
+    };
+
+/**
+ * Comparação de um artigo com os restantes do mesmo CNPEM que existem na
+ * base de dados das farmácias selecionadas. O CNPEM resolve-se SEMPRE no
+ * servidor, a partir do CNP (versão ativa do INFARMED) — nunca vem do cliente.
+ * Só leitura.
+ */
+export async function getMargensComparacaoCnpem(
+  filters: SharedReportFilters,
+  cnp: number,
+): Promise<ComparacaoCnpem> {
+  if (!Number.isInteger(cnp) || cnp <= 0) return { estado: "SEM_CNPEM" };
+  const prisma = await getPrisma();
+  const reg = await prisma.produtoRegulamentar.findFirst({
+    where: { produto: { cnp }, importacao: { ativa: true } },
+    select: { cnpem: true },
+  });
+  const cnpem = reg?.cnpem?.trim();
+  if (!cnpem) return { estado: "SEM_CNPEM" };
+  const r = await getMargensData(filters, { comparacaoCnpem: cnpem });
+  const outros = new Set(r.porProduto.filter((l) => l.cnp !== cnp).map((l) => l.cnp));
+  return { estado: "OK", cnpem, linhas: r.porProduto, outrosArtigos: outros.size };
+}

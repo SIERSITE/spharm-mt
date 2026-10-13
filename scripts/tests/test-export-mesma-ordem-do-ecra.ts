@@ -140,7 +140,7 @@ console.log("\nC · Transferências/Excessos/Devoluções/Margens/Inventário �
     cnp: 1000001, designacao: "P", categoria: "C", grupo: null, farmaciaId: "f1", farmacia: "Farmácia Alfa",
     fabricante: "F", qtdVendida: 1, pvpUnitario: 1, valorVendido: 1, taxaIva: 23, valorVendidoSemIva: 0.81,
     custoUnitario: 1, custoUnitarioBase: 1, custoEstimado: 1, margemEur: 0, margemPct: 0, coberturaCusto: 1,
-    estado: "FIAVEL", ...over,
+    estado: "FIAVEL", produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, ...over,
   });
   const relM = buildMargensProdutoReport({
     rows: [

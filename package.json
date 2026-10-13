@@ -60,6 +60,7 @@
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
     "ops:infarmed-carga": "tsx scripts/ops/infarmed-carga-regulamentar.ts",
+    "test:margens-cnpem-db": "tsx scripts/tests/test-margens-cnpem-db.ts",
     "test:infarmed-regulamentar-db": "tsx scripts/tests/test-infarmed-regulamentar-db.ts",
     "test:e2e-workspaces": "tsx scripts/e2e/workspaces-browser.ts",
     "test:workspace-isolamento": "tsx scripts/tests/test-workspace-isolamento.ts",

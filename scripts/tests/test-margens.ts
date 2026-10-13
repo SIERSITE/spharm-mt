@@ -643,6 +643,7 @@ console.log("\nK · as duas colunas no relatório");
     margemPct: null,
     coberturaCusto: 1,
     estado: "FIAVEL",
+    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false,
   };
   const semQtd: MargemRow = { ...linha, qtdVendida: 0, pvpUnitario: null, custoUnitario: null };
 

@@ -70,10 +70,10 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
 // que o número que mostra. `normalizarLargura` corrige a soma para 100
 // preservando estas proporções (ver column-widths.ts).
 const MARGENS_PRODUTO_BASE_WIDTHS = {
-  cnp: 5, designacao: 24, farmacia: 9.5, qtdVendida: 3.5,
-  pvpUnitario: 5.7, valorVendido: 6.7, taxaIva: 3.3, valorVendidoSemIva: 6.7,
-  custoUnitario: 5.7, custoEstimado: 6.7, margemEur: 6.7, margemPct: 4.8,
-  coberturaPct: 4.8, estado: 6.2,
+  cnp: 4.5, designacao: 22, farmacia: 10, qtdVendida: 3,
+  pvpUnitario: 4.6, valorVendido: 5.4, taxaIva: 2.8, valorVendidoSemIva: 5.4,
+  custoUnitario: 4.6, custoEstimado: 5.4, margemEur: 5.4, margemUnitaria: 4.6, margemPct: 4,
+  coberturaPct: 3.8, estado: 5, utenteGeral: 4.4, utenteEspecial: 4.4,
 };
 const MPW = normalizarLargura(MARGENS_PRODUTO_BASE_WIDTHS);
 
@@ -112,9 +112,16 @@ const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
   { key: "custoUnitario",      label: "Custo unit. est.",  format: "currency", width: MPW.custoUnitario },
   { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: MPW.custoEstimado,  showTotal: true },
   { key: "margemEur",          label: "Margem €",     format: "currency", width: MPW.margemEur,  showTotal: true },
+  // Margem por unidade: nunca se soma (sem showTotal) — somar margens
+  // unitárias de artigos/farmácias diferentes não significa nada.
+  { key: "margemUnitaria",     label: "Margem unit.", format: "currency", width: MPW.margemUnitaria },
   { key: "margemPct",          label: "Margem %",     format: "text",     width: MPW.margemPct },
   { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: MPW.coberturaPct },
   { key: "estado",             label: "Estado",       format: "text",     width: MPW.estado },
+  // Preços do utente (INFARMED). Informação regulamentar: não entra em
+  // nenhum cálculo de margem.
+  { key: "utenteGeral",        label: "Utente geral", format: "currency", width: MPW.utenteGeral },
+  { key: "utenteEspecial",     label: "Utente especial", format: "currency", width: MPW.utenteEspecial },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
@@ -231,9 +238,12 @@ export function buildMargensProdutoReport(input: {
     custoUnitario: r.custoUnitario,
     custoEstimado: r.custoEstimado ?? 0,
     margemEur: r.margemEur ?? 0,
+    margemUnitaria: r.margemUnitaria,
     margemPct: pct(r.margemPct),
     coberturaPct: pct(r.coberturaCusto * 100),
     estado: MARGEM_LABEL[r.estado],
+    utenteGeral: r.precoUtenteGeral,
+    utenteEspecial: r.precoUtenteEspecial,
     [ROW_KIND_KEY]: "detalhe",
   });
 
@@ -280,9 +290,12 @@ export function buildMargensProdutoReport(input: {
       custoUnitario: null,
       custoEstimado: custoTotal,
       margemEur: margemTotal,
+      margemUnitaria: null,
       margemPct: pct(margemPctTotal),
       coberturaPct: null,
       estado: null,
+      utenteGeral: null,
+      utenteEspecial: null,
       [GROUP_KEY]: g.codigo,
       [ROW_KIND_KEY]: "subtotal",
     };
