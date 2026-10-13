@@ -187,7 +187,8 @@ async function main() {
     const depois = await contagens(prisma);
     check(depois.checksumProdutos === antesCont.checksumProdutos && depois.checksumProdutosFarmacia === antesCont.checksumProdutosFarmacia, "Produto (designação, DCI, …) e ProdutoFarmacia (pvp, pmc, puc, stock) intactos");
     const pr1 = await prisma.produto.findUnique({ where: { id: p1.id } });
-    check(pr1?.designacao === "BEN-U-RON 500 ERP" && pr1?.dci === "Paracetamol ERP", "Produto.designacao e Produto.dci NÃO foram substituídos pelo nome/DCI do INFARMED");
+    // (a partir da reconciliação com o catálogo, a DCI não manual passa a ser a do INFARMED; a DESIGNAÇÃO nunca)
+    check(pr1?.designacao === "BEN-U-RON 500 ERP" && pr1?.dci === "Paracetamol", "Produto.designacao NÃO foi substituída pelo nome do INFARMED; a DCI (não manual) foi reconciliada com a do INFARMED");
     const ativas = await prisma.infarmedImportacao.count({ where: { ativa: true } });
     check(ativas === 1, "exatamente uma versão ativa");
 

@@ -62,6 +62,7 @@
     "ops:infarmed-carga": "tsx scripts/ops/infarmed-carga-regulamentar.ts",
     "test:encomendas-anuladas-db": "tsx scripts/tests/test-encomendas-anuladas-db.ts",
     "test:margens-cnpem-db": "tsx scripts/tests/test-margens-cnpem-db.ts",
+    "test:infarmed-reconciliacao-db": "tsx scripts/tests/test-infarmed-reconciliacao-db.ts",
     "test:infarmed-atualizacao-db": "tsx scripts/tests/test-infarmed-atualizacao-db.ts",
     "test:infarmed-regulamentar-db": "tsx scripts/tests/test-infarmed-regulamentar-db.ts",
     "test:e2e-workspaces": "tsx scripts/e2e/workspaces-browser.ts",

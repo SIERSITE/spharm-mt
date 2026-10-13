@@ -41,6 +41,7 @@ function ResultadoTenants({ tenants, mostrarNumeros }: { tenants: ResultadoTenan
           <th className="py-1.5 pr-3">Resultado</th>
           {mostrarNumeros && <th className="py-1.5 pr-3 text-right">Produtos associados</th>}
           {mostrarNumeros && <th className="py-1.5 pr-3 text-right">Novos / alterados / iguais</th>}
+          {mostrarNumeros && <th className="py-1.5 pr-3 text-right" title="Campos do catálogo preenchidos + atualizados (forma / dosagem / embalagem / DCI)">Catálogo (F/D/E/DCI)</th>}
           <th className="py-1.5">Detalhe</th>
         </tr>
       </thead>
@@ -57,6 +58,15 @@ function ResultadoTenants({ tenants, mostrarNumeros }: { tenants: ResultadoTenan
             {mostrarNumeros && (
               <td className="py-1.5 pr-3 text-right tabular-nums">
                 {t.registosNovos ?? 0} / {t.registosAlterados ?? 0} / {t.registosIguais ?? 0}
+              </td>
+            )}
+            {mostrarNumeros && (
+              <td className="py-1.5 pr-3 text-right tabular-nums" data-col="catalogo">
+                {t.reconciliacao
+                  ? [t.reconciliacao.campos.formaFarmaceutica, t.reconciliacao.campos.dosagem, t.reconciliacao.campos.embalagem, t.reconciliacao.campos.dci]
+                      .map((c) => c.preenchidos + c.atualizados)
+                      .join(" / ")
+                  : "—"}
               </td>
             )}
             <td className="py-1.5 text-slate-600">{t.motivo ?? ""}</td>

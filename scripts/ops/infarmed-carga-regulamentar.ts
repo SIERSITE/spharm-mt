@@ -17,6 +17,12 @@
  *   Listar o histórico:
  *     … --tenant=silveira --listar
  *
+ *   Reconciliar o catálogo (forma, dosagem, embalagem, DCI) com a versão JÁ ativa —
+ *   sem importação nova, sem tocar no SHA/histórico, sem descarregar nada:
+ *     … --reconciliar --tenant=silveira,segurado,garantia          (dry-run: só contadores)
+ *     … --reconciliar --tenant=silveira,segurado,garantia --apply
+ *     … --reconciliar --todos [--apply]                            (todos os tenants ativos)
+ *
  * Opções:
  *   --tenant=<slug>        tenant do control plane (produção/Docker)
  *   --database-url=<url>   alternativa para bases LOCAIS descartáveis (só localhost)
@@ -55,6 +61,7 @@ function ajuda() {
       "  --apply                         aplica (omissão: dry-run, só relatório)",
       "  --reverter [--apply]            volta à versão anterior",
       "  --listar                        histórico de importações",
+      "  --reconciliar [--apply]         reconcilia o catálogo com a versão ativa (--tenant=a,b,c | --todos)",
       "  --origem=CARGA_INICIAL|MANUAL   --forcar   --relatorio-dir=<dir>",
       "",
     ].join("\n"),
@@ -82,12 +89,65 @@ async function obterPrisma(): Promise<{ prisma: import("@/generated/prisma/clien
   return { prisma: await getTenantPrismaOrLegacy(tenant!), nome: tenant! };
 }
 
+/** Reconciliação do catálogo com a versão ativa, em vários tenants. Um tenant a falhar não pára os outros. */
+async function reconciliar(apply: boolean): Promise<number> {
+  const { reconciliarVersaoAtiva, CAMPOS_RECONCILIADOS } = await import("@/lib/regulamentar/infarmed-reconciliar");
+  type Alvo = { nome: string; prisma: import("@/generated/prisma/client").PrismaClient };
+  const alvos: Alvo[] = [];
+  const url = arg("database-url");
+  const tenants = arg("tenant");
+  if (url) {
+    alvos.push({ nome: "local", prisma: (await obterPrisma()).prisma });
+  } else if (arg("todos")) {
+    const { listarTenantsAtivos } = await import("@/lib/regulamentar/infarmed-runtime");
+    for (const t of await listarTenantsAtivos()) alvos.push({ nome: t.slug, prisma: t.prisma });
+  } else if (tenants) {
+    const { getTenantPrismaOrLegacy } = await import("@/lib/tenant-registry");
+    for (const slug of tenants.split(",").map((x) => x.trim()).filter(Boolean)) alvos.push({ nome: slug, prisma: await getTenantPrismaOrLegacy(slug) });
+  } else {
+    throw new Error("Indique --tenant=a,b,c, --todos ou --database-url=<url-local>.");
+  }
+  const resultados: unknown[] = [];
+  let falhas = 0;
+  process.stdout.write(`\nRECONCILIAÇÃO DO CATÁLOGO COM A VERSÃO ATIVA DO INFARMED — ${apply ? "APPLY" : "DRY-RUN"}\n`);
+  for (const a of alvos) {
+    try {
+      const r = await reconciliarVersaoAtiva(a.prisma, { apply });
+      if (!r) {
+        process.stdout.write(`\n[${a.nome}] sem versão ativa — nada a reconciliar\n`);
+        resultados.push({ tenant: a.nome, versaoAtiva: null });
+        continue;
+      }
+      const c = r.contadores;
+      process.stdout.write(`\n[${a.nome}] versão ativa ${r.sha256.slice(0, 12)} · analisados ${c.produtosAnalisados} · associados ${c.produtosAssociados} · sem correspondência ${c.semCorrespondencia ?? "—"} · produtos ${apply ? "alterados" : "a alterar"} ${c.produtosAlterados}\n`);
+      for (const k of CAMPOS_RECONCILIADOS) {
+        const f = c.campos[k];
+        process.stdout.write(`    ${k.padEnd(18)} preenchidos ${f.preenchidos} · atualizados ${f.atualizados} · ignorados (manual) ${f.ignoradosManual} · ignorados (vazio) ${f.ignoradosVazio} · já iguais ${f.jaIguais}\n`);
+      }
+      resultados.push({ tenant: a.nome, importacaoId: r.importacaoId, sha256: r.sha256, contadores: c });
+    } catch (e) {
+      falhas++;
+      process.stdout.write(`\n[${a.nome}] ERRO: ${e instanceof Error ? e.message : String(e)}\n`);
+      resultados.push({ tenant: a.nome, erro: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const dir = pastaRelatorios();
+  fs.mkdirSync(dir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const destino = path.join(dir, `infarmed-reconciliacao-${ts}-${apply ? "apply" : "dryrun"}.json`);
+  fs.writeFileSync(destino, JSON.stringify({ geradoEm: new Date().toISOString(), modo: apply ? "APPLY" : "DRY_RUN", resultados }, null, 2), "utf8");
+  process.stdout.write(`\nrelatório: ${destino}\n${apply ? "" : "Nada foi escrito na base. Repita com --apply para aplicar.\n"}`);
+  for (const a of alvos) await a.prisma.$disconnect().catch(() => undefined);
+  return falhas > 0 ? 1 : 0;
+}
+
 async function main(): Promise<number> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     ajuda();
     return 0;
   }
   const apply = arg("apply") === "true";
+  if (arg("reconciliar")) return reconciliar(apply);
   const { prisma, nome } = await obterPrisma();
   try {
     if (arg("listar")) {

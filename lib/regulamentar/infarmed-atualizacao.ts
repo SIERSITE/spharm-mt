@@ -23,6 +23,7 @@ import type { PrismaClient as ControlClient } from "@/generated/prisma-control/c
 import { FicheiroInfarmedInvalido, lerFicheiroInfarmed, type FicheiroInfarmedLido } from "./infarmed-ficheiro";
 import { aplicarVersaoInfarmed, type OrigemImportacao, type RelatorioImportacao } from "./infarmed-aplicar";
 import { DownloadInfarmedFalhou, type FicheiroObtido } from "./infarmed-job";
+import type { ContadoresReconciliacao } from "./infarmed-reconciliar";
 
 export type TenantAlvo = { slug: string; prisma: PrismaClient };
 export type MensagemEmail = { assunto: string; texto: string };
@@ -60,6 +61,8 @@ export type ResultadoTenant = {
   registosAlterados?: number;
   registosIguais?: number;
   deixaramDeEstarPresentes?: number;
+  /** Reconciliação do catálogo (forma, dosagem, embalagem, DCI): feita (apply) ou prevista (dry-run). */
+  reconciliacao?: ContadoresReconciliacao | null;
 };
 
 export type ResultadoAtualizacao = {
@@ -134,6 +137,7 @@ export async function aplicarATenants(
         registosAlterados: r.registosAlterados,
         registosIguais: r.registosIguais,
         deixaramDeEstarPresentes: r.deixaramDeEstarPresentes,
+        reconciliacao: r.reconciliacao ?? null,
       });
     } catch (e) {
       out.push({ slug: t.slug, resultado: "ERRO", ok: false, motivo: resumir(e instanceof Error ? e.message : String(e)) });

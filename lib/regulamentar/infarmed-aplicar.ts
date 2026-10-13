@@ -19,6 +19,7 @@
 
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { FicheiroInfarmedLido, LinhaInfarmed } from "./infarmed-ficheiro";
+import { reconciliarProdutos, type ContadoresReconciliacao } from "./infarmed-reconciliar";
 
 export type OrigemImportacao = "CARGA_INICIAL" | "MENSAL" | "MANUAL" | "UPLOAD_MANUAL";
 
@@ -72,8 +73,10 @@ export type Contagens = {
   vendasMensais: number;
   listasEncomenda: number;
   linhasEncomenda: number;
-  /** md5 de Produto (id, designacao, fabricanteId, dci, …) — prova que nada operacional mudou. */
+  /** md5 de Produto (id, designacao, fabricanteId, …) SEM os 4 campos reconciliados — prova que nada operacional mudou. */
   checksumProdutos: string;
+  /** md5 dos 4 campos canónicos que a reconciliação com o INFARMED pode escrever (dci, forma, dosagem, embalagem). */
+  checksumCamposReconciliados: string;
   /** md5 de ProdutoFarmacia (pvp, pmc, puc, stock, fornecedor). */
   checksumProdutosFarmacia: string;
   regulamentarAtivo: number;
@@ -87,14 +90,15 @@ export async function contagens(prisma: PrismaClient): Promise<Contagens> {
       (SELECT count(*) FROM "VendaMensal")::int AS "vendasMensais",
       (SELECT count(*) FROM "ListaEncomenda")::int AS "listasEncomenda",
       (SELECT count(*) FROM "LinhaEncomenda")::int AS "linhasEncomenda",
-      COALESCE((SELECT md5(string_agg(concat_ws('|', id, designacao, "fabricanteId", dci, "codigoATC", "formaFarmaceutica", dosagem, embalagem, "flagGenerico", "camposManuais"::text), ';' ORDER BY id)) FROM "Produto"), '') AS "checksumProdutos",
+      COALESCE((SELECT md5(string_agg(concat_ws('|', id, designacao, "fabricanteId", "codigoATC", "flagGenerico", "camposManuais"::text), ';' ORDER BY id)) FROM "Produto"), '') AS "checksumProdutos",
+      COALESCE((SELECT md5(string_agg(concat_ws('|', id, dci, "formaFarmaceutica", dosagem, embalagem), ';' ORDER BY id)) FROM "Produto"), '') AS "checksumCamposReconciliados",
       COALESCE((SELECT md5(string_agg(concat_ws('|', id, pvp, pmc, puc, "stockAtual", "fornecedorHabitualId"), ';' ORDER BY id)) FROM "ProdutoFarmacia"), '') AS "checksumProdutosFarmacia",
       (SELECT count(*) FROM "ProdutoRegulamentar" pr JOIN "InfarmedImportacao" i ON i.id = pr."importacaoId" AND i."ativa")::int AS "regulamentarAtivo"`;
   const x = r[0];
   return {
     produtos: Number(x.produtos), produtosFarmacia: Number(x.produtosFarmacia), vendasMensais: Number(x.vendasMensais),
     listasEncomenda: Number(x.listasEncomenda), linhasEncomenda: Number(x.linhasEncomenda),
-    checksumProdutos: String(x.checksumProdutos), checksumProdutosFarmacia: String(x.checksumProdutosFarmacia),
+    checksumProdutos: String(x.checksumProdutos), checksumCamposReconciliados: String(x.checksumCamposReconciliados), checksumProdutosFarmacia: String(x.checksumProdutosFarmacia),
     regulamentarAtivo: Number(x.regulamentarAtivo),
   };
 }
@@ -123,6 +127,8 @@ export type RelatorioImportacao = {
   camposAlteradosPorCampo: Record<string, number>;
   deixaramDeEstarPresentes: number;
   completados?: number;
+  /** Reconciliação dos campos canónicos de Produto com esta versão (feita: APPLY; prevista: dry-run). */
+  reconciliacao?: ContadoresReconciliacao | null;
   antes: Contagens;
   depois: Contagens | null;
   operacionalIntacto: boolean | null;
@@ -357,9 +363,10 @@ export async function aplicarVersaoInfarmed(
     rel.produtosAssociados = idPorCnp.size;
     rel.detalhe.cnpNaoEncontrados = ficheiro.linhas.filter((l) => !idPorCnp.has(l.cnp)).map((l) => l.registo);
     rel.cnpNaoEncontrados = rel.detalhe.cnpNaoEncontrados.length;
-    if (opcoes.apply && faltam.length > 0) {
+    if (opcoes.apply) {
       const agora = new Date();
-      await prisma.$transaction(async (tx) => {
+      // Completa os novos E reconcilia o catálogo com a versão ativa (mesmo motor), atomicamente.
+      rel.reconciliacao = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_KEY})`;
         for (let i = 0; i < faltam.length; i += 2000) {
           await tx.produtoRegulamentar.createMany({
@@ -367,9 +374,12 @@ export async function aplicarVersaoInfarmed(
             skipDuplicates: true,
           });
         }
+        return reconciliarProdutos(tx, { tipo: "importacao", importacaoId: ativaInicial.id }, { apply: true });
       }, { timeout: 120_000 });
       rel.depois = await contagens(prisma);
       rel.operacionalIntacto = operacionalIgual(antes, rel.depois);
+    } else {
+      rel.reconciliacao = await reconciliarProdutos(prisma, { tipo: "importacao", importacaoId: ativaInicial.id }, { apply: false });
     }
     return rel;
   }
@@ -379,6 +389,23 @@ export async function aplicarVersaoInfarmed(
 
   if (!opcoes.apply) {
     rel.resultado = "SIMULADA";
+    // O que a reconciliação do catálogo faria com esta versão (mesmo SQL, fonte = as linhas que seriam gravadas).
+    rel.reconciliacao = await reconciliarProdutos(
+      prisma,
+      {
+        tipo: "linhas",
+        linhas: plano.inserir
+          .filter((r) => r.presente)
+          .map((r) => ({
+            produtoId: r.produtoId,
+            formaFarmaceutica: r.valores.formaFarmaceutica as string | null,
+            dosagem: r.valores.dosagem as string | null,
+            embalagem: r.valores.tamanhoEmbalagem as string | null,
+            dci: r.valores.substanciaAtiva as string | null,
+          })),
+      },
+      { apply: false },
+    );
     return rel;
   }
 
@@ -423,7 +450,9 @@ export async function aplicarVersaoInfarmed(
           camposAlterados: plano.camposAlterados, deixaramDeEstarPresentes: plano.deixaram,
         },
       });
-      return { id: imp.id } as const;
+      // Reconciliação dos campos canónicos de Produto (mesma transação: ou tudo ou nada).
+      const reconciliacao = await reconciliarProdutos(tx, { tipo: "importacao", importacaoId: imp.id }, { apply: true });
+      return { id: imp.id, reconciliacao } as const;
     }, { timeout: 300_000, maxWait: 60_000 });
 
     if ("saltada" in resultado) {
@@ -433,6 +462,7 @@ export async function aplicarVersaoInfarmed(
       return rel;
     }
     rel.importacaoId = resultado.id ?? null;
+    rel.reconciliacao = resultado.reconciliacao ?? null;
     rel.resultado = "APLICADA";
     rel.depois = await contagens(prisma);
     rel.operacionalIntacto = operacionalIgual(antes, rel.depois);
