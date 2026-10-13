@@ -125,10 +125,19 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
 
 /** Rects das células do cabeçalho vs. as da 1.ª linha do corpo: alinhamento exato por coluna. */
 export async function alinhamentoColunas(page: Page, seletorContentor: string): Promise<{ colunas: number; maxDesvio: number }> {
+  for (let t = 0; t < 4; t++) {
+    const r = await alinhamentoUmaVez(page, seletorContentor);
+    if (r.maxDesvio < 9999) return r;
+    await page.waitForTimeout(600);
+  }
+  return alinhamentoUmaVez(page, seletorContentor);
+}
+
+async function alinhamentoUmaVez(page: Page, seletorContentor: string): Promise<{ colunas: number; maxDesvio: number }> {
   return page.evaluate((sel) => {
     const c = document.querySelector(sel) as HTMLElement;
-    const ths = Array.from(c.querySelectorAll("thead tr:first-child > th")) as HTMLElement[];
-    const linha = Array.from(c.querySelectorAll("tbody > tr")).find((tr) => (tr as HTMLElement).querySelectorAll(":scope > td").length === ths.length) as HTMLElement | undefined;
+    const ths = Array.from(c.querySelectorAll(":scope > table > thead > tr:first-child > th")) as HTMLElement[];
+    const linha = Array.from(c.querySelectorAll(":scope > table > tbody > tr")).find((tr) => (tr as HTMLElement).querySelectorAll(":scope > td").length === ths.length) as HTMLElement | undefined;
     if (!linha) return { colunas: ths.length, maxDesvio: 9999 };
     const tds = Array.from(linha.querySelectorAll(":scope > td")) as HTMLElement[];
     let max = 0;

@@ -17,6 +17,8 @@ pdf, saida = sys.argv[1], sys.argv[2]
 doc = pymupdf.open(pdf)
 paginas = doc.page_count
 com_cab = 0
+com_tabela = 0
+soh_rodape = 0
 subtotal_orfao = False
 margem_unit = False
 utente = False
@@ -31,7 +33,12 @@ for i, p in enumerate(doc):
     # cabeçalho: a palavra «Descrição» e «CNP» nos primeiros ~180 pt da página
     topo = [w for w in palavras if w[1] < 180]
     tem = any(w[4].startswith("Descri") for w in topo) and any(w[4] == "CNP" for w in topo)
-    com_cab += 1 if tem else 0
+    # Uma página SÓ com o rodapé (≤ 10 palavras) não tem tabela: não conta para a regra do cabeçalho.
+    if len(palavras) <= 10:
+        soh_rodape += 1
+    else:
+        com_tabela += 1
+        com_cab += 1 if tem else 0
     # primeira linha do corpo = primeira linha abaixo da linha do cabeçalho
     cab = [w for w in palavras if w[4] == "CNP"]
     if cab:
@@ -84,7 +91,9 @@ for y in range(h):
 print(json.dumps({
     "paginas": paginas,
     "paginas_com_cabecalho": com_cab,
-    "cabecalho_em_todas": com_cab == paginas,
+    "cabecalho_em_todas": com_cab == com_tabela,
+    "paginas_com_tabela": com_tabela,
+    "paginas_so_rodape": soh_rodape,
     "subtotal_sem_orfao": not subtotal_orfao,
     "margem_unit": bool(margem_unit),
     "utente": bool(utente),

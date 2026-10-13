@@ -215,6 +215,7 @@ async function main() {
     const alG = await alinhamentoColunas(p2, SELP);
     check(hg.scrollTop > 600 && Math.abs(hg.desvioTopo) <= 1 && hg.visivelPorCima && hg.opaco, `Grupo: cabeçalho fixo após scroll (scrollTop=${hg.scrollTop}, desvio ${hg.desvioTopo}px)`);
     check(alG.maxDesvio <= 2, `Grupo: cabeçalho alinhado com as colunas (desvio ${alG.maxDesvio}px)`);
+    if (alG.maxDesvio > 2) console.log("  [debug]", JSON.stringify(await p2.evaluate(`(() => { const c = document.querySelector('${SELP}'); const ths = c.querySelectorAll('thead tr:first-child > th').length; const dist = {}; c.querySelectorAll('tbody > tr').forEach((tr) => { const n = tr.querySelectorAll(':scope > td').length; dist[n] = (dist[n] || 0) + 1; }); return { ths, dist }; })()`)));
     const grp = await p2.evaluate((sel) => ({
       grupos: document.querySelectorAll(`${sel} tr[data-tabela-linha="grupo"]`).length,
       sub: document.querySelectorAll(`${sel} tr[data-tabela-linha="subordinada"]`).length,
@@ -357,7 +358,7 @@ async function main() {
     if (py.status !== 0) { console.log(py.stdout, py.stderr); }
     const r = JSON.parse(py.stdout.trim().split("\n").pop() ?? "{}");
     check(r.paginas >= 3, `o relatório tem várias páginas (${r.paginas})`);
-    check(r.cabecalho_em_todas === true, `o cabeçalho repete-se em TODAS as páginas (${r.paginas_com_cabecalho}/${r.paginas})`);
+    check(r.cabecalho_em_todas === true, `o cabeçalho repete-se em TODAS as páginas com tabela (${r.paginas_com_cabecalho}/${r.paginas_com_tabela}; ${r.paginas_so_rodape} página(s) só com o rodapé)`);
     check(r.margem_unit === true && r.utente === true, "as colunas novas (Margem unit., Utente geral/especial) estão no PDF");
     check(r.subtotal_sem_orfao === true, "nenhuma página começa com um «TOTAL ARTIGO» solto (o subtotal não se separa do artigo)");
     check(r.cinzentos_distintos >= 4, `legível em escala de cinzentos: ${r.cinzentos_distintos} níveis de cinzento distintos (cabeçalho escuro, blocos alternados, subtotal)`);

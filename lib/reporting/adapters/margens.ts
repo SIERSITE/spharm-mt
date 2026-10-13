@@ -70,9 +70,9 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
 // que o número que mostra. `normalizarLargura` corrige a soma para 100
 // preservando estas proporções (ver column-widths.ts).
 const MARGENS_PRODUTO_BASE_WIDTHS = {
-  cnp: 4.5, designacao: 22, farmacia: 10, qtdVendida: 3,
+  cnp: 4.5, designacao: 21.2, farmacia: 10, qtdVendida: 3,
   pvpUnitario: 4.6, valorVendido: 5.4, taxaIva: 2.8, valorVendidoSemIva: 5.4,
-  custoUnitario: 4.6, custoEstimado: 5.4, margemEur: 5.4, margemUnitaria: 4.6, margemPct: 4,
+  custoUnitario: 4.6, custoEstimado: 5.4, margemEur: 5.4, margemUnitaria: 4.6, margemPct: 5.4,
   coberturaPct: 3.8, estado: 5, utenteGeral: 4.4, utenteEspecial: 4.4,
 };
 const MPW = normalizarLargura(MARGENS_PRODUTO_BASE_WIDTHS);
