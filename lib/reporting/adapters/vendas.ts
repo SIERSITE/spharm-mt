@@ -132,6 +132,12 @@ export type VendasAdapterRow = {
   pvp: number;
   /** `null` = desconhecido (nunca 0 — ver custoDaFarmacia). */
   custoUnitarioEstimado?: number | null;
+  /**
+   * Custo TOTAL estimado da linha = custo unitário estimado × quantidade
+   * líquida (a mesma regra do loader — `valorizar`). `null` = sem custo
+   * conhecido (aparece «—» e fica fora do total, que o relatório assinala).
+   */
+  custoEstimado?: number | null;
   /** Buckets na mesma ordem que `buckets` passado a `buildVendasReport`. */
   meses: VendasAdapterMonthBucket[];
   totalVendas: number;
@@ -186,7 +192,7 @@ const BASE_WIDTH_FIXED_COLS = {
   // já não precisa de caber a sublinha "PVP: X | Custo: Y" — só o texto
   // da descrição — o espaço libertado ajuda PVP/Custo (abaixo) e os
   // meses.
-  descricao: 17,
+  descricao: 15,
   // Correcção (2026-09): a coluna Farmácia é o que a linha TOTAL ARTIGO
   // usa para o próprio rótulo (bold, 12 caracteres — mais largo que
   // qualquer nome de farmácia sem o prefixo "Farmácia "). A 8% ficava
@@ -199,6 +205,8 @@ const BASE_WIDTH_FIXED_COLS = {
   // Estreitas de propósito: são só um valor em euros por linha.
   pvp: 6,
   custoUnitarioEstimado: 7,
+  // Custo TOTAL estimado (custo unit. × quantidade líquida) — 2026-10.
+  custoEstimado: 7,
   totalVendas: 6,
   existencia: 5,
   valorVendas: 8,
@@ -229,6 +237,7 @@ function buildColumns(
     BASE_WIDTH_FIXED_COLS.farmacia +
     BASE_WIDTH_FIXED_COLS.pvp +
     BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
+    BASE_WIDTH_FIXED_COLS.custoEstimado +
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
     BASE_WIDTH_FIXED_COLS.valorVendas;
@@ -308,6 +317,13 @@ function buildColumns(
     {
       key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency",
       width: w(BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado),
+    },
+    // Custo TOTAL estimado = custo unit. est. × quantidade líquida. Soma-se
+    // (subtotal por artigo e total geral); linhas sem custo ficam «—» e
+    // fora da soma — o relatório diz-o no resumo e no rodapé.
+    {
+      key: "custoEstimado", label: "Custo total\nest.", format: "currency",
+      width: w(BASE_WIDTH_FIXED_COLS.custoEstimado), showTotal: true,
     },
     ...monthColumns,
     {
@@ -419,6 +435,24 @@ function buildFilters(
  * tabela já mostra as unidades e o valor. Excel/email continuam a
  * receber estes 4 itens tal como sempre.
  */
+/**
+ * Custo total estimado do conjunto de linhas e quantas linhas ficaram de fora
+ * por não terem custo conhecido (nunca se inventa custo; um total que
+ * ignora linhas sem custo não pode apresentar-se como completo).
+ */
+export function custoTotalDoRelatorio(rows: ReadonlyArray<Pick<VendasAdapterRow, "custoEstimado" | "totalVendas">>): { total: number; semCusto: number } {
+  let total = 0;
+  let semCusto = 0;
+  for (const r of rows) {
+    if (r.custoEstimado === null || r.custoEstimado === undefined || !Number.isFinite(r.custoEstimado)) {
+      if ((r.totalVendas ?? 0) !== 0) semCusto += 1;
+      continue;
+    }
+    total += r.custoEstimado;
+  }
+  return { total: Math.round(total * 100) / 100, semCusto };
+}
+
 function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   let totalUnidades = 0;
   let valorEstimadoPvp = 0;
@@ -427,11 +461,16 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
     valorEstimadoPvp += (r.totalVendas ?? 0) * (r.pvp ?? 0);
   }
   const referencias = contarReferenciasUnicas(rows);
+  const custo = custoTotalDoRelatorio(rows);
   return [
     { label: "Linhas",             value: rows.length,       format: "integer" },
     { label: "Referências únicas", value: referencias,       format: "integer" },
     { label: "Unidades vendidas",  value: totalUnidades,     format: "integer" },
     { label: "Valor PVP estimado", value: valorEstimadoPvp,  format: "currency" },
+    { label: "Custo total estimado", value: custo.total,     format: "currency" },
+    ...(custo.semCusto > 0
+      ? [{ label: "Linhas sem custo (fora do custo total)", value: custo.semCusto, format: "integer" as const }]
+      : []),
   ];
 }
 
@@ -468,6 +507,8 @@ export function buildVendasReport(input: {
       pvp?: number | null;
       /** Correcção 2026-09: existia na coluna, nunca era lido aqui. */
       custoUnitarioEstimado?: number | null;
+      /** Custo total estimado (custo unit. × quantidade líquida); `null` = sem custo. */
+      custoEstimado?: number | null;
       totalVendas: number;
       /** Correcção 2026-09: não existia coluna nenhuma para isto. */
       valorBruto?: number;
@@ -490,6 +531,9 @@ export function buildVendasReport(input: {
       descricao: r.descricao,
       pvp,
       custoUnitarioEstimado: custo,
+      // O total de custo SOMA-se (ao contrário do unitário): no TOTAL ARTIGO é a
+      // soma dos custos das farmácias com custo conhecido (`agregarCusto`).
+      custoEstimado: r.custoEstimado ?? null,
       totalVendas: r.totalVendas,
       valorBruto: r.valorBruto ?? 0,
       existencia: r.existencia,
@@ -572,7 +616,10 @@ export function buildVendasReport(input: {
       // um mês não tem como saber que a coluna de custo é um snapshot
       // de hoje. O rodapé é texto livre que quebra normalmente.
       footer:
-        "Stock actual à data de geração do relatório. Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda. Valor de vendas sem IVA.",
+        "Stock actual à data de geração do relatório. Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA." +
+        (custoTotalDoRelatorio(input.rows).semCusto > 0
+          ? ` Custo total PARCIAL: ${custoTotalDoRelatorio(input.rows).semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
+          : ""),
     },
   };
 }

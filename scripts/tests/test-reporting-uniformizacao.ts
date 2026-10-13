@@ -124,7 +124,7 @@ console.log("\nB · Margens");
     margemPct: 26.2,
     coberturaCusto: 1,
     estado: "FIAVEL",
-    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false,
+    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, stockAtual: null,
     ...over,
   });
 
@@ -406,7 +406,7 @@ console.log("\nH · HTML renderizado");
         fabricante: "Fabricante Teste", qtdVendida: 1, pvpUnitario: 1,
         valorVendido: 1, taxaIva: 23, valorVendidoSemIva: 0.81, custoUnitario: 0.5,
         custoUnitarioBase: 0.5, custoEstimado: 0.5, margemEur: 0.31, margemPct: 38,
-        coberturaCusto: 1, estado: "FIAVEL", produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false,
+        coberturaCusto: 1, estado: "FIAVEL", produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, stockAtual: null,
       },
     ],
     filters: {},
@@ -450,7 +450,7 @@ console.log("\nJ · Margens Por Produto — bloco por artigo, farmácias em orde
     qtdVendida: 10, valorVendido: 66.6, pvpUnitario: 6.66, custoUnitario: 4.46,
     valorVendidoSemIva: 54.15, taxaIva: 23, custoUnitarioBase: 4.46, custoEstimado: 44.6,
     margemEur: 9.55, margemPct: 17.6, coberturaCusto: 1, estado: "FIAVEL",
-    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false,
+    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, stockAtual: null,
     ...over,
   });
   // Ordem de chegada TROCADA face ao universo — Silveirense primeiro na
@@ -570,7 +570,7 @@ console.log("\nL · Margens Por Produto — Categoria como sublinha (correcção
     qtdVendida: 10, valorVendido: 66.6, pvpUnitario: 6.66, custoUnitario: 4.46,
     valorVendidoSemIva: 54.15, taxaIva: 23, custoUnitarioBase: 4.46, custoEstimado: 44.6,
     margemEur: 9.55, margemPct: 17.6, coberturaCusto: 1, estado: "FIAVEL",
-    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false,
+    produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, stockAtual: null,
     ...over,
   });
   const rel = buildMargensProdutoReport({

@@ -30,7 +30,8 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
-import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
+import { buildVendasReport, custoTotalDoRelatorio } from "@/lib/reporting/adapters/vendas";
+import { compararArtigos } from "@/lib/ordenacao-artigos";
 import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/reporting/vendas-filtros";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
@@ -259,7 +260,9 @@ export function VendasClient({
       dataInicio: defaultDataInicio(),
       dataFim: defaultDataFim(),
       agruparPor: "artigo",
-      ordenarPor: "totalVendas",
+      // Ordem por omissão: designação A–Z (CNP e farmácia a desempatar). «Mais
+      // vendidos» continua a ser uma escolha explícita no seletor.
+      ordenarPor: "descricao",
       apenasComVendas: true,
       // Ligado por defeito (2026-09): produtos sem vendas mas com stock
       // não devem depender de o utilizador se lembrar de os incluir — o
@@ -544,7 +547,10 @@ export function VendasClient({
         case "codigo":
           return a.codigo.localeCompare(b.codigo, "pt-PT");
         case "descricao":
-          return a.descricao.localeCompare(b.descricao, "pt-PT", { sensitivity: "base" });
+          return compararArtigos(
+            { designacao: a.descricao, cnp: a.codigo, farmacia: a.farmacia },
+            { designacao: b.descricao, cnp: b.codigo, farmacia: b.farmacia },
+          );
         case "existencia":
           return b.existencia - a.existencia;
         case "totalVendas":
@@ -667,6 +673,11 @@ export function VendasClient({
         unidadesVendidas: g.total.unidadesVendidas,
         valorBruto: g.total.valorBruto,
         existencia: g.total.existencia,
+        // Custo: o TOTAL soma os custos das farmácias com custo conhecido
+        // (`agregarCusto`); um custo unitário único para o artigo inteiro não
+        // tem resposta (cada farmácia tem o seu) — fica «—».
+        custoEstimado: g.total.custoEstimado,
+        custoUnitarioEstimado: null,
         // `agruparPorArtigo`/`GrupoArtigo.total` (vendas-agrupamento.ts)
         // não soma este breakdown — nunca usado no ecrã hoje. 0 em vez
         // de herdar o valor da 1ª farmácia via spread, que representaria
@@ -700,12 +711,17 @@ export function VendasClient({
       ? Math.max(1, daysInclusive(periodHeader.from, periodHeader.to))
       : Math.max(1, daysInclusive(dataInicio, dataFim));
     const mediaDiaria = totalUnidades / dias;
+    // Custo total estimado do resultado atual: Σ (custo unit. × quantidade líquida) das
+    // linhas COM custo; as sem custo ficam de fora e contam-se (nunca se inventa).
+    const custo = custoTotalDoRelatorio(orderedRows);
 
     return {
       totalVendido,
       totalUnidades,
       referencias,
       mediaDiaria,
+      custoTotal: custo.total,
+      linhasSemCusto: custo.semCusto,
     };
   }, [orderedRows, periodHeader, dataInicio, dataFim]);
 
@@ -762,6 +778,36 @@ export function VendasClient({
     apenasComStock,
     initialRows,
   ]);
+
+  // ── Seleção de artigos para impressão/PDF ───────────────────────────
+  //
+  // Só ao nível do ARTIGO (o código da linha) e só identificadores — nunca
+  // cópias das linhas. `null` = nenhuma escolha feita ainda ⇒ TODOS selecionados
+  // (por omissão; também depois de gerar um novo resultado: `geracao` muda e a
+  // seleção antiga deixa de valer). Na 1.ª escolha materializa-se o conjunto a
+  // partir do que está visível, e a partir daí uma mudança de filtros NÃO
+  // alarga a seleção (o que aparece de novo vem desmarcado).
+  const [geracao, setGeracao] = useState(0);
+  const [selecao, setSelecao] = useState<{ geracao: number; codigos: Set<string> } | null>(null);
+  const linhasImprimiveis = ambito === "comparativo" ? comparativoRows : rowsOrdenadas;
+  const codigosVisiveis = useMemo(() => [...new Set(linhasImprimiveis.map((r) => r.codigo))], [linhasImprimiveis]);
+  const selecionados = selecao && selecao.geracao === geracao ? selecao.codigos : null;
+  const estaSelecionado = (codigo: string) => selecionados === null || selecionados.has(codigo);
+  const nSelecionados = codigosVisiveis.filter(estaSelecionado).length;
+  const selecaoAplicavel = ambito !== "comparativo";
+  function alternarArtigo(codigo: string) {
+    const novo = new Set(selecionados ?? codigosVisiveis);
+    if (novo.has(codigo)) novo.delete(codigo);
+    else novo.add(codigo);
+    setSelecao({ geracao, codigos: novo });
+  }
+  /** Seleciona/desseleciona TODO o resultado filtrado — não apenas as linhas à vista. */
+  function alternarTodos() {
+    setSelecao({ geracao, codigos: nSelecionados === codigosVisiveis.length ? new Set() : new Set(codigosVisiveis) });
+  }
+  const linhasParaRelatorio = selecaoAplicavel ? linhasImprimiveis.filter((r) => estaSelecionado(r.codigo)) : linhasImprimiveis;
+  const semArtigosParaImprimir = hasGenerated && selecaoAplicavel && codigosVisiveis.length > 0 && nSelecionados === 0;
+
 
   const reportByFarmacia = useMemo(() => {
     const grouped = new Map<string, SalesReportRow[]>();
@@ -894,6 +940,9 @@ export function VendasClient({
     setIncluirTotais(true);
     setIncluirCredito(DEFAULT_INCLUIR_CREDITO);
     setIncluirTransferencias(DEFAULT_INCLUIR_TRANSFERENCIAS);
+    // A ordem alfabética é o estado inicial E o resultado de «Limpar filtros».
+    setOrdenarPor("descricao");
+    setOrdenacaoTabela(null);
   }
 
   const showFarmaciaColumnInReport =
@@ -949,6 +998,7 @@ export function VendasClient({
         });
         setRows(result.rows);
         setPeriodHeader(result.period);
+        setGeracao((g) => g + 1); // novo resultado ⇒ nova seleção, com todos os artigos marcados
         setHasGenerated(true);
       } catch (err) {
         setGenerationError(err instanceof Error ? err.message : String(err));
@@ -1096,7 +1146,7 @@ export function VendasClient({
               label="Ordenar por"
               value={ordenarPor}
               onChange={(value) => setOrdenarPor(value as Ordenacao)}
-              options={["totalVendas", "descricao", "codigo", "existencia"]}
+              options={["descricao", "totalVendas", "codigo", "existencia"]}
             />
 
             <div className="flex items-end gap-2">
@@ -1112,8 +1162,13 @@ export function VendasClient({
                 icon={<Eye className="h-3.5 w-3.5" />}
                 label="Ver em ecrã"
               />
+              {semArtigosParaImprimir && (
+                <span role="alert" data-testid="vendas-sem-selecao" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-medium text-amber-800">
+                  Selecione pelo menos um artigo para imprimir ou gerar PDF.
+                </span>
+              )}
               <ReportActions
-                hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
+                hide={!hasGenerated || semArtigosParaImprimir ? { print: true, pdf: true, excel: true, email: true } : undefined}
                 report={() =>
                   buildVendasReport({
                     // Exactamente as linhas visíveis, na mesma sequência:
@@ -1125,7 +1180,7 @@ export function VendasClient({
                     // "comparativo" a tabela mostra `comparativoRows` (a
                     // sua própria ordenação fixa por código+farmácia, sem
                     // selector nem cabeçalho clicável) — o export segue-a.
-                    rows: ambito === "comparativo" ? comparativoRows : rowsOrdenadas,
+                    rows: linhasParaRelatorio,
                     buckets,
                     filters: {
                       ambito,
@@ -1263,6 +1318,15 @@ export function VendasClient({
                   €
                 </span>
               </span>
+              <span title={resumo.linhasSemCusto > 0 ? `Custo total estimado PARCIAL: ${resumo.linhasSemCusto} linha(s) sem custo conhecido ficam fora do total` : "Custo unit. est. × quantidade líquida"} data-testid="vendas-resumo-custo">
+                custo est.{" "}
+                <span className="font-semibold text-slate-900">
+                  {resumo.custoTotal.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                </span>
+                {resumo.linhasSemCusto > 0 && (
+                  <span className="ml-1 text-amber-700">(parcial · {resumo.linhasSemCusto} sem custo)</span>
+                )}
+              </span>
               <span>
                 média diária{" "}
                 <span className="font-semibold text-slate-900">
@@ -1331,8 +1395,19 @@ export function VendasClient({
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
-                {humanizeOption(agruparPor)} · {humanizeOption(ordenarPor)}
+              <div className="flex items-center gap-2">
+                {selecaoAplicavel && codigosVisiveis.length > 0 && (
+                  <div
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
+                    data-testid="vendas-sel-contagem"
+                    role="status"
+                  >
+                    {nSelecionados} de {codigosVisiveis.length} artigos selecionados para impressão
+                  </div>
+                )}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
+                  {humanizeOption(agruparPor)} · {humanizeOption(ordenarPor)}
+                </div>
               </div>
             </div>
 
@@ -1341,6 +1416,16 @@ export function VendasClient({
                 <table className="min-w-full text-left">
                   <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                     <tr>
+                      <th className="w-8 px-2 py-2.5">
+                        <input
+                          type="checkbox"
+                          data-testid="vendas-sel-todos"
+                          aria-label="Selecionar todos os artigos para impressão"
+                          checked={codigosVisiveis.length > 0 && nSelecionados === codigosVisiveis.length}
+                          ref={(el) => { if (el) el.indeterminate = nSelecionados > 0 && nSelecionados < codigosVisiveis.length; }}
+                          onChange={alternarTodos}
+                        />
+                      </th>
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="codigo" className="px-4 py-2.5 font-semibold">Código</CabecalhoOrdenavel>
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="descricao" className="px-3 py-2.5 font-semibold">Descrição</CabecalhoOrdenavel>
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pvp" align="center" className="px-2 py-2.5 font-semibold">
@@ -1358,6 +1443,18 @@ export function VendasClient({
                         className="px-2 py-2.5 font-semibold"
                       >
                         Custo unit. est.
+                      </CabecalhoOrdenavel>
+                      {/* Custo TOTAL estimado = custo unit. est. × quantidade líquida
+                          (2026-10; tinha sido retirado em 2026-09). */}
+                      <CabecalhoOrdenavel
+                        as="th"
+                        ordenacao={ordenacao}
+                        onOrdenar={alternar}
+                        coluna="custoEstimado"
+                        align="right"
+                        className="px-2 py-2.5 font-semibold"
+                      >
+                        Custo total est.
                       </CabecalhoOrdenavel>
                       {/* As colunas mensais são dinâmicas — dependem do
                           período escolhido. A chave de ordenação leva o
@@ -1389,15 +1486,27 @@ export function VendasClient({
                   </thead>
 
                   <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-                    {linhasTabela.map(({ row, subtotal, key }) => (
+                    {linhasTabela.map(({ row, subtotal, key }, idx) => (
                       <tr
                         key={key}
-                        className={
-                          subtotal
-                            ? "bg-slate-100/80 font-semibold text-slate-900"
-                            : "transition hover:bg-slate-50/70"
-                        }
+                        data-codigo={row.codigo}
+                        className={[
+                          subtotal ? "bg-slate-100/80 font-semibold text-slate-900" : "transition hover:bg-slate-50/70",
+                          selecaoAplicavel && !estaSelecionado(row.codigo) ? "opacity-60" : "",
+                        ].join(" ")}
                       >
+                        <td className="w-8 px-2 py-2.5 align-top">
+                          {/* Um só controlo por ARTIGO (na sua 1.ª linha) — nunca por linha de farmácia. */}
+                          {!subtotal && linhasTabela.findIndex((l) => !l.subtotal && l.row.codigo === row.codigo) === idx && (
+                            <input
+                              type="checkbox"
+                              data-testid={`vendas-sel-artigo-${row.codigo}`}
+                              aria-label={`Incluir na impressão: ${row.descricao}`}
+                              checked={estaSelecionado(row.codigo)}
+                              onChange={() => alternarArtigo(row.codigo)}
+                            />
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 align-top">
                           <span className="font-medium text-slate-800">
                             {subtotal ? "" : row.codigo}
@@ -1432,6 +1541,9 @@ export function VendasClient({
                         <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
                           {fmtCustoOuTraco(row.custoUnitarioEstimado)}
                         </td>
+                        <td className="px-2 py-2.5 text-right tabular-nums text-slate-700" data-col="custo-total">
+                          {fmtCustoOuTraco(row.custoEstimado)}
+                        </td>
                         {row.meses.map((m, i) => (
                           <td
                             key={`${key}-m-${i}`}
@@ -1451,8 +1563,17 @@ export function VendasClient({
 
                     {incluirTotais && orderedRows.length > 0 && (
                       <tr className="bg-slate-50/70 font-semibold text-slate-900">
-                        <td className="px-4 py-2.5" colSpan={3}>
+                        <td className="px-4 py-2.5" colSpan={4}>
                           Totais
+                        </td>
+                        <td className="px-2 py-2.5" />
+                        <td
+                          className="px-2 py-2.5 text-right tabular-nums"
+                          data-testid="vendas-total-custo"
+                          title={resumo.linhasSemCusto > 0 ? `PARCIAL: ${resumo.linhasSemCusto} linha(s) sem custo conhecido ficam fora do total` : undefined}
+                        >
+                          {fmtCustoOuTraco(resumo.custoTotal)}
+                          {resumo.linhasSemCusto > 0 ? " *" : ""}
                         </td>
                         {buckets.map((b, i) => (
                           <td
@@ -1993,6 +2114,7 @@ type ColunaVendas =
   | "descricao"
   | "pvp"
   | "custoUnitarioEstimado"
+  | "custoEstimado"
   | "totalVendas"
   | "existencia"
   | "farmacia"

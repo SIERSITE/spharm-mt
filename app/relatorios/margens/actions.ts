@@ -25,6 +25,7 @@ export async function runMargensReport(
 export async function runMargensComparacaoCnpem(
   filters: SharedReportFilters,
   cnp: number,
+  mostrarTodos = false,
 ): Promise<ComparacaoCnpem> {
-  return getMargensComparacaoCnpem(filters, Number(cnp));
+  return getMargensComparacaoCnpem(filters, Number(cnp), { mostrarTodos: mostrarTodos === true });
 }

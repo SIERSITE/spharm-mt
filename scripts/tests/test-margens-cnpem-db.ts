@@ -78,10 +78,10 @@ async function main() {
     const f3 = await prisma.farmacia.create({ data: { nome: "Farmácia Três" } });
 
     type VM = { f: string; ano: number; mes: number; qty: number; bruto: number };
-    const mk = async (cnp: number, designacao: string, pfs: Array<{ f: string; pmc?: number | null; iva?: number | null; retirado?: boolean }>, vendas: VM[], dci?: string) => {
+    const mk = async (cnp: number, designacao: string, pfs: Array<{ f: string; pmc?: number | null; iva?: number | null; retirado?: boolean; stock?: number | null }>, vendas: VM[], dci?: string) => {
       const p = await prisma.produto.create({ data: { cnp, designacao, dci: dci ?? null } });
       for (const pf of pfs) {
-        await prisma.produtoFarmacia.create({ data: { produtoId: p.id, farmaciaId: pf.f, pvp: 9, pmc: pf.pmc === undefined ? 6 : pf.pmc, puc: 0, taxaIvaPercent: pf.iva === undefined ? 23 : pf.iva, flagRetirado: pf.retirado ?? false } });
+        await prisma.produtoFarmacia.create({ data: { produtoId: p.id, farmaciaId: pf.f, pvp: 9, pmc: pf.pmc === undefined ? 6 : pf.pmc, puc: 0, taxaIvaPercent: pf.iva === undefined ? 23 : pf.iva, flagRetirado: pf.retirado ?? false, stockAtual: pf.stock ?? null } });
       }
       for (const v of vendas) {
         await prisma.vendaMensal.create({ data: { farmaciaId: v.f, produtoId: p.id, ano: v.ano, mes: v.mes, quantidade: v.qty, valorTotal: v.bruto, valorBruto: v.bruto } });
@@ -97,7 +97,7 @@ async function main() {
     // B: mesmo CNPEM, em F1 com vendas
     const B = await mk(7000002, "IBUPROFENO B 400", [{ f: f1.id, pmc: 5 }], [{ f: f1.id, ano: 2026, mes: 3, qty: 4, bruto: 49.2 }], "Ibuprofeno");
     // C: mesmo CNPEM, existe em F1 SEM vendas no período (só vendeu em 2025)
-    const C = await mk(7000003, "IBUPROFENO C 400", [{ f: f1.id }], [{ f: f1.id, ano: 2025, mes: 6, qty: 3, bruto: 36.9 }], "Ibuprofeno");
+    const C = await mk(7000003, "IBUPROFENO C 400", [{ f: f1.id, stock: 5 }], [{ f: f1.id, ano: 2025, mes: 6, qty: 3, bruto: 36.9 }], "Ibuprofeno");
     // D: mesmo CNPEM, só existe em F3 (fora da seleção)
     const D = await mk(7000004, "IBUPROFENO D 400", [{ f: f3.id }], [{ f: f3.id, ano: 2026, mes: 3, qty: 9, bruto: 99 }], "Ibuprofeno");
     // E: MESMA DCI, CNPEM diferente
@@ -117,7 +117,16 @@ async function main() {
     const N = await mk(7000011, "QTD LIQUIDA NEGATIVA", [{ f: f1.id }], [{ f: f1.id, ano: 2026, mes: 3, qty: -2, bruto: -24.6 }]);
     const SI = await mk(7000012, "SEM IVA CONHECIDO", [{ f: f1.id, iva: null }], [{ f: f1.id, ano: 2026, mes: 3, qty: 2, bruto: 24.6 }]);
     const SC = await mk(7000013, "SEM CUSTO", [{ f: f1.id, pmc: 0 }], [{ f: f1.id, ano: 2026, mes: 3, qty: 2, bruto: 24.6 }]);
-    void [F, G, H, I, Z, N, SI, SC, D, E, C, B];
+    // grupo CNPEM 50000003: comparação filtrada por vendas OU stock, ordenação e «mostrar todos»
+    const jun = { ano: 2026, mes: 6 };
+    const N0 = await mk(7000030, "NOVO ZZ ANALISADO SEM NADA", [{ f: f1.id }], []);
+    const N1 = await mk(7000031, "novo ácido b VENDAS SO", [{ f: f1.id }], [{ f: f1.id, ano: 2026, mes: 3, qty: 4, bruto: 49.2 }]);
+    const N2 = await mk(7000032, "NOVO ACIDO A STOCK SO", [{ f: f1.id, stock: 3 }], []);
+    const N3 = await mk(7000033, "NOVO ZERO E ZERO", [{ f: f1.id }], []);
+    const N4 = await mk(7000034, "NOVO ÁGUA VENDAS E STOCK", [{ f: f1.id, stock: 9 }], [{ f: f1.id, ...jun, qty: 2, bruto: 24.6 }]);
+    const N5 = await mk(7000035, "NOVO FORA DA SELECAO", [{ f: f3.id, stock: 50 }], []);
+    const N6 = await mk(7000036, "NOVO STOCK ZERO", [{ f: f1.id, stock: 0 }], []);
+    void [F, G, H, I, Z, N, SI, SC, D, E, C, B, N0, N1, N2, N3, N4, N5, N6];
 
     // ficheiro do INFARMED: inclui um CNP inexistente (7099999) com o MESMO CNPEM
     const ficheiro = lerFicheiroInfarmed(xlsBuf([
@@ -127,12 +136,13 @@ async function main() {
       L("7000004", 50000001, "Ibuprofeno D INFARMED", 3.8, 2.4),
       L("7000005", 50000002, "Ibuprofeno E INFARMED", 4.5, 3.1),
       L("7000006", 50000001, "Ibuprofeno F INFARMED", 3.9, 2.5),
+      ...[7000030, 7000031, 7000032, 7000033, 7000034, 7000035, 7000036].map((c) => L(String(c), 50000003, `Novo ${c} INFARMED`, 2, 1)),
       L("7000008", 50000008, "Sozinho INFARMED", 1, 0.5),
       L("7000009", 50000009, "Precisao INFARMED", 1, 0.5),
       L("7099999", 50000001, "SO NO FICHEIRO", 9.9, 9.9),
     ]));
     const ap = await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "CARGA_INICIAL", apply: true });
-    check(ap.resultado === "APLICADA" && ap.produtosAssociados === 8, "regulamentar carregado (8 produtos existentes, 1 CNP só no ficheiro)");
+    check(ap.resultado === "APLICADA" && ap.produtosAssociados === 15, "regulamentar carregado (15 produtos existentes, 1 CNP só no ficheiro)");
 
     const periodo = { from: "2026-01-01", to: "2026-12-31", farmaciaNomes: ["Farmácia Um", "Farmácia Dois"] };
     const umaFarm = { ...periodo, farmaciaNomes: ["Farmácia Um"] };
@@ -207,7 +217,9 @@ async function main() {
     check(so2025.linhas.find((l) => l.cnp === 7000001)!.semVendasNoPeriodo, "…e A passa a não ter vendas em 2025");
     const maio = await getMargensComparacaoCnpem({ from: "2026-06-01", to: "2026-06-30", farmaciaNomes: ["Farmácia Um"] }, 7000001);
     if (maio.estado !== "OK") throw new Error("junho falhou");
-    check(maio.linhas.find((l) => l.cnp === 7000001)!.qtdVendida === 2 && maio.linhas.find((l) => l.cnp === 7000002)!.semVendasNoPeriodo, "período de um mês: só A (2 un); B sem vendas nesse mês");
+    check(maio.linhas.find((l) => l.cnp === 7000001)!.qtdVendida === 2 && !maio.linhas.some((l) => l.cnp === 7000002), "período de um mês: só A (2 un); B (sem vendas nesse mês e sem stock) fica oculto por omissão");
+    const maioTodos = await getMargensComparacaoCnpem({ from: "2026-06-01", to: "2026-06-30", farmaciaNomes: ["Farmácia Um"] }, 7000001, { mostrarTodos: true });
+    check(maioTodos.estado === "OK" && maioTodos.linhas.find((l) => l.cnp === 7000002)?.semVendasNoPeriodo === true, "…e com «mostrar todos» aparece, sem vendas nesse mês");
 
     secao("F · sem CNPEM / sem alternativas");
     check((await getMargensComparacaoCnpem(umaFarm, 7000007)).estado === "SEM_CNPEM", "produto sem CNPEM → SEM_CNPEM (sem comparação)");
@@ -227,6 +239,39 @@ async function main() {
     const { reverterVersaoInfarmed } = await import("../../lib/regulamentar/infarmed-aplicar");
     await reverterVersaoInfarmed(prisma, { apply: true });
     check((await getMargensComparacaoCnpem(umaFarm, 7000001)).estado === "SEM_CNPEM", "sem versão ativa não há CNPEM (e nada é inventado)");
+
+    secao("K · comparação por CNPEM: só artigos com vendas OU stock; «mostrar todos»; ordem alfabética");
+    await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "MANUAL", apply: true, forcar: true }); // volta a haver versão ativa (a secção H reverteu-a)
+    const kOnde = { from: "2026-01-01", to: "2026-12-31", farmaciaNomes: ["Farmácia Um"] };
+    const k1 = await getMargensComparacaoCnpem(kOnde, 7000033);
+    if (k1.estado !== "OK") throw new Error("K1");
+    const cnpsK = k1.linhas.map((l) => l.cnp);
+    check(cnpsK.includes(7000033), "o artigo analisado (zero vendas e zero stock) fica SEMPRE visível");
+    check(cnpsK.includes(7000031) && cnpsK.includes(7000032) && cnpsK.includes(7000034), "aparecem: só vendas (7000031), só stock (7000032) e vendas+stock (7000034)");
+    check(!cnpsK.includes(7000030) && !cnpsK.includes(7000036), "ficam escondidos os artigos com ZERO vendas E ZERO stock (7000030 sem stock; 7000036 com stock 0)");
+    check(!cnpsK.includes(7000035), "stock numa farmácia fora da seleção não conta nem aparece");
+    check(k1.ocultos === 2 && !k1.mostrarTodos && k1.outrosArtigos === 3, `ocultos=${k1.ocultos}, outros apresentados=${k1.outrosArtigos}`);
+    check(k1.linhas.map((l) => l.designacao).join("|") === ["NOVO ACIDO A STOCK SO", "novo ácido b VENDAS SO", "NOVO ÁGUA VENDAS E STOCK", "NOVO ZERO E ZERO"].join("|"), "ordem alfabética pela designação, sem distinguir maiúsculas nem acentos (acido a < ácido b < água < zero)");
+    const k2 = await getMargensComparacaoCnpem(kOnde, 7000033, { mostrarTodos: true });
+    if (k2.estado !== "OK") throw new Error("K2");
+    check(k2.mostrarTodos && k2.ocultos === 0 && k2.outrosArtigos === 5, `«mostrar todos»: ${k2.outrosArtigos} outros, 0 ocultos`);
+    check(k2.linhas.some((l) => l.cnp === 7000030) && k2.linhas.some((l) => l.cnp === 7000036) && !k2.linhas.some((l) => l.cnp === 7000035), "…aparecem também os sem vendas e sem stock, mas só os da farmácia selecionada");
+    check(new Set(k2.linhas.map((l) => `${l.cnp}@${l.farmacia}`)).size === k2.linhas.length, "sem artigos duplicados");
+    check(k2.linhas.map((l) => l.designacao).join("|") === [...k2.linhas.map((l) => l.designacao)].sort((a, b) => a.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().localeCompare(b.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase())).join("|"), "a ordem alfabética mantém-se com «mostrar todos»");
+    const k3 = await getMargensComparacaoCnpem({ ...kOnde, from: "2026-06-01", to: "2026-06-30" }, 7000033);
+    if (k3.estado !== "OK") throw new Error("K3");
+    check(!k3.linhas.some((l) => l.cnp === 7000031) && k3.linhas.some((l) => l.cnp === 7000034) && k3.linhas.some((l) => l.cnp === 7000032), "mudar o período aplica a regra ao novo período: 7000031 (vendas só em março) cai, 7000034 (junho) e 7000032 (stock) ficam");
+    const k4 = await getMargensComparacaoCnpem({ ...kOnde, farmaciaNomes: ["Farmácia Um", "Farmácia Três"] }, 7000033);
+    if (k4.estado !== "OK") throw new Error("K4");
+    check(k4.linhas.some((l) => l.cnp === 7000035), "com a farmácia Três selecionada, o artigo com stock lá passa a aparecer");
+    const k5 = await getMargensComparacaoCnpem(kOnde, 7000031);
+    if (k5.estado !== "OK") throw new Error("K5");
+    check(k5.linhas.some((l) => l.cnp === 7000031 && l.stockAtual === null) && k5.linhas.find((l) => l.cnp === 7000032)!.stockAtual === 3, "as linhas trazem o stock atual (vindo da MESMA consulta)");
+    const mesmoMotor = (await getMargensData(kOnde)).porProduto.find((l) => l.cnp === 7000031)!;
+    check(mesmoMotor.margemUnitaria === k5.linhas.find((l) => l.cnp === 7000031)!.margemUnitaria && mesmoMotor.qtdVendida === 4, "os valores continuam a ser os do mesmo motor de cálculo");
+    secao("L · ordenação alfabética por omissão no mapa de Margens");
+    const ordMapa = (await getMargensData({ ...kOnde, pesquisa: "NOVO" })).porProduto.map((l) => l.designacao);
+    check(ordMapa.join("|") === [...ordMapa].sort((a, b) => a.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().localeCompare(b.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase())).join("|") && ordMapa.length >= 2, "o mapa de Margens vem ordenado A–Z (sem distinguir maiúsculas/acentos): " + ordMapa.join(" | "));
 
     secao("J · Catálogo — ficha regulamentar e CNPEM pesquisável");
     await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "MANUAL", apply: true, forcar: true });
@@ -249,7 +294,7 @@ async function main() {
     const fB = await prismaB.farmacia.create({ data: { nome: "Farmácia Um" } });
     const pa = await prismaB.produto.create({ data: { cnp: 7000001, designacao: "A no tenant B" } });
     const px = await prismaB.produto.create({ data: { cnp: 7000777, designacao: "ESTRANHO NO TENANT B" } });
-    for (const p of [pa, px]) await prismaB.produtoFarmacia.create({ data: { produtoId: p.id, farmaciaId: fB.id, pmc: 6, taxaIvaPercent: 23 } });
+    for (const p of [pa, px]) await prismaB.produtoFarmacia.create({ data: { produtoId: p.id, farmaciaId: fB.id, pmc: 6, taxaIvaPercent: 23, stockAtual: 4 } });
     await aplicarVersaoInfarmed(prismaB, lerFicheiroInfarmed(xlsBuf([L("7000001", 50000001, "A B", 1, 1), L("7000777", 50000001, "X B", 1, 1)])), { origem: "CARGA_INICIAL", apply: true });
     // tenant A: volta a aplicar para ter versão ativa, e confirma que não vê o produto do tenant B
     await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "MANUAL", apply: true, forcar: true });

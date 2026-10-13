@@ -649,7 +649,10 @@ type EstadoComparacao =
 
 const N_COLUNAS_PRODUTO = 18;
 
-const MAPA_VAZIO: Map<number, EstadoComparacao> = new Map();
+const MAPA_VAZIO: Map<string, EstadoComparacao> = new Map();
+
+/** Chave do pedido de comparação: o artigo E se «mostrar todos» está ligado. */
+const chaveComparacao = (cnp: number, todos: boolean) => `${cnp}:${todos ? 1 : 0}`;
 
 /** Identidade estável (por referência) de um resultado — para saber quando muda. */
 const IDS_RESULTADO = new WeakMap<object, number>();
@@ -689,7 +692,9 @@ function TabelaProduto({
   // e as comparações guardadas deixam de valer — as linhas expandidas voltam
   // a pedir os dados novos. Derivado no render (sem setState em efeitos).
   const chaveAtual = `${identidadeDe(resultadoId)}|${filtrosSerial}`;
-  const [cache, setCache] = useState<{ chave: string; mapa: Map<number, EstadoComparacao> }>({
+  /** CNP dos artigos com «Mostrar todos os artigos do mesmo CNPEM» ligado (desligado por omissão). */
+  const [mostrarTodos, setMostrarTodos] = useState<Set<number>>(new Set());
+  const [cache, setCache] = useState<{ chave: string; mapa: Map<string, EstadoComparacao> }>({
     chave: chaveAtual,
     mapa: new Map(),
   });
@@ -698,12 +703,12 @@ function TabelaProduto({
   const pedidos = useRef(new Set<string>());
   const [tentativa, setTentativa] = useState(0);
 
-  const guardar = (chave: string, cnp: number, est: EstadoComparacao | null) => {
+  const guardar = (chave: string, chaveCmp: string, est: EstadoComparacao | null) => {
     if (chaveRef.current !== chave) return; // resposta de um cálculo que já não é o atual
     setCache((prev) => {
       const mapa = new Map(prev.chave === chave ? prev.mapa : []);
-      if (est) mapa.set(cnp, est);
-      else mapa.delete(cnp);
+      if (est) mapa.set(chaveCmp, est);
+      else mapa.delete(chaveCmp);
       return { chave, mapa };
     });
   };
@@ -719,18 +724,20 @@ function TabelaProduto({
   useEffect(() => {
     chaveRef.current = chaveAtual;
     for (const cnp of cnpsExpandidos) {
-      const pk = `${chaveAtual}|${cnp}`;
+      const todos = mostrarTodos.has(cnp);
+      const ck = chaveComparacao(cnp, todos);
+      const pk = `${chaveAtual}|${ck}`;
       if (pedidos.current.has(pk)) continue;
       pedidos.current.add(pk);
       const chave = chaveAtual;
       const f = JSON.parse(filtrosSerial) as SharedReportFilters;
-      runMargensComparacaoCnpem(f, cnp).then(
-        (dados) => guardar(chave, cnp, { tipo: "pronto", dados }),
-        (err) => guardar(chave, cnp, { tipo: "erro", mensagem: err instanceof Error ? err.message : String(err) }),
+      runMargensComparacaoCnpem(f, cnp, todos).then(
+        (dados) => guardar(chave, ck, { tipo: "pronto", dados }),
+        (err) => guardar(chave, ck, { tipo: "erro", mensagem: err instanceof Error ? err.message : String(err) }),
       );
     }
     // `guardar` só usa refs e o setter — estável.
-  }, [cnpsExpandidos, chaveAtual, filtrosSerial, tentativa]);
+  }, [cnpsExpandidos, chaveAtual, filtrosSerial, tentativa, mostrarTodos]);
 
   function alternarLinha(r: MargemRow) {
     const k = chaveLinha(r);
@@ -742,9 +749,18 @@ function TabelaProduto({
     });
   }
   function tentarOutraVez(cnp: number) {
-    pedidos.current.delete(`${chaveAtual}|${cnp}`);
-    guardar(chaveAtual, cnp, null);
+    const ck = chaveComparacao(cnp, mostrarTodos.has(cnp));
+    pedidos.current.delete(`${chaveAtual}|${ck}`);
+    guardar(chaveAtual, ck, null);
     setTentativa((n) => n + 1);
+  }
+  function alternarMostrarTodos(cnp: number, ligado: boolean) {
+    setMostrarTodos((prev) => {
+      const novo = new Set(prev);
+      if (ligado) novo.add(cnp);
+      else novo.delete(cnp);
+      return novo;
+    });
   }
 
   if (rows.length === 0) {
@@ -788,7 +804,8 @@ function TabelaProduto({
               const k = chaveLinha(r);
               const aberta = expandidas.has(k);
               const painelId = `comparacao-${r.cnp}-${r.farmaciaId}`;
-              const comp = comparacoes.get(r.cnp);
+              const todosLigado = mostrarTodos.has(r.cnp);
+              const comp = comparacoes.get(chaveComparacao(r.cnp, todosLigado));
               return (
                 <Fragment key={k}>
                   <LinhaMargem
@@ -819,6 +836,8 @@ function TabelaProduto({
                       estado={comp}
                       umaFarmacia={umaFarmacia}
                       onRepetir={() => tentarOutraVez(r.cnp)}
+                      mostrarTodos={todosLigado}
+                      onMostrarTodos={(v) => alternarMostrarTodos(r.cnp, v)}
                     />
                   )}
                 </Fragment>
@@ -914,12 +933,16 @@ function ComparacaoCnpemLinhas({
   estado,
   umaFarmacia,
   onRepetir,
+  mostrarTodos,
+  onMostrarTodos,
 }: {
   id: string;
   origem: MargemRow;
   estado: EstadoComparacao | undefined;
   umaFarmacia: boolean;
   onRepetir: () => void;
+  mostrarTodos: boolean;
+  onMostrarTodos: (ligado: boolean) => void;
 }) {
   const onde = umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas";
   const mensagem = (texto: React.ReactNode, tom: "neutro" | "erro" = "neutro") => (
@@ -944,15 +967,31 @@ function ComparacaoCnpemLinhas({
   if (d.estado === "SEM_CNPEM") return mensagem("CNPEM não disponível");
   const analisado = d.linhas.find((l) => l.cnp === origem.cnp && l.farmaciaId === origem.farmaciaId);
   const comparaveis = d.linhas.filter((l) => l !== analisado);
-  if (d.outrosArtigos === 0 && comparaveis.length === 0) {
+  if (d.outrosArtigos === 0 && comparaveis.length === 0 && d.ocultos === 0) {
     return mensagem(`Não existem outros artigos com o mesmo CNPEM ${onde}`);
   }
   return (
     <>
       <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem">
         <td />
-        <td colSpan={N_COLUNAS_PRODUTO - 1} className="py-1.5 pr-3 text-[11px] font-semibold text-indigo-800">
-          Mesmo CNPEM {d.cnpem} — {d.outrosArtigos} outro{d.outrosArtigos === 1 ? "" : "s"} artigo{d.outrosArtigos === 1 ? "" : "s"} {umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas"}
+        <td colSpan={N_COLUNAS_PRODUTO - 1} className="py-1.5 pr-3 text-[11px] text-indigo-800">
+          <span className="font-semibold" data-testid="comparacao-contagem">
+            Mesmo CNPEM {d.cnpem} — {d.outrosArtigos} outro{d.outrosArtigos === 1 ? "" : "s"} artigo{d.outrosArtigos === 1 ? "" : "s"} {onde}
+          </span>
+          {d.ocultos > 0 && (
+            <span className="ml-2 font-normal text-slate-600" data-testid="comparacao-ocultos">
+              ({d.ocultos} sem vendas no período e sem stock {d.ocultos === 1 ? "oculto" : "ocultos"})
+            </span>
+          )}
+          <label className="ml-4 inline-flex cursor-pointer items-center gap-1.5 font-normal text-slate-700">
+            <input
+              type="checkbox"
+              data-testid="comparacao-mostrar-todos"
+              checked={mostrarTodos}
+              onChange={(e) => onMostrarTodos(e.target.checked)}
+            />
+            Mostrar todos os artigos do mesmo CNPEM
+          </label>
         </td>
       </tr>
       {analisado && (

@@ -64,6 +64,7 @@ import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
 import { resolverProdutoIdsPorLaboratoriosSelecionados } from "@/lib/reporting/resolver-laboratorio-selecionado";
 import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
 import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
+import { SQL_ORDEM_ARTIGOS, ordenarArtigos } from "@/lib/ordenacao-artigos";
 
 export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "IVA_POR_APURAR";
 
@@ -136,6 +137,8 @@ export type MargemRow = {
   semVendasNoPeriodo: boolean;
   /** ProdutoFarmacia.flagRetirado. */
   retirado: boolean;
+  /** Stock atual nesta farmácia (ProdutoFarmacia.stockAtual); null se desconhecido. */
+  stockAtual: number | null;
 };
 
 export type MargensAgg = {
@@ -420,6 +423,7 @@ export async function getMargensData(
       precoUtenteEspecial: string | null;
       sem_vendas: boolean;
       retirado: boolean;
+      stockAtual: string | null;
       cnp: number;
       designacao: string;
       fabricante: string | null;
@@ -458,6 +462,7 @@ export async function getMargensData(
       prg."precoUtenteEspecial"::text AS "precoUtenteEspecial",
       src.sem_vendas                AS sem_vendas,
       COALESCE(pf."flagRetirado", false) AS retirado,
+      pf."stockAtual"::text         AS "stockAtual",
       p."cnp"                       AS cnp,
       p."designacao"                AS designacao,
       fab."nomeNormalizado"         AS fabricante,
@@ -478,11 +483,12 @@ export async function getMargensData(
       ON pf."produtoId" = src."produtoId" AND pf."farmaciaId" = src."farmaciaId"
     LEFT JOIN "ProdutoRegulamentar" prg
       ON prg."produtoId" = p.id AND prg."importacaoId" = (SELECT id FROM ativa)
+    LEFT JOIN "Farmacia" fa ON fa.id = src."farmaciaId"
     WHERE 1 = 1
       ${distrCond}
       ${prodIdCond}
       ${pesquisaCond}
-    ORDER BY p."designacao" ASC, src."farmaciaId" ASC
+    ORDER BY ${Prisma.raw(SQL_ORDEM_ARTIGOS)}
   `);
 
   // ── Classificações em batch para resolveCategoria ───────────────
@@ -621,6 +627,7 @@ export async function getMargensData(
       precoUtenteEspecial: numOrNull(r.precoUtenteEspecial),
       semVendasNoPeriodo: semVendas,
       retirado: r.retirado === true,
+      stockAtual: numOrNull(r.stockAtual),
     };
   });
 
@@ -771,21 +778,35 @@ export type ComparacaoCnpem =
   | {
       estado: "OK";
       cnpem: string;
-      /** Todos os pares artigo×farmácia do CNPEM na seleção (inclui o analisado). */
+      /** Pares artigo×farmácia APRESENTADOS (inclui o analisado), por designação A–Z, CNP, farmácia. */
       linhas: MargemRow[];
-      /** Artigos DISTINTOS do CNPEM, além do analisado, que existem nas farmácias selecionadas. */
+      /** Artigos DISTINTOS apresentados, além do analisado. */
       outrosArtigos: number;
+      /** Artigos do mesmo CNPEM escondidos por não terem vendas no período NEM stock (0 com «mostrar todos»). */
+      ocultos: number;
+      mostrarTodos: boolean;
     };
+
+/**
+ * Regra de relevância da comparação (por ARTIGO, sobre as farmácias selecionadas):
+ *   mostra o artigo se teve vendas no período (movimento em pelo menos uma das
+ *   farmácias) OU tem stock atual > 0 em pelo menos uma delas. Escondidos por
+ *   omissão: zero vendas E zero stock em TODAS. O artigo analisado nunca se esconde.
+ */
+export function artigoRelevanteNaComparacao(linhasDoArtigo: ReadonlyArray<Pick<MargemRow, "semVendasNoPeriodo" | "stockAtual">>): boolean {
+  return linhasDoArtigo.some((l) => !l.semVendasNoPeriodo || (l.stockAtual ?? 0) > 0);
+}
 
 /**
  * Comparação de um artigo com os restantes do mesmo CNPEM que existem na
  * base de dados das farmácias selecionadas. O CNPEM resolve-se SEMPRE no
  * servidor, a partir do CNP (versão ativa do INFARMED) — nunca vem do cliente.
- * Só leitura.
+ * Só leitura. Uma só consulta (vendas, stock e CNPEM vêm no mesmo SQL).
  */
 export async function getMargensComparacaoCnpem(
   filters: SharedReportFilters,
   cnp: number,
+  opcoes: { mostrarTodos?: boolean } = {},
 ): Promise<ComparacaoCnpem> {
   if (!Number.isInteger(cnp) || cnp <= 0) return { estado: "SEM_CNPEM" };
   const prisma = await getPrisma();
@@ -796,6 +817,19 @@ export async function getMargensComparacaoCnpem(
   const cnpem = reg?.cnpem?.trim();
   if (!cnpem) return { estado: "SEM_CNPEM" };
   const r = await getMargensData(filters, { comparacaoCnpem: cnpem });
-  const outros = new Set(r.porProduto.filter((l) => l.cnp !== cnp).map((l) => l.cnp));
-  return { estado: "OK", cnpem, linhas: r.porProduto, outrosArtigos: outros.size };
+  const porArtigo = new Map<number, MargemRow[]>();
+  for (const l of r.porProduto) porArtigo.set(l.cnp, [...(porArtigo.get(l.cnp) ?? []), l]);
+  const mostrarTodos = opcoes.mostrarTodos === true;
+  const visiveis = new Set<number>();
+  let ocultos = 0;
+  for (const [c, ls] of porArtigo) {
+    if (mostrarTodos || c === cnp || artigoRelevanteNaComparacao(ls)) visiveis.add(c);
+    else ocultos += 1;
+  }
+  const linhas = ordenarArtigos(
+    r.porProduto.filter((l) => visiveis.has(l.cnp)),
+    (l) => ({ designacao: l.designacao, cnp: l.cnp, farmacia: l.farmacia }),
+  );
+  const outros = new Set(linhas.filter((l) => l.cnp !== cnp).map((l) => l.cnp));
+  return { estado: "OK", cnpem, linhas, outrosArtigos: outros.size, ocultos, mostrarTodos };
 }

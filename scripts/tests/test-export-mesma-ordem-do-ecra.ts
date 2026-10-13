@@ -74,7 +74,14 @@ console.log("\nB · verificação estática — cada ecrã exporta a MESMA vari�
   const ler = (caminho: string) => readFileSync(new URL(`../../${caminho}`, import.meta.url), "utf8");
 
   const vendas = ler("components/vendas/vendas-client.tsx");
-  check(/rows:\s*ambito === "comparativo" \? comparativoRows : rowsOrdenadas,/.test(vendas), "B1 (Vendas): exporta rowsOrdenadas (ou comparativoRows em comparativo) — não orderedRows");
+  // (2026-10) o relatório exporta as linhas da tabela FILTRADAS pelos artigos selecionados para impressão:
+  // `linhasImprimiveis` é exatamente a variável que a tabela renderiza e `linhasParaRelatorio` é só ela sem os desmarcados.
+  check(
+    /const linhasImprimiveis = ambito === "comparativo" \? comparativoRows : rowsOrdenadas;/.test(vendas) &&
+      /const linhasParaRelatorio = selecaoAplicavel \? linhasImprimiveis\.filter\(/.test(vendas) &&
+      /rows:\s*linhasParaRelatorio,/.test(vendas),
+    "B1 (Vendas): exporta rowsOrdenadas (ou comparativoRows em comparativo), só com os artigos selecionados — não orderedRows",
+  );
   check(!/report={\(\) =>\s*\n\s*buildVendasReport\(\{\s*\n\s*rows: orderedRows,/.test(vendas), "B2 (Vendas): já não exporta orderedRows directamente");
 
   const transferencias = ler("components/transferencias/transferencias-client.tsx");
@@ -140,7 +147,7 @@ console.log("\nC · Transferências/Excessos/Devoluções/Margens/Inventário �
     cnp: 1000001, designacao: "P", categoria: "C", grupo: null, farmaciaId: "f1", farmacia: "Farmácia Alfa",
     fabricante: "F", qtdVendida: 1, pvpUnitario: 1, valorVendido: 1, taxaIva: 23, valorVendidoSemIva: 0.81,
     custoUnitario: 1, custoUnitarioBase: 1, custoEstimado: 1, margemEur: 0, margemPct: 0, coberturaCusto: 1,
-    estado: "FIAVEL", produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, ...over,
+    estado: "FIAVEL", produtoId: "p-teste", margemUnitaria: null, cnpem: null, precoUtenteGeral: null, precoUtenteEspecial: null, semVendasNoPeriodo: false, retirado: false, stockAtual: null, ...over,
   });
   const relM = buildMargensProdutoReport({
     rows: [
