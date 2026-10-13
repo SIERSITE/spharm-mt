@@ -239,7 +239,7 @@ console.log("\nD · ELIMINADA sai das listagens normais por omissão\n");
 {
   const ordersData = src("lib/encomendas/orders-data.ts");
   check(
-    /where\.estado\s*=\s*\{\s*not:\s*"ELIMINADA"\s*\}/.test(ordersData),
+    /notIn:\s*filters\.mostrarAnuladas\s*\?\s*\["ELIMINADA"\]\s*:\s*\["ELIMINADA",\s*"ANULADA"\]/.test(ordersData),
     "loadOrderListData filtra ELIMINADA quando não há filtro de estado explícito"
   );
 }

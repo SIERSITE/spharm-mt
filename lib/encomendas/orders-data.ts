@@ -59,6 +59,12 @@ export type OrderRow = {
 export type OrderListFilters = {
   farmaciaId?: string;
   estado?: EstadoListaEncomenda;
+  /**
+   * Incluir as encomendas ANULADAS na listagem. Desligado por omissão.
+   * Só tem efeito SEM `estado` explícito: com um estado escolhido a
+   * pergunta já está respondida (ver `condicaoEstadoLista`).
+   */
+  mostrarAnuladas?: boolean;
   estadoExport?: OrderExportState;
   search?: string;
   dateFrom?: Date;
@@ -89,6 +95,22 @@ export function clampPage(n: number): number {
   return Math.max(1, Math.floor(n));
 }
 
+/**
+ * A ÚNICA regra de que estados a listagem mostra — usada pelo `findMany`
+ * E pelo `count` (portanto a paginação e os totais refletem sempre o
+ * mesmo filtro, calculado na base de dados e não no cliente).
+ *
+ *   · estado explícito (incl. ANULADA) → exatamente esse estado;
+ *   · sem estado → tudo menos ELIMINADA (soft-delete) e, salvo pedido
+ *     explícito (`mostrarAnuladas`), menos ANULADA.
+ */
+export function condicaoEstadoLista(
+  filters: Pick<OrderListFilters, "estado" | "mostrarAnuladas">,
+): Prisma.ListaEncomendaWhereInput["estado"] {
+  if (filters.estado) return filters.estado;
+  return { notIn: filters.mostrarAnuladas ? ["ELIMINADA"] : ["ELIMINADA", "ANULADA"] };
+}
+
 export async function loadOrderListData(
   prisma: PrismaClient,
   filters: OrderListFilters
@@ -98,14 +120,10 @@ export async function loadOrderListData(
 
   const where: Prisma.ListaEncomendaWhereInput = {};
   if (filters.farmaciaId) where.farmaciaId = filters.farmaciaId;
-  if (filters.estado) {
-    where.estado = filters.estado;
-  } else {
-    // Soft-delete (ver enum `EstadoListaEncomenda`): sem filtro explícito,
-    // uma encomenda ELIMINADA nunca aparece na listagem normal. A row e
-    // as suas linhas continuam na BD — só saem daqui.
-    where.estado = { not: "ELIMINADA" };
-  }
+  // Soft-delete (ver enum `EstadoListaEncomenda`): uma encomenda ELIMINADA
+  // nunca aparece na listagem normal; uma ANULADA só quando se pede. As rows
+  // e as linhas continuam na BD — só saem daqui.
+  where.estado = condicaoEstadoLista(filters);
   if (filters.estadoExport) where.estadoExport = filters.estadoExport;
   if (filters.search && filters.search.trim().length > 0) {
     where.nome = { contains: filters.search.trim(), mode: "insensitive" };

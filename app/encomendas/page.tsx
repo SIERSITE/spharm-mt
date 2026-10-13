@@ -13,7 +13,7 @@ import type { OrderExportState, EstadoListaEncomenda } from "@/generated/prisma/
 
 export const dynamic = "force-dynamic";
 
-const VALID_ESTADOS: EstadoListaEncomenda[] = ["RASCUNHO", "FINALIZADA", "EXPORTADA"];
+const VALID_ESTADOS: EstadoListaEncomenda[] = ["RASCUNHO", "FINALIZADA", "EXPORTADA", "ANULADA"];
 const VALID_ESTADO_EXPORT: OrderExportState[] = [
   "PENDENTE",
   "EM_EXPORTACAO",
@@ -50,9 +50,15 @@ function parseFilters(
       ? (estadoExportStr as OrderExportState)
       : undefined;
 
+  // `anuladas=1`: mostrar também as anuladas. Sem efeito com um estado
+  // escolhido (a combinação seria redundante ou impossível) — a URL
+  // canónica nunca leva os dois.
+  const mostrarAnuladas = !estado && asString(sp.anuladas) === "1";
+
   return {
     farmaciaId: asString(sp.farmacia) || undefined,
     estado,
+    mostrarAnuladas,
     estadoExport,
     search: asString(sp.q) || undefined,
     dateFrom: asDate(asString(sp.from)),

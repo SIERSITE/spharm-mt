@@ -38,6 +38,9 @@ function passaFiltroEstado(l: FakeLista, estado: unknown): boolean {
   if (estado && typeof estado === "object" && "not" in (estado as object)) {
     return l.estado !== (estado as { not: string }).not;
   }
+  if (estado && typeof estado === "object" && "notIn" in (estado as object)) {
+    return !(estado as { notIn: string[] }).notIn.includes(l.estado);
+  }
   if (typeof estado === "string") return l.estado === estado;
   return true;
 }
