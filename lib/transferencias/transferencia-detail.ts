@@ -1,4 +1,5 @@
 import "server-only";
+import { ordenarArtigos } from "@/lib/ordenacao-artigos";
 import { getPrisma } from "@/lib/prisma";
 import type { EstadoTransferencia } from "@/generated/prisma/client";
 
@@ -102,7 +103,8 @@ export async function loadTransferenciasDetail(ids: readonly string[]): Promise<
       motivoAnulacao: t.motivoAnulacao,
       anuladoPorNome: t.anuladoPor?.nome ?? null,
       anuladoEm: t.anuladoEm,
-      linhas: t.linhas.map((l) => ({
+      // Ordem por omissão: designação A–Z (CNP a desempatar).
+      linhas: ordenarArtigos(t.linhas.map((l) => ({
         produtoId: l.produtoId,
         cnp: l.produto.cnp,
         // Snapshot capturado na criação (ver criar-transferencia.ts) tem
@@ -115,7 +117,7 @@ export async function loadTransferenciasDetail(ids: readonly string[]): Promise<
         fabricante: l.produto.fabricante?.nomeNormalizado ?? null,
         quantidade: toF(l.quantidade),
         notas: l.notas,
-      })),
+      })), (l) => ({ designacao: l.designacao, cnp: l.cnp })),
     }));
 }
 

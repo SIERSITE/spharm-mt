@@ -69,6 +69,7 @@ import {
   useOrdenacao,
 } from "@/components/ui/cabecalho-ordenavel";
 import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+import { ordenarArtigos } from "@/lib/ordenacao-artigos";
 import {
   fundirComProposta,
   rotuloOrigem,
@@ -388,10 +389,7 @@ export function OrderCreateClient({
   // O estado inicial preserva EXACTAMENTE o comportamento anterior:
   // vendas decrescentes. Arrancar sem ordenação mudaria a primeira
   // coisa que o utilizador vê ao gerar uma proposta.
-  const { ordenacao, alternar } = useOrdenacao<ColunaEncomenda>({
-    coluna: "salesQty",
-    direcao: "desc",
-  });
+  const { ordenacao, alternar, setOrdenacao } = useOrdenacao<ColunaEncomenda>(null);
 
   // ─── Picker manual ────────────────────────────────────────────────────────
   const [manualOpen, setManualOpen] = useState(false);
@@ -1302,6 +1300,11 @@ export function OrderCreateClient({
 
     // A ordenação vem DEPOIS dos filtros, sobre a lista já filtrada:
     // o utilizador ordena o que está a ver.
+    // Sem ordenação escolhida: designação A–Z (CNP e farmácia a desempatar).
+    // Escolher um cabeçalho prevalece; «Limpar filtros» volta a esta ordem.
+    if (!ordenacao) {
+      return ordenarArtigos(list, (l) => ({ designacao: l.designacao, cnp: l.cnp, farmacia: l.farmaciaNome }));
+    }
     return ordenarLinhas(list, ordenacao, acessorEncomenda);
   }, [
     linhas,
@@ -1620,11 +1623,9 @@ export function OrderCreateClient({
       const gp = priority[g.estadoPriority];
       if (ep > gp) g.estadoPriority = l.estado ?? g.estadoPriority;
     }
-    return [...byProduct.values()].sort(
-      (a, b) =>
-        (priority[b.estadoPriority] ?? 0) - (priority[a.estadoPriority] ?? 0) ||
-        b.totalFinalQty - a.totalFinalQty
-    );
+    // Consolidação: artigos por designação A–Z (CNP a desempatar). A prioridade do
+    // estado continua visível em cada linha; já não manda na ordem.
+    return ordenarArtigos([...byProduct.values()], (g) => ({ designacao: g.designacao, cnp: g.cnp }));
   }, [linhas, mode]);
 
   // ─── Bloco D — resumo por balde (modo grupo) ───────────────────────────────
@@ -3261,7 +3262,7 @@ export function OrderCreateClient({
               )}
               {hasTableFilters && (
                 <button type="button"
-                  onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterSemFornecedor(false); setFilterFarmaciaTabela(""); }}
+                  onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterSemFornecedor(false); setFilterFarmaciaTabela(""); setOrdenacao(null); }}
                   className="ml-auto text-[11px] text-slate-500 hover:text-slate-700">
                   Limpar filtros
                 </button>

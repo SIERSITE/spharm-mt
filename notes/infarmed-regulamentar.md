@@ -210,3 +210,62 @@ repete só esses tenants; `?forcar=1` reaplica uma versão já processada.
 * Um produto criado depois da importação só ganha dados regulamentares na execução seguinte (ou numa aplicação manual: a mesma versão
   **completa** os novos).
 * O ficheiro não inclui produtos fora do circuito do medicamento (parafarmácia): ficam «sem dados regulamentares».
+
+## 11. Reconciliação com o catálogo, ordem alfabética, custo total e seleção (Tarefa C)
+
+### 11.1 Reconciliação INFARMED → `Produto`
+Motor único `lib/regulamentar/infarmed-reconciliar.ts`, usado pelo download mensal,
+pelo upload manual `/admin/infarmed` e pelo comando sobre a versão ativa.
+
+| INFARMED | `Produto` |
+| --- | --- |
+| Forma farmacêutica | `formaFarmaceutica` |
+| Dosagem | `dosagem` |
+| Tamanho da embalagem | `embalagem` |
+| Substância Ativa/DCI | `dci` |
+
+- Associação só por `Nº registo = Produto.cnp`; só linhas `presenteNoFicheiro`.
+- Valor INFARMED vazio: nunca apaga (contado «ignorado por vazio»).
+- Campo em `camposManuais`: nunca substituído (contado «ignorado por manual»).
+- Campo vazio no catálogo: preenchido; preenchido e diferente (não manual): atualizado; igual: nada.
+- Só escreve as 4 colunas e `dataAtualizacao`. `Produto.designacao` (incluindo a regra da Silveirense),
+  preços, custos, stock, fabricante e fornecedor nunca são lidos nem escritos.
+- Transacional, idempotente (2.ª execução = 0 alterações) e set-based (um UPDATE).
+- Contadores por campo: analisados, associados, preenchidos, atualizados, ignorados por manual,
+  ignorados por vazio, já iguais, sem correspondência.
+
+Comando (sobre a versão ativa; não descarrega, não altera SHA/histórico):
+
+```
+# pré-visualização (nada é escrito)
+$DC run --rm migrate npm run ops:infarmed-carga -- --reconciliar --tenant=<slugA>,<slugB>,<slugC>
+# aplicação
+$DC run --rm migrate npm run ops:infarmed-carga -- --reconciliar --apply --tenant=<slugA>,<slugB>,<slugC>
+```
+(`--todos` em vez de `--tenant=` percorre todos os tenants.) Relatório JSON `infarmed-reconciliacao-<ts>-<modo>.json`.
+
+### 11.2 Comparação CNPEM (Margens)
+Por defeito só entram artigos com vendas no período OU stock atual > 0 numa das farmácias selecionadas;
+o produto analisado aparece sempre. A opção «Mostrar todos os artigos do mesmo CNPEM» (desligada por
+omissão) mostra os restantes. A contagem reflete o apresentado e indica quantos estão ocultos.
+
+### 11.3 Ordem alfabética por omissão
+Designação sem maiúsculas/acentos → CNP → farmácia (`lib/ordenacao-artigos.ts`; SQL: `SQL_ORDEM_ARTIGOS`).
+Ecrãs: Vendas, Margens (e expansão CNPEM), Inventário, proposta de encomenda (farmácia, grupo, consolidação),
+detalhe de encomenda e de transferência (e documentos). Listagens históricas continuam cronológicas.
+Uma ordenação escolhida num cabeçalho prevalece; «Limpar filtros» repõe a alfabética. O corte da proposta
+(`MAX_LINHAS_PROPOSTA`, por vendas) não muda: só a ordem de apresentação.
+
+### 11.4 Vendas: custo total estimado
+`Custo total est.` = custo unitário estimado × quantidade líquida (mesma regra do loader). Subtotal por artigo,
+total geral e resumo. Sem custo: «—», fora da soma; o resumo mostra o nº de linhas sem custo e o rodapé
+assinala «Custo total PARCIAL». Vendas, IVA e margem não são alterados.
+
+### 11.5 Vendas: seleção de artigos a imprimir
+Checkbox por artigo (todos marcados por omissão), «selecionar todos» sobre todo o resultado filtrado,
+indicador «N de M artigos selecionados para impressão». Afeta impressão, PDF e exportações do relatório
+(totais recalculados); o ecrã não esconde linhas. Novo resultado ⇒ nova seleção; mudar filtros não alarga
+a seleção; zero selecionados bloqueia a saída com mensagem. O estado guarda só códigos.
+
+Testes: `npm run test:infarmed-reconciliacao-db`, `test:margens-cnpem-db`, `test:ordenacao-custo-selecao`.
+Sem migrations novas nesta tarefa.

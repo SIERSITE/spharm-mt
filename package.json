@@ -59,6 +59,7 @@
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
+    "test:ordenacao-custo-selecao": "tsx scripts/tests/test-ordenacao-custo-selecao.ts",
     "ops:infarmed-carga": "tsx scripts/ops/infarmed-carga-regulamentar.ts",
     "test:encomendas-anuladas-db": "tsx scripts/tests/test-encomendas-anuladas-db.ts",
     "test:margens-cnpem-db": "tsx scripts/tests/test-margens-cnpem-db.ts",

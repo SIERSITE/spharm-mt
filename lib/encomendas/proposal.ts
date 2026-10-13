@@ -9,6 +9,7 @@ import {
   type ResumoListaImportada,
 } from "@/lib/encomendas/resumo-lista";
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
+import { ordenarLinhasProposta } from "@/lib/ordenacao-artigos";
 
 /**
  * Factor aplicado à cobertura alvo para calcular excedente transferível.
@@ -550,7 +551,7 @@ export async function generateOrderProposal(
 
 
   return {
-    rows,
+    rows: ordenarLinhasProposta(rows),
     meta: {
       numDays,
       farmaciaIds: [input.farmaciaId],
@@ -753,7 +754,7 @@ export async function generateGroupProposal(
   }
 
   return {
-    rows: finalRows,
+    rows: ordenarLinhasProposta(finalRows),
     meta: {
       numDays,
       farmaciaIds: input.farmaciaIds,

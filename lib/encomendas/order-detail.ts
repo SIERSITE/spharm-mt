@@ -1,4 +1,5 @@
 import "server-only";
+import { ordenarArtigos } from "@/lib/ordenacao-artigos";
 import { getPrisma } from "@/lib/prisma";
 import type { OrderExportState, EstadoListaEncomenda, PrismaClient } from "@/generated/prisma/client";
 import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
@@ -256,7 +257,8 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
       fornecedorNome:
         d.linhas[0]?.fornecedorSugerido?.nome ?? d.linhas[0]?.fornecedorSugerido?.nomeNormalizado ?? "Fornecedor não definido",
     })),
-    linhas: lista.linhas.map((l) => ({
+    // Ordem por omissão: designação A–Z (CNP a desempatar) — não a de criação.
+    linhas: ordenarArtigos(lista.linhas.map((l) => ({
       id: l.id,
       produtoId: l.produtoId,
       origem: l.origem,
@@ -277,7 +279,7 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
       quantidadeSugerida: toF(l.quantidadeSugerida),
       quantidadeAjustada: toF(l.quantidadeAjustada),
       notas: l.notas,
-    })),
+    })), (l) => ({ designacao: l.designacao, cnp: l.cnp })),
     outbox: lista.outbox
       ? {
           id: lista.outbox.id,

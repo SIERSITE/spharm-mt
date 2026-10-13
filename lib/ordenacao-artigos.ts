@@ -58,3 +58,12 @@ export function ordenarArtigos<T>(linhas: readonly T[], chave: (l: T) => ChaveAr
  */
 export const SQL_ORDEM_ARTIGOS =
   `lower(unaccent_immutable(p."designacao")) ASC, p."cnp" ASC, lower(unaccent_immutable(COALESCE(fa."nome", ''))) ASC`;
+
+/**
+ * Ordem de APRESENTAÇÃO da proposta de encomenda: designação A–Z (CNP, farmácia).
+ * O corte por `MAX_LINHAS_PROPOSTA` continua a ser feito por vendas na consulta —
+ * o que muda é só a ordem em que as linhas escolhidas chegam ao ecrã.
+ */
+export function ordenarLinhasProposta<T extends { designacao: string; cnp: number; farmaciaNome: string }>(rows: readonly T[]): T[] {
+  return ordenarArtigos(rows, (r) => ({ designacao: r.designacao, cnp: r.cnp, farmacia: r.farmaciaNome }));
+}

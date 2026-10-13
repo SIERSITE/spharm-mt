@@ -34,6 +34,7 @@
  *   · margem só em /relatorios/margens
  */
 
+import { SQL_ORDEM_ARTIGOS } from "@/lib/ordenacao-artigos";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
@@ -347,6 +348,7 @@ export async function getInventarioData(
       pf."taxaIvaPercent"          AS "taxaIvaPercent"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto" p ON p.id = pf."produtoId"
+    LEFT JOIN "Farmacia" fa ON fa.id = pf."farmaciaId"
     LEFT JOIN vendas_90d v
       ON v."produtoId" = pf."produtoId" AND v."farmaciaId" = pf."farmaciaId"
     WHERE pf."flagRetirado" = false
@@ -354,7 +356,7 @@ export async function getInventarioData(
       ${distrCond}
       ${prodIdCond}
       ${pesquisaCond}
-    ORDER BY p."designacao" ASC
+    ORDER BY ${Prisma.raw(SQL_ORDEM_ARTIGOS)}
   `);
 
   // ── Pre-load das classificações para resolveCategoria ───────────

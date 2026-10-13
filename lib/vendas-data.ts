@@ -82,6 +82,7 @@
  * entram em nenhum outro cálculo deste ficheiro (peso, custo, etc.) — só
  * nesta soma aditiva, gated por `filters.incluirManutencao`.
  */
+import { ordenarArtigos } from "@/lib/ordenacao-artigos";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
@@ -723,7 +724,7 @@ export async function getVendasData(
     }
   }
 
-  // Ordenação default: mais vendidos primeiro. UI pode reordenar.
-  rows.sort((a, b) => b.totalVendas - a.totalVendas);
-  return { period, rows };
+  // Ordenação default: designação A–Z (CNP e farmácia a desempatar). A UI pode reordenar
+  // (incluindo «mais vendidos», que passou a ser uma escolha explícita).
+  return { period, rows: ordenarArtigos(rows, (r) => ({ designacao: r.descricao, cnp: r.codigo, farmacia: r.farmacia })) };
 }
