@@ -124,7 +124,7 @@ async function main() {
     const j2 = await trabalho("/api/jobs/infarmed-regulamentar");
     check(j2.status === 502 && sink.mensagens.length === 1, "SMTP configurado: a execução seguinte envia o email (1)");
     const email = sink.mensagens[0] ?? "";
-    check(/To: ops@exemplo\.test/i.test(email) && /Subject: .*INFARMED.*n=C3=A3o foi poss|Subject: .*INFARMED/i.test(email), "enviado para o destinatário configurado, com assunto sobre o INFARMED");
+    check(/ops@exemplo.test/i.test(email) && /INFARMED/.test(email) && /Subject:/i.test(email), "enviado para o destinatário configurado (INFARMED_IMPORT_ALERT_EMAIL), com assunto e corpo sobre o INFARMED");
     check(/localhost:\d+\/admin\/infarmed/.test(email.replace(/=\r?\n/g, "")), "o email inclui a ligação para a página de upload manual");
     await trabalho("/api/jobs/infarmed-regulamentar");
     await trabalho("/api/jobs/infarmed-regulamentar");

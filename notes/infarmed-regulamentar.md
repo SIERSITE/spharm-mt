@@ -27,6 +27,9 @@ Não faz GH, não agrupa por DCI/designação/semelhança, não cria produtos e 
 * Porquê duas tabelas e não campos novos em `Produto`: os campos de `Produto` (`dci`, `formaFarmaceutica`, `dosagem`, `embalagem`, `flagGenerico`) são a ficha curada, com proteção de campos manuais e regras de proveniência. Gravar lá os valores do INFARMED reinterpretaria dados existentes; aqui ficam como **cópia fiel, versionada e com proveniência**, e o rollback é só trocar a versão ativa (sem reescrever dados nem restaurar a base).
 * `RegulatoryRecord` (v2, 283 mil linhas do CEDIME/ANF) não foi reutilizado: é «o último import vence», sem versões, e o seu conteúdo é outra fonte.
 
+Migrations desta fase (aditivas): `20261014110000_infarmed_importacao_upload` (tenants: `InfarmedImportacao.bytes` e `.utilizadorEmail`) e, no control plane,
+`20261014100000_infarmed_atualizacao` (`InfarmedExecucao` — ledger global das execuções — e `InfarmedAlerta` — um alerta por mês, com o estado da notificação).
+
 ### Mapeamento das 13 colunas (pelo NOME do cabeçalho, não pela posição)
 
 | Coluna do ficheiro | Campo | Notas |
@@ -87,56 +90,123 @@ Linhas: zebra, separador horizontal, *hover*, seleção (`data-selecionada`, com
 
 `?anuladas=1`. Regra única `condicaoEstadoLista` (usada pelo `findMany` **e** pelo `count`): sem estado ⇒ tudo menos `ELIMINADA` e, salvo pedido, menos `ANULADA`; com estado explícito ⇒ exatamente esse estado (o filtro fica desativado, sem regras contraditórias; «Anulada» passou a ser um estado válido na URL — antes a opção existia no ecrã mas o servidor ignorava-a). Contagens, paginação e totais são calculados na base de dados. A listagem não tem filtro por fornecedor.
 
-## 7. O ponto de download do INFARMED (evidência)
+## 7. Atualização mensal (dia 1, Europe/Lisbon)
 
-Capturado em browser real (Chromium) em `https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml`:
+### Download
 
-* A «seta» é `mainForm:dt-medicamentos:btnExpExcel` (`<a>` PrimeFaces, `title` «Exportar para Excel»): faz **`POST pesquisa-avancada.xhtml;jsessionid=…`** com o formulário inteiro (`mainForm=…`, critérios, `javax.faces.ViewState`, `mainForm:dt-medicamentos:btnExpExcel=…`).
-* Precisa de **sessão** (`JSESSIONID`) e de **`ViewState`** obtidos num GET anterior, e de uma **pesquisa feita antes** (o export serve o resultado da pesquisa). Os critérios por omissão trazem `estado-aim=REF_EST_AIM:001` e `estado-comercializacao=REF_EST_COMERC:001`, que dão **9 648** registos — não os 20 915 do ficheiro entregue (que inclui «Não comercializado»).
-* Repetindo o fluxo por HTTP (GET → pesquisa → export, sem browser) a resposta foi `200` com `lista_infomed.xlsx` (`Content-Type: …spreadsheetml.sheet`, `.xlsx`), **não** o `allPackages-original.xls` (Excel 97-2003, folha `Medicamentos`, 13 colunas) entregue; a mesma ação no browser, depois de uma pesquisa real, devolveu `503` (53 bytes). Não foi possível, por este caminho, obter o ficheiro `allPackages`.
+O portal público «Pesquisa do medicamento» do INFARMED (o iframe), em
+`https://extranet.infarmed.pt/CITS-pesquisamedicamento-fo/pesquisaMedicamento.jsf`, cria sozinho uma sessão HTTP **anónima**
+(cookie `JSESSIONID`) e um `javax.faces.ViewState` no 1.º GET; o botão `form:export-all-button` é um `type="submit"` e o POST do formulário
+devolve `allPackages.xls` (Excel 97-2003, ≈ 4,6 MB, 20 915 linhas — as mesmas contagens do ficheiro de referência).
+`lib/regulamentar/infarmed-jsf.ts` faz exatamente isso, em HTTP simples:
 
-**Conclusão:** não há um endpoint estático e estável para o ficheiro `allPackages` .xls; o fluxo observado é um formulário JSF com estado, que seria *scraping* frágil. Por isso o URL **não está fixo no código**: o job lê `INFARMED_ALLPACKAGES_URL` (https). Sem URL, `GET /api/jobs/infarmed-regulamentar` responde `NAO_CONFIGURADO` e não toca em nada. A **carga manual segura** (secção 8) é o caminho garantido; quando o INFARMED (ou a ANF) disponibilizar um URL estável para o ficheiro, basta configurá-lo.
+1. `GET` da página → recolhe cookies e **todos** os campos do formulário (incluindo o ViewState) e o botão;
+2. `POST` do formulário com o botão, na mesma sessão;
+3. valida o resultado (não vazio, não HTML, assinatura OLE2, ≤ 60 MB) e depois `lerFicheiroInfarmed` (folha, 13 colunas, `Preço (PVP)`, limites).
 
-## 8. Instruções
+Sem browser, sem credenciais, sem valores de sessão fixos. O portal responde por vezes `503`: tentam-se até 5 vezes com espera crescente **só**
+perante 5xx/rede; se a estrutura da página mudar (formulário/botão/ViewState em falta) ou a resposta não for Excel, falha logo, sem contornar.
+`INFARMED_ALLPACKAGES_URL` (opcional) substitui o portal por um GET direto a esse URL https; `INFARMED_PESQUISA_URL` (opcional) muda a página do formulário.
 
-Convenção na VPS (como em `notes/instalacao-designacao-silveira.md`): `DC` = `sudo docker compose -p spharmmt --profile tools --env-file /opt/spharmmt/docker/env/platform.env --env-file /opt/spharmmt/docker/env/stack.env`, a partir de `/opt/spharmmt/docker/compose`.
+Verificado uma vez contra o portal real (13/10/2026): `200 application/vnd.ms-excel`, `allPackages.xls`, 20 915 linhas / 20 896 CNP /
+19 rejeitadas / 3 325 «preço livre». Os ensaios automáticos usam um portal simulado (sem rede).
 
-**8.1 Migrations** (aditivas; nenhuma tabela existente é tocada). `deploy-app.sh` recusa-se a correr com migrations, por isso:
+### Agendamento e idempotência
+
+O scheduler tem `timezone` por job: `infarmed-regulamentar` corre **dia 1 às 03:30 Europe/Lisbon** (03:30Z no inverno, 02:30Z no verão), uma
+vez por mês. O ficheiro é descarregado **uma só vez** e aplicado a cada tenant ATIVO (lista vinda do control plane a cada execução, nunca fixa);
+cada tenant mantém as suas associações, contagens e histórico, isolados. A mesma versão (SHA-256) não se repete (`JA_PROCESSADA`). Uma falha num
+tenant não afeta os outros e fica disponível para repetição.
+
+### Se falhar (download, validação ou algum tenant)
+
+* a versão ativa de cada tenant fica **intacta** (aplicação atómica; nada parcial); a falha fica no histórico do tenant (`FALHADA`) e no ledger global;
+* a execução fica `FALHADA`/`PARCIAL` — o mês **não** fica marcado como concluído — e abre-se um **alerta** (um por mês) no control plane;
+* é enviado **um** email (assunto «[SPharm.MT] Atualização mensal do INFARMED não foi possível (AAAA-MM)»; corpo: motivo resumido, tenants com falha,
+  garantia de que a versão ativa foi mantida e a ligação para `/admin/infarmed`);
+* **sem duplicados:** repetir a mesma falha só incrementa as tentativas; um novo email exige um motivo diferente (ex.: de «download» para «ficheiro
+  inválido»), ou um alerta reaberto depois de resolvido, ou o reenvio quando a notificação anterior não chegou a sair (uma tentativa por execução,
+  nunca em ciclo);
+* se o email falhar (`FALHOU`) ou não houver destinatário/SMTP (`NAO_CONFIGURADA`), a falha original continua registada, o erro do envio fica à
+  parte (`notificacaoErro`) e os dados não são tocados;
+* o alerta fica **resolvido** (com quem e quando) quando uma execução bem-sucedida cobre todos os tenants (automática ou upload manual); uma
+  repetição parcial só resolve os alertas cujos tenants falhados ficaram todos atualizados.
+
+### Email: reutilização, não um segundo motor
+
+Usa o `EmailConfig` (SMTP global ativo) e o nodemailer de `lib/email-config.ts` (`resolveEmailConfig` passou a aceitar um cliente explícito, para
+uso fora de pedidos web). Destinatários: `INFARMED_IMPORT_ALERT_EMAIL` (lista separada por vírgulas) — se não existir, os administradores da
+plataforma (`PLATFORM_ADMIN_EMAILS`, a configuração de alertas operacionais já existente). SMTP: o primeiro tenant ativo com configuração global
+ativa (ou `INFARMED_ALERT_SMTP_TENANT`). Nenhum endereço fixo no código.
+
+## 8. Página administrativa `/admin/infarmed`
+
+* Acesso **exclusivo a platform admins** (`isPlatformAdminSession`: ADMINISTRADOR, fora de tenant, email em `PLATFORM_ADMIN_EMAILS`). O layout de
+  `/admin` valida a sessão no servidor e **cada ação** volta a validá-la — esconder o link não é autorização. Menu «INFARMED» na consola de
+  administração, com um ponto discreto quando há um alerta por resolver (só aparece aqui, nunca aos utilizadores comuns).
+* Mostra: alerta pendente (motivo, tentativas, estado da notificação), versão ativa por tenant (data, origem, SHA-256, produtos associados), último
+  download automático, último erro, histórico recente e a última tentativa de cada tenant.
+* **Upload manual em dois passos:** (1) *Validar* — o mesmo contrato do automático (extensão **e** assinatura OLE2, ≤ 12 MB, folha, 13 cabeçalhos,
+  `Preço (PVP)`, CNP, CNPEM, preços, linhas inválidas, duplicados, conflitos, ficheiro já processado); mostra o resumo e o resultado esperado
+  **por tenant**, sem escrever nada. (2) *Aplicar* — só depois de escrever «APLICAR»; o servidor volta a ler o ficheiro, confere o SHA-256 validado e
+  aplica pelo **mesmo** `aplicarVersaoInfarmed`, com origem `UPLOAD_MANUAL`, utilizador, nome, tamanho e SHA-256 guardados no histórico de cada tenant.
+* **O ficheiro nunca toca no disco** (nem área temporária): é validado e aplicado a partir da memória, pelo que não há caminhos, nada para limpar e
+  nada que outro utilizador possa ler; o nome é só um rótulo sanitizado. Por isso o browser reenvia o ficheiro no passo 2 (não fica nada guardado
+  entre os passos).
+* *Repetir* um tenant falhado: «Repetir nos tenants falhados» (novo download, um só, só para esses tenants) ou repetir o upload só nesses tenants.
+  «Descarregar agora» corre a atualização completa.
+* `next.config.ts`: `serverActions.bodySizeLimit = 16mb` (o limite por omissão, 1 MB, não chega para o ficheiro).
+
+## 9. Instruções
+
+Convenção na VPS (como em `notes/instalacao-designacao-silveira.md`): `DC` = `sudo docker compose -p spharmmt --profile tools --env-file
+/opt/spharmmt/docker/env/platform.env --env-file /opt/spharmmt/docker/env/stack.env`, a partir de `/opt/spharmmt/docker/compose`.
+
+**9.1 Migrations — em TODOS os tenants e no control plane** (aditivas; os dados do INFARMED são nacionais, não da Silveira):
 
 ```bash
-$DC build migrate                                                     # imagem de tools com o comando novo
-$DC run --rm migrate npm run tenancy:migrate-all -- --dry-run         # confirma a migration pendente
-$DC run --rm migrate npm run tenancy:migrate-all -- --only silveira   # aplica (e depois os outros tenants)
+$DC build migrate
+$DC run --rm migrate npm run tenancy:migrate-all -- --dry-run     # confirma o que falta, em todos os tenants
+$DC run --rm migrate npm run tenancy:migrate-all                  # aplica a TODOS os tenants ativos (sem --only)
+$DC run --rm migrate npm run control:migrate:deploy               # control plane: InfarmedExecucao / InfarmedAlerta
 ```
 
-**8.2 Dry-run da carga inicial** (nada é escrito; grava o relatório JSON). O ficheiro e a pasta de relatórios montam-se no contentor:
+**9.2 Configurar** (opcional; em `platform.env`, preservado pelo `install-platform.sh`; depois recriar `web`/`worker`):
 
 ```bash
-mkdir -p /opt/spharmmt/relatorios/infarmed
-$DC run --rm -v /caminho/allPackages-original.xls:/dados/allPackages.xls:ro -v /opt/spharmmt/relatorios/infarmed:/relatorios \
-  migrate npm run ops:infarmed-carga -- --tenant=silveira --file=/dados/allPackages.xls
+sudo SCHEDULER_ENABLED=1 INFARMED_IMPORT_ALERT_EMAIL=alguem@exemplo.pt ./install-platform.sh   # destinatário(s) do alerta
+# opcional: INFARMED_ALLPACKAGES_URL=https://… (substitui o portal) · INFARMED_PESQUISA_URL · INFARMED_ALERT_SMTP_TENANT=<slug>
 ```
 
-Conferir no resumo: `sha256` = `058c70101d71cecba99806be3882f117929821de210d429f34f327f535d2ea07`, 20 915 linhas, 19 rejeitadas, `CNP não encontrados` (a maioria — o ficheiro tem todo o mercado) e `operacional intacto`.
+Pré-requisito do email: uma configuração SMTP global ativa num tenant (Configurações → Email) — sem ela o alerta fica visível na página com a
+notificação `NAO_CONFIGURADA`.
 
-**8.3 Aplicar:** o mesmo comando com `--apply`. Uma 2.ª execução deve dar `JA_PROCESSADA`.
+**9.3 Descarregar manualmente (um só download):** `node scripts/workers/scheduler.mjs --once infarmed-regulamentar` (no contentor do worker) ou,
+na página, «Descarregar agora». Simulação sem escrever: `GET /api/jobs/infarmed-regulamentar?dryRun=1` (Bearer `CRON_SECRET`); `?onlySlugs=a,b`
+repete só esses tenants; `?forcar=1` reaplica uma versão já processada.
 
-**8.4 Validar:** `… ops:infarmed-carga -- --tenant=silveira --listar` (uma versão `APLICADA` e `ATIVA`); abrir uma ficha no Catálogo (secção «Informação regulamentar — INFARMED»); em Margens, gerar e expandir uma linha com CNPEM.
+**9.4 Carga manual**
+* Pela página: abrir `/admin/infarmed` (consola de administração, ex.: `https://app.spharmmt.com/admin/infarmed`) → escolher o `allPackages.xls` →
+  **Validar** → conferir o resumo por tenant → escrever **APLICAR** → **Aplicar**. Validar o resultado: o alerta desaparece e cada tenant mostra a
+  versão ativa com origem «Upload manual».
+* Pela CLI (um tenant): `$DC run --rm -v /caminho/allPackages.xls:/dados/allPackages.xls:ro -v /opt/spharmmt/relatorios/infarmed:/relatorios migrate
+  npm run ops:infarmed-carga -- --tenant=<slug> --file=/dados/allPackages.xls` (dry-run) e o mesmo com `--apply`; `--listar` mostra o histórico.
 
-**8.5 Job mensal:** definir `INFARMED_ALLPACKAGES_URL=https://…` em `platform.env` (o `install-platform.sh` preserva-o), recriar `web`/`worker`, e garantir `SCHEDULER_ENABLED=1` com o job `infarmed-regulamentar` em `SCHEDULER_JOBS` (ou vazio = todos). Dia 2, 03:30 UTC (03:30/04:30 em Lisboa; o scheduler só suporta UTC). Execução manual: `node scripts/workers/scheduler.mjs --once infarmed-regulamentar` ou `GET /api/jobs/infarmed-regulamentar?dryRun=1` (Bearer `CRON_SECRET`; `?forcar=1`, `?onlySlugs=a,b`). Se o scheduler estiver parado no dia 2, o mês é falhado — correr à mão.
+**9.5 Repetir um tenant falhado:** na página, «Repetir nos tenants falhados» no alerta; ou `GET /api/jobs/infarmed-regulamentar?onlySlugs=<slug>`.
 
-**8.6 Rollback** (volta à versão anterior sem tocar em mais nada; os dados da revertida ficam):
+**9.6 Rollback** (um tenant, volta à versão anterior sem tocar em mais nada; os dados da revertida ficam): `… ops:infarmed-carga --
+--tenant=<slug> --reverter` (dry-run) e `--reverter --apply`. Reverter a primeira versão deixa o tenant sem versão ativa. A versão revertida não
+é reaplicada pelo job (só com `?forcar=1`).
 
-```bash
-… ops:infarmed-carga -- --tenant=silveira --reverter            # dry-run
-… ops:infarmed-carga -- --tenant=silveira --reverter --apply
-```
+## 10. Limitações
 
-Reverter a primeira versão deixa o tenant sem versão ativa (a ficha e Margens deixam de mostrar dados regulamentares; nada mais muda).
-
-## 9. Limitações
-
-* O download automático depende de um URL que o INFARMED não publica de forma estável (secção 7).
-* `xlsx` 0.18.5 (SheetJS) lê o ficheiro; defesas: assinatura OLE2, limite de 60 MB e 100 000 linhas, URL https configurado por quem opera. Não se aceitam ficheiros de origem arbitrária.
-* Um produto criado depois da importação só ganha dados regulamentares na execução seguinte (a mesma versão **completa** os novos; o job mensal ou `--apply` manual).
+* O download depende da estrutura do formulário público do INFARMED. Se mudar, a atualização falha de forma segura (sem contornar), avisa por
+  email e o ficheiro carrega-se à mão. Nesta fase não há deteção proativa de alterações ao portal.
+* Se o scheduler estiver parado no dia 1, o mês falha-se (não há retoma automática): correr à mão (9.3).
+* O email depende de haver um destinatário e um SMTP global ativo; sem eles o alerta fica só na página (e no log).
+* O ficheiro carregado na página vive só em memória e é reenviado no passo «Aplicar»; o limite é 12 MB.
+* `xlsx` 0.18.5 (SheetJS) lê o ficheiro; defesas: assinatura OLE2, limites de tamanho (60 MB / 100 000 linhas no automático; 12 MB no upload) e
+  origem configurada por quem opera.
+* Um produto criado depois da importação só ganha dados regulamentares na execução seguinte (ou numa aplicação manual: a mesma versão
+  **completa** os novos).
 * O ficheiro não inclui produtos fora do circuito do medicamento (parafarmácia): ficam «sem dados regulamentares».

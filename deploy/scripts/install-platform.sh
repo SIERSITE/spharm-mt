@@ -588,13 +588,27 @@ write_env() {
     || die_precond "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID só pode ter letras e dígitos (recebido: '${silveira_designacao_farmacia_id}')"
   info "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID: ${silveira_designacao_farmacia_id:-(não definida)}"
 
-  # URL do ficheiro «allPackages» do INFARMED, para a atualização mensal dos
-  # dados regulamentares (job infarmed-regulamentar). Vazio = job inerte.
-  # Preservado entre reinstalações. Ver notes/infarmed-regulamentar.md.
-  local infarmed_url
+  # Atualização mensal dos dados regulamentares do INFARMED (job infarmed-regulamentar,
+  # dia 1, Europe/Lisbon). Por omissão descarrega pelo formulário público do portal
+  # (sem credenciais); estas variáveis são OPCIONAIS e preservadas entre reinstalações:
+  #   INFARMED_ALLPACKAGES_URL     URL https que devolve o .xls (substitui o portal)
+  #   INFARMED_PESQUISA_URL        página do formulário público (omissão: a do INFARMED)
+  #   INFARMED_IMPORT_ALERT_EMAIL  quem recebe o email quando a atualização falha
+  #                                (omissão: PLATFORM_ADMIN_EMAILS)
+  #   INFARMED_ALERT_SMTP_TENANT   tenant cujo SMTP global envia o email (omissão: o 1.º com SMTP ativo)
+  # Ver notes/infarmed-regulamentar.md.
+  local infarmed_url infarmed_pesquisa infarmed_alert infarmed_smtp_tenant
   infarmed_url=$(env_value_or_keep "$SPHARMMT_ENV_FILE" INFARMED_ALLPACKAGES_URL "")
-  [[ -z "$infarmed_url" || "$infarmed_url" =~ ^https://[^[:space:]]+$ ]]     || die_precond "INFARMED_ALLPACKAGES_URL tem de ser um URL https sem espaços (recebido: '${infarmed_url}')"
-  info "INFARMED_ALLPACKAGES_URL: ${infarmed_url:-(não definida)}"
+  infarmed_pesquisa=$(env_value_or_keep "$SPHARMMT_ENV_FILE" INFARMED_PESQUISA_URL "")
+  infarmed_alert=$(env_value_or_keep "$SPHARMMT_ENV_FILE" INFARMED_IMPORT_ALERT_EMAIL "")
+  infarmed_smtp_tenant=$(env_value_or_keep "$SPHARMMT_ENV_FILE" INFARMED_ALERT_SMTP_TENANT "")
+  for v in infarmed_url infarmed_pesquisa; do
+    [[ -z "${!v}" || "${!v}" =~ ^https://[^[:space:]]+$ ]] || die_precond "INFARMED_ALLPACKAGES_URL e INFARMED_PESQUISA_URL têm de ser URLs https sem espaços (${v}='${!v}')"
+  done
+  local re_emails='^[A-Za-z0-9@._,+ -]*$'
+  [[ "$infarmed_alert" =~ $re_emails ]] || die_precond "INFARMED_IMPORT_ALERT_EMAIL só pode ter emails separados por vírgulas (recebido: '${infarmed_alert}')"
+  [[ "$infarmed_smtp_tenant" =~ ^[a-z0-9-]*$ ]] || die_precond "INFARMED_ALERT_SMTP_TENANT tem de ser um slug (recebido: '${infarmed_smtp_tenant}')"
+  info "INFARMED: URL direto=${infarmed_url:-(portal público)} · alertas=${infarmed_alert:-(platform admins)}"
 
   # Scheduler: o interruptor geral e a lista de jobs activos. Preservados
   # pela mesma razão — quem os liga em produção não pode vê-los voltar a
@@ -681,9 +695,12 @@ TENANT_DB_PORT=5432
 # cliente — e em silêncio, porque a página abre na mesma.
 ALLOW_LEGACY_DATABASE_FALLBACK=0
 
-# Ficheiro «allPackages» do INFARMED (atualização mensal dos dados
-# regulamentares). Vazio = o job infarmed-regulamentar não faz nada.
+# Atualização mensal dos dados regulamentares do INFARMED (todas opcionais;
+# vazias = portal público do INFARMED e alertas para os platform admins).
 INFARMED_ALLPACKAGES_URL=${infarmed_url}
+INFARMED_PESQUISA_URL=${infarmed_pesquisa}
+INFARMED_IMPORT_ALERT_EMAIL=${infarmed_alert}
+INFARMED_ALERT_SMTP_TENANT=${infarmed_smtp_tenant}
 
 # ── Scheduler da plataforma (o unico agendador) ──────────────────────
 # DESLIGADO por defeito. Activa só depois de os dados estarem migrados e

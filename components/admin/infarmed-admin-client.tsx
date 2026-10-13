@@ -280,7 +280,7 @@ export function InfarmedAdminClient({ estado }: { estado: EstadoAdminInfarmed })
           <div className="mt-4 space-y-3" data-testid="infarmed-preview">
             <div className="grid gap-2 text-[12px] sm:grid-cols-4">
               <div><b>Ficheiro</b><br />{preview.nomeFicheiro}</div>
-              <div><b>SHA-256</b><br /><span className="font-mono text-[11px]">{preview.sha256}</span></div>
+              <div><b>SHA-256</b><br /><span className="break-all font-mono text-[11px]">{preview.sha256}</span></div>
               <div><b>Linhas</b><br />{preview.linhasLidas} lidas · {preview.linhasValidas} válidas · {preview.linhasRejeitadas} rejeitadas</div>
               <div><b>Duplicados / conflitos</b><br />{preview.duplicadosIdenticos} / {preview.conflitos}</div>
             </div>
