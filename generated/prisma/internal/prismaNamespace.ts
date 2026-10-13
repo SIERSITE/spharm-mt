@@ -6501,6 +6501,8 @@ export const InfarmedImportacaoScalarFieldEnum = {
   origem: 'origem',
   urlOrigem: 'urlOrigem',
   nomeFicheiro: 'nomeFicheiro',
+  bytes: 'bytes',
+  utilizadorEmail: 'utilizadorEmail',
   sha256: 'sha256',
   descarregadoEm: 'descarregadoEm',
   estado: 'estado',

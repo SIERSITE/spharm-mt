@@ -35,9 +35,14 @@ export type ResolvedEmailConfig = {
  * Ordem: config da farmácia (se isActive) → config global (se isActive) → erro.
  */
 export async function resolveEmailConfig(
-  farmaciaId: string | null
+  farmaciaId: string | null,
+  /**
+   * Fora de um pedido web (jobs, alertas operacionais) não há tenant corrente:
+   * passa-se explicitamente o cliente da base cuja configuração SMTP se quer usar.
+   */
+  prismaExplicito?: Pick<Awaited<ReturnType<typeof getPrisma>>, "emailConfig">
 ): Promise<ResolvedEmailConfig> {
-  const prisma = await getPrisma();
+  const prisma = prismaExplicito ?? (await getPrisma());
   let row = farmaciaId
     ? await prisma.emailConfig.findUnique({ where: { farmaciaId } })
     : null;

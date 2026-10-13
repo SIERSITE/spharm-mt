@@ -108,3 +108,13 @@ export type CatalogoGlobalClinica = Prisma.CatalogoGlobalClinicaModel
  * tenant pode ter razão por conhecer o que aquela farmácia vende.
  */
 export type CatalogoGlobalRevisao = Prisma.CatalogoGlobalRevisaoModel
+/**
+ * Model InfarmedExecucao
+ * 
+ */
+export type InfarmedExecucao = Prisma.InfarmedExecucaoModel
+/**
+ * Model InfarmedAlerta
+ * 
+ */
+export type InfarmedAlerta = Prisma.InfarmedAlertaModel

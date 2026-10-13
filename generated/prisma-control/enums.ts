@@ -60,3 +60,30 @@ export const CampoClinico = {
 } as const
 
 export type CampoClinico = (typeof CampoClinico)[keyof typeof CampoClinico]
+
+
+export const InfarmedExecucaoResultado = {
+  CONCLUIDA: 'CONCLUIDA',
+  PARCIAL: 'PARCIAL',
+  FALHADA: 'FALHADA'
+} as const
+
+export type InfarmedExecucaoResultado = (typeof InfarmedExecucaoResultado)[keyof typeof InfarmedExecucaoResultado]
+
+
+export const InfarmedAlertaEstado = {
+  PENDENTE: 'PENDENTE',
+  RESOLVIDO: 'RESOLVIDO'
+} as const
+
+export type InfarmedAlertaEstado = (typeof InfarmedAlertaEstado)[keyof typeof InfarmedAlertaEstado]
+
+
+export const InfarmedNotificacaoEstado = {
+  NAO_ENVIADA: 'NAO_ENVIADA',
+  ENVIADA: 'ENVIADA',
+  FALHOU: 'FALHOU',
+  NAO_CONFIGURADA: 'NAO_CONFIGURADA'
+} as const
+
+export type InfarmedNotificacaoEstado = (typeof InfarmedNotificacaoEstado)[keyof typeof InfarmedNotificacaoEstado]

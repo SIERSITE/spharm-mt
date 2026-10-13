@@ -3283,10 +3283,15 @@ enum InfarmedImportacaoEstado {
 
 model InfarmedImportacao {
   id                       String                   @id @default(cuid())
-  /// CARGA_INICIAL | MENSAL | MANUAL
+  /// CARGA_INICIAL | MENSAL | MANUAL (CLI) | UPLOAD_MANUAL (página /admin/infarmed)
   origem                   String
   urlOrigem                String?
+  /// Nome original do ficheiro (upload) ou do que o servidor devolveu.
   nomeFicheiro             String?
+  /// Tamanho em bytes do ficheiro processado.
+  bytes                    Int?
+  /// Quem efetuou a operação (upload manual); null nas execuções automáticas.
+  utilizadorEmail          String?
   sha256                   String
   descarregadoEm           DateTime
   estado                   InfarmedImportacaoEstado @default(EM_CURSO)

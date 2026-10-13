@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: serverActionsAllowedOrigins,
+      // O upload manual do ficheiro do INFARMED (≈ 5 MB; /admin/infarmed) vai
+      // numa Server Action; o limite por omissão do Next é 1 MB. O ficheiro
+      // em si é limitado a 12 MB na própria ação.
+      bodySizeLimit: "16mb",
     },
   },
 

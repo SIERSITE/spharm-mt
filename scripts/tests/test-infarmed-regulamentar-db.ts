@@ -57,7 +57,7 @@ function xls(rows: L[], opts: { cab?: string[]; folha?: string; bookType?: "biff
 async function main() {
   const { lerFicheiroInfarmed, FicheiroInfarmedInvalido, COLUNAS_OBRIGATORIAS } = await import("../../lib/regulamentar/infarmed-ficheiro");
   const { aplicarVersaoInfarmed, reverterVersaoInfarmed, contagens } = await import("../../lib/regulamentar/infarmed-aplicar");
-  const { executarAtualizacaoInfarmed, descarregarInfarmed } = await import("../../lib/regulamentar/infarmed-job");
+  const { descarregarInfarmed } = await import("../../lib/regulamentar/infarmed-job");
 
   // ═══ A · ficheiro REAL ═══════════════════════════════════════════════
   secao("A · ficheiro original do INFARMED");
@@ -260,46 +260,18 @@ async function main() {
     try { await prisma.infarmedImportacao.create({ data: { origem: "MANUAL", sha256: "x", descarregadoEm: new Date(), ativa: true } }); } catch { violou = true; }
     check(violou, "a base recusa uma segunda versão ativa (índice único parcial)");
 
-    secao("D · job mensal");
-    const respostaOk = (buf: Buffer, tipo = "application/vnd.ms-excel") => async () => ({
-      ok: true, status: 200, headers: { get: (n: string) => (n.toLowerCase() === "content-type" ? tipo : null) }, arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
+    secao("D · download direto (INFARMED_ALLPACKAGES_URL) — o job mensal e o formulário têm testes próprios (test-infarmed-atualizacao-db.ts)");
+    const resp = (buf: Buffer, tipo = "application/vnd.ms-excel") => async () => ({
+      ok: true, status: 200, headers: { get: (n: string) => (n.toLowerCase() === "content-type" ? tipo : null) },
+      arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer, text: async () => "",
     });
-    const URL_OK = "https://exemplo.invalid/allPackages.xls";
-    const tenants = [{ slug: "t", prisma }];
-    const semUrl = await executarAtualizacaoInfarmed({ url: null, tenants, apply: true });
-    check(semUrl.estado === "NAO_CONFIGURADO", "sem URL configurado: não faz nada");
-    const http = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: async () => ({ ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => new ArrayBuffer(0) }) });
-    check(http.estado === "FALHA_DOWNLOAD" && /503/.test(http.erro ?? ""), "HTTP 503 → falha de download");
-    const html = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(Buffer.from("<html>erro</html>"), "text/html") });
-    check(html.estado === "FALHA_DOWNLOAD", "resposta HTML (Content-Type) recusada");
-    const html2 = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(Buffer.from("<!DOCTYPE html><html>x</html>"), "application/vnd.ms-excel") });
-    check(html2.estado === "FALHA_DOWNLOAD" && /HTML/.test(html2.erro ?? ""), "HTML disfarçado de Excel (conteúdo) recusado");
-    const vazio = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(Buffer.alloc(0)) });
-    check(vazio.estado === "FALHA_DOWNLOAD" && /vazio/i.test(vazio.erro ?? ""), "ficheiro vazio recusado");
-    const lixo = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(Buffer.from("isto não é um excel ".repeat(50))) });
-    check(lixo.estado === "FALHA_DOWNLOAD" && /assinatura/i.test(lixo.erro ?? ""), "assinatura inválida recusada");
-    const http2 = await executarAtualizacaoInfarmed({ url: "http://inseguro.invalid/x.xls", tenants, apply: true });
-    check(http2.estado === "FALHA_DOWNLOAD" && /https/.test(http2.erro ?? ""), "URL http (não https) recusado");
-    const semPvp = CAB.filter((c) => c !== "Preço (PVP)");
-    const faltaCol = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(xls([linha("5000001").filter((_, i) => CAB[i] !== "Preço (PVP)")], { cab: semPvp })) });
-    check(faltaCol.estado === "FALHA_VALIDACAO" && /Preço \(PVP\)/.test(faltaCol.erro ?? ""), "sem a coluna «Preço (PVP)» → recusado (não desaparece em silêncio)");
-    const ativaD = await prisma.infarmedImportacao.findFirstOrThrow({ where: { ativa: true } });
-    check(ativaD.id === ativaC.id, "após todas as falhas a versão anterior continua intacta e ativa");
-    check((await prisma.infarmedImportacao.count({ where: { estado: "FALHADA" } })) >= 7, "as falhas ficam no histórico (estado FALHADA, com o erro)");
-    const trunc = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(xls([linha("5000001", { nome: "TRUNCADO" })])) });
-    check(trunc.estado === "CONCLUIDO" && trunc.tenants[0]?.resultado === "APLICADA", "ficheiro pequeno aceite quando a versão ativa também é pequena");
-    // comprimento relativo: força uma versão grande e depois um ficheiro truncado
-    const grande = lerFicheiroInfarmed(xls(Array.from({ length: 40 }, (_, i) => linha(String(6000000 + i)))));
-    await aplicarVersaoInfarmed(prisma, grande, { origem: "MANUAL", apply: true });
-    const trunc2 = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(xls([linha("5000001", { nome: "TRUNCADO 2" })])) });
-    check(trunc2.tenants[0]?.resultado === "RECUSADA", "ficheiro com <50% das linhas da versão ativa → RECUSADA");
-    const bom = xls([linha("5000001", { nome: "MENSAL OK" }), ...Array.from({ length: 40 }, (_, i) => linha(String(6000000 + i)))]);
-    const mensal = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(bom) });
-    check(mensal.tenants[0]?.resultado === "APLICADA", "mês seguinte com ficheiro novo → aplicada");
-    const mesmo = await executarAtualizacaoInfarmed({ url: URL_OK, tenants, apply: true, fetchImpl: respostaOk(bom) });
-    check(mesmo.tenants[0]?.resultado === "JA_PROCESSADA", "mesmo ficheiro no mês seguinte → não repete");
-    const buf = await descarregarInfarmed(URL_OK, { fetchImpl: respostaOk(bom) });
-    check(buf.length === bom.length, "descarregarInfarmed devolve o ficheiro validado");
+    const recusa = async (f: () => Promise<unknown>, re: RegExp) => { try { await f(); return false; } catch (e) { return re.test(e instanceof Error ? e.message : String(e)); } };
+    const boa = xls([linha("5000001")]);
+    check((await descarregarInfarmed("https://exemplo.invalid/a.xls", { fetchImpl: resp(boa) })).length === boa.length, "download direto devolve o ficheiro validado");
+    check(await recusa(() => descarregarInfarmed("https://exemplo.invalid/a.xls", { fetchImpl: resp(Buffer.from("<html>x</html>"), "text/html") }), /Content-Type/), "HTML (Content-Type) recusado");
+    check(await recusa(() => descarregarInfarmed("https://exemplo.invalid/a.xls", { fetchImpl: resp(Buffer.from("<!DOCTYPE html><html>x</html>")) }), /HTML/), "HTML disfarçado de Excel recusado");
+    check(await recusa(() => descarregarInfarmed("https://exemplo.invalid/a.xls", { fetchImpl: resp(Buffer.alloc(0)) }), /vazio/i), "ficheiro vazio recusado");
+    check(await recusa(() => descarregarInfarmed("http://inseguro.invalid/a.xls"), /https/), "URL http recusado");
 
     secao("F · carga completa do ficheiro real contra uma base descartável");
     if (real && fs.existsSync(real)) {
@@ -330,10 +302,6 @@ async function main() {
       const imp = await prisma.infarmedImportacao.findUniqueOrThrow({ where: { id: apF.importacaoId! } });
       check(imp.sha256 === fr.sha256 && imp.linhasLidas === 20915 && imp.cnpDistintos === 20896 && imp.linhasRejeitadas === 19, "histórico guarda sha256, linhas, CNP e rejeitadas");
     } else console.log("  (sem INFARMED_XLS — saltado)");
-
-    secao("E · scheduler");
-    const plano = execSync("node scripts/workers/scheduler.mjs --list", { encoding: "utf8" });
-    check(/dia 2 03:30 UTC\s+infarmed-regulamentar\s+\/api\/jobs\/infarmed-regulamentar/.test(plano), "job mensal registado: dia 2, 03:30 UTC");
 
     await prisma.$disconnect();
   } finally {

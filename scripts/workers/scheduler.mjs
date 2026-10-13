@@ -33,7 +33,7 @@
  *                                 Ex.: SCHEDULER_JOBS=utilizacoes
  *   APP_INTERNAL_URL            — default http://web:3000
  *   CRON_SECRET                 — bearer exigido pelos endpoints
- *   SCHEDULER_TIMEZONE          — apenas "UTC" é suportado (ver nota)
+ *   SCHEDULER_TIMEZONE          — ignorado; cada job indica o seu (os restantes são UTC; o do INFARMED é Europe/Lisbon)
  *   SCHEDULER_HEARTBEAT_FILE    — default /tmp/scheduler-heartbeat
  *   SCHEDULER_JOB_TIMEOUT_MS    — default 600000 (10 min)
  *
@@ -42,6 +42,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 
 // ─────────────────────────────────────────────────────────────────────
 // Plano
@@ -58,12 +59,12 @@ const JOBS = [
   { name: "enqueue-regulatory", path: "/api/jobs/enqueue-regulatory", hour: 2, minute: 0 },
   { name: "acquire-regulatory", path: "/api/jobs/acquire-regulatory", hour: 2, minute: 30 },
   { name: "refresh-ipf", path: "/api/jobs/refresh-ipf", hour: 3, minute: 0 },
-  // Dados regulamentares do INFARMED: MENSAL, dia 2, 03:30 UTC (= 03:30/04:30
-  // em Lisboa; o dia 2 é o mesmo nos dois fusos a esta hora). Descarrega o
-  // ficheiro uma vez e aplica-o a todos os tenants. Inerte sem
-  // INFARMED_ALLPACKAGES_URL (responde NAO_CONFIGURADO). Falhas devolvem 502
-  // e ficam no log do scheduler; a versão anterior nunca é tocada.
-  { name: "infarmed-regulamentar", path: "/api/jobs/infarmed-regulamentar", hour: 3, minute: 30, dayOfMonth: 2 },
+  // Dados regulamentares do INFARMED: MENSAL, dia 1 às 03:30 de Lisboa
+  // (timezone: o dia e a hora são os de Europe/Lisbon, com horário de verão).
+  // Descarrega o ficheiro UMA vez (formulário público do INFARMED) e aplica-o
+  // a todos os tenants ativos. Falha ⇒ 502, versão anterior intacta, email e
+  // alerta em /admin/infarmed (ver lib/regulamentar/infarmed-atualizacao.ts).
+  { name: "infarmed-regulamentar", path: "/api/jobs/infarmed-regulamentar", hour: 3, minute: 30, dayOfMonth: 1, timezone: "Europe/Lisbon" },
   // A varredura completa do residual, e a ÚNICA que alcança um produto
   // que nunca entrou na `EnriquecimentoFila` — o que acontece sempre que
   // o catálogo global já conhece o CNP, porque a importação só enfileira
@@ -229,13 +230,30 @@ async function runJob(job) {
  * disparada é o que impede um segundo disparo dentro do mesmo minuto —
  * o tick corre a cada 30s, portanto passa duas vezes por cada minuto.
  */
+/**
+ * Data/hora de `now` no fuso do job (UTC se não tiver `timezone`). Com
+ * `timezone: "Europe/Lisbon"` o «dia 1 às 03:30» é o de Lisboa, também nas
+ * mudanças de hora (a hora 03:30 existe sempre, não é a do salto das 01:00→02:00).
+ */
+function partesNoFuso(now, timezone) {
+  if (!timezone) {
+    return { ano: now.getUTCFullYear(), mes: now.getUTCMonth() + 1, dia: now.getUTCDate(), hora: now.getUTCHours(), minuto: now.getUTCMinutes() };
+  }
+  const p = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(now);
+  const n = (t) => Number(p.find((x) => x.type === t).value);
+  return { ano: n("year"), mes: n("month"), dia: n("day"), hora: n("hour"), minuto: n("minute") };
+}
+
 function slotKey(job, now) {
   if (job.everyMinutes) {
     // Bloco do intervalo: dois ticks dentro do mesmo bloco de N minutos
     // partilham a chave, e o segundo não dispara.
     return `every:${job.everyMinutes}:${Math.floor(now.getTime() / (job.everyMinutes * 60_000))}`;
   }
-  return `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${job.hour}:${job.minute}`;
+  const t = partesNoFuso(now, job.timezone);
+  return `${t.ano}-${t.mes - 1}-${t.dia}T${job.hour}:${job.minute}`;
 }
 
 /** Este job está ligado nesta instalação? */
@@ -248,8 +266,9 @@ function estaNaAltura(job, now) {
   // Nos jobs por intervalo é o slotKey que limita a cadência: aqui passa
   // sempre e o bloco é que decide se já disparou.
   if (job.everyMinutes) return true;
-  if (job.dayOfMonth && now.getUTCDate() !== job.dayOfMonth) return false;
-  return now.getUTCHours() === job.hour && now.getUTCMinutes() === job.minute;
+  const t = partesNoFuso(now, job.timezone);
+  if (job.dayOfMonth && t.dia !== job.dayOfMonth) return false;
+  return t.hora === job.hour && t.minuto === job.minute;
 }
 
 async function heartbeat() {
@@ -280,7 +299,7 @@ async function tick() {
       job: job.name,
       scheduled: job.everyMinutes
         ? `cada ${job.everyMinutes} min`
-        : `${job.dayOfMonth ? `dia ${job.dayOfMonth} ` : ""}${job.hour}:${String(job.minute).padStart(2, "0")} UTC`,
+        : `${job.dayOfMonth ? `dia ${job.dayOfMonth} ` : ""}${job.hour}:${String(job.minute).padStart(2, "0")} ${job.timezone ?? "UTC"}`,
     });
     // Sem await: um job lento não pode atrasar o tick nem os restantes.
     // O lock cooperativo do lado do handler é que garante que não há
@@ -296,7 +315,7 @@ function describePlan() {
   return JOBS.map((j) => {
     const quando = j.everyMinutes
       ? `cada ${String(j.everyMinutes).padStart(2, " ")} min`
-      : `${j.dayOfMonth ? `dia ${j.dayOfMonth} ` : ""}${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC`;
+      : `${j.dayOfMonth ? `dia ${j.dayOfMonth} ` : ""}${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} ${j.timezone ?? "UTC"}`;
     const marca = jobActivo(j) ? "[on ]" : "[off]";
     return `  ${marca} ${quando.padEnd(18)}  ${j.name.padEnd(22)} ${j.path}`;
   }).join("\n");
@@ -310,14 +329,14 @@ async function main() {
       `Scheduler local do SPharm.MT\n\n` +
         `  --list           mostra o plano e sai\n` +
         `  --once <job>     dispara um job e sai\n\n` +
-        `Plano (UTC):\n${describePlan()}\n\n` +
+        `Plano (UTC, salvo indicação):\n${describePlan()}\n\n` +
         `SCHEDULER_ENABLED=${CONFIG.enabled ? "1" : "0"}  APP_INTERNAL_URL=${CONFIG.baseUrl}\n`,
     );
     return 0;
   }
 
   if (args.includes("--list")) {
-    process.stdout.write(`Plano (UTC):\n${describePlan()}\n`);
+    process.stdout.write(`Plano (UTC, salvo indicação):\n${describePlan()}\n`);
     return 0;
   }
 
@@ -396,9 +415,15 @@ async function main() {
   return 0;
 }
 
-main()
-  .then((code) => process.exit(code))
-  .catch((err) => {
-    log("error", "falha fatal do scheduler", { error: String(err?.stack ?? err) });
-    process.exit(1);
-  });
+// Só arranca quando executado diretamente (`node scheduler.mjs`): os testes
+// importam o plano e as funções puras sem disparar o daemon.
+export { JOBS, estaNaAltura, slotKey, partesNoFuso };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      log("error", "falha fatal do scheduler", { error: String(err?.stack ?? err) });
+      process.exit(1);
+    });
+}

@@ -1,52 +1,35 @@
 /**
  * lib/regulamentar/infarmed-job.ts
  *
- * Descarga + validação + aplicação MENSAL do ficheiro do INFARMED, para todos
- * os tenants. Centralizado na plataforma (worker/scheduler): não depende dos
- * agents das farmácias.
+ * Obtenção do ficheiro do INFARMED (uma vez por execução, para todos os
+ * tenants). Duas formas, por esta ordem:
  *
- * O URL NÃO está fixo no código: vem de `INFARMED_ALLPACKAGES_URL`. A seta
- * «Exportar para Excel» do portal público é um formulário JSF com sessão e
- * `ViewState` (não um ficheiro estático) — ver `notes/infarmed-regulamentar.md`.
- * Sem URL configurado o job devolve NAO_CONFIGURADO e não toca em nada.
+ *   1. `INFARMED_ALLPACKAGES_URL` definido → GET direto a esse endereço https
+ *      (permite apontar a outro sítio ou a um espelho, e substitui o portal);
+ *   2. caso contrário → o formulário público «Pesquisa do medicamento»
+ *      (`infarmed-jsf.ts`): GET para obter cookies+ViewState e POST do botão
+ *      de exportar, em HTTP simples, sem browser nem credenciais.
  *
- * Ordem: descarregar → validar (assinatura, folha, 13 colunas, limites) →
- * por tenant, aplicar numa transação. Qualquer falha antes da aplicação deixa
- * TODOS os tenants com a versão anterior intacta.
+ * Em ambos os casos o resultado passa por `validarAssinatura` aqui e por
+ * `lerFicheiroInfarmed` no orquestrador (folha, 13 colunas, limites).
+ * A orquestração por tenant, o ledger e os emails estão em
+ * `infarmed-atualizacao.ts`.
  */
 
-import { createHash } from "node:crypto";
-import type { PrismaClient } from "@/generated/prisma/client";
+import { FicheiroInfarmedInvalido, LIMITE_BYTES, validarAssinatura } from "./infarmed-ficheiro";
 import {
-  FicheiroInfarmedInvalido,
-  LIMITE_BYTES,
-  lerFicheiroInfarmed,
-  validarAssinatura,
-  type FicheiroInfarmedLido,
-} from "./infarmed-ficheiro";
-import { aplicarVersaoInfarmed, type RelatorioImportacao } from "./infarmed-aplicar";
+  DownloadInfarmedFalhou,
+  descarregarViaFormulario,
+  nomeDoFicheiro,
+  type FetchLike,
+  type OpcoesJsf,
+} from "./infarmed-jsf";
 
-export class DownloadInfarmedFalhou extends Error {
-  constructor(
-    public readonly codigo: "HTTP" | "TIPO" | "TIMEOUT" | "REDE" | "URL",
-    mensagem: string,
-  ) {
-    super(mensagem);
-    this.name = "DownloadInfarmedFalhou";
-  }
-}
+export { DownloadInfarmedFalhou, type FetchLike } from "./infarmed-jsf";
 
-export type FetchLike = (
-  url: string,
-  init?: { signal?: AbortSignal; headers?: Record<string, string> },
-) => Promise<{
-  ok: boolean;
-  status: number;
-  headers: { get(name: string): string | null };
-  arrayBuffer(): Promise<ArrayBuffer>;
-}>;
+export type FicheiroObtido = { buffer: Buffer; nomeFicheiro: string | null; url: string };
 
-/** Descarrega e valida o formato (ainda sem ler o conteúdo). */
+/** GET direto a um URL https que devolve o ficheiro (override por INFARMED_ALLPACKAGES_URL). */
 export async function descarregarInfarmed(
   url: string,
   opcoes: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
@@ -58,11 +41,11 @@ export async function descarregarInfarmed(
     throw new DownloadInfarmedFalhou("URL", "INFARMED_ALLPACKAGES_URL não é um URL válido.");
   }
   if (u.protocol !== "https:") throw new DownloadInfarmedFalhou("URL", "O URL tem de ser https.");
-  const f: FetchLike = opcoes.fetchImpl ?? ((x, init) => fetch(x, init as RequestInit));
+  const f: FetchLike = opcoes.fetchImpl ?? ((x, init) => fetch(x, init as RequestInit) as ReturnType<FetchLike>);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opcoes.timeoutMs ?? 120_000);
   try {
-    const res = await f(u.toString(), { signal: ctrl.signal, headers: { "user-agent": "SPharmMT-regulamentar/1.0" } });
+    const res = await f(u.toString(), { method: "GET", signal: ctrl.signal, headers: { "user-agent": "SPharmMT-regulamentar/1.0" } });
     if (!res.ok) throw new DownloadInfarmedFalhou("HTTP", `Resposta HTTP ${res.status}.`);
     const tipo = (res.headers.get("content-type") ?? "").toLowerCase();
     if (tipo.includes("text/html") || tipo.includes("text/plain") || tipo.includes("json")) {
@@ -82,96 +65,17 @@ export async function descarregarInfarmed(
   }
 }
 
-export type TenantAlvo = { slug: string; prisma: PrismaClient };
-
-export type ResultadoJob = {
-  estado: "NAO_CONFIGURADO" | "FALHA_DOWNLOAD" | "FALHA_VALIDACAO" | "CONCLUIDO";
-  erro?: string;
-  sha256?: string;
-  linhasLidas?: number;
-  tenants: Array<{
-    slug: string;
-    resultado?: RelatorioImportacao["resultado"];
-    importacaoId?: string | null;
-    motivo?: string;
-    erro?: string;
-  }>;
+export type OpcoesObter = OpcoesJsf & {
+  /** INFARMED_ALLPACKAGES_URL (se definido, substitui o portal). */
+  urlDireto?: string | null;
 };
 
-async function registarFalha(prisma: PrismaClient, url: string, sha256: string, erro: string, origem: "MENSAL" | "MANUAL") {
-  await prisma.infarmedImportacao.create({
-    data: {
-      origem,
-      urlOrigem: url,
-      sha256,
-      descarregadoEm: new Date(),
-      estado: "FALHADA",
-      ativa: false,
-      erro: erro.slice(0, 1000),
-      terminadaEm: new Date(),
-    },
-  });
-}
-
-export async function executarAtualizacaoInfarmed(opcoes: {
-  url: string | null | undefined;
-  tenants: TenantAlvo[];
-  apply: boolean;
-  origem?: "MENSAL" | "MANUAL";
-  forcar?: boolean;
-  fetchImpl?: FetchLike;
-  timeoutMs?: number;
-  log?: (msg: string) => void;
-}): Promise<ResultadoJob> {
-  const log = opcoes.log ?? (() => undefined);
-  const origem = opcoes.origem ?? "MENSAL";
-  if (!opcoes.url) {
-    log("[infarmed] INFARMED_ALLPACKAGES_URL não configurado — nada a fazer");
-    return { estado: "NAO_CONFIGURADO", tenants: [] };
+/** Obtém o ficheiro (override direto ou formulário público). Lança DownloadInfarmedFalhou/FicheiroInfarmedInvalido. */
+export async function obterFicheiroInfarmed(opcoes: OpcoesObter = {}): Promise<FicheiroObtido> {
+  const direto = opcoes.urlDireto?.trim();
+  if (direto) {
+    const buffer = await descarregarInfarmed(direto, { fetchImpl: opcoes.fetchImpl, timeoutMs: opcoes.timeoutMs });
+    return { buffer, nomeFicheiro: nomeDoFicheiro(null) ?? new URL(direto).pathname.split("/").pop() ?? null, url: direto };
   }
-  const url = opcoes.url;
-
-  let buf: Buffer;
-  try {
-    buf = await descarregarInfarmed(url, { fetchImpl: opcoes.fetchImpl, timeoutMs: opcoes.timeoutMs });
-  } catch (e) {
-    const erro = e instanceof Error ? e.message : String(e);
-    log(`[infarmed] download/validação falhou: ${erro}`);
-    if (opcoes.apply) {
-      for (const t of opcoes.tenants) await registarFalha(t.prisma, url, "-", `download: ${erro}`, origem).catch(() => undefined);
-    }
-    return { estado: "FALHA_DOWNLOAD", erro, tenants: [] };
-  }
-
-  let ficheiro: FicheiroInfarmedLido;
-  try {
-    ficheiro = lerFicheiroInfarmed(buf);
-  } catch (e) {
-    const erro = e instanceof Error ? e.message : String(e);
-    log(`[infarmed] ficheiro inválido: ${erro}`);
-    const sha = createHash("sha256").update(buf).digest("hex");
-    if (opcoes.apply) {
-      for (const t of opcoes.tenants) await registarFalha(t.prisma, url, sha, `validação: ${erro}`, origem).catch(() => undefined);
-    }
-    return { estado: "FALHA_VALIDACAO", erro, sha256: sha, tenants: [] };
-  }
-
-  const tenants: ResultadoJob["tenants"] = [];
-  for (const t of opcoes.tenants) {
-    try {
-      const rel = await aplicarVersaoInfarmed(t.prisma, ficheiro, {
-        origem,
-        apply: opcoes.apply,
-        urlOrigem: url,
-        forcar: opcoes.forcar,
-        minimoRelativoLinhas: 0.5,
-      });
-      tenants.push({ slug: t.slug, resultado: rel.resultado, importacaoId: rel.importacaoId, motivo: rel.motivo });
-      log(`[infarmed] ${t.slug}: ${rel.resultado}${rel.motivo ? ` (${rel.motivo})` : ""}`);
-    } catch (e) {
-      tenants.push({ slug: t.slug, erro: e instanceof Error ? e.message : String(e) });
-      log(`[infarmed] ${t.slug}: erro ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  return { estado: "CONCLUIDO", sha256: ficheiro.sha256, linhasLidas: ficheiro.linhasLidas, tenants };
+  return descarregarViaFormulario(opcoes);
 }

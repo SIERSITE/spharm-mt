@@ -540,3 +540,78 @@ model CatalogoGlobalRevisao {
   @@index([cnp])
   @@index([resolvidoEm])
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Atualização mensal dos dados regulamentares do INFARMED (ledger GLOBAL)
+// ─────────────────────────────────────────────────────────────────────
+//
+// O download do ficheiro é feito UMA vez por mês e aplicado a todos os
+// tenants ativos; o que é global (a execução, o alerta e a notificação por
+// email) vive aqui. O histórico de cada tenant fica na BD do próprio tenant
+// (`InfarmedImportacao`). Ver lib/regulamentar/infarmed-atualizacao.ts.
+
+enum InfarmedExecucaoResultado {
+  /// Aplicada com sucesso (ou já processada) em todos os tenants ativos.
+  CONCLUIDA
+  /// Descarregada e validada, mas falhou em pelo menos um tenant.
+  PARCIAL
+  /// Não houve atualização (download, validação ou falha total).
+  FALHADA
+}
+
+enum InfarmedAlertaEstado {
+  PENDENTE
+  RESOLVIDO
+}
+
+enum InfarmedNotificacaoEstado {
+  NAO_ENVIADA
+  ENVIADA
+  /// O envio do email falhou (a falha da atualização continua registada).
+  FALHOU
+  /// Sem destinatário ou sem SMTP configurado.
+  NAO_CONFIGURADA
+}
+
+model InfarmedExecucao {
+  id              String                    @id @default(cuid())
+  /// Mês de Lisboa a que a execução pertence ("2026-11").
+  periodo         String
+  /// AUTOMATICA | UPLOAD_MANUAL | REPETICAO
+  origem          String
+  resultado       InfarmedExecucaoResultado
+  motivo          String?
+  /// Chave estável do motivo (sem texto variável) — base da deduplicação de emails.
+  motivoChave     String?
+  sha256          String?
+  bytes           Int?
+  nomeFicheiro    String?
+  utilizadorEmail String?
+  iniciadaEm      DateTime                  @default(now())
+  terminadaEm     DateTime?
+  /// Resultado por tenant: [{ slug, resultado, importacaoId?, erro? }].
+  tenants         Json?
+
+  @@index([iniciadaEm])
+  @@index([periodo])
+}
+
+model InfarmedAlerta {
+  id                     String                    @id @default(cuid())
+  /// No máximo UM alerta por mês.
+  periodo                String                    @unique
+  estado                 InfarmedAlertaEstado      @default(PENDENTE)
+  motivo                 String
+  motivoChave            String
+  tentativas             Int                       @default(1)
+  tenantsFalhados        String[]                  @default([])
+  criadoEm               DateTime                  @default(now())
+  atualizadoEm           DateTime                  @updatedAt
+  resolvidoEm            DateTime?
+  resolvidoPor           String?
+  notificacaoEstado      InfarmedNotificacaoEstado @default(NAO_ENVIADA)
+  notificadoEm           DateTime?
+  /// Motivo da ÚLTIMA notificação enviada com sucesso (não se repete o mesmo email).
+  notificacaoMotivoChave String?
+  notificacaoErro        String?
+}

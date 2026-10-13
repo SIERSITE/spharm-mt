@@ -60,7 +60,9 @@ export const ModelName = {
   CatalogoGlobalPromocao: 'CatalogoGlobalPromocao',
   CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
   CatalogoGlobalClinica: 'CatalogoGlobalClinica',
-  CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
+  CatalogoGlobalRevisao: 'CatalogoGlobalRevisao',
+  InfarmedExecucao: 'InfarmedExecucao',
+  InfarmedAlerta: 'InfarmedAlerta'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -258,12 +260,60 @@ export const CatalogoGlobalRevisaoScalarFieldEnum = {
 export type CatalogoGlobalRevisaoScalarFieldEnum = (typeof CatalogoGlobalRevisaoScalarFieldEnum)[keyof typeof CatalogoGlobalRevisaoScalarFieldEnum]
 
 
+export const InfarmedExecucaoScalarFieldEnum = {
+  id: 'id',
+  periodo: 'periodo',
+  origem: 'origem',
+  resultado: 'resultado',
+  motivo: 'motivo',
+  motivoChave: 'motivoChave',
+  sha256: 'sha256',
+  bytes: 'bytes',
+  nomeFicheiro: 'nomeFicheiro',
+  utilizadorEmail: 'utilizadorEmail',
+  iniciadaEm: 'iniciadaEm',
+  terminadaEm: 'terminadaEm',
+  tenants: 'tenants'
+} as const
+
+export type InfarmedExecucaoScalarFieldEnum = (typeof InfarmedExecucaoScalarFieldEnum)[keyof typeof InfarmedExecucaoScalarFieldEnum]
+
+
+export const InfarmedAlertaScalarFieldEnum = {
+  id: 'id',
+  periodo: 'periodo',
+  estado: 'estado',
+  motivo: 'motivo',
+  motivoChave: 'motivoChave',
+  tentativas: 'tentativas',
+  tenantsFalhados: 'tenantsFalhados',
+  criadoEm: 'criadoEm',
+  atualizadoEm: 'atualizadoEm',
+  resolvidoEm: 'resolvidoEm',
+  resolvidoPor: 'resolvidoPor',
+  notificacaoEstado: 'notificacaoEstado',
+  notificadoEm: 'notificadoEm',
+  notificacaoMotivoChave: 'notificacaoMotivoChave',
+  notificacaoErro: 'notificacaoErro'
+} as const
+
+export type InfarmedAlertaScalarFieldEnum = (typeof InfarmedAlertaScalarFieldEnum)[keyof typeof InfarmedAlertaScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
 
 
 export const QueryMode = {
@@ -280,4 +330,13 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 

@@ -20,7 +20,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { FicheiroInfarmedLido, LinhaInfarmed } from "./infarmed-ficheiro";
 
-export type OrigemImportacao = "CARGA_INICIAL" | "MENSAL" | "MANUAL";
+export type OrigemImportacao = "CARGA_INICIAL" | "MENSAL" | "MANUAL" | "UPLOAD_MANUAL";
 
 export type OpcoesAplicar = {
   origem: OrigemImportacao;
@@ -28,6 +28,8 @@ export type OpcoesAplicar = {
   apply?: boolean;
   urlOrigem?: string | null;
   nomeFicheiro?: string | null;
+  /** Quem fez o upload manual (email); fica no histórico do tenant. */
+  utilizadorEmail?: string | null;
   descarregadoEm?: Date;
   /** Reaplica uma versão cujo sha256 já foi processado (ex.: depois de um rollback deliberado). */
   forcar?: boolean;
@@ -348,7 +350,7 @@ export async function aplicarVersaoInfarmed(
       const pid = idPorCnp.get(l.cnp);
       if (pid && !produtoIdsAnteriores.has(pid)) faltam.push({ produtoId: pid, cnp: l.cnp, valores: valoresDe(l), presente: true });
     }
-    rel.resultado = opcoes.apply ? "JA_PROCESSADA" : "SIMULADA";
+    rel.resultado = opcoes.apply || faltam.length === 0 ? "JA_PROCESSADA" : "SIMULADA";
     rel.motivo = "Mesma versão que a ativa: só se completam os produtos entretanto criados.";
     rel.importacaoId = ativaInicial.id;
     rel.completados = faltam.length;
@@ -397,6 +399,7 @@ export async function aplicarVersaoInfarmed(
       const imp = await tx.infarmedImportacao.create({
         data: {
           origem: opcoes.origem, urlOrigem: opcoes.urlOrigem ?? null, nomeFicheiro: opcoes.nomeFicheiro ?? null,
+          bytes: ficheiro.bytes, utilizadorEmail: opcoes.utilizadorEmail ?? null,
           sha256: ficheiro.sha256, descarregadoEm, estado: "EM_CURSO", ativa: false,
           versaoAnteriorId: ativa?.id ?? null,
         },
@@ -443,6 +446,7 @@ export async function aplicarVersaoInfarmed(
       const f = await prisma.infarmedImportacao.create({
         data: {
           origem: opcoes.origem, urlOrigem: opcoes.urlOrigem ?? null, nomeFicheiro: opcoes.nomeFicheiro ?? null,
+          bytes: ficheiro.bytes, utilizadorEmail: opcoes.utilizadorEmail ?? null,
           sha256: ficheiro.sha256, descarregadoEm, estado: "FALHADA", ativa: false,
           versaoAnteriorId: ativaInicial?.id ?? null, linhasLidas: ficheiro.linhasLidas,
           erro: rel.motivo.slice(0, 1000), terminadaEm: new Date(),

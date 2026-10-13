@@ -27,6 +27,7 @@ export type AggregateInfarmedImportacao = {
 }
 
 export type InfarmedImportacaoAvgAggregateOutputType = {
+  bytes: number | null
   linhasLidas: number | null
   linhasRejeitadas: number | null
   cnpDistintos: number | null
@@ -40,6 +41,7 @@ export type InfarmedImportacaoAvgAggregateOutputType = {
 }
 
 export type InfarmedImportacaoSumAggregateOutputType = {
+  bytes: number | null
   linhasLidas: number | null
   linhasRejeitadas: number | null
   cnpDistintos: number | null
@@ -57,6 +59,8 @@ export type InfarmedImportacaoMinAggregateOutputType = {
   origem: string | null
   urlOrigem: string | null
   nomeFicheiro: string | null
+  bytes: number | null
+  utilizadorEmail: string | null
   sha256: string | null
   descarregadoEm: Date | null
   estado: $Enums.InfarmedImportacaoEstado | null
@@ -83,6 +87,8 @@ export type InfarmedImportacaoMaxAggregateOutputType = {
   origem: string | null
   urlOrigem: string | null
   nomeFicheiro: string | null
+  bytes: number | null
+  utilizadorEmail: string | null
   sha256: string | null
   descarregadoEm: Date | null
   estado: $Enums.InfarmedImportacaoEstado | null
@@ -109,6 +115,8 @@ export type InfarmedImportacaoCountAggregateOutputType = {
   origem: number
   urlOrigem: number
   nomeFicheiro: number
+  bytes: number
+  utilizadorEmail: number
   sha256: number
   descarregadoEm: number
   estado: number
@@ -134,6 +142,7 @@ export type InfarmedImportacaoCountAggregateOutputType = {
 
 
 export type InfarmedImportacaoAvgAggregateInputType = {
+  bytes?: true
   linhasLidas?: true
   linhasRejeitadas?: true
   cnpDistintos?: true
@@ -147,6 +156,7 @@ export type InfarmedImportacaoAvgAggregateInputType = {
 }
 
 export type InfarmedImportacaoSumAggregateInputType = {
+  bytes?: true
   linhasLidas?: true
   linhasRejeitadas?: true
   cnpDistintos?: true
@@ -164,6 +174,8 @@ export type InfarmedImportacaoMinAggregateInputType = {
   origem?: true
   urlOrigem?: true
   nomeFicheiro?: true
+  bytes?: true
+  utilizadorEmail?: true
   sha256?: true
   descarregadoEm?: true
   estado?: true
@@ -190,6 +202,8 @@ export type InfarmedImportacaoMaxAggregateInputType = {
   origem?: true
   urlOrigem?: true
   nomeFicheiro?: true
+  bytes?: true
+  utilizadorEmail?: true
   sha256?: true
   descarregadoEm?: true
   estado?: true
@@ -216,6 +230,8 @@ export type InfarmedImportacaoCountAggregateInputType = {
   origem?: true
   urlOrigem?: true
   nomeFicheiro?: true
+  bytes?: true
+  utilizadorEmail?: true
   sha256?: true
   descarregadoEm?: true
   estado?: true
@@ -330,6 +346,8 @@ export type InfarmedImportacaoGroupByOutputType = {
   origem: string
   urlOrigem: string | null
   nomeFicheiro: string | null
+  bytes: number | null
+  utilizadorEmail: string | null
   sha256: string
   descarregadoEm: Date
   estado: $Enums.InfarmedImportacaoEstado
@@ -380,6 +398,8 @@ export type InfarmedImportacaoWhereInput = {
   origem?: Prisma.StringFilter<"InfarmedImportacao"> | string
   urlOrigem?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
   nomeFicheiro?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
+  bytes?: Prisma.IntNullableFilter<"InfarmedImportacao"> | number | null
+  utilizadorEmail?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
   sha256?: Prisma.StringFilter<"InfarmedImportacao"> | string
   descarregadoEm?: Prisma.DateTimeFilter<"InfarmedImportacao"> | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFilter<"InfarmedImportacao"> | $Enums.InfarmedImportacaoEstado
@@ -408,6 +428,8 @@ export type InfarmedImportacaoOrderByWithRelationInput = {
   origem?: Prisma.SortOrder
   urlOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   nomeFicheiro?: Prisma.SortOrderInput | Prisma.SortOrder
+  bytes?: Prisma.SortOrderInput | Prisma.SortOrder
+  utilizadorEmail?: Prisma.SortOrderInput | Prisma.SortOrder
   sha256?: Prisma.SortOrder
   descarregadoEm?: Prisma.SortOrder
   estado?: Prisma.SortOrder
@@ -439,6 +461,8 @@ export type InfarmedImportacaoWhereUniqueInput = Prisma.AtLeast<{
   origem?: Prisma.StringFilter<"InfarmedImportacao"> | string
   urlOrigem?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
   nomeFicheiro?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
+  bytes?: Prisma.IntNullableFilter<"InfarmedImportacao"> | number | null
+  utilizadorEmail?: Prisma.StringNullableFilter<"InfarmedImportacao"> | string | null
   sha256?: Prisma.StringFilter<"InfarmedImportacao"> | string
   descarregadoEm?: Prisma.DateTimeFilter<"InfarmedImportacao"> | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFilter<"InfarmedImportacao"> | $Enums.InfarmedImportacaoEstado
@@ -467,6 +491,8 @@ export type InfarmedImportacaoOrderByWithAggregationInput = {
   origem?: Prisma.SortOrder
   urlOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   nomeFicheiro?: Prisma.SortOrderInput | Prisma.SortOrder
+  bytes?: Prisma.SortOrderInput | Prisma.SortOrder
+  utilizadorEmail?: Prisma.SortOrderInput | Prisma.SortOrder
   sha256?: Prisma.SortOrder
   descarregadoEm?: Prisma.SortOrder
   estado?: Prisma.SortOrder
@@ -502,6 +528,8 @@ export type InfarmedImportacaoScalarWhereWithAggregatesInput = {
   origem?: Prisma.StringWithAggregatesFilter<"InfarmedImportacao"> | string
   urlOrigem?: Prisma.StringNullableWithAggregatesFilter<"InfarmedImportacao"> | string | null
   nomeFicheiro?: Prisma.StringNullableWithAggregatesFilter<"InfarmedImportacao"> | string | null
+  bytes?: Prisma.IntNullableWithAggregatesFilter<"InfarmedImportacao"> | number | null
+  utilizadorEmail?: Prisma.StringNullableWithAggregatesFilter<"InfarmedImportacao"> | string | null
   sha256?: Prisma.StringWithAggregatesFilter<"InfarmedImportacao"> | string
   descarregadoEm?: Prisma.DateTimeWithAggregatesFilter<"InfarmedImportacao"> | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoWithAggregatesFilter<"InfarmedImportacao"> | $Enums.InfarmedImportacaoEstado
@@ -529,6 +557,8 @@ export type InfarmedImportacaoCreateInput = {
   origem: string
   urlOrigem?: string | null
   nomeFicheiro?: string | null
+  bytes?: number | null
+  utilizadorEmail?: string | null
   sha256: string
   descarregadoEm: Date | string
   estado?: $Enums.InfarmedImportacaoEstado
@@ -557,6 +587,8 @@ export type InfarmedImportacaoUncheckedCreateInput = {
   origem: string
   urlOrigem?: string | null
   nomeFicheiro?: string | null
+  bytes?: number | null
+  utilizadorEmail?: string | null
   sha256: string
   descarregadoEm: Date | string
   estado?: $Enums.InfarmedImportacaoEstado
@@ -585,6 +617,8 @@ export type InfarmedImportacaoUpdateInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -613,6 +647,8 @@ export type InfarmedImportacaoUncheckedUpdateInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -641,6 +677,8 @@ export type InfarmedImportacaoCreateManyInput = {
   origem: string
   urlOrigem?: string | null
   nomeFicheiro?: string | null
+  bytes?: number | null
+  utilizadorEmail?: string | null
   sha256: string
   descarregadoEm: Date | string
   estado?: $Enums.InfarmedImportacaoEstado
@@ -668,6 +706,8 @@ export type InfarmedImportacaoUpdateManyMutationInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -695,6 +735,8 @@ export type InfarmedImportacaoUncheckedUpdateManyInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -722,6 +764,8 @@ export type InfarmedImportacaoCountOrderByAggregateInput = {
   origem?: Prisma.SortOrder
   urlOrigem?: Prisma.SortOrder
   nomeFicheiro?: Prisma.SortOrder
+  bytes?: Prisma.SortOrder
+  utilizadorEmail?: Prisma.SortOrder
   sha256?: Prisma.SortOrder
   descarregadoEm?: Prisma.SortOrder
   estado?: Prisma.SortOrder
@@ -745,6 +789,7 @@ export type InfarmedImportacaoCountOrderByAggregateInput = {
 }
 
 export type InfarmedImportacaoAvgOrderByAggregateInput = {
+  bytes?: Prisma.SortOrder
   linhasLidas?: Prisma.SortOrder
   linhasRejeitadas?: Prisma.SortOrder
   cnpDistintos?: Prisma.SortOrder
@@ -762,6 +807,8 @@ export type InfarmedImportacaoMaxOrderByAggregateInput = {
   origem?: Prisma.SortOrder
   urlOrigem?: Prisma.SortOrder
   nomeFicheiro?: Prisma.SortOrder
+  bytes?: Prisma.SortOrder
+  utilizadorEmail?: Prisma.SortOrder
   sha256?: Prisma.SortOrder
   descarregadoEm?: Prisma.SortOrder
   estado?: Prisma.SortOrder
@@ -788,6 +835,8 @@ export type InfarmedImportacaoMinOrderByAggregateInput = {
   origem?: Prisma.SortOrder
   urlOrigem?: Prisma.SortOrder
   nomeFicheiro?: Prisma.SortOrder
+  bytes?: Prisma.SortOrder
+  utilizadorEmail?: Prisma.SortOrder
   sha256?: Prisma.SortOrder
   descarregadoEm?: Prisma.SortOrder
   estado?: Prisma.SortOrder
@@ -810,6 +859,7 @@ export type InfarmedImportacaoMinOrderByAggregateInput = {
 }
 
 export type InfarmedImportacaoSumOrderByAggregateInput = {
+  bytes?: Prisma.SortOrder
   linhasLidas?: Prisma.SortOrder
   linhasRejeitadas?: Prisma.SortOrder
   cnpDistintos?: Prisma.SortOrder
@@ -850,6 +900,8 @@ export type InfarmedImportacaoCreateWithoutRegistosInput = {
   origem: string
   urlOrigem?: string | null
   nomeFicheiro?: string | null
+  bytes?: number | null
+  utilizadorEmail?: string | null
   sha256: string
   descarregadoEm: Date | string
   estado?: $Enums.InfarmedImportacaoEstado
@@ -877,6 +929,8 @@ export type InfarmedImportacaoUncheckedCreateWithoutRegistosInput = {
   origem: string
   urlOrigem?: string | null
   nomeFicheiro?: string | null
+  bytes?: number | null
+  utilizadorEmail?: string | null
   sha256: string
   descarregadoEm: Date | string
   estado?: $Enums.InfarmedImportacaoEstado
@@ -920,6 +974,8 @@ export type InfarmedImportacaoUpdateWithoutRegistosInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -947,6 +1003,8 @@ export type InfarmedImportacaoUncheckedUpdateWithoutRegistosInput = {
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   urlOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   nomeFicheiro?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bytes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  utilizadorEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sha256?: Prisma.StringFieldUpdateOperationsInput | string
   descarregadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   estado?: Prisma.EnumInfarmedImportacaoEstadoFieldUpdateOperationsInput | $Enums.InfarmedImportacaoEstado
@@ -1005,6 +1063,8 @@ export type InfarmedImportacaoSelect<ExtArgs extends runtime.Types.Extensions.In
   origem?: boolean
   urlOrigem?: boolean
   nomeFicheiro?: boolean
+  bytes?: boolean
+  utilizadorEmail?: boolean
   sha256?: boolean
   descarregadoEm?: boolean
   estado?: boolean
@@ -1034,6 +1094,8 @@ export type InfarmedImportacaoSelectCreateManyAndReturn<ExtArgs extends runtime.
   origem?: boolean
   urlOrigem?: boolean
   nomeFicheiro?: boolean
+  bytes?: boolean
+  utilizadorEmail?: boolean
   sha256?: boolean
   descarregadoEm?: boolean
   estado?: boolean
@@ -1061,6 +1123,8 @@ export type InfarmedImportacaoSelectUpdateManyAndReturn<ExtArgs extends runtime.
   origem?: boolean
   urlOrigem?: boolean
   nomeFicheiro?: boolean
+  bytes?: boolean
+  utilizadorEmail?: boolean
   sha256?: boolean
   descarregadoEm?: boolean
   estado?: boolean
@@ -1088,6 +1152,8 @@ export type InfarmedImportacaoSelectScalar = {
   origem?: boolean
   urlOrigem?: boolean
   nomeFicheiro?: boolean
+  bytes?: boolean
+  utilizadorEmail?: boolean
   sha256?: boolean
   descarregadoEm?: boolean
   estado?: boolean
@@ -1110,7 +1176,7 @@ export type InfarmedImportacaoSelectScalar = {
   revertidaEm?: boolean
 }
 
-export type InfarmedImportacaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "origem" | "urlOrigem" | "nomeFicheiro" | "sha256" | "descarregadoEm" | "estado" | "ativa" | "versaoAnteriorId" | "linhasLidas" | "linhasRejeitadas" | "cnpDistintos" | "produtosAssociados" | "cnpNaoEncontrados" | "registosNovos" | "registosAlterados" | "registosIguais" | "camposAlterados" | "deixaramDeEstarPresentes" | "erro" | "relatorio" | "iniciadaEm" | "terminadaEm" | "revertidaEm", ExtArgs["result"]["infarmedImportacao"]>
+export type InfarmedImportacaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "origem" | "urlOrigem" | "nomeFicheiro" | "bytes" | "utilizadorEmail" | "sha256" | "descarregadoEm" | "estado" | "ativa" | "versaoAnteriorId" | "linhasLidas" | "linhasRejeitadas" | "cnpDistintos" | "produtosAssociados" | "cnpNaoEncontrados" | "registosNovos" | "registosAlterados" | "registosIguais" | "camposAlterados" | "deixaramDeEstarPresentes" | "erro" | "relatorio" | "iniciadaEm" | "terminadaEm" | "revertidaEm", ExtArgs["result"]["infarmedImportacao"]>
 export type InfarmedImportacaoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   registos?: boolean | Prisma.InfarmedImportacao$registosArgs<ExtArgs>
   _count?: boolean | Prisma.InfarmedImportacaoCountOutputTypeDefaultArgs<ExtArgs>
@@ -1126,11 +1192,22 @@ export type $InfarmedImportacaoPayload<ExtArgs extends runtime.Types.Extensions.
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     /**
-     * CARGA_INICIAL | MENSAL | MANUAL
+     * CARGA_INICIAL | MENSAL | MANUAL (CLI) | UPLOAD_MANUAL (página /admin/infarmed)
      */
     origem: string
     urlOrigem: string | null
+    /**
+     * Nome original do ficheiro (upload) ou do que o servidor devolveu.
+     */
     nomeFicheiro: string | null
+    /**
+     * Tamanho em bytes do ficheiro processado.
+     */
+    bytes: number | null
+    /**
+     * Quem efetuou a operação (upload manual); null nas execuções automáticas.
+     */
+    utilizadorEmail: string | null
     sha256: string
     descarregadoEm: Date
     estado: $Enums.InfarmedImportacaoEstado
@@ -1582,6 +1659,8 @@ export interface InfarmedImportacaoFieldRefs {
   readonly origem: Prisma.FieldRef<"InfarmedImportacao", 'String'>
   readonly urlOrigem: Prisma.FieldRef<"InfarmedImportacao", 'String'>
   readonly nomeFicheiro: Prisma.FieldRef<"InfarmedImportacao", 'String'>
+  readonly bytes: Prisma.FieldRef<"InfarmedImportacao", 'Int'>
+  readonly utilizadorEmail: Prisma.FieldRef<"InfarmedImportacao", 'String'>
   readonly sha256: Prisma.FieldRef<"InfarmedImportacao", 'String'>
   readonly descarregadoEm: Prisma.FieldRef<"InfarmedImportacao", 'DateTime'>
   readonly estado: Prisma.FieldRef<"InfarmedImportacao", 'InfarmedImportacaoEstado'>
