@@ -151,6 +151,7 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
   const hasActiveFilters =
     !!filters.farmaciaId ||
     !!filters.estado ||
+    !!filters.mostrarAnuladas ||
     !!filters.estadoExport ||
     !!filters.search ||
     !!filters.dateFrom ||
@@ -310,7 +311,7 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
 
           <select
             value={filters.estado ?? ""}
-            onChange={(e) => pushUpdates({ estado: e.target.value || undefined })}
+            onChange={(e) => pushUpdates({ estado: e.target.value || undefined, anuladas: undefined })}
             disabled={navigating}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50"
           >
@@ -320,6 +321,24 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
               </option>
             ))}
           </select>
+
+          <label
+            className={`inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 ${filters.estado ? "opacity-60" : ""}`}
+            title={
+              filters.estado
+                ? "Com um estado escolhido, a lista já é só desse estado"
+                : "Por omissão as encomendas anuladas não aparecem"
+            }
+          >
+            <input
+              type="checkbox"
+              data-testid="mostrar-anuladas"
+              checked={!!filters.mostrarAnuladas || filters.estado === "ANULADA"}
+              disabled={navigating || !!filters.estado}
+              onChange={(e) => pushUpdates({ anuladas: e.target.checked ? "1" : undefined })}
+            />
+            Mostrar encomendas anuladas
+          </label>
 
           <select
             value={filters.estadoExport ?? ""}

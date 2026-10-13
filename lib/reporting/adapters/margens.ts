@@ -114,14 +114,14 @@ const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
   { key: "margemEur",          label: "Margem €",     format: "currency", width: MPW.margemEur,  showTotal: true },
   // Margem por unidade: nunca se soma (sem showTotal) — somar margens
   // unitárias de artigos/farmácias diferentes não significa nada.
-  { key: "margemUnitaria",     label: "Margem unit.", format: "currency", width: MPW.margemUnitaria },
+  { key: "margemUnitaria",     label: "Margem\nunit.", format: "currency", width: MPW.margemUnitaria },
   { key: "margemPct",          label: "Margem %",     format: "text",     width: MPW.margemPct },
   { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: MPW.coberturaPct },
   { key: "estado",             label: "Estado",       format: "text",     width: MPW.estado },
   // Preços do utente (INFARMED). Informação regulamentar: não entra em
   // nenhum cálculo de margem.
-  { key: "utenteGeral",        label: "Utente geral", format: "currency", width: MPW.utenteGeral },
-  { key: "utenteEspecial",     label: "Utente especial", format: "currency", width: MPW.utenteEspecial },
+  { key: "utenteGeral",        label: "Utente\ngeral", format: "currency", width: MPW.utenteGeral },
+  { key: "utenteEspecial",     label: "Utente\nespecial", format: "currency", width: MPW.utenteEspecial },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
@@ -359,6 +359,8 @@ export function buildMargensProdutoReport(input: {
       // em cada página (thead display:table-header-group) e o TOTAL ARTIGO não se separa
       // do artigo. Nunca afecta o Excel.
       hierarchy: "strong",
+      // 17 colunas: cabeçalhos a 7.5px e linhas mais finas, sem cortar rótulos.
+      tableDensity: "tight",
       footer: "SPharm.MT · Margens operacional",
     },
   };

@@ -238,7 +238,7 @@ body {
 /* Zebra, hover, seleção e grupos usam uma película (background-image) sobre
    a cor própria de cada célula: não pisam estados coloridos nem os fundos
    opacos das colunas fixas. */
-.tabela-fixa tbody > tr:not([data-tabela-linha]):nth-child(even) > td {
+.tabela-fixa tbody > tr:where(:not([data-tabela-linha]):nth-child(even)) > td {
   background-image: linear-gradient(rgba(100, 116, 139, 0.10), rgba(100, 116, 139, 0.10));
 }
 .tabela-fixa tbody > tr:hover > td {

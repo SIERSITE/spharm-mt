@@ -246,7 +246,7 @@ export async function loadCatalogoListData(
     // CNPEM: um termo só de dígitos (6+) também encontra os produtos com
     // esse CNPEM na versão regulamentar ativa do INFARMED (igualdade exata).
     const unico = filters.search.trim();
-    if (/^d{6,}$/.test(unico)) {
+    if (/^\d{6,}$/.test(unico)) {
       where.AND = [
         { OR: [{ AND: condicoes }, { regulamentar: { some: { cnpem: unico, importacao: { ativa: true } } } }] },
       ];

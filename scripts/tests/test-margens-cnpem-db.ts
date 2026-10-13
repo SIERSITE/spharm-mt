@@ -228,6 +228,22 @@ async function main() {
     await reverterVersaoInfarmed(prisma, { apply: true });
     check((await getMargensComparacaoCnpem(umaFarm, 7000001)).estado === "SEM_CNPEM", "sem versão ativa não há CNPEM (e nada é inventado)");
 
+    secao("J · Catálogo — ficha regulamentar e CNPEM pesquisável");
+    await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "MANUAL", apply: true, forcar: true });
+    const { loadCatalogoArticle, loadCatalogoListData } = await import("../../lib/catalogo-data");
+    const art = await loadCatalogoArticle(7000001);
+    check(art?.regulamentar?.cnpem === "50000001" && art.regulamentar.nomeMedicamento === "Ibuprofeno A INFARMED", "a ficha do artigo traz a informação regulamentar (CNPEM, nome INFARMED)");
+    check(art?.designacao === "IBUPROFENO A 400" && art?.dci === "Ibuprofeno", "…sem alterar a designação nem a DCI do produto");
+    check(art?.regulamentar?.precoUtenteGeral === 3.5 && art.regulamentar.precoUtenteEspecial === 2.1 && art.regulamentar.precoLivre === false, "preços do utente por regime na ficha");
+    check((await loadCatalogoArticle(7000007))?.regulamentar === null, "produto sem registo regulamentar: ficha sem secção (null)");
+    const porCnpem = await loadCatalogoListData({ search: "50000001", page: 1, pageSize: 50 });
+    const cnpsEnc = porCnpem.rows.map((r) => r.cnp).sort();
+    check(cnpsEnc.join() === ["7000001", "7000002", "7000003", "7000004", "7000006"].join(), `pesquisa por CNPEM exato devolve os produtos do catálogo com esse CNPEM (inclui o que não está em nenhuma farmácia) [${cnpsEnc}]`);
+    const porCnpemOutro = await loadCatalogoListData({ search: "50000002", page: 1, pageSize: 50 });
+    check(porCnpemOutro.rows.map((r) => r.cnp).join() === "7000005", "outro CNPEM devolve só os seus produtos");
+    const porDesig = await loadCatalogoListData({ search: "ibuprofeno a", page: 1, pageSize: 50 });
+    check(porDesig.rows.some((r) => r.cnp === 7000001) && porDesig.rows.every((r) => r.cnp !== 7000002), "a pesquisa por designação continua a funcionar (termos AND)");
+
     secao("I · outro tenant com o mesmo CNPEM");
     const prismaB = new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDe(dbB) }) });
     const fB = await prismaB.farmacia.create({ data: { nome: "Farmácia Um" } });
