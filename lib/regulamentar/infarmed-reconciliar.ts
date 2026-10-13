@@ -72,6 +72,8 @@ export type ContadoresReconciliacao = {
   campos: Record<CampoReconciliado, ContadoresCampo>;
   /** Só com `apply` + `registarAlteracoes`: o que foi gravado, com o valor anterior. */
   alteracoes?: AlteracaoCampo[];
+  /** Operação reversível criada (só quando houve alterações) — ver `infarmed-registo.ts`. */
+  registoReversivel?: { operacaoId: string; origem: string; campos: number } | null;
 };
 
 /**
@@ -255,19 +257,33 @@ export function totalEscrito(c: ContadoresReconciliacao): number {
 /** Reconcilia a versão ATIVA do tenant (sem importação nova). `null` se não há versão ativa. */
 export async function reconciliarVersaoAtiva(
   prisma: PrismaClient,
-  opcoes: { apply: boolean; registarAlteracoes?: boolean; antesDeConfirmar?: (alteracoes: AlteracaoCampo[]) => void | Promise<void> },
+  opcoes: {
+    apply: boolean;
+    /** Obrigatório com `apply`: a operação fica registada (AuditLog do tenant) na mesma transação. */
+    registo?: { operacaoId: string; origem: "RECONCILIACAO_MANUAL" | "DOWNLOAD_AUTOMATICO" | "UPLOAD_MANUAL"; tenant: string; utilizadorEmail?: string | null; data?: string };
+    /** Corre ainda antes de confirmar (ex.: escrever o ficheiro da CLI); se lançar, tudo é anulado. */
+    antesDeConfirmar?: (alteracoes: AlteracaoCampo[]) => void | Promise<void>;
+  },
 ): Promise<{ importacaoId: string; sha256: string; contadores: ContadoresReconciliacao } | null> {
   const ativa = await prisma.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true, sha256: true } });
   if (!ativa) return null;
   if (!opcoes.apply) {
     return { importacaoId: ativa.id, sha256: ativa.sha256, contadores: await reconciliarProdutos(prisma, { tipo: "importacao", importacaoId: ativa.id }, { apply: false }) };
   }
+  if (!opcoes.registo) throw new Error("Aplicar a reconciliação exige o contexto do registo reversível (opcoes.registo).");
+  const registo = opcoes.registo;
+  const { reconciliarComRegisto } = await import("./infarmed-registo");
   const contadores = await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(7203201001)`; // o mesmo lock da aplicação/rollback
       const ainda = await tx.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true } });
       if (!ainda || ainda.id !== ativa.id) throw new Error("A versão ativa mudou durante a reconciliação; repetir.");
-      return reconciliarProdutos(tx as unknown as Db, { tipo: "importacao", importacaoId: ativa.id }, { apply: true, registarAlteracoes: opcoes.registarAlteracoes, antesDeConfirmar: opcoes.antesDeConfirmar });
+      return reconciliarComRegisto(
+        tx as never,
+        { tipo: "importacao", importacaoId: ativa.id },
+        { ...registo, importacaoId: ativa.id, sha256: ativa.sha256 },
+        opcoes.antesDeConfirmar,
+      );
     },
     { timeout: 300_000, maxWait: 60_000 },
   );

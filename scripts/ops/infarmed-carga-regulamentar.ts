@@ -30,6 +30,10 @@
  *     … --reverter-reconciliacao=/relatorios/reconciliacao-<id>.json --apply
  *     … --reverter-reconciliacao=<ficheiro> --tenant=a,b                        (só alguns tenants do relatório)
  *
+ *   Todas as reconciliações (esta, o download mensal e o upload manual) ficam guardadas na base de cada tenant (AuditLog):
+ *     … --listar-reconciliacoes --tenant=a,b,c | --todos
+ *     … --exportar-reconciliacao=<operacaoId> --tenant=a,b,c | --todos      (grava reconciliacao-<id>.json)
+ *
  * Opções:
  *   --tenant=<slug>        tenant do control plane (produção/Docker)
  *   --database-url=<url>   alternativa para bases LOCAIS descartáveis (só localhost)
@@ -70,6 +74,8 @@ function ajuda() {
       "  --listar                        histórico de importações",
       "  --reconciliar [--apply]         reconcilia o catálogo com a versão ativa (--tenant=a,b,c | --todos)",
       "  --reverter-reconciliacao=<json> [--apply]   repõe os valores anteriores de uma reconciliação aplicada",
+      "  --listar-reconciliacoes         operações reversíveis guardadas (--tenant=a,b | --todos)",
+      "  --exportar-reconciliacao=<id>   grava reconciliacao-<id>.json a partir do registo durável (--tenant=a,b | --todos)",
       "  --origem=CARGA_INICIAL|MANUAL   --forcar   --relatorio-dir=<dir>",
       "",
     ].join("\n"),
@@ -125,7 +131,7 @@ async function reconciliar(apply: boolean): Promise<number> {
   const operacaoId = randomUUID();
   const geradoEm = new Date().toISOString();
   const relatorioAplicacao: import("@/lib/regulamentar/infarmed-reverter").RelatorioReconciliacao = {
-    formato: rev.FORMATO_RELATORIO_RECONCILIACAO, operacaoId, geradoEm, modo: "APPLY", tenants: [],
+    formato: rev.FORMATO_RELATORIO_RECONCILIACAO, operacaoId, geradoEm, modo: "APPLY", origem: "RECONCILIACAO_MANUAL", tenants: [],
   };
   const dirRel = pastaRelatorios();
   const ficheiroApply = path.join(dirRel, `reconciliacao-${operacaoId}.json`);
@@ -142,7 +148,7 @@ async function reconciliar(apply: boolean): Promise<number> {
       const entrada: Array<import("@/lib/regulamentar/infarmed-reverter").TenantRelatorio> = [];
       const r = await reconciliarVersaoAtiva(a.prisma, {
         apply,
-        registarAlteracoes: apply,
+        registo: { operacaoId, origem: "RECONCILIACAO_MANUAL", tenant: a.nome, data: geradoEm },
         antesDeConfirmar: apply
           ? async (alt) => {
               const ativa = await a.prisma.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true, sha256: true } });
@@ -210,7 +216,7 @@ async function reverterReconciliacao(apply: boolean): Promise<number> {
     try {
       const prisma = arg("database-url") ? (await obterPrisma()).prisma : await getTenantPrismaOrLegacy(t.tenant);
       try {
-        const r = await rev.reverterReconciliacaoTenant(prisma, t, { apply });
+        const r = await rev.reverterReconciliacaoTenant(prisma, t, { apply, operacaoId: relatorio.operacaoId });
         resultados.push(r);
         process.stdout.write(`\n[${t.tenant}] alterações no relatório ${r.analisadas} · ${apply ? "revertidas" : "a reverter"} ${r.revertidas} · já no valor anterior ${r.jaRevertidas} · conflitos (não tocados) ${r.conflitos.length}\n`);
         for (const k of campos) {
@@ -236,12 +242,64 @@ async function reverterReconciliacao(apply: boolean): Promise<number> {
   return erros.length > 0 ? 1 : 0;
 }
 
+/** Alvos (tenants) a partir de --database-url | --todos | --tenant=a,b,c. */
+async function obterAlvos(): Promise<Array<{ nome: string; prisma: import("@/generated/prisma/client").PrismaClient }>> {
+  const alvos: Array<{ nome: string; prisma: import("@/generated/prisma/client").PrismaClient }> = [];
+  if (arg("database-url")) {
+    alvos.push({ nome: "local", prisma: (await obterPrisma()).prisma });
+  } else if (arg("todos")) {
+    const { listarTenantsAtivos } = await import("@/lib/regulamentar/infarmed-runtime");
+    for (const t of await listarTenantsAtivos()) alvos.push({ nome: t.slug, prisma: t.prisma });
+  } else if (arg("tenant")) {
+    const { getTenantPrismaOrLegacy } = await import("@/lib/tenant-registry");
+    for (const slug of arg("tenant")!.split(",").map((x) => x.trim()).filter(Boolean)) alvos.push({ nome: slug, prisma: await getTenantPrismaOrLegacy(slug) });
+  } else {
+    throw new Error("Indique --tenant=a,b,c, --todos ou --database-url=<url-local>.");
+  }
+  return alvos;
+}
+
+/** Lista as operações reversíveis (reconciliação manual, download automático, upload manual) guardadas nas bases dos tenants. */
+async function listarReconciliacoes(): Promise<number> {
+  const { listarOperacoes } = await import("@/lib/regulamentar/infarmed-registo");
+  const alvos = await obterAlvos();
+  const ops = await listarOperacoes(alvos.map((a) => ({ slug: a.nome, prisma: a.prisma })), 50);
+  process.stdout.write("\nOPERAÇÕES DE RECONCILIAÇÃO REVERSÍVEIS\n");
+  if (ops.length === 0) process.stdout.write("  (nenhuma)\n");
+  for (const o of ops) {
+    process.stdout.write(`  ${o.data}  ${o.operacaoId}  ${o.origem.padEnd(21)} ${o.estado.padEnd(22)} campos ${String(o.campos).padStart(6)}  tenants ${o.tenants.map((t) => `${t.tenant}(${t.campos})`).join(",")}${o.utilizadorEmail ? `  por ${o.utilizadorEmail}` : ""}\n`);
+  }
+  for (const a of alvos) await a.prisma.$disconnect().catch(() => undefined);
+  return 0;
+}
+
+/** Grava `reconciliacao-<id>.json` (o ficheiro aceite por --reverter-reconciliacao) a partir do registo durável. */
+async function exportarReconciliacao(): Promise<number> {
+  const id = arg("exportar-reconciliacao");
+  if (!id || id === "true") throw new Error("Indique --exportar-reconciliacao=<operacaoId>.");
+  const { obterRelatorio } = await import("@/lib/regulamentar/infarmed-registo");
+  const alvos = await obterAlvos();
+  const relatorio = await obterRelatorio(alvos.map((a) => ({ slug: a.nome, prisma: a.prisma })), id);
+  for (const a of alvos) await a.prisma.$disconnect().catch(() => undefined);
+  if (!relatorio) throw new Error(`Nenhum registo da operação ${id} nos tenants indicados.`);
+  const dir = pastaRelatorios();
+  fs.mkdirSync(dir, { recursive: true });
+  const destino = path.join(dir, `reconciliacao-${id}.json`);
+  fs.writeFileSync(destino, JSON.stringify(relatorio, null, 1), "utf8");
+  const n = relatorio.tenants.reduce((t, x) => t + x.alteracoes.length, 0);
+  process.stdout.write(`\nrelatório exportado: ${destino}\n  origem ${relatorio.origem ?? "—"} · tenants ${relatorio.tenants.map((t) => t.tenant).join(",")} · ${n} campos\nPara reverter: --reverter-reconciliacao=${destino} [--apply]\n`);
+  return 0;
+}
+
 async function main(): Promise<number> {
+
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     ajuda();
     return 0;
   }
   const apply = arg("apply") === "true";
+  if (arg("listar-reconciliacoes")) return listarReconciliacoes();
+  if (arg("exportar-reconciliacao")) return exportarReconciliacao();
   if (arg("reverter-reconciliacao")) return reverterReconciliacao(apply);
   if (arg("reconciliar")) return reconciliar(apply);
   const { prisma, nome } = await obterPrisma();

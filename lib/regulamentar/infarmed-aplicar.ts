@@ -20,6 +20,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { FicheiroInfarmedLido, LinhaInfarmed } from "./infarmed-ficheiro";
 import { reconciliarProdutos, type ContadoresReconciliacao } from "./infarmed-reconciliar";
+import { novaOperacaoId, origemReversivelDe, reconciliarComRegisto, type ContextoRegisto } from "./infarmed-registo";
 
 export type OrigemImportacao = "CARGA_INICIAL" | "MENSAL" | "MANUAL" | "UPLOAD_MANUAL";
 
@@ -36,6 +37,10 @@ export type OpcoesAplicar = {
   forcar?: boolean;
   /** Recusa um ficheiro com menos de X% das linhas da versão ativa (anti-ficheiro truncado). */
   minimoRelativoLinhas?: number;
+  /** Nome do tenant no registo reversível (omissão: "local"). */
+  tenant?: string;
+  /** Identificador da operação (partilhado por todos os tenants de uma mesma execução); omissão: novo. */
+  operacaoId?: string;
   /** Só para testes: corre dentro da transação, depois de gravar os registos. */
   aposGravarRegistos?: () => void | Promise<void>;
 };
@@ -261,6 +266,17 @@ function resumoParaBd(r: RelatorioImportacao): Prisma.InputJsonValue {
   );
 }
 
+/** Contexto do registo reversível desta operação (a mesma operacaoId em todos os tenants de uma execução). */
+function contextoRegisto(opcoes: OpcoesAplicar, extra: { importacaoId: string; sha256: string }): ContextoRegisto {
+  return {
+    operacaoId: opcoes.operacaoId ?? (opcoes.operacaoId = novaOperacaoId()),
+    origem: origemReversivelDe(opcoes.origem),
+    tenant: opcoes.tenant ?? "local",
+    utilizadorEmail: opcoes.utilizadorEmail ?? null,
+    ...extra,
+  };
+}
+
 function relatorioBase(
   ficheiro: FicheiroInfarmedLido,
   opcoes: OpcoesAplicar,
@@ -374,7 +390,7 @@ export async function aplicarVersaoInfarmed(
             skipDuplicates: true,
           });
         }
-        return reconciliarProdutos(tx, { tipo: "importacao", importacaoId: ativaInicial.id }, { apply: true });
+        return reconciliarComRegisto(tx, { tipo: "importacao", importacaoId: ativaInicial.id }, contextoRegisto(opcoes, { importacaoId: ativaInicial.id, sha256: ficheiro.sha256 }));
       }, { timeout: 120_000 });
       rel.depois = await contagens(prisma);
       rel.operacionalIntacto = operacionalIgual(antes, rel.depois);
@@ -451,7 +467,7 @@ export async function aplicarVersaoInfarmed(
         },
       });
       // Reconciliação dos campos canónicos de Produto (mesma transação: ou tudo ou nada).
-      const reconciliacao = await reconciliarProdutos(tx, { tipo: "importacao", importacaoId: imp.id }, { apply: true });
+      const reconciliacao = await reconciliarComRegisto(tx, { tipo: "importacao", importacaoId: imp.id }, contextoRegisto(opcoes, { importacaoId: imp.id, sha256: ficheiro.sha256 }));
       return { id: imp.id, reconciliacao } as const;
     }, { timeout: 300_000, maxWait: 60_000 });
 

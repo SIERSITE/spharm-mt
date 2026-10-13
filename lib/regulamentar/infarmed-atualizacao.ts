@@ -24,6 +24,7 @@ import { FicheiroInfarmedInvalido, lerFicheiroInfarmed, type FicheiroInfarmedLid
 import { aplicarVersaoInfarmed, type OrigemImportacao, type RelatorioImportacao } from "./infarmed-aplicar";
 import { DownloadInfarmedFalhou, type FicheiroObtido } from "./infarmed-job";
 import type { ContadoresReconciliacao } from "./infarmed-reconciliar";
+import { novaOperacaoId } from "./infarmed-registo";
 
 export type TenantAlvo = { slug: string; prisma: PrismaClient };
 export type MensagemEmail = { assunto: string; texto: string };
@@ -111,9 +112,12 @@ export async function aplicarATenants(
     urlOrigem?: string | null;
     utilizadorEmail?: string | null;
     minimoRelativoLinhas?: number;
+    /** Identificador da operação reversível (o mesmo em todos os tenants); omissão: novo. */
+    operacaoId?: string;
   },
 ): Promise<ResultadoTenant[]> {
   const out: ResultadoTenant[] = [];
+  const operacaoId = opcoes.operacaoId ?? novaOperacaoId();
   for (const t of tenants) {
     try {
       const r = await aplicarVersaoInfarmed(t.prisma, ficheiro, {
@@ -124,6 +128,8 @@ export async function aplicarATenants(
         urlOrigem: opcoes.urlOrigem,
         utilizadorEmail: opcoes.utilizadorEmail,
         minimoRelativoLinhas: opcoes.minimoRelativoLinhas,
+        tenant: t.slug,
+        operacaoId,
       });
       out.push({
         slug: t.slug,

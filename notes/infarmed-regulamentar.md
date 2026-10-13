@@ -313,3 +313,30 @@ As linhas da expansão têm `print:hidden` + `data-nao-imprimir` (e a regra glob
 comparação. Validado em build de produção: HTML de impressão, PDF real, Excel real e corpo do relatório sem nenhuma
 linha/etiqueta da expansão, mesmo com a expansão e «Mostrar todos» abertos (`npm run e2e:tarefa-c`,
 evidência em `docs/validacao-visual/2026-10-tarefa-c/`).
+
+### 11.8 Registo reversível durável (as três vias)
+
+A reversão de 11.6 cobre **todas** as vias que escrevem em forma/dosagem/embalagem/DCI:
+
+| Origem (`origem`) | Via |
+| --- | --- |
+| `RECONCILIACAO_MANUAL` | `ops:infarmed-carga --reconciliar --apply` (e as cargas por CLI) |
+| `DOWNLOAD_AUTOMATICO` | download mensal (dia 1) e repetição por tenant |
+| `UPLOAD_MANUAL` | upload em `/admin/infarmed` (guarda também o email do utilizador) |
+
+**Onde fica (sem migration):** tabela `AuditLog` já existente em CADA base de tenant — `action=INFARMED_RECONCILIACAO`,
+`entity=InfarmedReconciliacao`, `entityId=<operacaoId>` (a mesma em todos os tenants de uma execução), `metaJson` com
+operação, origem, tenant, utilizador, data, importação/SHA, soma de integridade e, por campo, `anterior`/`aplicado`/`tipo`.
+Está na mesma base (e nas mesmas cópias de segurança) que os dados que protege — não depende do disco do contentor.
+
+**Transação:** o registo é gravado na MESMA transação das alterações ao catálogo. Se não puder ser gravado, nada confirma
+(esse tenant fica `FALHADA` com o motivo «Falha ao guardar o registo reversível…», que o alerta mensal e o ecrã de upload
+mostram). Cada tenant tem a sua base e transação: uma falha num não apaga nem impede o registo dos tenants já concluídos.
+Operação sem alterações ao catálogo (ou versão já processada) não grava registo.
+
+**Consultar / obter:**
+- `/admin/infarmed` → «Reconciliações do catálogo (reversíveis)»: data, origem, tenants, campos alterados, estado
+  (Aplicada / Revertida / Parcialmente revertida), identificador e «Descarregar JSON» (`/admin/infarmed/relatorio/<id>`, só platform admins).
+- CLI: `--listar-reconciliacoes --tenant=a,b,c` e `--exportar-reconciliacao=<id> --tenant=a,b,c` (grava `reconciliacao-<id>.json`).
+- O ficheiro é o mesmo formato `infarmed-reconciliacao/v1`: `--reverter-reconciliacao=<ficheiro> [--apply]` (11.6).
+  A reversão com `--apply` marca a operação como revertida (`INFARMED_RECONCILIACAO_REVERTIDA`).

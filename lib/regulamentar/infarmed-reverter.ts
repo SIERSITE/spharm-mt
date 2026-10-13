@@ -31,6 +31,17 @@ import { CAMPOS_RECONCILIADOS, type AlteracaoCampo, type CampoReconciliado } fro
 export const FORMATO_RELATORIO_RECONCILIACAO = "infarmed-reconciliacao/v1";
 const LOCK_INFARMED = 7203201001;
 
+export const ACAO_REVERTIDA = "INFARMED_RECONCILIACAO_REVERTIDA";
+export const ENTIDADE_RECONCILIACAO = "InfarmedReconciliacao";
+
+/** O registo reversível (ou a marca de reversão) não pôde ser gravado: a transação NÃO deve confirmar. */
+export class FalhaRegistoReversivel extends Error {
+  constructor(causa: unknown) {
+    super(`Falha ao guardar o registo reversível da reconciliação (as alterações ao catálogo NÃO foram confirmadas): ${causa instanceof Error ? causa.message : String(causa)}`);
+    this.name = "FalhaRegistoReversivel";
+  }
+}
+
 /** Uma alteração tal como fica no ficheiro (autossuficiente para auditoria). */
 export type AlteracaoRelatorio = AlteracaoCampo & { tenant: string; operacaoId: string; data: string };
 
@@ -43,6 +54,10 @@ export type TenantRelatorio = {
   /** sha256 do JSON de `alteracoes` — deteta ficheiros editados ou truncados. */
   integridade: string;
   alteracoes: AlteracaoRelatorio[];
+  /** Quem/como (relatórios gerados a partir do registo durável). */
+  origem?: string;
+  utilizadorEmail?: string | null;
+  data?: string;
 };
 
 export type RelatorioReconciliacao = {
@@ -50,6 +65,8 @@ export type RelatorioReconciliacao = {
   operacaoId: string;
   geradoEm: string;
   modo: "APPLY";
+  /** RECONCILIACAO_MANUAL | DOWNLOAD_AUTOMATICO | UPLOAD_MANUAL (ausente nos relatórios antigos da CLI). */
+  origem?: string;
   tenants: TenantRelatorio[];
 };
 
@@ -154,7 +171,25 @@ async function reverterComDb(db: Db, t: TenantRelatorio, apply: boolean): Promis
   return res;
 }
 
-export type OpcoesReversao = { apply: boolean };
+export type OpcoesReversao = {
+  apply: boolean;
+  /** Com apply, marca a operação como revertida (AuditLog) na MESMA transação. */
+  operacaoId?: string;
+};
+
+/** Marca a reversão (dentro da transação da reversão). */
+export async function gravarReversao(
+  db: Pick<PrismaClient, "auditLog">,
+  p: { operacaoId: string; tenant: string; revertidas: number; jaRevertidas: number; conflitos: number },
+): Promise<void> {
+  try {
+    await db.auditLog.create({
+      data: { action: ACAO_REVERTIDA, entity: ENTIDADE_RECONCILIACAO, entityId: p.operacaoId, metaJson: JSON.stringify({ ...p, data: new Date().toISOString() }) },
+    });
+  } catch (e) {
+    throw new FalhaRegistoReversivel(e);
+  }
+}
 
 /** Reverte UM tenant do relatório. `prisma` é o cliente desse tenant. */
 export async function reverterReconciliacaoTenant(prisma: PrismaClient, t: TenantRelatorio, opcoes: OpcoesReversao): Promise<ResultadoReversaoTenant> {
@@ -162,7 +197,11 @@ export async function reverterReconciliacaoTenant(prisma: PrismaClient, t: Tenan
   return prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_INFARMED})`;
-      return reverterComDb(tx as unknown as Db, t, true);
+      const r = await reverterComDb(tx as unknown as Db, t, true);
+      if (opcoes.operacaoId && r.revertidas > 0) {
+        await gravarReversao(tx, { operacaoId: opcoes.operacaoId, tenant: t.tenant, revertidas: r.revertidas, jaRevertidas: r.jaRevertidas, conflitos: r.conflitos.length });
+      }
+      return r;
     },
     { timeout: 300_000, maxWait: 60_000 },
   );

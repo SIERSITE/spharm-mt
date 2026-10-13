@@ -19,6 +19,8 @@
 import type { SessionUser } from "@/lib/auth";
 import { isPlatformAdminSession } from "@/lib/admin/auth";
 import { FicheiroInfarmedInvalido } from "./infarmed-ficheiro";
+import { listarOperacoes, obterRelatorio, type OperacaoReversivel } from "./infarmed-registo";
+import type { RelatorioReconciliacao } from "./infarmed-reverter";
 import {
   aplicarFicheiroManual,
   executarAtualizacaoAutomatica,
@@ -137,6 +139,8 @@ export type EstadoAdminInfarmed = {
   ultimoDownloadAutomatico: ExecucaoLinha | null;
   execucoes: ExecucaoLinha[];
   tenants: EstadoTenantInfarmed[];
+  /** Operações de reconciliação reversíveis (download automático, upload manual, CLI), mais recentes primeiro. */
+  reconciliacoes: OperacaoReversivel[];
 };
 export type ExecucaoLinha = {
   id: string; periodo: string; origem: string; resultado: string; motivo: string | null; quando: string;
@@ -178,7 +182,12 @@ export async function lerEstadoAdmin(deps: Pick<Dependencias, "control" | "tenan
       ativa: ativa ? linha(ativa) : null, recentes: recentes.map(linha), ultimaFalhou: recentes[0]?.estado === "FALHADA",
     });
   }
+  const reconciliacoes = await listarOperacoes(await deps.tenants(), 30).catch((e) => {
+    console.error(`[infarmed] não foi possível listar as reconciliações reversíveis: ${e instanceof Error ? e.message : String(e)}`);
+    return [] as OperacaoReversivel[];
+  });
   return {
+    reconciliacoes,
     alertaPendente: alerta
       ? {
           periodo: alerta.periodo, motivo: alerta.motivo, tentativas: alerta.tentativas, tenantsFalhados: alerta.tenantsFalhados,
@@ -191,6 +200,25 @@ export async function lerEstadoAdmin(deps: Pick<Dependencias, "control" | "tenan
     execucoes: execs.map(exec),
     tenants,
   };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Relatório reversível (formato aceite por `--reverter-reconciliacao`) de uma operação. Só platform admins. */
+export async function acaoObterRelatorioReconciliacao(
+  deps: Pick<Dependencias, "tenants">,
+  session: SessionUser | null,
+  operacaoId: string,
+): Promise<{ ok: true; relatorio: RelatorioReconciliacao } | { ok: false; erro: string; codigo: "NAO_AUTORIZADO" | "INVALIDO" | "NAO_ENCONTRADO" | "INESPERADO" }> {
+  if (!isPlatformAdminSession(session)) return { ok: false, erro: "Sem permissão para esta operação.", codigo: "NAO_AUTORIZADO" };
+  if (!UUID.test(operacaoId)) return { ok: false, erro: "Identificador de operação inválido.", codigo: "INVALIDO" };
+  try {
+    const relatorio = await obterRelatorio(await deps.tenants(), operacaoId);
+    if (!relatorio) return { ok: false, erro: "Operação não encontrada.", codigo: "NAO_ENCONTRADO" };
+    return { ok: true, relatorio };
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : "Não foi possível obter o relatório.", codigo: "INESPERADO" };
+  }
 }
 
 /** Só o indicador: há uma atualização mensal falhada por resolver? (barato — usado no layout do admin) */

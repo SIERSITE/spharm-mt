@@ -59,6 +59,7 @@
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
+    "test:infarmed-registo-reversivel-db": "tsx scripts/tests/test-infarmed-registo-reversivel-db.ts",
     "e2e:tarefa-c": "tsx scripts/e2e/tarefa-c-browser.ts",
     "test:infarmed-reverter-db": "tsx scripts/tests/test-infarmed-reverter-db.ts",
     "test:ordenacao-custo-selecao": "tsx scripts/tests/test-ordenacao-custo-selecao.ts",

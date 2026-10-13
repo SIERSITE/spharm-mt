@@ -139,7 +139,7 @@ async function main() {
     const estado0 = { sha: imp.sha256, id: imp.id, n: await prisma.infarmedImportacao.count(), regs: await prisma.produtoRegulamentar.count() };
     const seco = await rec.reconciliarVersaoAtiva(prisma, { apply: false });
     check(!!seco && seco.contadores.produtosAlterados === 0, "dry-run da reconciliação sobre a versão ativa: 0 alterações (já reconciliada)");
-    const outra = await rec.reconciliarVersaoAtiva(prisma, { apply: true });
+    const outra = await rec.reconciliarVersaoAtiva(prisma, { apply: true, registo: { operacaoId: "00000000-0000-4000-8000-000000000001", origem: "RECONCILIACAO_MANUAL", tenant: "t" } });
     check(!!outra && outra.contadores.produtosAlterados === 0 && outra.sha256 === estado0.sha && outra.importacaoId === estado0.id, "2.ª reconciliação (apply): 0 alterações, mesmo SHA, mesma versão");
     // o catálogo fica «atrasado» (alguém limpa a forma de P1 e P4 passa a manual) → a reconciliação repõe, só o permitido
     await prisma.produto.update({ where: { cnp: 5000001 }, data: { formaFarmaceutica: null, embalagem: "outro" } });
@@ -147,7 +147,7 @@ async function main() {
     const prev = await rec.reconciliarVersaoAtiva(prisma, { apply: false });
     check(prev!.contadores.campos.formaFarmaceutica.preenchidos === 1 && prev!.contadores.campos.embalagem.atualizados === 1 && prev!.contadores.campos.dosagem.ignoradosManual >= 1, "dry-run prevê: P1 forma preenchida, P1 embalagem atualizada, P4 dosagem ignorada por proteção manual");
     check((await get(5000001)).formaFarmaceutica === null, "…e não escreveu nada");
-    const real = await rec.reconciliarVersaoAtiva(prisma, { apply: true });
+    const real = await rec.reconciliarVersaoAtiva(prisma, { apply: true, registo: { operacaoId: "00000000-0000-4000-8000-000000000002", origem: "RECONCILIACAO_MANUAL", tenant: "t" } });
     check(real!.contadores.produtosAlterados === 1 && (await get(5000001)).formaFarmaceutica === "Comprimido" && (await get(5000001)).embalagem === "18 unidade(s)", "apply: P1 reposto");
     check((await get(5000004)).dosagem === "valor errado", "P4: valor manual divergente respeitado");
     check((await prisma.infarmedImportacao.count()) === estado0.n && (await prisma.produtoRegulamentar.count()) === estado0.regs, "nenhuma importação fictícia, nenhum registo regulamentar novo");

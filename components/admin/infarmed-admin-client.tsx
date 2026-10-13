@@ -26,6 +26,9 @@ const ORIGEM: Record<string, string> = {
   MENSAL: "Automática", AUTOMATICA: "Automática", REPETICAO: "Repetição (automática)", UPLOAD_MANUAL: "Upload manual",
   MANUAL: "CLI manual", CARGA_INICIAL: "Carga inicial",
 };
+const ORIGEM_RECONCILIACAO: Record<string, string> = {
+  RECONCILIACAO_MANUAL: "Reconciliação manual (CLI)", DOWNLOAD_AUTOMATICO: "Download automático", UPLOAD_MANUAL: "Upload manual",
+};
 const RESULTADO_TONE: Record<string, string> = {
   CONCLUIDA: "border-emerald-200 bg-emerald-50 text-emerald-800",
   PARCIAL: "border-amber-200 bg-amber-50 text-amber-800",
@@ -342,6 +345,12 @@ export function InfarmedAdminClient({ estado }: { estado: EstadoAdminInfarmed })
               </span>
             </p>
             <ResultadoTenants tenants={resultado.tenants} mostrarNumeros />
+            {resultado.tenants.some((t) => !t.ok && /registo reversível/i.test(t.motivo ?? "")) && (
+              <p role="alert" className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-900" data-testid="infarmed-falha-registo-reversivel">
+                Não foi possível guardar o registo reversível da reconciliação em: {resultado.tenants.filter((t) => !t.ok && /registo reversível/i.test(t.motivo ?? "")).map((t) => t.slug).join(", ")}.
+                Por segurança, as alterações ao catálogo desses tenants NÃO foram confirmadas. Os restantes tenants não foram afetados.
+              </p>
+            )}
             {falhados.length > 0 && ficheiro && preview && (
               <button
                 type="button"
@@ -355,6 +364,53 @@ export function InfarmedAdminClient({ estado }: { estado: EstadoAdminInfarmed })
             )}
           </div>
         )}
+      </section>
+
+      {/* ── Reconciliações reversíveis ── */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4" data-testid="infarmed-reconciliacoes">
+        <h2 className="text-[13px] font-semibold text-slate-900">Reconciliações do catálogo (reversíveis)</h2>
+        <p className="mt-1 text-[11px] text-slate-500">
+          Cada operação que alterou forma, dosagem, embalagem ou DCI guarda o valor anterior de cada campo. Descarregue o relatório e
+          reverta com <span className="font-mono">ops:infarmed-carga --reverter-reconciliacao=&lt;ficheiro&gt; [--apply]</span>.
+        </p>
+        <table className="mt-2 w-full text-[12px]">
+          <thead className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="py-1.5 pr-3">Data</th>
+              <th className="py-1.5 pr-3">Origem</th>
+              <th className="py-1.5 pr-3">Tenants</th>
+              <th className="py-1.5 pr-3 text-right">Campos alterados</th>
+              <th className="py-1.5 pr-3">Estado</th>
+              <th className="py-1.5 pr-3">Identificador</th>
+              <th className="py-1.5">Relatório</th>
+            </tr>
+          </thead>
+          <tbody>
+            {estado.reconciliacoes.length === 0 ? (
+              <tr><td colSpan={7} className="py-3 text-slate-500">Nenhuma reconciliação com alterações registada.</td></tr>
+            ) : (
+              estado.reconciliacoes.map((o) => (
+                <tr key={o.operacaoId} className="border-t border-slate-100" data-testid="infarmed-reconciliacao" data-operacao={o.operacaoId}>
+                  <td className="py-1.5 pr-3 tabular-nums">{fmt(o.data)}</td>
+                  <td className="py-1.5 pr-3">{ORIGEM_RECONCILIACAO[o.origem] ?? o.origem}{o.utilizadorEmail ? ` · ${o.utilizadorEmail}` : ""}</td>
+                  <td className="py-1.5 pr-3">{o.tenants.map((t) => `${t.tenant} (${t.campos})`).join(", ")}</td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums">{o.campos}</td>
+                  <td className="py-1.5 pr-3">
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${o.estado === "APLICADA" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                      {o.estado === "APLICADA" ? "Aplicada" : o.estado === "REVERTIDA" ? "Revertida" : "Parcialmente revertida"}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-3 font-mono text-[10px]">{o.operacaoId}</td>
+                  <td className="py-1.5">
+                    <a href={`/admin/infarmed/relatorio/${o.operacaoId}`} download className="text-emerald-700 underline" data-testid="infarmed-reconciliacao-download">
+                      Descarregar JSON
+                    </a>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </section>
 
       {/* ── Histórico ── */}
