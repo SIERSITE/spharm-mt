@@ -183,7 +183,8 @@ console.log("\n=== J. Sem migration ===");
 {
   // A última migration da revisão em produção (4b6396a) é 20260930100000_...:
   // qualquer outra, mais recente, seria desta entrega.
-  const novas = readdirSync("prisma/migrations").filter((m) => /^\d{14}_/.test(m) && m.slice(0, 14) > "20260930100000");
+  const novas = readdirSync("prisma/migrations").filter((m) => /^\d{14}_/.test(m) && m.slice(0, 14) > "20260930100000" && m !== "20261013100000_infarmed_regulamentar");
+  // (a migration dos dados regulamentares do INFARMED é de OUTRA entrega — branch feat/margens-cnpe-cabecalhos-anuladas)
   ok("nenhuma migration nova (a farmácia é identificada por Farmacia.id, que já existe)", novas.length === 0, novas.join(","));
   ok("schema.prisma sem campo novo de autoridade", !/designacaoAutoritativa|autoridadeCatalogo/i.test(src("prisma/schema.prisma")));
 }

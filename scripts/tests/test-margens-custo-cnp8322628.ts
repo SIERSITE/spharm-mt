@@ -198,7 +198,7 @@ console.log("\n=== C. lib/margens-data.ts: sem estado partilhado entre linhas ==
   );
   ok(
     "o JOIN casa produtoId E farmaciaId — nunca só produtoId (fonte de contaminação entre farmácias)",
-    /pf\."produtoId" = agg\."produtoId" AND pf\."farmaciaId" = agg\."farmaciaId"/.test(dados),
+    /pf\."produtoId" = (agg|src)\."produtoId" AND pf\."farmaciaId" = (agg|src)\."farmaciaId"/.test(dados),
   );
 
   const schema = src("prisma/schema.prisma");

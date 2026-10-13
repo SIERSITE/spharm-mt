@@ -857,7 +857,7 @@ function LinhaMargem({
         <ArtigoLink cnp={Number(r.cnp)} className="hover:text-emerald-600 hover:underline">
           {r.designacao}
         </ArtigoLink>
-        {etiqueta}
+        {etiqueta && <div className="mt-1 flex flex-wrap gap-1">{etiqueta}</div>}
       </td>
       <td className="py-2 pr-3 text-slate-600">
         <div className="flex flex-col leading-tight">
@@ -905,7 +905,7 @@ function LinhaMargem({
   );
 }
 
-const ETIQUETA_BASE = "ml-2 inline-flex rounded-full border px-1.5 py-0.5 align-middle text-[10px] font-semibold";
+const ETIQUETA_BASE = "inline-flex whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none";
 
 /** As linhas da comparação por CNPEM, logo abaixo da linha expandida. */
 function ComparacaoCnpemLinhas({

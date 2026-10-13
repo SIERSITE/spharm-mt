@@ -85,7 +85,9 @@ console.log("\n=== B. Opt-in: só Vendas pede a hierarquia forte ===");
   ok("a página de Vendas leva a classe hierarchy-strong", /class="page density-compact hierarchy-strong"/.test(html));
   const semOptIn = renderReportHtml({ ...report, meta: { ...report.meta!, hierarchy: undefined } });
   ok("sem meta.hierarchy a classe não aparece", /class="page density-compact"/.test(semOptIn) && !/class="page density-compact hierarchy-strong"/.test(semOptIn));
-  const outros = ["devolucoes", "encomendas", "excessos", "inventario", "margens"].map((n) => `lib/reporting/adapters/${n}.ts`);
+  // Margens (2026-10, feat/margens-cnpe-cabecalhos-anuladas) adotou deliberadamente a mesma hierarquia forte.
+  ok("o relatório de Margens (Por Produto) também declara meta.hierarchy = strong", /hierarchy:\s*"strong"/.test(src("lib/reporting/adapters/margens.ts")));
+  const outros = ["devolucoes", "encomendas", "excessos", "inventario"].map((n) => `lib/reporting/adapters/${n}.ts`);
   ok("nenhum outro adapter pede a hierarquia forte", outros.every((f) => !/hierarchy:/.test(src(f))));
 }
 
