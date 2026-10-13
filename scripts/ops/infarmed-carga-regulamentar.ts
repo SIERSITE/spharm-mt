@@ -22,6 +22,13 @@
  *     … --reconciliar --tenant=silveira,segurado,garantia          (dry-run: só contadores)
  *     … --reconciliar --tenant=silveira,segurado,garantia --apply
  *     … --reconciliar --todos [--apply]                            (todos os tenants ativos)
+ *   O --apply grava reconciliacao-<operacaoId>.json (valor anterior de cada campo alterado), ANTES de
+ *   confirmar cada transação. É esse ficheiro que permite reverter:
+ *
+ *   Reverter uma reconciliação (repõe exatamente os valores anteriores; edições posteriores nunca se perdem):
+ *     … --reverter-reconciliacao=/relatorios/reconciliacao-<id>.json            (dry-run)
+ *     … --reverter-reconciliacao=/relatorios/reconciliacao-<id>.json --apply
+ *     … --reverter-reconciliacao=<ficheiro> --tenant=a,b                        (só alguns tenants do relatório)
  *
  * Opções:
  *   --tenant=<slug>        tenant do control plane (produção/Docker)
@@ -62,6 +69,7 @@ function ajuda() {
       "  --reverter [--apply]            volta à versão anterior",
       "  --listar                        histórico de importações",
       "  --reconciliar [--apply]         reconcilia o catálogo com a versão ativa (--tenant=a,b,c | --todos)",
+      "  --reverter-reconciliacao=<json> [--apply]   repõe os valores anteriores de uma reconciliação aplicada",
       "  --origem=CARGA_INICIAL|MANUAL   --forcar   --relatorio-dir=<dir>",
       "",
     ].join("\n"),
@@ -109,10 +117,45 @@ async function reconciliar(apply: boolean): Promise<number> {
   }
   const resultados: unknown[] = [];
   let falhas = 0;
+  // Relatório de aplicação (reversível). Reescrito (tmp+rename+fsync) ANTES de cada transação confirmar:
+  // se a escrita falhar, a transação é anulada e nada fica gravado sem possibilidade de reversão.
+  type Rev = typeof import("@/lib/regulamentar/infarmed-reverter");
+  const { randomUUID } = await import("node:crypto");
+  const rev: Rev = await import("@/lib/regulamentar/infarmed-reverter");
+  const operacaoId = randomUUID();
+  const geradoEm = new Date().toISOString();
+  const relatorioAplicacao: import("@/lib/regulamentar/infarmed-reverter").RelatorioReconciliacao = {
+    formato: rev.FORMATO_RELATORIO_RECONCILIACAO, operacaoId, geradoEm, modo: "APPLY", tenants: [],
+  };
+  const dirRel = pastaRelatorios();
+  const ficheiroApply = path.join(dirRel, `reconciliacao-${operacaoId}.json`);
+  const gravarApply = () => {
+    fs.mkdirSync(dirRel, { recursive: true });
+    const tmp = `${ficheiroApply}.tmp`;
+    const fd = fs.openSync(tmp, "w");
+    try { fs.writeSync(fd, JSON.stringify(relatorioAplicacao, null, 1)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, ficheiroApply);
+  };
   process.stdout.write(`\nRECONCILIAÇÃO DO CATÁLOGO COM A VERSÃO ATIVA DO INFARMED — ${apply ? "APPLY" : "DRY-RUN"}\n`);
   for (const a of alvos) {
     try {
-      const r = await reconciliarVersaoAtiva(a.prisma, { apply });
+      const entrada: Array<import("@/lib/regulamentar/infarmed-reverter").TenantRelatorio> = [];
+      const r = await reconciliarVersaoAtiva(a.prisma, {
+        apply,
+        registarAlteracoes: apply,
+        antesDeConfirmar: apply
+          ? async (alt) => {
+              const ativa = await a.prisma.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true, sha256: true } });
+              const alteracoes = rev.alteracoesParaRelatorio(a.nome, operacaoId, geradoEm, alt);
+              const t = { tenant: a.nome, importacaoId: ativa?.id ?? "", sha256: ativa?.sha256 ?? "", estado: "PENDENTE" as const, integridade: rev.integridadeDe(alteracoes), alteracoes };
+              entrada.push(t);
+              relatorioAplicacao.tenants.push(t);
+              gravarApply(); // se falhar, a transação é anulada
+            }
+          : undefined,
+      });
+      for (const t of entrada) t.estado = "CONFIRMADO";
+      if (entrada.length > 0) gravarApply();
       if (!r) {
         process.stdout.write(`\n[${a.nome}] sem versão ativa — nada a reconciliar\n`);
         resultados.push({ tenant: a.nome, versaoAtiva: null });
@@ -124,21 +167,73 @@ async function reconciliar(apply: boolean): Promise<number> {
         const f = c.campos[k];
         process.stdout.write(`    ${k.padEnd(18)} preenchidos ${f.preenchidos} · atualizados ${f.atualizados} · ignorados (manual) ${f.ignoradosManual} · ignorados (vazio) ${f.ignoradosVazio} · já iguais ${f.jaIguais}\n`);
       }
-      resultados.push({ tenant: a.nome, importacaoId: r.importacaoId, sha256: r.sha256, contadores: c });
+      // As alterações detalhadas vão para o relatório reversível, não para o resumo.
+      const { alteracoes: _omitidas, ...contadoresResumo } = c;
+      void _omitidas;
+      resultados.push({ tenant: a.nome, importacaoId: r.importacaoId, sha256: r.sha256, contadores: contadoresResumo });
     } catch (e) {
       falhas++;
       process.stdout.write(`\n[${a.nome}] ERRO: ${e instanceof Error ? e.message : String(e)}\n`);
       resultados.push({ tenant: a.nome, erro: e instanceof Error ? e.message : String(e) });
     }
   }
-  const dir = pastaRelatorios();
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dirRel, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const destino = path.join(dir, `infarmed-reconciliacao-${ts}-${apply ? "apply" : "dryrun"}.json`);
-  fs.writeFileSync(destino, JSON.stringify({ geradoEm: new Date().toISOString(), modo: apply ? "APPLY" : "DRY_RUN", resultados }, null, 2), "utf8");
-  process.stdout.write(`\nrelatório: ${destino}\n${apply ? "" : "Nada foi escrito na base. Repita com --apply para aplicar.\n"}`);
+  const destino = path.join(dirRel, `infarmed-reconciliacao-${ts}-${apply ? "apply" : "dryrun"}.json`);
+  fs.writeFileSync(destino, JSON.stringify({ geradoEm: new Date().toISOString(), operacaoId: apply ? operacaoId : undefined, modo: apply ? "APPLY" : "DRY_RUN", resultados }, null, 2), "utf8");
+  process.stdout.write(`\nrelatório (resumo): ${destino}\n`);
+  if (apply) {
+    if (relatorioAplicacao.tenants.length === 0) process.stdout.write("Nenhum campo foi alterado — não há nada a reverter.\n");
+    else process.stdout.write(`relatório REVERSÍVEL: ${ficheiroApply}\nPara reverter: --reverter-reconciliacao=${ficheiroApply} [--apply]\n`);
+  } else process.stdout.write("Nada foi escrito na base. Repita com --apply para aplicar.\n");
   for (const a of alvos) await a.prisma.$disconnect().catch(() => undefined);
   return falhas > 0 ? 1 : 0;
+}
+
+/** Reverte uma reconciliação a partir do relatório do --apply. Dry-run por omissão. */
+async function reverterReconciliacao(apply: boolean): Promise<number> {
+  const ficheiro = arg("reverter-reconciliacao");
+  if (!ficheiro || ficheiro === "true") throw new Error("Indique --reverter-reconciliacao=<reconciliacao-<id>.json>.");
+  const rev = await import("@/lib/regulamentar/infarmed-reverter");
+  const relatorio = rev.validarRelatorio(JSON.parse(fs.readFileSync(ficheiro, "utf8")));
+  const filtro = arg("tenant")?.split(",").map((x) => x.trim()).filter(Boolean);
+  const alvos = relatorio.tenants.filter((t) => !filtro || filtro.includes(t.tenant));
+  if (filtro) for (const f of filtro) if (!relatorio.tenants.some((t) => t.tenant === f)) throw new Error(`O tenant «${f}» não consta do relatório.`);
+  if (alvos.length === 0) throw new Error("O relatório não tem tenants para reverter.");
+
+  process.stdout.write(`\nREVERSÃO DA RECONCILIAÇÃO ${relatorio.operacaoId} (${relatorio.geradoEm}) — ${apply ? "APPLY" : "DRY-RUN"}\n`);
+  const campos = ["formaFarmaceutica", "dosagem", "embalagem", "dci"] as const;
+  const resultados: Array<import("@/lib/regulamentar/infarmed-reverter").ResultadoReversaoTenant> = [];
+  const erros: Array<{ tenant: string; erro: string }> = [];
+  const { getTenantPrismaOrLegacy } = await import("@/lib/tenant-registry");
+  for (const t of alvos) {
+    try {
+      const prisma = arg("database-url") ? (await obterPrisma()).prisma : await getTenantPrismaOrLegacy(t.tenant);
+      try {
+        const r = await rev.reverterReconciliacaoTenant(prisma, t, { apply });
+        resultados.push(r);
+        process.stdout.write(`\n[${t.tenant}] alterações no relatório ${r.analisadas} · ${apply ? "revertidas" : "a reverter"} ${r.revertidas} · já no valor anterior ${r.jaRevertidas} · conflitos (não tocados) ${r.conflitos.length}\n`);
+        for (const k of campos) {
+          const f = r.porCampo[k];
+          process.stdout.write(`    ${k.padEnd(18)} ${apply ? "revertidas" : "a reverter"} ${f.revertidas} · já anteriores ${f.jaRevertidas} · conflitos ${f.conflitos}\n`);
+        }
+        for (const c of r.conflitos.slice(0, 20)) process.stdout.write(`      conflito cnp ${c.cnp} ${c.campo}: ${c.motivo} (atual ${JSON.stringify(c.atual)}, esperado ${JSON.stringify(c.esperado)})\n`);
+        if (r.conflitos.length > 20) process.stdout.write(`      … e mais ${r.conflitos.length - 20} (ver relatório)\n`);
+      } finally {
+        await prisma.$disconnect().catch(() => undefined);
+      }
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      erros.push({ tenant: t.tenant, erro: m });
+      process.stdout.write(`\n[${t.tenant}] ERRO (nada alterado neste tenant): ${m}\n`);
+    }
+  }
+  const dir = pastaRelatorios();
+  fs.mkdirSync(dir, { recursive: true });
+  const destino = path.join(dir, `reversao-${relatorio.operacaoId}-${new Date().toISOString().replace(/[:.]/g, "-")}-${apply ? "apply" : "dryrun"}.json`);
+  fs.writeFileSync(destino, JSON.stringify({ geradoEm: new Date().toISOString(), modo: apply ? "APPLY" : "DRY_RUN", operacaoId: relatorio.operacaoId, ficheiroOrigem: path.resolve(ficheiro), resultados, erros }, null, 2), "utf8");
+  process.stdout.write(`\nrelatório: ${destino}\n${apply ? "" : "Nada foi alterado. Repita com --apply para reverter.\n"}`);
+  return erros.length > 0 ? 1 : 0;
 }
 
 async function main(): Promise<number> {
@@ -147,6 +242,7 @@ async function main(): Promise<number> {
     return 0;
   }
   const apply = arg("apply") === "true";
+  if (arg("reverter-reconciliacao")) return reverterReconciliacao(apply);
   if (arg("reconciliar")) return reconciliar(apply);
   const { prisma, nome } = await obterPrisma();
   try {

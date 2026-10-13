@@ -3260,7 +3260,7 @@ export function OrderCreateClient({
                   {estadoLabel(filterEstado)} ×
                 </span>
               )}
-              {hasTableFilters && (
+              {(hasTableFilters || !!ordenacao) && (
                 <button type="button"
                   onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterSemFornecedor(false); setFilterFarmaciaTabela(""); setOrdenacao(null); }}
                   className="ml-auto text-[11px] text-slate-500 hover:text-slate-700">

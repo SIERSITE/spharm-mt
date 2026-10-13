@@ -119,5 +119,17 @@ console.log("\nC · seleção de artigos para impressão");
   check(/useState<\{ geracao: number; codigos: Set<string> \} \| null>/.test(c), "C9: estado guarda só identificadores (códigos)");
 }
 
+console.log("\nD · a expansão CNPEM é só de ecrã (nunca na impressão, PDF, Excel ou e-mail)");
+{
+  const m = ler("components/margens/margens-client.tsx");
+  const ini = m.indexOf("const buildReport");
+  const corpo = m.slice(ini, ini + 1600);
+  check(!/comparacao|mostrarTodos|ComparacaoCnpem/i.test(corpo), "D1: buildReport (fonte única de impressão/PDF/Excel/email) não lê o estado da comparação");
+  const linhasComparacao = m.match(/<tr[^>]*data-tabela-linha="comparacao"[^>]*>/g) ?? [];
+  check(linhasComparacao.length >= 2 && linhasComparacao.every((t) => /print:hidden/.test(t) && /data-nao-imprimir/.test(t)), "D2: todas as linhas de mensagem/cabeçalho da expansão têm print:hidden + data-nao-imprimir");
+  check(/data-nao-imprimir=\{linha \? "" : undefined\}/.test(m) && /className=\{linha \? "print:hidden" : undefined\}/.test(m), "D3: as linhas de artigos da expansão (comparacao/comparacao-analisado) também");
+  check(/@media print \{\s*\n\s*\[data-nao-imprimir\] \{ display: none !important; \}/.test(ler("app/globals.css")), "D4: regra global @media print esconde [data-nao-imprimir]");
+}
+
 console.log(`\n${ok} OK, ${ko} falhas`);
 process.exit(ko ? 1 : 0);

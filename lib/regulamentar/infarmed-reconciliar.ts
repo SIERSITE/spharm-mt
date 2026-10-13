@@ -70,6 +70,24 @@ export type ContadoresReconciliacao = {
   /** Produtos com pelo menos um campo escrito (ou a escrever, em dry-run). */
   produtosAlterados: number;
   campos: Record<CampoReconciliado, ContadoresCampo>;
+  /** Só com `apply` + `registarAlteracoes`: o que foi gravado, com o valor anterior. */
+  alteracoes?: AlteracaoCampo[];
+};
+
+/**
+ * Uma alteração gravada pela reconciliação: o suficiente para auditar e para
+ * repor EXATAMENTE o valor anterior (incluindo `null` e strings vazias), sem
+ * guardar mais nada do produto.
+ */
+export type AlteracaoCampo = {
+  produtoId: string;
+  cnp: number;
+  campo: CampoReconciliado;
+  /** Valor antes (tal como estava na base; `null` se estava vazio). */
+  anterior: string | null;
+  /** Valor gravado. */
+  aplicado: string;
+  tipo: "PREENCHIMENTO" | "ATUALIZACAO";
 };
 
 export type LinhaParaReconciliar = {
@@ -141,7 +159,17 @@ const n = (v: unknown) => Number(v ?? 0);
 export async function reconciliarProdutos(
   db: Db,
   fonte: FonteReconciliacao,
-  opcoes: { apply: boolean },
+  opcoes: {
+    apply: boolean;
+    /** Devolve em `alteracoes` cada campo gravado com o valor anterior (para auditoria/reversão). */
+    registarAlteracoes?: boolean;
+    /**
+     * Chamado com as alterações ANTES de o chamador confirmar a transação: se lançar,
+     * o chamador deve anular tudo (é assim que o relatório de reversão fica gravado
+     * em disco antes de qualquer alteração ficar definitiva).
+     */
+    antesDeConfirmar?: (alteracoes: AlteracaoCampo[]) => void | Promise<void>;
+  },
 ): Promise<ContadoresReconciliacao> {
   const src = fonteSql(fonte);
   const c = Object.fromEntries(CAMPOS_RECONCILIADOS.map((k) => [k, condicoes(k)])) as Record<CampoReconciliado, ReturnType<typeof condicoes>>;
@@ -186,13 +214,35 @@ export async function reconciliarProdutos(
     // SÓ estas 4 colunas (+ dataAtualizacao). Nunca `designacao`.
     const set = (campo: CampoReconciliado) =>
       Prisma.sql`${Prisma.raw(`"${COL[campo].produto}"`)} = CASE WHEN ${c[campo].escreve} THEN s.${Prisma.raw(COL[campo].fonte)} ELSE p.${Prisma.raw(`"${COL[campo].produto}"`)} END`;
-    await db.$executeRaw(Prisma.sql`
+    // `o` é a mesma linha lida ANTES do UPDATE (o mesmo snapshot): é de onde vêm os valores anteriores.
+    const ret = (campo: CampoReconciliado) => {
+      const col = Prisma.raw(`"${COL[campo].produto}"`);
+      return Prisma.sql`o.${col} AS "ant_${Prisma.raw(campo)}", p.${col} AS "nov_${Prisma.raw(campo)}"`;
+    };
+    const gravadas = await db.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       WITH s AS (${src})
       UPDATE "Produto" p SET
         ${set("formaFarmaceutica")}, ${set("dosagem")}, ${set("embalagem")}, ${set("dci")},
         "dataAtualizacao" = now()
-      FROM s
-      WHERE p.id = s.pid AND ${alguma}`);
+      FROM s, "Produto" o
+      WHERE p.id = s.pid AND o.id = p.id AND ${alguma}
+      RETURNING p.id AS pid, p.cnp AS cnp, ${ret("formaFarmaceutica")}, ${ret("dosagem")}, ${ret("embalagem")}, ${ret("dci")}`);
+    if (opcoes.registarAlteracoes) {
+      const alteracoes: AlteracaoCampo[] = [];
+      for (const g of gravadas) {
+        for (const campo of CAMPOS_RECONCILIADOS) {
+          const ant = (g[`ant_${campo}`] as string | null) ?? null;
+          const nov = (g[`nov_${campo}`] as string | null) ?? null;
+          if (nov === null || nov === ant) continue;
+          // «vazio» tem o mesmo critério da reconciliação: nulo ou só espaços.
+          const estavaVazio = ant === null || ant.trim() === "";
+          alteracoes.push({ produtoId: String(g.pid), cnp: Number(g.cnp), campo, anterior: ant, aplicado: nov, tipo: estavaVazio ? "PREENCHIMENTO" : "ATUALIZACAO" });
+        }
+      }
+      alteracoes.sort((x, y) => x.cnp - y.cnp || x.campo.localeCompare(y.campo));
+      out.alteracoes = alteracoes;
+      if (opcoes.antesDeConfirmar) await opcoes.antesDeConfirmar(alteracoes);
+    }
   }
   return out;
 }
@@ -205,7 +255,7 @@ export function totalEscrito(c: ContadoresReconciliacao): number {
 /** Reconcilia a versão ATIVA do tenant (sem importação nova). `null` se não há versão ativa. */
 export async function reconciliarVersaoAtiva(
   prisma: PrismaClient,
-  opcoes: { apply: boolean },
+  opcoes: { apply: boolean; registarAlteracoes?: boolean; antesDeConfirmar?: (alteracoes: AlteracaoCampo[]) => void | Promise<void> },
 ): Promise<{ importacaoId: string; sha256: string; contadores: ContadoresReconciliacao } | null> {
   const ativa = await prisma.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true, sha256: true } });
   if (!ativa) return null;
@@ -217,7 +267,7 @@ export async function reconciliarVersaoAtiva(
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(7203201001)`; // o mesmo lock da aplicação/rollback
       const ainda = await tx.infarmedImportacao.findFirst({ where: { ativa: true }, select: { id: true } });
       if (!ainda || ainda.id !== ativa.id) throw new Error("A versão ativa mudou durante a reconciliação; repetir.");
-      return reconciliarProdutos(tx as unknown as Db, { tipo: "importacao", importacaoId: ativa.id }, { apply: true });
+      return reconciliarProdutos(tx as unknown as Db, { tipo: "importacao", importacaoId: ativa.id }, { apply: true, registarAlteracoes: opcoes.registarAlteracoes, antesDeConfirmar: opcoes.antesDeConfirmar });
     },
     { timeout: 300_000, maxWait: 60_000 },
   );

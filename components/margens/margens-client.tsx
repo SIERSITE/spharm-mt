@@ -869,7 +869,7 @@ function LinhaMargem({
   linha?: "comparacao" | "comparacao-analisado";
 }) {
   return (
-    <tr data-tabela-linha={linha} data-cnp={r.cnp} data-farmacia={r.farmacia}>
+    <tr data-tabela-linha={linha} data-cnp={r.cnp} data-farmacia={r.farmacia} data-nao-imprimir={linha ? "" : undefined} className={linha ? "print:hidden" : undefined}>
       <td className="py-2 pl-1 pr-1 align-top">{botao}</td>
       <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
       <td className="py-2 pr-3 text-slate-800">
@@ -946,7 +946,7 @@ function ComparacaoCnpemLinhas({
 }) {
   const onde = umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas";
   const mensagem = (texto: React.ReactNode, tom: "neutro" | "erro" = "neutro") => (
-    <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem">
+    <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem" data-nao-imprimir className="print:hidden">
       <td />
       <td colSpan={N_COLUNAS_PRODUTO - 1} className={`py-2 pr-3 text-[12px] ${tom === "erro" ? "text-rose-700" : "text-slate-600"}`} role={tom === "erro" ? "alert" : "status"}>
         {texto}
@@ -972,7 +972,7 @@ function ComparacaoCnpemLinhas({
   }
   return (
     <>
-      <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem">
+      <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem" data-nao-imprimir className="print:hidden">
         <td />
         <td colSpan={N_COLUNAS_PRODUTO - 1} className="py-1.5 pr-3 text-[11px] text-indigo-800">
           <span className="font-semibold" data-testid="comparacao-contagem">

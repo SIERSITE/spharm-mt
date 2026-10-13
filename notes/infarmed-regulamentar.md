@@ -269,3 +269,47 @@ a seleção; zero selecionados bloqueia a saída com mensagem. O estado guarda s
 
 Testes: `npm run test:infarmed-reconciliacao-db`, `test:margens-cnpem-db`, `test:ordenacao-custo-selecao`.
 Sem migrations novas nesta tarefa.
+
+### 11.6 Reversão operacional da reconciliação
+
+O `--reconciliar --apply` grava, para além do resumo (`infarmed-reconciliacao-<ts>-apply.json`), o relatório
+**reversível** `reconciliacao-<operacaoId>.json` (formato `infarmed-reconciliacao/v1`). Por cada campo alterado:
+`tenant`, `produtoId`, `cnp`, `campo`, `anterior` (incluindo `null` e strings vazias, exatamente como estavam),
+`aplicado`, `tipo` (`PREENCHIMENTO`/`ATUALIZACAO`), `data` e `operacaoId`. Nada mais do produto é guardado.
+Cada tenant tem uma soma sha256 (`integridade`) e um estado (`PENDENTE` → `CONFIRMADO`).
+
+O ficheiro é escrito (tmp + fsync + rename) **antes** de a transação de cada tenant confirmar: se a escrita
+falhar, a reconciliação desse tenant é anulada — nunca fica nada alterado sem possibilidade de reversão.
+Um dry-run não grava relatório reversível.
+
+```
+# pré-visualização (nada é escrito na base)
+$DC run --rm migrate npm run ops:infarmed-carga -- --reverter-reconciliacao=/relatorios/reconciliacao-<id>.json
+# reversão real
+$DC run --rm migrate npm run ops:infarmed-carga -- --reverter-reconciliacao=/relatorios/reconciliacao-<id>.json --apply
+# só alguns tenants do relatório
+… --reverter-reconciliacao=<ficheiro> --tenant=silveira,segurado [--apply]
+```
+
+Regras, por campo, face ao valor ATUAL:
+- atual = aplicado → repõe o anterior;
+- atual = anterior → já revertido: nada a fazer (idempotente: a 2.ª execução reverte 0);
+- atual diferente de ambos → CONFLITO (edição posterior): não toca, fica listado no relatório da reversão;
+- campo entretanto em `camposManuais` → protegido: não toca (conflito `CAMPO_PROTEGIDO_MANUAL`);
+- produto inexistente → listado.
+
+Só escreve as 4 colunas e `dataAtualizacao`; nunca `designacao`. Um tenant de cada vez, numa transação, com o mesmo
+lock da importação; qualquer diferença entre linhas previstas e escritas anula a transação. Um ficheiro adulterado,
+truncado ou de outro tipo (p. ex. o resumo) é recusado antes de qualquer leitura da base. A reversão grava
+`reversao-<operacaoId>-<ts>-<apply|dryrun>.json` com contadores por campo e conflitos.
+
+Âmbito: cobre a reconciliação feita pelo comando. As reconciliações que correm na mesma transação do download
+mensal / upload manual não geram este relatório (têm o histórico e o rollback de versões); se for preciso revertê-las,
+repita-se `--reconciliar --apply` após o rollback ou use o relatório do comando.
+
+### 11.7 A expansão CNPEM é só de ecrã
+As linhas da expansão têm `print:hidden` + `data-nao-imprimir` (e a regra global `@media print`); o relatório
+(impressão, PDF, Excel, email) é construído por `buildReport` a partir das linhas do mapa e nunca lê o estado da
+comparação. Validado em build de produção: HTML de impressão, PDF real, Excel real e corpo do relatório sem nenhuma
+linha/etiqueta da expansão, mesmo com a expansão e «Mostrar todos» abertos (`npm run e2e:tarefa-c`,
+evidência em `docs/validacao-visual/2026-10-tarefa-c/`).

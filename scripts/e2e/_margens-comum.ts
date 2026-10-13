@@ -21,7 +21,15 @@ const L = (reg: string, cnpem: number, nome: string, geral: number | null, esp: 
   [reg, dci, nome, "Comprimido", "400 mg", "20 unidade(s)", cnpem, 5, null, geral, esp, "Comercializado", "Não"] as Array<string | number | null>;
 
 export const CNPEM_GRUPO = 50000001;
-export const CNP = { A: 7200001, B: 7200002, C: 7200003, D: 7200004, E: 7200005, SO_FICHEIRO: 7299999 };
+export const CNP = {
+  A: 7200001, B: 7200002, C: 7200003, D: 7200004, E: 7200005, SO_FICHEIRO: 7299999,
+  /** Mesmo CNPEM, sem vendas e sem stock em nenhuma farmácia: só aparece com «Mostrar todos». */
+  F: 7200006,
+  /** Ordem alfabética: minúsculas/acentos. */
+  ABC: 7200007, ACIDO: 7200008,
+  /** Vendas sem custo conhecido (PMC e PUC vazios). */
+  SEM_CUSTO: 7200009,
+};
 
 export type Semeado = {
   userId: string;
@@ -80,12 +88,23 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
   const C = await mk(CNP.C, "IBUPROFENO C 400 (sem vendas)");
   const D = await mk(CNP.D, "IBUPROFENO D 400 (só em Gama)");
   const E = await mk(CNP.E, "IBUPROFENO E 600 (mesma DCI, outro CNPEM)");
+  const F = await mk(CNP.F, "IBUPROFENO F 400 (sem vendas nem stock)");
   await pf(A.id, fa.id, 40); await vendas(A.id, fa.id, 10, 12.3);
   await pf(A.id, fb.id, 40); await vendas(A.id, fb.id, 4, 12.3);
   await pf(B.id, fa.id, 40); await vendas(B.id, fa.id, 7, 11.5);
   await pf(C.id, fa.id, 40);                       // existe na Alfa, não vendeu no período
   await pf(D.id, fg.id, 40); await vendas(D.id, fg.id, 9, 11);
   await pf(E.id, fa.id, 40); await vendas(E.id, fa.id, 5, 14);
+  await pf(F.id, fa.id, 0);                         // existe na Alfa, sem stock e sem vendas
+
+  // ── Ordem alfabética (sem maiúsculas/acentos) e custo desconhecido ──
+  const ABC = await prisma.produto.create({ data: { cnp: CNP.ABC, designacao: "abc minúsculas E2E", fabricanteId: fabricante.id, estado: "VALIDADO" } });
+  const ACIDO = await prisma.produto.create({ data: { cnp: CNP.ACIDO, designacao: "ÁCIDO ORDEM E2E", fabricanteId: fabricante.id, estado: "VALIDADO" } });
+  const SC = await prisma.produto.create({ data: { cnp: CNP.SEM_CUSTO, designacao: "ZZ SEM CUSTO E2E", fabricanteId: fabricante.id, estado: "VALIDADO" } });
+  await pf(ABC.id, fa.id, 3); await vendas(ABC.id, fa.id, 4, 12.3);
+  await pf(ACIDO.id, fa.id, 3); await vendas(ACIDO.id, fa.id, 4, 12.3);
+  await prisma.produtoFarmacia.create({ data: { produtoId: SC.id, farmaciaId: fa.id, pvp: 9, stockAtual: 3, stockMinimo: 1, stockMaximo: 5, taxaIvaPercent: 23 } });
+  await vendas(SC.id, fa.id, 4, 9);
 
   // ── INFARMED ─────────────────────────────────────────────────────
   const { lerFicheiroInfarmed } = await import("../../lib/regulamentar/infarmed-ficheiro");
@@ -96,6 +115,7 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
     L(String(CNP.C), CNPEM_GRUPO, "Ibuprofeno C INFARMED", 3.7, 2.3),
     L(String(CNP.D), CNPEM_GRUPO, "Ibuprofeno D INFARMED", 3.8, 2.4),
     L(String(CNP.E), 50000002, "Ibuprofeno E INFARMED", 4.5, 3.1),
+    L(String(CNP.F), CNPEM_GRUPO, "Ibuprofeno F INFARMED", 3.9, 2.5),
     L(String(CNP.SO_FICHEIRO), CNPEM_GRUPO, "SO NO FICHEIRO INFARMED", 9.9, 9.9),
   ]));
   const ap = await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "CARGA_INICIAL", apply: true });
