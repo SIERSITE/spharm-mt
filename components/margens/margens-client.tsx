@@ -701,6 +701,7 @@ function TabelaProduto({
   const comparacoes = cache.chave === chaveAtual ? cache.mapa : MAPA_VAZIO;
   const chaveRef = useRef(chaveAtual);
   const pedidos = useRef(new Set<string>());
+  const contentorRef = useRef<HTMLDivElement>(null);
   const [tentativa, setTentativa] = useState(0);
 
   const guardar = (chave: string, chaveCmp: string, est: EstadoComparacao | null) => {
@@ -773,15 +774,16 @@ function TabelaProduto({
   const umaFarmacia = (filtros.farmaciaNomes?.length ?? 0) === 1;
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-      <div className="tabela-fixa" data-testid="tabela-margens-produto">
+      <BarraScrollHorizontalTopo alvo={contentorRef} />
+      <div ref={contentorRef} className="tabela-fixa tabela-margens" data-testid="tabela-margens-produto">
         <table className="min-w-full text-left text-[12px]">
           <thead className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
             <tr>
-              <th scope="col" className="w-8 py-2 pl-1 pr-1">
+              <th scope="col" className="col-exp w-8 py-2 pl-1 pr-1">
                 <span className="sr-only">Comparar com o mesmo CNPEM</span>
               </th>
-              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="cnp" className="py-2 pr-3">CNP</CabecalhoOrdenavel>
-              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="designacao" className="py-2 pr-3">Descrição</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="cnp" className="col-cnp py-2 pr-3">CNP</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="designacao" className="col-desc py-2 pr-3">Descrição</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="categoria" className="py-2 pr-3">Categoria</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="farmacia" className="py-2 pr-3">Farmácia</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="qtdVendida" align="right" className="py-2 pr-3 text-right">Qtd</CabecalhoOrdenavel>
@@ -870,9 +872,9 @@ function LinhaMargem({
 }) {
   return (
     <tr data-tabela-linha={linha} data-cnp={r.cnp} data-farmacia={r.farmacia} data-nao-imprimir={linha ? "" : undefined} className={linha ? "print:hidden" : undefined}>
-      <td className="py-2 pl-1 pr-1 align-top">{botao}</td>
-      <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
-      <td className="py-2 pr-3 text-slate-800">
+      <td className="col-exp py-2 pl-1 pr-1 align-top">{botao}</td>
+      <td className="col-cnp py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
+      <td className="col-desc py-2 pr-3 text-slate-800">
         <ArtigoLink cnp={Number(r.cnp)} className="hover:text-emerald-600 hover:underline">
           {r.designacao}
         </ArtigoLink>
@@ -924,6 +926,58 @@ function LinhaMargem({
   );
 }
 
+/**
+ * Barra de scroll horizontal ESPELHO, no topo da tabela: sincronizada com o contentor, só aparece quando a
+ * tabela não cabe (mesmo depois da compactação). Assim o scroll horizontal está sempre à mão, sem descer
+ * centenas de linhas. Só de ecrã.
+ */
+function moverScrollHorizontal(el: HTMLElement, x: number) {
+  if (el.scrollLeft !== x) el.scrollLeft = x;
+}
+
+function BarraScrollHorizontalTopo({ alvo }: { alvo: React.RefObject<HTMLDivElement | null> }) {
+  const barra = useRef<HTMLDivElement>(null);
+  const [largura, setLargura] = useState(0);
+  const [visivel, setVisivel] = useState(false);
+  useEffect(() => {
+    const el = alvo.current;
+    if (!el) return;
+    const medir = () => {
+      setLargura(el.scrollWidth);
+      setVisivel(el.scrollWidth > el.clientWidth + 1);
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    const tabela = el.querySelector("table");
+    if (tabela) ro.observe(tabela);
+    let a_sincronizar = false;
+    const doAlvo = () => {
+      if (a_sincronizar) { a_sincronizar = false; return; }
+      if (barra.current && barra.current.scrollLeft !== el.scrollLeft) { a_sincronizar = true; barra.current.scrollLeft = el.scrollLeft; }
+    };
+    el.addEventListener("scroll", doAlvo, { passive: true });
+    return () => { ro.disconnect(); el.removeEventListener("scroll", doAlvo); };
+  });
+  const daBarra = () => {
+    const el = alvo.current;
+    if (el && barra.current) moverScrollHorizontal(el, barra.current.scrollLeft);
+  };
+  return (
+    <div
+      ref={barra}
+      onScroll={daBarra}
+      className={`overflow-x-auto overflow-y-hidden print:hidden ${visivel ? "" : "hidden"}`}
+      style={{ height: 14 }}
+      data-testid="barra-scroll-topo"
+      data-nao-imprimir
+      aria-hidden="true"
+    >
+      <div style={{ width: largura, height: 1 }} />
+    </div>
+  );
+}
+
 const ETIQUETA_BASE = "inline-flex whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none";
 
 /** As linhas da comparação por CNPEM, logo abaixo da linha expandida. */
@@ -947,9 +1001,9 @@ function ComparacaoCnpemLinhas({
   const onde = umaFarmacia ? "nesta farmácia" : "nas farmácias selecionadas";
   const mensagem = (texto: React.ReactNode, tom: "neutro" | "erro" = "neutro") => (
     <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem" data-nao-imprimir className="print:hidden">
-      <td />
-      <td colSpan={N_COLUNAS_PRODUTO - 1} className={`py-2 pr-3 text-[12px] ${tom === "erro" ? "text-rose-700" : "text-slate-600"}`} role={tom === "erro" ? "alert" : "status"}>
-        {texto}
+      <td className="col-exp" />
+      <td colSpan={N_COLUNAS_PRODUTO - 1} className={`col-msg py-2 pr-3 text-[12px] ${tom === "erro" ? "text-rose-700" : "text-slate-600"}`} role={tom === "erro" ? "alert" : "status"}>
+        <div className="msg-fixa">{texto}</div>
       </td>
     </tr>
   );
@@ -973,8 +1027,9 @@ function ComparacaoCnpemLinhas({
   return (
     <>
       <tr id={id} data-tabela-linha="comparacao" data-testid="comparacao-cnpem" data-nao-imprimir className="print:hidden">
-        <td />
-        <td colSpan={N_COLUNAS_PRODUTO - 1} className="py-1.5 pr-3 text-[11px] text-indigo-800">
+        <td className="col-exp" />
+        <td colSpan={N_COLUNAS_PRODUTO - 1} className="col-msg py-1.5 pr-3 text-[11px] text-indigo-800">
+          <div className="msg-fixa">
           <span className="font-semibold" data-testid="comparacao-contagem">
             Mesmo CNPEM {d.cnpem} — {d.outrosArtigos} outro{d.outrosArtigos === 1 ? "" : "s"} artigo{d.outrosArtigos === 1 ? "" : "s"} {onde}
           </span>
@@ -992,6 +1047,7 @@ function ComparacaoCnpemLinhas({
             />
             Mostrar todos os artigos do mesmo CNPEM
           </label>
+          </div>
         </td>
       </tr>
       {analisado && (

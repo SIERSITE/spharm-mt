@@ -121,8 +121,7 @@ async function main() {
     const contagem = await page.locator('[data-testid="comparacao-contagem"]').innerText();
     const ocultos = await page.locator('[data-testid="comparacao-ocultos"]').innerText();
     check(/\d/.test(contagem) && /1/.test(ocultos), `contagem «${contagem.replace(/\s+/g, " ")}» e ocultos «${ocultos.replace(/\s+/g, " ")}»`);
-    const ordemExp = await page.locator('tr[data-tabela-linha^="comparacao"][data-cnp]').evaluateAll((trs) => trs.map((t) => (t.querySelectorAll("td")[2] as HTMLElement).innerText.split("\n")[0].trim()));
-    check(ordemExp.every((d, i) => i === 0 || colator.compare(ordemExp[i - 1], d) <= 0), `expansão em ordem alfabética (${ordemExp.map((d) => d.slice(0, 14)).join(" | ")})`);
+    // (a ordem da expansão passou a ser por rentabilidade — validada em margens-colunas-browser.ts)
     await page.screenshot({ path: path.join(EVID, "margens-cnpem-omissao.png") });
 
     await page.locator('[data-testid="comparacao-mostrar-todos"]').check();

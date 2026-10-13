@@ -64,7 +64,7 @@ import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
 import { resolverProdutoIdsPorLaboratoriosSelecionados } from "@/lib/reporting/resolver-laboratorio-selecionado";
 import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
 import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
-import { SQL_ORDEM_ARTIGOS, ordenarArtigos } from "@/lib/ordenacao-artigos";
+import { SQL_ORDEM_ARTIGOS, ordenarPorRentabilidade } from "@/lib/ordenacao-artigos";
 
 export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "IVA_POR_APURAR";
 
@@ -778,7 +778,7 @@ export type ComparacaoCnpem =
   | {
       estado: "OK";
       cnpem: string;
-      /** Pares artigo×farmácia APRESENTADOS (inclui o analisado), por designação A–Z, CNP, farmácia. */
+      /** Pares artigo×farmácia APRESENTADOS (inclui o analisado), do mais para o menos rentável (Margem % ↓, margem unitária ↓, margem € ↓, designação, CNP, farmácia; sem margem no fim). */
       linhas: MargemRow[];
       /** Artigos DISTINTOS apresentados, além do analisado. */
       outrosArtigos: number;
@@ -826,9 +826,10 @@ export async function getMargensComparacaoCnpem(
     if (mostrarTodos || c === cnp || artigoRelevanteNaComparacao(ls)) visiveis.add(c);
     else ocultos += 1;
   }
-  const linhas = ordenarArtigos(
+  // Do mais para o menos rentável (Margem % ↓ …); o analisado é posto em primeiro lugar por quem apresenta.
+  const linhas = ordenarPorRentabilidade(
     r.porProduto.filter((l) => visiveis.has(l.cnp)),
-    (l) => ({ designacao: l.designacao, cnp: l.cnp, farmacia: l.farmacia }),
+    (l) => ({ designacao: l.designacao, cnp: l.cnp, farmacia: l.farmacia, margemPct: l.margemPct, margemUnitaria: l.margemUnitaria, margemEur: l.margemEur, stock: l.stockAtual }),
   );
   const outros = new Set(linhas.filter((l) => l.cnp !== cnp).map((l) => l.cnp));
   return { estado: "OK", cnpem, linhas, outrosArtigos: outros.size, ocultos, mostrarTodos };

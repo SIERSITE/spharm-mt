@@ -9,7 +9,7 @@
  *       seleção de todo o resultado e não só da página — verificação estática do cliente).
  */
 import { readFileSync } from "node:fs";
-import { ordenarArtigos, compararArtigos, ordenarLinhasProposta } from "../../lib/ordenacao-artigos";
+import { ordenarArtigos, compararArtigos, ordenarLinhasProposta, ordenarPorRentabilidade } from "../../lib/ordenacao-artigos";
 import { buildVendasReport, custoTotalDoRelatorio, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
 
 let ok = 0;
@@ -129,6 +129,28 @@ console.log("\nD · a expansão CNPEM é só de ecrã (nunca na impressão, PDF,
   check(linhasComparacao.length >= 2 && linhasComparacao.every((t) => /print:hidden/.test(t) && /data-nao-imprimir/.test(t)), "D2: todas as linhas de mensagem/cabeçalho da expansão têm print:hidden + data-nao-imprimir");
   check(/data-nao-imprimir=\{linha \? "" : undefined\}/.test(m) && /className=\{linha \? "print:hidden" : undefined\}/.test(m), "D3: as linhas de artigos da expansão (comparacao/comparacao-analisado) também");
   check(/@media print \{\s*\n\s*\[data-nao-imprimir\] \{ display: none !important; \}/.test(ler("app/globals.css")), "D4: regra global @media print esconde [data-nao-imprimir]");
+}
+
+console.log("\nE · comparação CNPEM por rentabilidade");
+{
+  type L = { id: string; d: string; c: number; f?: string; pct: number | null; un?: number | null; eur?: number | null; st?: number | null };
+  const o = (ls: L[]) => ordenarPorRentabilidade(ls, (l) => ({ designacao: l.d, cnp: l.c, farmacia: l.f, margemPct: l.pct, margemUnitaria: l.un, margemEur: l.eur, stock: l.st })).map((l) => l.id);
+  eq(o([{ id: "a", d: "A", c: 1, pct: 20 }, { id: "b", d: "B", c: 2, pct: 40 }, { id: "c", d: "C", c: 3, pct: 30 }]), ["b", "c", "a"], "E1: Margem % descendente");
+  eq(o([{ id: "a", d: "A", c: 1, pct: 30, un: 1 }, { id: "b", d: "B", c: 2, pct: 30, un: 2 }]), ["b", "a"], "E2: empate de Margem % → maior margem unitária");
+  eq(o([{ id: "a", d: "A", c: 1, pct: 30, un: 2, eur: 5 }, { id: "b", d: "B", c: 2, pct: 30, un: 2, eur: 9 }]), ["b", "a"], "E3: empate também na unitária → maior margem total (€)");
+  eq(o([{ id: "z", d: "Zinco", c: 1, pct: 30, un: 2, eur: 5 }, { id: "a", d: "álcool", c: 2, pct: 30, un: 2, eur: 5 }]), ["a", "z"], "E4: empate total → designação A–Z sem acentos/maiúsculas");
+  eq(o([{ id: "b", d: "X", c: 2, pct: 30, un: 2, eur: 5 }, { id: "a", d: "X", c: 1, pct: 30, un: 2, eur: 5 }]), ["a", "b"], "E5: …depois CNP");
+  eq(o([{ id: "f2", d: "X", c: 1, f: "Beta", pct: 30, un: 2, eur: 5 }, { id: "f1", d: "X", c: 1, f: "Alfa", pct: 30, un: 2, eur: 5 }]), ["f1", "f2"], "E6: …depois farmácia");
+  eq(o([{ id: "sem", d: "A", c: 1, pct: null }, { id: "baixa", d: "Z", c: 2, pct: -5 }, { id: "zero", d: "Y", c: 3, pct: 0 }]), ["zero", "baixa", "sem"], "E7: sem margem calculável depois de TODAS as com margem (mesmo negativa)");
+  eq(o([{ id: "semstock", d: "A", c: 1, pct: null, st: 0 }, { id: "stock", d: "Z", c: 2, pct: null, st: 4 }, { id: "nulo", d: "B", c: 3, pct: null, st: null }]), ["stock", "semstock", "nulo"], "E8: sem margem: primeiro as com stock, depois designação A–Z");
+  eq(o([{ id: "nan", d: "A", c: 1, pct: Number.NaN }, { id: "ok", d: "Z", c: 2, pct: 1 }]), ["ok", "nan"], "E9: NaN trata-se como não calculável");
+  const entrada: L[] = [{ id: "b", d: "B", c: 2, pct: 10 }, { id: "a", d: "A", c: 1, pct: 20 }];
+  const copia = JSON.stringify(entrada);
+  o(entrada);
+  eq(JSON.stringify(entrada), copia, "E10: não altera o array recebido");
+  const m = ler("lib/margens-data.ts");
+  check(m.includes("ordenarPorRentabilidade(") && m.includes("r.porProduto.filter"), "E11: getMargensComparacaoCnpem ordena com ordenarPorRentabilidade (uma só consulta)");
+  check(m.includes("SQL_ORDEM_ARTIGOS"), "E12: o mapa principal mantém a ordem alfabética SQL");
 }
 
 console.log(`\n${ok} OK, ${ko} falhas`);

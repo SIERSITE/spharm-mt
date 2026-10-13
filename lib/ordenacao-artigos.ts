@@ -67,3 +67,49 @@ export const SQL_ORDEM_ARTIGOS =
 export function ordenarLinhasProposta<T extends { designacao: string; cnp: number; farmaciaNome: string }>(rows: readonly T[]): T[] {
   return ordenarArtigos(rows, (r) => ({ designacao: r.designacao, cnp: r.cnp, farmacia: r.farmaciaNome }));
 }
+
+/**
+ * Ordem da comparação por CNPEM (Margens): do mais para o menos RENTÁVEL.
+ *
+ *   1. com margem % calculável: Margem % ↓, margem unitária ↓, margem total (€) ↓,
+ *      depois designação A–Z, CNP, farmácia;
+ *   2. SEM margem % calculável: depois de todas as outras; primeiro as que têm stock,
+ *      depois designação A–Z, CNP, farmácia.
+ *
+ * (O produto analisado fica sempre em primeiro lugar — isso é decidido por quem apresenta.)
+ */
+export type ChaveRentabilidade = ChaveArtigo & {
+  margemPct: number | null | undefined;
+  margemUnitaria?: number | null;
+  margemEur?: number | null;
+  stock?: number | null;
+};
+
+const calculavel = (n: number | null | undefined): n is number => typeof n === "number" && Number.isFinite(n);
+
+/** Descendente com «sem valor» no fim. */
+const desc = (a: number | null | undefined, b: number | null | undefined) => {
+  const ca = calculavel(a);
+  const cb = calculavel(b);
+  if (ca && cb) return b! - a!;
+  if (ca) return -1;
+  if (cb) return 1;
+  return 0;
+};
+
+export function compararRentabilidade(a: ChaveRentabilidade, b: ChaveRentabilidade): number {
+  const ca = calculavel(a.margemPct);
+  const cb = calculavel(b.margemPct);
+  if (ca !== cb) return ca ? -1 : 1;
+  if (ca && cb) {
+    return desc(a.margemPct, b.margemPct) || desc(a.margemUnitaria, b.margemUnitaria) || desc(a.margemEur, b.margemEur) || compararArtigos(a, b);
+  }
+  const sa = (a.stock ?? 0) > 0;
+  const sb = (b.stock ?? 0) > 0;
+  if (sa !== sb) return sa ? -1 : 1;
+  return compararArtigos(a, b);
+}
+
+export function ordenarPorRentabilidade<T>(linhas: readonly T[], chave: (l: T) => ChaveRentabilidade): T[] {
+  return [...linhas].sort((x, y) => compararRentabilidade(chave(x), chave(y)));
+}

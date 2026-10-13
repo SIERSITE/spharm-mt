@@ -240,7 +240,7 @@ async function main() {
     await reverterVersaoInfarmed(prisma, { apply: true });
     check((await getMargensComparacaoCnpem(umaFarm, 7000001)).estado === "SEM_CNPEM", "sem versão ativa não há CNPEM (e nada é inventado)");
 
-    secao("K · comparação por CNPEM: só artigos com vendas OU stock; «mostrar todos»; ordem alfabética");
+    secao("K · comparação por CNPEM: só artigos com vendas OU stock; «mostrar todos»; ordem por rentabilidade");
     await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "MANUAL", apply: true, forcar: true }); // volta a haver versão ativa (a secção H reverteu-a)
     const kOnde = { from: "2026-01-01", to: "2026-12-31", farmaciaNomes: ["Farmácia Um"] };
     const k1 = await getMargensComparacaoCnpem(kOnde, 7000033);
@@ -251,13 +251,22 @@ async function main() {
     check(!cnpsK.includes(7000030) && !cnpsK.includes(7000036), "ficam escondidos os artigos com ZERO vendas E ZERO stock (7000030 sem stock; 7000036 com stock 0)");
     check(!cnpsK.includes(7000035), "stock numa farmácia fora da seleção não conta nem aparece");
     check(k1.ocultos === 2 && !k1.mostrarTodos && k1.outrosArtigos === 3, `ocultos=${k1.ocultos}, outros apresentados=${k1.outrosArtigos}`);
-    check(k1.linhas.map((l) => l.designacao).join("|") === ["NOVO ACIDO A STOCK SO", "novo ácido b VENDAS SO", "NOVO ÁGUA VENDAS E STOCK", "NOVO ZERO E ZERO"].join("|"), "ordem alfabética pela designação, sem distinguir maiúsculas nem acentos (acido a < ácido b < água < zero)");
+    const ordemRentab = (ls: Array<{ margemPct: number | null; stockAtual: number | null; designacao: string; cnp: number }>) => {
+      const i = ls.findIndex((l) => l.margemPct === null || !Number.isFinite(l.margemPct));
+      const com = i === -1 ? ls : ls.slice(0, i);
+      const sem = i === -1 ? [] : ls.slice(i);
+      const descOk = com.every((l, j) => j === 0 || l.margemPct! <= com[j - 1].margemPct!);
+      const semOk = sem.every((l) => l.margemPct === null || !Number.isFinite(l.margemPct)); // nenhuma com margem depois das sem margem
+      const stockPrimeiro = sem.every((l, j) => j === 0 || !((sem[j - 1].stockAtual ?? 0) <= 0 && (l.stockAtual ?? 0) > 0));
+      return descOk && semOk && stockPrimeiro;
+    };
+    check(ordemRentab(k1.linhas), "ordem por RENTABILIDADE: Margem % descendente; sem margem no fim, primeiro as com stock (a ordem alfabética deixou de ser o critério)");
     const k2 = await getMargensComparacaoCnpem(kOnde, 7000033, { mostrarTodos: true });
     if (k2.estado !== "OK") throw new Error("K2");
     check(k2.mostrarTodos && k2.ocultos === 0 && k2.outrosArtigos === 5, `«mostrar todos»: ${k2.outrosArtigos} outros, 0 ocultos`);
     check(k2.linhas.some((l) => l.cnp === 7000030) && k2.linhas.some((l) => l.cnp === 7000036) && !k2.linhas.some((l) => l.cnp === 7000035), "…aparecem também os sem vendas e sem stock, mas só os da farmácia selecionada");
     check(new Set(k2.linhas.map((l) => `${l.cnp}@${l.farmacia}`)).size === k2.linhas.length, "sem artigos duplicados");
-    check(k2.linhas.map((l) => l.designacao).join("|") === [...k2.linhas.map((l) => l.designacao)].sort((a, b) => a.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().localeCompare(b.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase())).join("|"), "a ordem alfabética mantém-se com «mostrar todos»");
+    check(ordemRentab(k2.linhas), "a ordem por rentabilidade mantém-se com «mostrar todos» (os artigos adicionais entram na posição certa)");
     const k3 = await getMargensComparacaoCnpem({ ...kOnde, from: "2026-06-01", to: "2026-06-30" }, 7000033);
     if (k3.estado !== "OK") throw new Error("K3");
     check(!k3.linhas.some((l) => l.cnp === 7000031) && k3.linhas.some((l) => l.cnp === 7000034) && k3.linhas.some((l) => l.cnp === 7000032), "mudar o período aplica a regra ao novo período: 7000031 (vendas só em março) cai, 7000034 (junho) e 7000032 (stock) ficam");

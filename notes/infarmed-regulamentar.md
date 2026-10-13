@@ -340,3 +340,17 @@ Operação sem alterações ao catálogo (ou versão já processada) não grava 
 - CLI: `--listar-reconciliacoes --tenant=a,b,c` e `--exportar-reconciliacao=<id> --tenant=a,b,c` (grava `reconciliacao-<id>.json`).
 - O ficheiro é o mesmo formato `infarmed-reconciliacao/v1`: `--reverter-reconciliacao=<ficheiro> [--apply]` (11.6).
   A reversão com `--apply` marca a operação como revertida (`INFARMED_RECONCILIACAO_REVERTIDA`).
+
+### 11.9 Mapa de Margens: colunas sempre acessíveis e comparação CNPEM por rentabilidade
+
+**Colunas.** O contentor `tabela-fixa tabela-margens` compacta o mapa: cabeçalhos que quebram em vez de truncar, valores
+monetários/percentuais sem quebra, menos espaço horizontal entre colunas. A 1920×1080 todas as 17 colunas cabem (sem scroll),
+mesmo com a comparação CNPEM e «Mostrar todos» abertos. Se não couber (resoluções menores), há scroll horizontal, uma barra
+espelho sincronizada NO TOPO da tabela (sem descer até ao fim) e as colunas expansor/CNP/Descrição ficam fixas à esquerda; o
+cabeçalho acompanha o scroll e continua fixo na vertical. Só ecrã: impressão/PDF/Excel não mudam.
+
+**Ordem da comparação CNPEM** (`ordenarPorRentabilidade`, `lib/ordenacao-artigos.ts`, aplicada em `getMargensComparacaoCnpem`):
+1. o produto analisado é sempre a 1.ª linha (identificado);
+2. os restantes: Margem % ↓ → margem unitária ↓ → margem total (€) ↓ → designação A–Z (sem acentos/maiúsculas) → CNP → farmácia;
+3. sem Margem % calculável: depois de todas as outras; primeiro as com stock, depois designação A–Z, CNP, farmácia.
+O mapa principal e os relatórios mantêm a ordem alfabética. Evidência: `docs/validacao-visual/2026-10-margens-colunas/`.
