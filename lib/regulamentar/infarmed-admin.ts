@@ -38,7 +38,6 @@ const NAO_AUTORIZADO: Falha = { ok: false, erro: "Sem permissão para esta opera
 
 export function nomeSeguro(nome: string): string {
   const base = nome.split(/[\\/]/).pop() ?? "ficheiro";
-  // eslint-disable-next-line no-control-regex
   return base.replace(/[\u0000-\u001f<>:"|?*]/g, "_").slice(0, 120) || "ficheiro";
 }
 

@@ -8,12 +8,15 @@ import {
   ArrowLeft,
   ListChecks,
   Activity,
+  DatabaseZap,
 } from "lucide-react";
 
 type Props = {
   children: React.ReactNode;
   /** Email do platform admin actual, mostrado no rodapé do sidebar. */
   adminEmail: string;
+  /** Há uma atualização mensal do INFARMED falhada e por resolver. */
+  alertaInfarmed?: boolean;
 };
 
 const NAV = [
@@ -21,9 +24,10 @@ const NAV = [
   { label: "Tenants", href: "/admin/tenants", icon: Building2, exact: false },
   { label: "Catálogo · Saúde", href: "/admin/catalogo", icon: Activity, exact: true },
   { label: "Catálogo · Revisão", href: "/admin/catalogo/revisao", icon: ListChecks, exact: false },
+  { label: "INFARMED", href: "/admin/infarmed", icon: DatabaseZap, exact: false },
 ];
 
-export function AdminShell({ children, adminEmail }: Props) {
+export function AdminShell({ children, adminEmail, alertaInfarmed = false }: Props) {
   const pathname = usePathname();
 
   return (
@@ -61,6 +65,15 @@ export function AdminShell({ children, adminEmail }: Props) {
                 >
                   <Icon className="h-[16px] w-[16px]" strokeWidth={1.8} />
                   {item.label}
+                  {item.href === "/admin/infarmed" && alertaInfarmed && (
+                    <span
+                      role="status"
+                      aria-label="Atualização mensal do INFARMED por resolver"
+                      title="Atualização mensal do INFARMED por resolver"
+                      data-testid="infarmed-indicador"
+                      className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-rose-200"
+                    />
+                  )}
                 </Link>
               );
             })}

@@ -10,12 +10,13 @@
  */
 import Module from "node:module";
 import fs from "node:fs";
-import net from "node:net";
 import os from "node:os";
 import { execSync } from "node:child_process";
 import { Client } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as XLSX from "xlsx";
+import { smtpSink } from "../e2e/_infarmed-comum";
+import type { Dependencias, MensagemEmail } from "../../lib/regulamentar/infarmed-atualizacao";
 
 const M = Module as unknown as { _resolveFilename: (r: string, ...a: unknown[]) => string };
 const resolverOriginal = M._resolveFilename;
@@ -46,44 +47,6 @@ function xls(rows: Cel[][], cab = CAB): Buffer {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([cab, ...rows]), "Medicamentos");
   return XLSX.write(wb, { type: "buffer", bookType: "biff8" }) as Buffer;
-}
-
-/** SMTP mínimo (sem STARTTLS/auth) que guarda as mensagens recebidas. */
-function smtpSink(): Promise<{ port: number; mensagens: string[]; close: () => void }> {
-  const mensagens: string[] = [];
-  return new Promise((resolve) => {
-    const srv = net.createServer((sock) => {
-      sock.write("220 sink ESMTP\r\n");
-      let buf = "";
-      let dados = false;
-      let corpo = "";
-      sock.on("data", (d) => {
-        buf += d.toString("latin1");
-        while (true) {
-          if (dados) {
-            const i = buf.indexOf("\r\n.\r\n");
-            if (i < 0) return;
-            corpo += buf.slice(0, i);
-            buf = buf.slice(i + 5);
-            mensagens.push(corpo);
-            corpo = "";
-            dados = false;
-            sock.write("250 OK queued\r\n");
-            continue;
-          }
-          const i = buf.indexOf("\r\n");
-          if (i < 0) return;
-          const cmd = buf.slice(0, i).toUpperCase();
-          buf = buf.slice(i + 2);
-          if (cmd.startsWith("EHLO") || cmd.startsWith("HELO")) sock.write("250 sink\r\n");
-          else if (cmd.startsWith("DATA")) { dados = true; sock.write("354 go\r\n"); }
-          else if (cmd.startsWith("QUIT")) { sock.write("221 bye\r\n"); sock.end(); }
-          else sock.write("250 OK\r\n");
-        }
-      });
-    });
-    srv.listen(0, "127.0.0.1", () => resolve({ port: (srv.address() as net.AddressInfo).port, mensagens, close: () => srv.close() }));
-  });
 }
 
 /** Emula o portal JSF: página com formulário + cookie, e o POST que devolve o .xls. */
@@ -207,11 +170,11 @@ async function main() {
       { slug: "a", nome: "Tenant A", prisma: clienteA },
       { slug: "b", nome: "Tenant B", prisma: proxyB },
     ];
-    const emails: at.MensagemEmail[] = [];
+    const emails: MensagemEmail[] = [];
     let emailModo: "ok" | "falha" | "sem-config" = "ok";
     let relogio = new Date("2026-11-01T03:30:00Z");
     let ficheiroAtual: () => Promise<{ buffer: Buffer; nomeFicheiro: string | null; url: string }> = async () => ({ buffer: xls([linha("5000001"), linha("5000002"), linha("5000003"), linha("5000009")]), nomeFicheiro: "allPackages.xls", url: "portal" });
-    const deps: at.Dependencias = {
+    const deps: Dependencias = {
       control,
       tenants: async (o) => ativos.filter((t) => !o?.onlySlugs?.length || o.onlySlugs.includes(t.slug)),
       obterFicheiro: () => ficheiroAtual(),
@@ -435,14 +398,14 @@ async function main() {
 
     // ═══ email real (nodemailer + EmailConfig) ══════════════════════
     secao("email: mecanismo existente (EmailConfig + nodemailer)");
-    const env0 = { INFARMED_IMPORT_ALERT_EMAIL: "ops@exemplo.pt, ops2@exemplo.pt" } as NodeJS.ProcessEnv;
+    const env0 = { INFARMED_IMPORT_ALERT_EMAIL: "ops@exemplo.pt, ops2@exemplo.pt" } as unknown as NodeJS.ProcessEnv;
     const listar = async () => ativos;
     await clienteA.emailConfig.create({ data: { farmaciaId: null, smtpHost: "127.0.0.1", smtpPort: sink.port, smtpSecure: false, fromEmail: "no-reply@spharm.test", fromName: "SPharm.MT", isActive: true } });
     const enviar = rt.criarEnviadorEmail(listar, env0);
     await enviar({ assunto: "[SPharm.MT] teste", texto: "olá — ligação: https://app.exemplo.pt/admin/infarmed" });
     check(sink.mensagens.length === 1 && /ops@exemplo\.pt/.test(sink.mensagens[0]) && /ops2@exemplo\.pt/.test(sink.mensagens[0]) && /admin\/infarmed/.test(sink.mensagens[0]), "enviado por SMTP real com a configuração do tenant, para os destinatários configurados");
-    check(rt.destinatariosAlerta({ PLATFORM_ADMIN_EMAILS: "Admin@Spharm.test" } as NodeJS.ProcessEnv).join() === "admin@spharm.test", "sem INFARMED_IMPORT_ALERT_EMAIL usa os platform admins (config de alertas já existente)");
-    check(await rt.criarEnviadorEmail(listar, {} as NodeJS.ProcessEnv)({ assunto: "x", texto: "y" }).then(() => false, (e) => e instanceof at.EmailNaoConfigurado), "sem destinatário: EmailNaoConfigurado");
+    check(rt.destinatariosAlerta({ PLATFORM_ADMIN_EMAILS: "Admin@Spharm.test" } as unknown as NodeJS.ProcessEnv).join() === "admin@spharm.test", "sem INFARMED_IMPORT_ALERT_EMAIL usa os platform admins (config de alertas já existente)");
+    check(await rt.criarEnviadorEmail(listar, {} as unknown as NodeJS.ProcessEnv)({ assunto: "x", texto: "y" }).then(() => false, (e) => e instanceof at.EmailNaoConfigurado), "sem destinatário: EmailNaoConfigurado");
     await clienteA.emailConfig.updateMany({ data: { isActive: false } });
     check(await rt.criarEnviadorEmail(listar, env0)({ assunto: "x", texto: "y" }).then(() => false, (e) => e instanceof at.EmailNaoConfigurado), "sem SMTP ativo: EmailNaoConfigurado");
     await clienteA.emailConfig.updateMany({ data: { isActive: true, smtpPort: 1 } });
