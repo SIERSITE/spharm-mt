@@ -58,6 +58,12 @@ const JOBS = [
   { name: "enqueue-regulatory", path: "/api/jobs/enqueue-regulatory", hour: 2, minute: 0 },
   { name: "acquire-regulatory", path: "/api/jobs/acquire-regulatory", hour: 2, minute: 30 },
   { name: "refresh-ipf", path: "/api/jobs/refresh-ipf", hour: 3, minute: 0 },
+  // Dados regulamentares do INFARMED: MENSAL, dia 2, 03:30 UTC (= 03:30/04:30
+  // em Lisboa; o dia 2 é o mesmo nos dois fusos a esta hora). Descarrega o
+  // ficheiro uma vez e aplica-o a todos os tenants. Inerte sem
+  // INFARMED_ALLPACKAGES_URL (responde NAO_CONFIGURADO). Falhas devolvem 502
+  // e ficam no log do scheduler; a versão anterior nunca é tocada.
+  { name: "infarmed-regulamentar", path: "/api/jobs/infarmed-regulamentar", hour: 3, minute: 30, dayOfMonth: 2 },
   // A varredura completa do residual, e a ÚNICA que alcança um produto
   // que nunca entrou na `EnriquecimentoFila` — o que acontece sempre que
   // o catálogo global já conhece o CNP, porque a importação só enfileira
@@ -237,11 +243,12 @@ function jobActivo(job) {
   return CONFIG.jobsPermitidos === null || CONFIG.jobsPermitidos.has(job.name);
 }
 
-/** Está na altura deste job? Diário por hora:minuto, ou por intervalo. */
+/** Está na altura deste job? Diário (ou mensal, com `dayOfMonth`) por hora:minuto, ou por intervalo. */
 function estaNaAltura(job, now) {
   // Nos jobs por intervalo é o slotKey que limita a cadência: aqui passa
   // sempre e o bloco é que decide se já disparou.
   if (job.everyMinutes) return true;
+  if (job.dayOfMonth && now.getUTCDate() !== job.dayOfMonth) return false;
   return now.getUTCHours() === job.hour && now.getUTCMinutes() === job.minute;
 }
 
@@ -273,7 +280,7 @@ async function tick() {
       job: job.name,
       scheduled: job.everyMinutes
         ? `cada ${job.everyMinutes} min`
-        : `${job.hour}:${String(job.minute).padStart(2, "0")} UTC`,
+        : `${job.dayOfMonth ? `dia ${job.dayOfMonth} ` : ""}${job.hour}:${String(job.minute).padStart(2, "0")} UTC`,
     });
     // Sem await: um job lento não pode atrasar o tick nem os restantes.
     // O lock cooperativo do lado do handler é que garante que não há
@@ -289,9 +296,9 @@ function describePlan() {
   return JOBS.map((j) => {
     const quando = j.everyMinutes
       ? `cada ${String(j.everyMinutes).padStart(2, " ")} min`
-      : `${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC`;
+      : `${j.dayOfMonth ? `dia ${j.dayOfMonth} ` : ""}${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC`;
     const marca = jobActivo(j) ? "[on ]" : "[off]";
-    return `  ${marca} ${quando.padEnd(12)}  ${j.name.padEnd(20)} ${j.path}`;
+    return `  ${marca} ${quando.padEnd(18)}  ${j.name.padEnd(22)} ${j.path}`;
   }).join("\n");
 }
 

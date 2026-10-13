@@ -588,6 +588,14 @@ write_env() {
     || die_precond "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID só pode ter letras e dígitos (recebido: '${silveira_designacao_farmacia_id}')"
   info "SILVEIRA_DESIGNACAO_AUTORITATIVA_FARMACIA_ID: ${silveira_designacao_farmacia_id:-(não definida)}"
 
+  # URL do ficheiro «allPackages» do INFARMED, para a atualização mensal dos
+  # dados regulamentares (job infarmed-regulamentar). Vazio = job inerte.
+  # Preservado entre reinstalações. Ver notes/infarmed-regulamentar.md.
+  local infarmed_url
+  infarmed_url=$(env_value_or_keep "$SPHARMMT_ENV_FILE" INFARMED_ALLPACKAGES_URL "")
+  [[ -z "$infarmed_url" || "$infarmed_url" =~ ^https://[^[:space:]]+$ ]]     || die_precond "INFARMED_ALLPACKAGES_URL tem de ser um URL https sem espaços (recebido: '${infarmed_url}')"
+  info "INFARMED_ALLPACKAGES_URL: ${infarmed_url:-(não definida)}"
+
   # Scheduler: o interruptor geral e a lista de jobs activos. Preservados
   # pela mesma razão — quem os liga em produção não pode vê-los voltar a
   # zero numa reinstalação feita por outro motivo.
@@ -672,6 +680,10 @@ TENANT_DB_PORT=5432
 # por DATABASE_URL a quem pediu um tenant seria mostrar dados de outro
 # cliente — e em silêncio, porque a página abre na mesma.
 ALLOW_LEGACY_DATABASE_FALLBACK=0
+
+# Ficheiro «allPackages» do INFARMED (atualização mensal dos dados
+# regulamentares). Vazio = o job infarmed-regulamentar não faz nada.
+INFARMED_ALLPACKAGES_URL=${infarmed_url}
 
 # ── Scheduler da plataforma (o unico agendador) ──────────────────────
 # DESLIGADO por defeito. Activa só depois de os dados estarem migrados e

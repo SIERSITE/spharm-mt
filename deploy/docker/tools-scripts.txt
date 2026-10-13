@@ -200,6 +200,11 @@ vendas:reconciliar
 # /agent-base/.
 admin:package-agent
 
+# ── Dados regulamentares do INFARMED ─────────────────────────────────
+# Carga inicial/manual do ficheiro «allPackages» e rollback da versão.
+# Dry-run por omissão. Ver notes/infarmed-regulamentar.md.
+ops:infarmed-carga
+
 # ── Fora desta lista, de propósito ───────────────────────────────────
 # agent:*         — corre na farmácia, não no servidor
 # admin-wizard:*  — PowerShell, corre na máquina do operador

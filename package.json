@@ -59,6 +59,8 @@
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
+    "ops:infarmed-carga": "tsx scripts/ops/infarmed-carga-regulamentar.ts",
+    "test:infarmed-regulamentar-db": "tsx scripts/tests/test-infarmed-regulamentar-db.ts",
     "test:e2e-workspaces": "tsx scripts/e2e/workspaces-browser.ts",
     "test:workspace-isolamento": "tsx scripts/tests/test-workspace-isolamento.ts",
     "test:consolidacao-resposta-perdida-db": "tsx scripts/tests/test-consolidacao-resposta-perdida-db.ts",

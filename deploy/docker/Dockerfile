@@ -311,6 +311,7 @@ COPY scripts/vendas ./scripts/vendas
 # sem eles o comando falha em `readFileSync`, ENOENT, na VPS.
 COPY scripts/import-catalogo-nacional-completo.ts ./scripts/import-catalogo-nacional-completo.ts
 COPY scripts/import-regulatory-record.ts ./scripts/import-regulatory-record.ts
+COPY scripts/ops/infarmed-carga-regulamentar.ts ./scripts/ops/infarmed-carga-regulamentar.ts
 COPY scripts/importar-grupos-laboratoriais-garantia.ts ./scripts/importar-grupos-laboratoriais-garantia.ts
 COPY scripts/classificar-grupos-laboratoriais-garantia.ts ./scripts/classificar-grupos-laboratoriais-garantia.ts
 COPY scripts/data/grupos-laboratoriais-iniciais-garantia.json scripts/data/regras-cnp-grupos-laboratoriais-garantia.json ./scripts/data/
