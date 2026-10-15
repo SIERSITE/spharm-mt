@@ -45,12 +45,35 @@
 
 import { parseArgs } from "node:util";
 import { promises as fs } from "node:fs";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
-import { SaasClient, SaasApiError, type PipelineAggregateResponse } from "../http-client.js";
+import { SaasClient, SaasApiError, type PipelineAggregateResponse, type PipelineRecordBody } from "../http-client.js";
+import { EXIT_TRANSITORIO, eFalhaTransitoria, redigir } from "../politica-retry.js";
+import {
+  abrirAlerta,
+  alertasAbertos,
+  dirEstadoPadrao,
+  guardarRegistoPendente,
+  listarPendentes,
+  registarPendente,
+  reenviarAlertasPendentes,
+  reenviarRegistosPendentes,
+  removerPendente,
+  resolverAlertasDoDia,
+  type Alerta,
+} from "../estado-local.js";
+import {
+  classificarDesfecho,
+  correrComRetoma,
+  ROTULO_DESFECHO,
+  type DesfechoDia,
+  type InfoTentativa,
+  type ResultadoTentativa,
+} from "../retoma-pipeline.js";
+import { planearDiasDoPipeline, type PlanoDiario } from "../plano-diario.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import {
   runPipelineForDay,
@@ -61,7 +84,8 @@ import {
 } from "./daily-sync-runner.js";
 import { avaliarSaudeVendas, type VeredictoVendas } from "../saude-vendas.js";
 import { ontemNaFarmacia } from "../janela.js";
-import { janelaConsulta, planearCatchUp } from "../catch-up.js";
+import { janelaConsulta } from "../catch-up.js";
+import { acquireLock, lockPertenceAEsteProcesso, releaseLock } from "../lock-pipeline.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -76,6 +100,8 @@ type Args = {
   /** `--no-catch-up`: volta ao "só ontem". O catch-up é o default. */
   semCatchUp?: boolean;
   maxCatchUp?: number;
+  /** `--plan`: só mostra o plano (dias, política) — não corre nada, não escreve no SaaS. */
+  plan?: boolean;
 };
 
 /**
@@ -118,6 +144,7 @@ function parseCmdArgs(): Args {
       "catch-up": { type: "boolean" },
       "no-catch-up": { type: "boolean" },
       "max-catch-up": { type: "string" },
+      plan: { type: "boolean" },
     },
     strict: true,
     allowPositionals: false,
@@ -130,6 +157,7 @@ function parseCmdArgs(): Args {
     skipAggregate: raw.values["skip-aggregate"] === true,
     semCatchUp: raw.values["no-catch-up"] === true,
     maxCatchUp: mcu !== undefined && Number.isFinite(mcu) && mcu > 0 ? Math.floor(mcu) : undefined,
+    plan: raw.values.plan === true,
   };
 }
 
@@ -142,6 +170,7 @@ function printHelp(): void {
   console.log("  --date YYYY-MM-DD   corre SÓ este dia e desliga o catch-up");
   console.log("  --no-catch-up       corre só ontem (o catch-up é o default)");
   console.log(`  --max-catch-up N    máximo de dias em atraso por execução (default ${MAX_CATCH_UP_DEFAULT})`);
+  console.log("  --plan              mostra o plano (dias em falta, política de retentativas) e termina — nada é executado");
   console.log("  --force             ignora lockfile existente (CUIDADO)");
   console.log("  --skip-aggregate    só corre daily-sync, salta agregação server-side");
   console.log("");
@@ -172,12 +201,13 @@ function printHelp(): void {
  * invoca: uma só implementação destes pipelines, com as mesmas flags e a
  * mesma idempotência.
  */
-function correrComandoDoDia(cmd: string, date: string, extra: string[] = []): number {
+function correrComandoDoDia(cmd: string, date: string, extra: string[] = [], etapa?: string): number {
   const entry = process.argv[1] ?? "";
   const isTs = entry.endsWith(".ts");
   const args = [cmd, "--from", date, "--to", date, ...extra];
   const nodeArgs = isTs ? ["--import", "tsx", entry, ...args] : [entry, ...args];
-  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: process.env });
+  // O dia/etapa só servem para o log do cliente HTTP do subprocesso (nunca dados de negócio).
+  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: { ...process.env, SPHARMMT_CTX_DIA: date, SPHARMMT_CTX_ETAPA: etapa ?? cmd } });
   if (r.error) {
     console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
     return 1;
@@ -192,11 +222,14 @@ function correrComandoDoDia(cmd: string, date: string, extra: string[] = []): nu
  * `--from/--to` — o seu `parseArgs` corre com `strict: true`, portanto
  * passar-lhos não seria ignorado: rebentava com "unknown option".
  */
-function correrComandoSemJanela(cmd: string): number {
+function correrComandoSemJanela(cmd: string, date?: string, etapa?: string): number {
   const entry = process.argv[1] ?? "";
   const isTs = entry.endsWith(".ts");
   const nodeArgs = isTs ? ["--import", "tsx", entry, cmd] : [entry, cmd];
-  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: process.env });
+  const r = spawnSync(process.execPath, nodeArgs, {
+    stdio: "inherit",
+    env: { ...process.env, ...(date ? { SPHARMMT_CTX_DIA: date } : {}), SPHARMMT_CTX_ETAPA: etapa ?? cmd },
+  });
   if (r.error) {
     console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
     return 1;
@@ -236,106 +269,6 @@ function ontem(): string {
 
 function monthOf(dateIso: string): string {
   return dateIso.slice(0, 7); // YYYY-MM
-}
-
-/* ---------- Lockfile ---------- */
-
-const STALE_LOCK_MS = 6 * 60 * 60 * 1000; // 6 horas — safety net
-
-type LockFileContent = {
-  pid: number;
-  startedAt: string;
-  kind: string;
-  date: string;
-};
-
-function lockFilePath(): string {
-  return path.join(process.cwd(), "run", "pipeline.lock");
-}
-
-/**
- * Windows-specific: confirma se o PID está vivo via `tasklist`. Devolve
- * `true` se vivo, `false` se morto, `null` se não conseguimos
- * determinar (ex: tasklist indisponível, permissões). Em null, cai-se
- * no path de timestamp-based stale detection.
- */
-function isPidAlive(pid: number): boolean | null {
-  if (process.platform !== "win32") return null;
-  if (!Number.isFinite(pid) || pid <= 0) return null;
-  try {
-    const r = spawnSync(
-      "tasklist",
-      ["/FI", `PID eq ${pid}`, "/NH", "/FO", "CSV"],
-      { encoding: "utf8", timeout: 5_000 }
-    );
-    if (r.status !== 0 || !r.stdout) return null;
-    // "INFO: No tasks are running..." quando PID não existe; CSV row
-    // com o nome do processo quando vive.
-    const out = r.stdout.trim();
-    if (out.toLowerCase().includes("no tasks")) return false;
-    // CSV: a primeira coluna é o image name. Se tem aspas, o PID existe.
-    return out.startsWith('"');
-  } catch {
-    return null;
-  }
-}
-
-async function acquireLock(force: boolean, kind: string, date: string): Promise<void> {
-  const lock = lockFilePath();
-  mkdirSync(path.dirname(lock), { recursive: true });
-
-  if (existsSync(lock)) {
-    try {
-      const raw = await fs.readFile(lock, "utf8");
-      const data = JSON.parse(raw) as LockFileContent;
-      const ageMs = Date.now() - new Date(data.startedAt).getTime();
-      if (!Number.isFinite(ageMs) || ageMs < 0) {
-        throw new Error(`Lock corrupted (startedAt=${data.startedAt})`);
-      }
-
-      // Liveness check: se o PID já não existe, lock está stale ainda
-      // que o timestamp seja recente. Evita esperar 6h após crash.
-      const alive = isPidAlive(data.pid);
-      if (alive === false) {
-        console.warn(
-          `⚠ Lockfile pid=${data.pid} já não está vivo (started=${data.startedAt}) — a reclamar.`
-        );
-      } else if (ageMs > STALE_LOCK_MS || force) {
-        console.warn(
-          `⚠ Lockfile stale (${(ageMs / 1000 / 60).toFixed(0)} min) ou --force — a reclamar.`
-        );
-      } else {
-        // PID vivo (ou indeterminável) E timestamp recente E sem --force.
-        throw new Error(
-          `Pipeline já corre (pid=${data.pid}, started=${data.startedAt}, kind=${data.kind}). Usa --force ou aguarda.`
-        );
-      }
-    } catch (err) {
-      if (!force) {
-        throw err instanceof Error ? err : new Error(String(err));
-      }
-      console.warn("⚠ Lockfile ilegível — --force a sobrescrever.");
-    }
-  }
-
-  const payload: LockFileContent = {
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-    kind,
-    date,
-  };
-  writeFileSync(lock, JSON.stringify(payload, null, 2) + "\n", { encoding: "utf8" });
-}
-
-async function releaseLock(): Promise<void> {
-  const lock = lockFilePath();
-  if (existsSync(lock)) {
-    try {
-      await fs.unlink(lock);
-    } catch {
-      // ignore
-    }
-  }
 }
 
 /* ---------- Logs ---------- */
@@ -396,20 +329,16 @@ function fmtEur(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/* ---------- Retry de rede ---------- */
+/* ---------- Falhas de rede ---------- */
 
 /**
  * Uma falha de REDE não é uma resposta.
  *
  * `fetch failed` do undici é o que se vê quando o pedido nem chegou a ter
- * resposta: DNS, TCP, TLS, proxy em recarga. Foi o que a Silveirense
- * apanhou em 2026-08-16 no `aggregate-month` — e como não havia retry, o
- * dia terminou em erro e nunca mais foi tentado.
- *
- * Distinção deliberada: um `SaasApiError` traz um código HTTP, ou seja o
- * servidor respondeu e decidiu. Um 409 é uma decisão de negócio (gates de
- * unknowns/orphans) e repetir dava o mesmo 409 três vezes mais devagar.
- * Só se repete o que não chegou a ser respondido.
+ * resposta: DNS, TCP, TLS, proxy em recarga. Mantida para compatibilidade
+ * (e testes); a decisão de repetir vive agora, centralizada, em
+ * `politica-retry.ts` + `http-client.ts` (rev98) — este helper deixou de
+ * envolver chamadas individuais.
  */
 export function ehFalhaDeRede(err: unknown): boolean {
   if (err instanceof SaasApiError) return false;
@@ -426,31 +355,6 @@ export function ehFalhaDeRede(err: unknown): boolean {
   );
 }
 
-const RETRY_REDE_TENTATIVAS = 3;
-const RETRY_REDE_BASE_MS = 3_000;
-
-async function comRetryDeRede<T>(
-  fn: () => Promise<T>,
-  log: (s: string) => void,
-): Promise<T> {
-  let ultimo: unknown;
-  for (let tentativa = 1; tentativa <= RETRY_REDE_TENTATIVAS; tentativa++) {
-    try {
-      return await fn();
-    } catch (err) {
-      ultimo = err;
-      if (!ehFalhaDeRede(err) || tentativa === RETRY_REDE_TENTATIVAS) break;
-      const espera = RETRY_REDE_BASE_MS * tentativa;
-      log(
-        `⚠ falha de rede (tentativa ${tentativa}/${RETRY_REDE_TENTATIVAS}): ` +
-          `${err instanceof Error ? err.message : String(err)} — nova tentativa em ${espera / 1000}s`,
-      );
-      await new Promise((r) => setTimeout(r, espera));
-    }
-  }
-  throw ultimo;
-}
-
 /* ---------- Healthchecks.io ping ---------- */
 
 /**
@@ -460,9 +364,28 @@ async function comRetryDeRede<T>(
  *   · POST `<url>`             — sucesso (default endpoint)
  *   · POST `<url>/fail`        — falha
  *
- * Best-effort: timeout curto (5s), excepções engolidas. Nunca afeta o
- * exit code do pipeline. Quando `url` é null/empty, no-op silencioso.
+ * `enviarPing` LANÇA em caso de falha (o alerta precisa de saber se a
+ * notificação saiu). `pingHealthcheck` é a versão best-effort: timeout curto
+ * (5s), excepções engolidas, nunca afeta o exit code do pipeline.
  */
+async function enviarPing(baseUrl: string, variant: "start" | "ok" | "fail", payload: string | null): Promise<void> {
+  const suffix = variant === "start" ? "/start" : variant === "fail" ? "/fail" : "";
+  const url = `${baseUrl.replace(/\/+$/, "")}${suffix}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain", "User-Agent": "spharmmt-agent/healthcheck" },
+      body: payload?.slice(0, 10_000) ?? "",
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`healthcheck respondeu HTTP ${res.status}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function pingHealthcheck(
   baseUrl: string | undefined,
   variant: "start" | "ok" | "fail",
@@ -470,21 +393,8 @@ async function pingHealthcheck(
   logger: TeeLogger
 ): Promise<void> {
   if (!baseUrl) return;
-  const suffix = variant === "start" ? "/start" : variant === "fail" ? "/fail" : "";
-  const url = `${baseUrl.replace(/\/+$/, "")}${suffix}`;
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5_000);
-    try {
-      await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain", "User-Agent": "spharmmt-agent/healthcheck" },
-        body: payload?.slice(0, 10_000) ?? "",
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
+    await enviarPing(baseUrl, variant, payload);
     logger.log(`✓ healthcheck ping (${variant})`);
   } catch (err) {
     logger.log(
@@ -493,71 +403,231 @@ async function pingHealthcheck(
   }
 }
 
-/* ---------- Entrypoint ---------- */
+/* ---------- Alertas, pendentes e registo durável (rev98) ---------- */
 
 /**
- * Corre o ciclo completo para UM dia. Era o corpo do `dailyPipeline`
- * antes do catch-up; continua a fazer exactamente o mesmo, com o dia
- * agora recebido em vez de calculado.
- *
- * Um dia de catch-up e o dia de ontem passam por aqui pelo mesmo
- * caminho — mesmos passos, mesmos logs, mesmo registo no SaaS, mesmo
- * lockfile. Recuperar um dia em atraso não é um modo especial: se
- * fosse, seria um modo que ninguém testa e que diverge do normal sem
- * ninguém reparar.
+ * Evento no Registo de Eventos do Windows (Application / «SPharmMT-Agent») — visível sem abrir logs.
+ * Best-effort: pode exigir privilégios para criar a origem; uma falha aqui nunca afeta nada.
  */
+function escreverEventoWindows(texto: string): void {
+  if (process.platform !== "win32") return;
+  try {
+    spawnSync("eventcreate", ["/T", "ERROR", "/ID", "901", "/L", "APPLICATION", "/SO", "SPharmMT-Agent", "/D", texto.slice(0, 900)], {
+      timeout: 5_000,
+      stdio: "ignore",
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Notificador do alerta. Reutiliza a infraestrutura existente (Healthchecks.io, `healthcheckUrl` do
+ * agent.config.json) — não se introduz SMTP nem credenciais no pacote. SEM `healthcheckUrl`, os canais
+ * são os locais (estado em `run/`, Registo de Eventos do Windows, PipelineRun ERROR no SaaS), e não há
+ * nada a reenviar. COM `healthcheckUrl`, falhar o ping lança — o alerta fica aberto e é tentado de novo.
+ */
+function criarNotificador(cfg: AgentConfig): (a: Alerta) => Promise<void> {
+  return async (a) => {
+    const texto = `SPharm.MT daily-pipeline FALHOU\nfarmacia=${a.farmacia}\ndia=${a.dia}\ncausa=${a.causa}\n${a.mensagem}`;
+    escreverEventoWindows(texto);
+    if (cfg.healthcheckUrl) await enviarPing(cfg.healthcheckUrl, "fail", redigir(texto, [cfg.ingestKey]));
+  };
+}
+
+function causaDaFalha(r: { passoFalhado?: string; transitoria: boolean; status: string }): string {
+  return `${r.passoFalhado ?? "pipeline"}:${r.status}:${r.transitoria ? "transitoria" : "permanente"}`;
+}
+
+/**
+ * Regista o `PipelineRun` no SaaS (com a política de retentativas) e, se o SaaS estiver inacessível, guarda-o
+ * localmente com a MESMA `idempotencyKey` para ser reenviado — o servidor faz upsert por essa chave.
+ */
+async function registarPipelineRunDuravel(
+  client: SaasClient,
+  body: PipelineRecordBody,
+  log: (s: string) => void,
+): Promise<"enviado" | "guardado-localmente"> {
+  try {
+    await client.pipelineRecord(body, 15_000);
+    return "enviado";
+  } catch (err) {
+    const guardado = guardarRegistoPendente(dirEstadoPadrao(), body);
+    log(
+      `⚠ Falha a registar PipelineRun no SaaS: ${redigir(err instanceof Error ? err.message : String(err))}. ` +
+        (guardado
+          ? `Registo guardado em run/pipelinerun-pendentes/ (idempotencyKey ${body.idempotencyKey}) — é reenviado na próxima corrida, sem duplicar.`
+          : `Sem idempotencyKey: não é possível reenviar com segurança.`),
+    );
+    return "guardado-localmente";
+  }
+}
+
+/** No arranque: reenvia registos e alertas que ficaram por entregar numa execução anterior. */
+async function recuperarPendenciasDeEnvio(cfg: AgentConfig, client: SaasClient, log: (s: string) => void): Promise<void> {
+  const dir = dirEstadoPadrao();
+  try {
+    const r = await reenviarRegistosPendentes(dir, (b) => client.pipelineRecord(b as unknown as PipelineRecordBody, 15_000), log);
+    if (r.enviados + r.falhados + r.arquivados > 0) log(`Registos PipelineRun pendentes: enviados=${r.enviados} por enviar=${r.falhados} arquivados=${r.arquivados}`);
+  } catch (err) {
+    log(`⚠ Não foi possível processar os registos pendentes: ${redigir(err instanceof Error ? err.message : String(err))}`);
+  }
+  try {
+    const a = await reenviarAlertasPendentes(dir, criarNotificador(cfg));
+    if (a.reenviados + a.falhados > 0) log(`Alertas por notificar: reenviados=${a.reenviados} falhados=${a.falhados}`);
+  } catch (err) {
+    log(`⚠ Não foi possível reenviar alertas: ${redigir(err instanceof Error ? err.message : String(err))}`);
+  }
+  const abertos = alertasAbertos(dir);
+  if (abertos.length > 0) {
+    log(`⚠ ${abertos.length} alerta(s) de falha do pipeline por resolver: ${abertos.map((x) => `${x.dia} (${x.causa})`).join("; ")}`);
+  }
+}
+
+/* ---------- Planeamento (catch-up) ---------- */
+
 /**
  * Pergunta ao SaaS que dias já estão concluídos e devolve o plano.
  *
  * Se a consulta falhar — rede em baixo, endpoint ainda não deployado —
- * NÃO se assume que está tudo feito nem que não está feito nada. Cai-se
- * no comportamento antigo (só ontem) e diz-se porquê. Assumir "nada
- * feito" faria uma farmácia com o SaaS temporariamente inacessível
- * reprocessar uma semana; assumir "tudo feito" perdia dias em silêncio,
- * que é o defeito que isto veio corrigir.
+ * NÃO se assume que está tudo feito nem que não está feito nada: usa-se a
+ * pista local (`run/pipeline-pendentes.json`, só acrescenta dias) + o dia
+ * normal, e diz-se porquê. Assumir "nada feito" faria uma farmácia com o
+ * SaaS temporariamente inacessível reprocessar uma semana; assumir "tudo
+ * feito" perdia dias em silêncio.
  */
 async function planearDias(
   cfg: AgentConfig,
+  client: SaasClient,
   maxCatchUp: number,
   log: (s: string) => void,
-): Promise<{ dias: string[]; adiados: string[] }> {
+): Promise<PlanoDiario> {
   const diaOntem = ontem();
-  const fallback = { dias: [diaOntem], adiados: [] as string[] };
+  const pendentesLocais = listarPendentes(dirEstadoPadrao());
+  const semSaas = (motivo: string): PlanoDiario => {
+    log(`⚠ ${motivo}`);
+    const plano = planearDiasDoPipeline({ ontem: diaOntem, diasOkNoSaas: null, pendentesLocais, maxDias: maxCatchUp });
+    for (const l of plano.diagnostico) log(l);
+    log(plano.resumo);
+    return plano;
+  };
 
-  const client = new SaasClient(cfg);
   let farmaciaId: string;
   try {
     farmaciaId = await resolveFarmaciaId(client, cfg.farmacia!);
   } catch (err) {
-    log(`⚠ Não foi possível resolver a farmácia para planear o catch-up: ${err instanceof Error ? err.message : String(err)}`);
-    log(`  A correr apenas ${diaOntem}. Dias em atraso, se os houver, ficam para a próxima corrida.`);
-    return fallback;
+    return semSaas(`Não foi possível resolver a farmácia para planear o catch-up: ${redigir(err instanceof Error ? err.message : String(err))}`);
   }
 
   const janela = janelaConsulta(diaOntem, maxCatchUp);
   try {
-    const r = await client.pipelineDiasConcluidos(
-      { farmaciaId, from: janela.from, to: janela.to },
-      20_000,
-    );
-    const plano = planearCatchUp({ ontem: diaOntem, diasOk: r.dias, maxDias: maxCatchUp });
+    const r = await client.pipelineDiasConcluidos({ farmaciaId, from: janela.from, to: janela.to }, 20_000);
+    const plano = planearDiasDoPipeline({ ontem: diaOntem, diasOkNoSaas: r.dias, pendentesLocais, maxDias: maxCatchUp });
     log(`Dias concluídos no SaaS entre ${janela.from} e ${janela.to}: ${r.dias.length}`);
+    for (const l of plano.diagnostico) log(l);
     log(plano.resumo);
+    for (const d of plano.pendentesJaConcluidos) removerPendente(dirEstadoPadrao(), d);
     if (plano.adiados.length > 0) {
-      // Nunca em silêncio: se o limite corta dias, eles ficam escritos
-      // no log com nome e número.
+      // Nunca em silêncio: se o limite corta dias, eles ficam escritos no log com nome e número.
       log(`⚠ ADIADOS por limite --max-catch-up=${maxCatchUp}: ${plano.adiados.join(", ")}`);
     }
-    return { dias: plano.dias, adiados: plano.adiados };
+    return plano;
   } catch (err) {
-    const msg = err instanceof SaasApiError
-      ? `HTTP ${err.statusCode} em ${err.path}`
-      : err instanceof Error ? err.message : String(err);
-    log(`⚠ Não foi possível consultar os dias concluídos (${msg}).`);
-    log(`  A correr apenas ${diaOntem} — comportamento anterior ao catch-up.`);
-    log(`  Se o endpoint /api/ingest/v1/pipeline/dias-concluidos ainda não está no deploy,`);
-    log(`  actualiza o SaaS: sem ele não há forma de saber que dias faltam.`);
-    return fallback;
+    const msg = err instanceof SaasApiError ? `HTTP ${err.statusCode} em ${err.path}` : redigir(err instanceof Error ? err.message : String(err));
+    return semSaas(
+      `Não foi possível consultar os dias concluídos (${msg}). ` +
+        `Se o endpoint /api/ingest/v1/pipeline/dias-concluidos ainda não está no deploy, actualiza o SaaS: sem ele não há forma de saber que dias faltam.`,
+    );
+  }
+}
+
+/* ---------- Entrypoint ---------- */
+
+type ResultadoDia = ResultadoTentativa;
+
+/** Memória partilhada entre as tentativas do MESMO dia (checkpoints, contadores, logs). */
+type AcumuladoDia = {
+  passosOk: Set<string>;
+  dailySyncCounts: PipelineRunCounts | null;
+  saudeVendas: VeredictoVendas | null;
+  aggregateResp: PipelineAggregateResponse | null;
+  refreshOperacional: OperationalRefreshCounts | null;
+  pipelineLog: TeeLogger;
+  dailySyncLog: TeeLogger;
+  aggregateLog: TeeLogger;
+  client: SaasClient;
+  recuperadosHttpInicio: number;
+  startedAtOriginal: Date;
+};
+
+type CtxTentativa = InfoTentativa & { diaEmFalta: boolean; acc: AcumuladoDia };
+
+/**
+ * Corre o dia COM retoma de nível superior (ver `retoma-pipeline.ts`): até `pipelineTentativas`
+ * tentativas, ~15 min entre elas, SEMPRE para o mesmo dia de referência, com checkpoint dos passos já
+ * confirmados e o lock mantido durante as esperas (nenhuma segunda execução entra no meio).
+ */
+async function correrDiaComRetoma(
+  dia: string,
+  args: Args,
+  opts: { diaEmFalta: boolean },
+): Promise<{ rc: number; desfecho: DesfechoDia; tentativas: number }> {
+  const month = monthOf(dia);
+  let cfg: AgentConfig | null = null;
+  try {
+    cfg = loadConfig("both");
+  } catch {
+    cfg = null; // o relato do erro de configuração é feito por `correrDiaCompleto`
+  }
+  const total = cfg?.pipelineTentativas ?? 4;
+  const esperaMs = cfg?.pipelineEsperaMs ?? 15 * 60_000;
+  const acc: AcumuladoDia = {
+    passosOk: new Set(),
+    dailySyncCounts: null,
+    saudeVendas: null,
+    aggregateResp: null,
+    refreshOperacional: null,
+    pipelineLog: new TeeLogger(path.join(logsDir(), `pipeline-${dia}.log`)),
+    dailySyncLog: new TeeLogger(path.join(logsDir(), `daily-sync-${dia}.log`)),
+    aggregateLog: new TeeLogger(path.join(logsDir(), `aggregate-${month}.log`)),
+    client: cfg ? new SaasClient(cfg) : (undefined as unknown as SaasClient),
+    recuperadosHttpInicio: 0,
+    startedAtOriginal: new Date(),
+  };
+  acc.recuperadosHttpInicio = acc.client?.estatisticas().recuperadosPorRetentativa ?? 0;
+
+  try {
+    const r = await correrComRetoma({
+      dia,
+      totalTentativas: total,
+      esperaMs,
+      log: (l) => acc.pipelineLog.log(l),
+      dormir: (ms) => new Promise((res) => setTimeout(res, ms)),
+      correr: (info) => correrDiaCompleto(dia, args, { ...info, diaEmFalta: opts.diaEmFalta, acc }),
+      antesDeEsperar: async (res, info, retomaEm) => {
+        // Estado gravado ANTES de dormir: se o PC/processo reiniciar, o catch-up recupera o dia.
+        registarPendente(dirEstadoPadrao(), {
+          dia,
+          estado: res.status,
+          causa: `${res.passoFalhado ?? "pipeline"}: ${redigir(res.erro ?? "falha transitória", [cfg?.ingestKey])}`,
+          retomaPrevistaEm: retomaEm,
+        });
+        await Promise.allSettled([acc.pipelineLog.flush(), acc.dailySyncLog.flush(), acc.aggregateLog.flush()]);
+        void info;
+      },
+    });
+    const desfecho = classificarDesfecho({
+      status: r.final.status,
+      tentativas: r.tentativas,
+      pedidosRecuperadosHttp: (acc.client?.estatisticas().recuperadosPorRetentativa ?? 0) - acc.recuperadosHttpInicio,
+      diaEmFalta: opts.diaEmFalta,
+    });
+    acc.pipelineLog.log(`RESULTADO ${dia}: ${ROTULO_DESFECHO[desfecho]} (tentativa ${r.tentativas}/${total})`);
+    await Promise.allSettled([acc.pipelineLog.flush(), acc.dailySyncLog.flush(), acc.aggregateLog.flush()]);
+    return { rc: r.final.rc, desfecho, tentativas: r.tentativas };
+  } finally {
+    // O lock é mantido durante as esperas; liberta-se aqui, no fim das tentativas.
+    if (lockPertenceAEsteProcesso()) await releaseLock();
   }
 }
 
@@ -577,7 +647,8 @@ export async function dailyPipeline(): Promise<number> {
 
   // `--date` explícito desliga o catch-up: quem indica um dia quer esse
   // dia, e mais nenhum. É o caminho da recuperação manual e do
-  // diagnóstico, e continua a comportar-se como sempre.
+  // diagnóstico, e continua a comportar-se como sempre (agora também com
+  // as retentativas HTTP e a retoma de nível superior).
   if (args.date) {
     let parsedDate: string;
     try {
@@ -586,7 +657,11 @@ export async function dailyPipeline(): Promise<number> {
       console.error("✗", err instanceof Error ? err.message : String(err));
       return 1;
     }
-    return correrDiaCompleto(parsedDate, args);
+    if (args.plan) {
+      console.log(`[plan] --date ${parsedDate}: correria só este dia (catch-up desligado). Nada foi executado.`);
+      return 0;
+    }
+    return (await correrDiaComRetoma(parsedDate, args, { diaEmFalta: false })).rc;
   }
 
   let cfg: AgentConfig;
@@ -601,30 +676,38 @@ export async function dailyPipeline(): Promise<number> {
     return 1;
   }
 
-  // ── Catch-up: LIGADO por omissão desde 2026-08-18 ────────────────
-  //
-  // Esteve desligado à espera de confirmar que `PipelineRun` recebia os
-  // registos. Recebe: a auditoria de produção lê a tabela com estados,
-  // datas e mensagens de erro por dia. A razão para o manter desligado
-  // deixou de existir, e o custo de o manter assim ficou visível — a
-  // Silveirense falhou 2026-08-16 (fornecedores + aggregate-month) e
-  // ficou parada aí, porque a corrida seguinte pediu "ontem", que já era
-  // outro dia. Um dia perdido não voltava a ser proposto por ninguém.
-  //
   // `--no-catch-up` volta ao comportamento antigo para diagnóstico.
   if (args.semCatchUp) {
     const diaOntem = ontem();
     console.log(`Catch-up desligado por --no-catch-up. A correr ${diaOntem}.`);
     console.log("");
-    return correrDiaCompleto(diaOntem, args);
+    if (args.plan) return 0;
+    return (await correrDiaComRetoma(diaOntem, args, { diaEmFalta: false })).rc;
   }
 
-  const maxCatchUp = args.maxCatchUp ?? MAX_CATCH_UP_DEFAULT;
+  const maxCatchUp = args.maxCatchUp ?? cfg.catchUpMaxDias ?? MAX_CATCH_UP_DEFAULT;
   console.log(DOUBLE_RULE);
-  console.log("daily-pipeline — planeamento (catch-up)");
+  console.log(`daily-pipeline — planeamento (catch-up)${args.plan ? " [--plan: só planeia, nada é executado]" : ""}`);
   console.log(DOUBLE_RULE);
-  const { dias, adiados } = await planearDias(cfg, maxCatchUp, (s) => console.log(s));
+  const clientePlano = new SaasClient(cfg);
+  clientePlano.definirContexto({ etapa: "planeamento" });
+  const politica = clientePlano.politicaEfetiva();
+  console.log(
+    `Política HTTP: 1 + ${politica.esperasMs.length} retentativas (${politica.esperasMs.map((m) => `${m / 1000}s`).join(", ") || "—"}), ` +
+      `jitter ${Math.round(politica.jitter * 100)}%, timeout ${politica.timeoutMs / 1000}s por pedido. ` +
+      `Retoma do pipeline: ${cfg.pipelineTentativas} tentativas, ${Math.round(cfg.pipelineEsperaMs / 60_000)} min entre elas.`,
+  );
+  if (!args.plan) await recuperarPendenciasDeEnvio(cfg, clientePlano, (s) => console.log(s));
+  const plano = await planearDias(cfg, clientePlano, maxCatchUp, (s) => console.log(s));
+  const { dias, adiados } = plano;
   console.log("");
+
+  if (args.plan) {
+    console.log(`[plan] Dias que seriam processados (por ordem): ${dias.length > 0 ? dias.join(" → ") : "(nenhum)"}`);
+    if (adiados.length > 0) console.log(`[plan] Adiados pelo limite: ${adiados.join(", ")}`);
+    console.log("[plan] Nada foi executado, escrito no SaaS nem alterado no ERP.");
+    return 0;
+  }
 
   if (dias.length === 0) {
     console.log("Nada a fazer: o último dia fechado já está concluído no SaaS.");
@@ -637,14 +720,25 @@ export async function dailyPipeline(): Promise<number> {
   // números que parecem certos.
   let i = 0;
   let piorEstado = 0;
+  const resumoDias: Array<{ dia: string; desfecho: DesfechoDia; tentativas: number }> = [];
+  const imprimirResumo = () => {
+    if (resumoDias.length === 0) return;
+    console.log("");
+    console.log(DOUBLE_RULE);
+    console.log("RESUMO DA EXECUÇÃO");
+    for (const r of resumoDias) console.log(`  ${r.dia}: ${ROTULO_DESFECHO[r.desfecho]} (tentativa ${r.tentativas})`);
+    console.log(DOUBLE_RULE);
+  };
   for (const dia of dias) {
     i++;
     if (dias.length > 1) {
       console.log(DOUBLE_RULE);
-      console.log(`Dia ${i}/${dias.length}: ${dia}`);
+      console.log(`Dia ${i}/${dias.length}: ${dia}${dia === ontem() ? " (dia normal)" : " (dia em falta — recuperação)"}`);
       console.log(DOUBLE_RULE);
     }
-    const rc = await correrDiaCompleto(dia, args);
+    const r = await correrDiaComRetoma(dia, args, { diaEmFalta: dia !== ontem() });
+    resumoDias.push({ dia, desfecho: r.desfecho, tentativas: r.tentativas });
+    const rc = r.rc;
     if (rc === EXIT_PARTIAL) {
       // Parcial não pára a sequência — ver EXIT_PARTIAL.
       console.warn("");
@@ -663,6 +757,7 @@ export async function dailyPipeline(): Promise<number> {
         console.error(`  Por processar: ${porFazer.join(", ")}`);
       }
       console.error(`  Corrige e volta a correr: a corrida seguinte retoma em ${dia}.`);
+      imprimirResumo();
       return rc;
     }
   }
@@ -673,16 +768,25 @@ export async function dailyPipeline(): Promise<number> {
     console.log(`  ${adiados.join(", ")}`);
     console.log(`  A próxima corrida apanha-os. Para os fazer já: --max-catch-up ${maxCatchUp + adiados.length}`);
   }
+  imprimirResumo();
   return piorEstado;
 }
 
-async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number> {
+/**
+ * UMA tentativa do dia. Era o corpo do `dailyPipeline` antes do catch-up; continua a fazer
+ * exactamente o mesmo, com o dia recebido em vez de calculado. Um dia de catch-up e o dia de
+ * ontem passam por aqui pelo mesmo caminho — mesmos passos, mesmos logs, mesmo registo no SaaS,
+ * mesmo lockfile. Recuperar um dia em atraso não é um modo especial: se fosse, seria um modo que
+ * ninguém testa e que diverge do normal sem ninguém reparar.
+ *
+ * rev98: devolve o resultado em vez de só um código; passos já concluídos numa tentativa anterior
+ * (mesma execução, mesmo dia) NÃO se repetem; uma falha TRANSITÓRIA que ainda vai ser retomada não é
+ * registada no SaaS nem alertada — só o desfecho final da execução.
+ */
+async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentativa): Promise<ResultadoDia> {
   const month = monthOf(parsedDate);
-
-  // Tee log capture (escreve no fim)
-  const pipelineLog = new TeeLogger(path.join(logsDir(), `pipeline-${parsedDate}.log`));
-  const dailySyncLog = new TeeLogger(path.join(logsDir(), `daily-sync-${parsedDate}.log`));
-  const aggregateLog = new TeeLogger(path.join(logsDir(), `aggregate-${month}.log`));
+  const { acc } = ctx;
+  const { pipelineLog, dailySyncLog, aggregateLog } = acc;
 
   let cfg: AgentConfig;
   try {
@@ -690,21 +794,27 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   } catch (err) {
     pipelineLog.log(`✗ Config inválida: ${err instanceof Error ? err.message : String(err)}`);
     await pipelineLog.flush();
-    return 1;
+    return { rc: 1, status: "ERROR", transitoria: false, erro: "config inválida", passoFalhado: "config" };
   }
   if (!cfg.farmacia) {
     pipelineLog.log("✗ SPHARMMT_FARMACIA não está definido em agent.config.json.");
     await pipelineLog.flush();
-    return 1;
+    return { rc: 1, status: "ERROR", transitoria: false, erro: "SPHARMMT_FARMACIA em falta", passoFalhado: "config" };
   }
 
   const t0 = Date.now();
-  const startedAt = new Date();
+  // O registo no SaaS cobre a EXECUÇÃO inteira do dia (todas as tentativas): `startedAt` e a idempotencyKey são os da 1.ª tentativa.
+  const startedAt = acc.startedAtOriginal;
   const steps: Array<{ name: string; status: "OK" | "ERROR" | "SKIPPED"; durationMs: number; message?: string }> = [];
-  let dailySyncCounts: PipelineRunCounts | null = null;
-  let saudeVendas: VeredictoVendas | null = null;
-  let aggregateResp: PipelineAggregateResponse | null = null;
-  let refreshOperacional: OperationalRefreshCounts | null = null;
+  // Falhas desta tentativa, por natureza: só se retoma quando TODAS as falhas são transitórias.
+  let falhasTransitorias = 0;
+  let falhasPermanentes = 0;
+  let passoFalhado: string | undefined;
+  const marcarFalha = (passo: string, transitoria: boolean) => {
+    if (transitoria) falhasTransitorias++;
+    else falhasPermanentes++;
+    passoFalhado = passoFalhado ?? passo;
+  };
 
   pipelineLog.raw(DOUBLE_RULE);
   pipelineLog.raw(`daily-pipeline — autonomous run`);
@@ -712,15 +822,17 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   pipelineLog.log(`SaaS endpoint     : ${cfg.saasEndpoint}`);
   pipelineLog.log(`Tenant slug       : ${cfg.tenantSlug}`);
   pipelineLog.log(`ERP database      : ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
-  pipelineLog.log(`Dia               : ${parsedDate}`);
+  pipelineLog.log(`Dia               : ${parsedDate}${ctx.diaEmFalta ? " (dia em falta — recuperação)" : ""}`);
+  pipelineLog.log(`Tentativa         : ${ctx.tentativa}/${ctx.total}`);
   pipelineLog.log(`Mês para agregar  : ${month}`);
   pipelineLog.log(`Skip aggregate    : ${args.skipAggregate ? "sim" : "não"}`);
   pipelineLog.log(`Healthcheck URL   : ${cfg.healthcheckUrl ? "configurado" : "(não configurado)"}`);
+  if (acc.passosOk.size > 0) pipelineLog.log(`Checkpoint        : passos já concluídos nesta execução: ${[...acc.passosOk].join(", ")}`);
   pipelineLog.log("");
 
   // Ping /start ao endpoint Healthchecks.io (best-effort). Permite que o
   // dead-man switch detecte quando o agent nunca arranca.
-  await pingHealthcheck(cfg.healthcheckUrl, "start", `daily-pipeline ${parsedDate}`, pipelineLog);
+  if (ctx.tentativa === 1) await pingHealthcheck(cfg.healthcheckUrl, "start", `daily-pipeline ${parsedDate}`, pipelineLog);
 
   let lockAcquired = false;
   // PARTIAL: o daily-sync passou mas um pipeline obrigatório falhou. É
@@ -733,7 +845,17 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   let errorMessage: string | undefined;
   let farmaciaId: string = "";
 
-  const client = new SaasClient(cfg);
+  const client = acc.client ?? new SaasClient(cfg);
+  client.definirContexto({ dia: parsedDate, etapa: "farmacia" });
+
+  /** Resultado de uma saída antecipada (o `finally` regista, alerta e faz flush a seguir). */
+  const sair = (rc: number): ResultadoDia => ({
+    rc,
+    status: pipelineStatus,
+    transitoria: pipelineStatus !== "OK" && falhasTransitorias > 0 && falhasPermanentes === 0,
+    erro: errorMessage,
+    passoFalhado,
+  });
 
   try {
     // Resolver farmaciaId ANTES do lock — de propósito, e na ordem
@@ -743,31 +865,23 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     // ocupado (`sync-now`/`full-sync`/outra corrida presa), o pipeline
     // devolvia `return 1` com `farmaciaId` ainda `""`, e o bloco
     // `finally` só regista `PipelineRun` `if (farmaciaId)` — um abort
-    // por lock ocupado NUNCA chegava ao SaaS. Ficava só no log local
-    // (`logs/pipeline-YYYY-MM-DD.log`) e, quando muito, num ping a
-    // Healthchecks.io — invisível em `/admin/pipeline`, e sem distinção
-    // de "esta farmácia não sincronizou" vs. "esta farmácia sincronizou
-    // mas encontrou um lock ocupado, que é um sintoma operacional
-    // diferente (ex.: `sync-now` a demorar, ou um lock stale)".
-    //
-    // `resolveFarmaciaId` é só uma chamada HTTP de leitura ao SaaS — não
-    // toca no ERP nem no lockfile, por isso não há razão nenhuma para a
-    // fazer depois do lock. Resolvendo-a primeiro, `farmaciaId` já está
-    // preenchido quando (e se) o lock falhar, e o `finally` grava o
-    // `PipelineRun` com `status="ABORTED"` e o motivo exacto — como
-    // qualquer outra falha.
+    // por lock ocupado NUNCA chegava ao SaaS. Resolvendo-a primeiro,
+    // `farmaciaId` já está preenchido quando (e se) o lock falhar, e o
+    // `finally` grava o `PipelineRun` com `status="ABORTED"` e o motivo
+    // exacto — como qualquer outra falha.
     try {
       farmaciaId = await resolveFarmaciaId(client, cfg.farmacia);
     } catch (err) {
       pipelineStatus = "ERROR";
-      errorMessage = err instanceof Error ? err.message : String(err);
+      errorMessage = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
+      marcarFalha("farmacia", eFalhaTransitoria(err) || ehFalhaDeRede(err));
       pipelineLog.log(`✗ ERROR [farmacia]: ${errorMessage}`);
-      return 1;
+      return sair(1);
     }
     pipelineLog.log(`Farmácia resolved : ${farmaciaId}`);
     pipelineLog.log("");
 
-    // Lock acquire
+    // Lock acquire (mantido entre tentativas do mesmo processo: nenhuma segunda execução entra durante a espera)
     try {
       await acquireLock(args.force === true, "daily-pipeline", parsedDate);
       lockAcquired = true;
@@ -775,63 +889,74 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
       pipelineStatus = "ABORTED";
       errorMessage = err instanceof Error ? err.message : String(err);
       steps.push({ name: "lock", status: "ERROR", durationMs: 0, message: errorMessage });
+      marcarFalha("lock", false);
       pipelineLog.log(`✗ ABORTED [lock]: ${errorMessage}`);
-      return 1;
+      return sair(1);
     }
 
     // 1) daily-sync
-    const tDailySync = Date.now();
-    pipelineLog.raw(RULE);
-    pipelineLog.log(`▶ Step 1/2: daily-sync ${parsedDate}`);
-    pipelineLog.raw(RULE);
-    try {
-      dailySyncCounts = await withPool(cfg, async (pool) => {
-        return runPipelineForDay({
-          pool,
-          client,
-          farmaciaId,
-          date: parsedDate,
-          schemaProbes: { tableExists, listColumns },
-          logger: dailySyncLog,
+    if (acc.passosOk.has("daily-sync") && acc.dailySyncCounts) {
+      steps.push({ name: "daily-sync", status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
+      pipelineLog.log(`⏭ Step 1/2: daily-sync já concluído na tentativa anterior — não se repete.`);
+    } else {
+      const tDailySync = Date.now();
+      client.definirContexto({ dia: parsedDate, etapa: "daily-sync" });
+      pipelineLog.raw(RULE);
+      pipelineLog.log(`▶ Step 1/2: daily-sync ${parsedDate}`);
+      pipelineLog.raw(RULE);
+      try {
+        const counts = await withPool(cfg, async (pool) => {
+          return runPipelineForDay({
+            pool,
+            client,
+            farmaciaId,
+            date: parsedDate,
+            schemaProbes: { tableExists, listColumns },
+            logger: dailySyncLog,
+          });
         });
-      });
-      const dur = Date.now() - tDailySync;
-      pipelineLog.log(`  products read=${dailySyncCounts.productsRead} upserted=${dailySyncCounts.productsUpserted} errors=${dailySyncCounts.productsErrors}`);
-      pipelineLog.log(`  stock    read=${dailySyncCounts.stockRead} upserted=${dailySyncCounts.stockUpserted} errors=${dailySyncCounts.stockErrors}`);
-      pipelineLog.log(`  sales    read=${dailySyncCounts.salesRead} upserted=${dailySyncCounts.salesUpserted} skipped=${dailySyncCounts.salesSkipped} non_stock=${dailySyncCounts.salesNonStockServices} op_orphans=${dailySyncCounts.salesOperationalOrphans} errors=${dailySyncCounts.salesErrors}`);
+        acc.dailySyncCounts = counts;
+        const dur = Date.now() - tDailySync;
+        pipelineLog.log(`  products read=${counts.productsRead} upserted=${counts.productsUpserted} errors=${counts.productsErrors}`);
+        pipelineLog.log(`  stock    read=${counts.stockRead} upserted=${counts.stockUpserted} errors=${counts.stockErrors}`);
+        pipelineLog.log(`  sales    read=${counts.salesRead} upserted=${counts.salesUpserted} skipped=${counts.salesSkipped} non_stock=${counts.salesNonStockServices} op_orphans=${counts.salesOperationalOrphans} errors=${counts.salesErrors}`);
 
-      // A pergunta que faltava: o que se leu chegou lá?
-      //
-      // O `daily-sync` não atirou — leu o dia todo sem um erro. Mas uma
-      // leitura sem escrita não é um dia sincronizado, e era exactamente
-      // assim que a Principal fechava OK com 93% das vendas recusadas.
-      // Ver `saude-vendas.ts` para os números e para a escolha de
-      // PARTIAL. A degradação é só num sentido: nada aqui promove um dia
-      // que já estava pior.
-      saudeVendas = avaliarSaudeVendas(dailySyncCounts);
-      if (saudeVendas.saudavel) {
-        steps.push({ name: "daily-sync", status: "OK", durationMs: dur });
-        pipelineLog.log(`  daily-sync OK em ${fmtDuration(dur)}`);
-        if (dailySyncCounts.salesSkipped > 0) pipelineLog.log(`  ℹ ${saudeVendas.motivo}`);
-      } else {
-        steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: saudeVendas.motivo });
-        if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
-        errorMessage = errorMessage ?? saudeVendas.motivo;
-        pipelineLog.log(`✗ daily-sync PARCIAL em ${fmtDuration(dur)}: ${saudeVendas.motivo}`);
-        pipelineLog.log(
-          "    O dia NÃO fica fechado e o catch-up volta a propô-lo. Declarar o tipo em " +
-            "agent/src/vendas-fontes.ts (CLASSIFICACAO) e deixar o dia repetir.",
-        );
+        // A pergunta que faltava: o que se leu chegou lá?
+        //
+        // O `daily-sync` não atirou — leu o dia todo sem um erro. Mas uma
+        // leitura sem escrita não é um dia sincronizado, e era exactamente
+        // assim que a Principal fechava OK com 93% das vendas recusadas.
+        // Ver `saude-vendas.ts` para os números e para a escolha de
+        // PARTIAL. A degradação é só num sentido: nada aqui promove um dia
+        // que já estava pior.
+        acc.saudeVendas = avaliarSaudeVendas(counts);
+        if (acc.saudeVendas.saudavel) {
+          steps.push({ name: "daily-sync", status: "OK", durationMs: dur });
+          acc.passosOk.add("daily-sync");
+          pipelineLog.log(`  daily-sync OK em ${fmtDuration(dur)}`);
+          if (counts.salesSkipped > 0) pipelineLog.log(`  ℹ ${acc.saudeVendas.motivo}`);
+        } else {
+          steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: acc.saudeVendas.motivo });
+          if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
+          errorMessage = errorMessage ?? acc.saudeVendas.motivo;
+          marcarFalha("daily-sync", false);
+          pipelineLog.log(`✗ daily-sync PARCIAL em ${fmtDuration(dur)}: ${acc.saudeVendas.motivo}`);
+          pipelineLog.log(
+            "    O dia NÃO fica fechado e o catch-up volta a propô-lo. Declarar o tipo em " +
+              "agent/src/vendas-fontes.ts (CLASSIFICACAO) e deixar o dia repetir.",
+          );
+        }
+        pipelineLog.log("");
+      } catch (err) {
+        const dur = Date.now() - tDailySync;
+        const msg = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
+        steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: msg });
+        pipelineStatus = "ERROR";
+        errorMessage = `daily-sync falhou: ${msg}`;
+        marcarFalha("daily-sync", eFalhaTransitoria(err));
+        pipelineLog.log(`✗ daily-sync ERROR: ${msg}`);
+        return sair(1);
       }
-      pipelineLog.log("");
-    } catch (err) {
-      const dur = Date.now() - tDailySync;
-      const msg = err instanceof Error ? err.message : String(err);
-      steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: msg });
-      pipelineStatus = "ERROR";
-      errorMessage = `daily-sync falhou: ${msg}`;
-      pipelineLog.log(`✗ daily-sync ERROR: ${msg}`);
-      return 1;
     }
 
     // 1b) compras, devoluções e movimentos — o daily-sync não os cobre.
@@ -840,14 +965,23 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     // foram gravados e continuam correctos. Fica registada como ERROR no
     // relatório e o dia repete-se com o mesmo --date, que é idempotente.
     for (const p of PIPELINES_DIARIOS_EXTRA) {
+      if (acc.passosOk.has(p.label)) {
+        steps.push({ name: p.label, status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
+        pipelineLog.log(`⏭ ${p.label} já concluído na tentativa anterior — não se repete.`);
+        continue;
+      }
       const t0 = Date.now();
+      client.definirContexto({ dia: parsedDate, etapa: p.label });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ ${p.label} ${parsedDate}`);
       pipelineLog.raw(RULE);
-      const rc = p.janela ? correrComandoDoDia(p.cmd, parsedDate) : correrComandoSemJanela(p.cmd);
+      const rc = p.janela
+        ? correrComandoDoDia(p.cmd, parsedDate, [], p.label)
+        : correrComandoSemJanela(p.cmd, parsedDate, p.label);
       const dur = Date.now() - t0;
       if (rc === 0) {
         steps.push({ name: p.label, status: "OK", durationMs: dur });
+        acc.passosOk.add(p.label);
         pipelineLog.log(`  ${p.label} OK em ${fmtDuration(dur)}`);
       } else {
         steps.push({ name: p.label, status: "ERROR", durationMs: dur, message: `exit ${rc}` });
@@ -857,7 +991,8 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         // deixava o dia contar como feito.
         if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `${p.label} falhou (exit ${rc})`;
-        pipelineLog.log(`✗ ${p.label} ERROR (exit ${rc}) — repetível com o mesmo --date`);
+        marcarFalha(p.label, rc === EXIT_TRANSITORIO);
+        pipelineLog.log(`✗ ${p.label} ERROR (exit ${rc}${rc === EXIT_TRANSITORIO ? ", falha transitória do SaaS" : ""}) — repetível com o mesmo --date`);
       }
     }
 
@@ -873,13 +1008,17 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     // gravados correctamente por cima — só o catálogo INTEIRO é que fica
     // por refrescar até à corrida seguinte (idempotente, repete-se
     // sozinho). Ver `runOperationalRefresh` em `daily-sync-runner.ts`.
-    {
+    if (acc.passosOk.has("refresh-operacional") && acc.refreshOperacional) {
+      steps.push({ name: "refresh-operacional", status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
+      pipelineLog.log(`⏭ Refresh operacional já concluído na tentativa anterior — não se repete.`);
+    } else {
       const t0 = Date.now();
+      client.definirContexto({ dia: parsedDate, etapa: "refresh-operacional" });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ Refresh operacional (catálogo inteiro) ${parsedDate}`);
       pipelineLog.raw(RULE);
       try {
-        refreshOperacional = await withPool(cfg, async (pool) => {
+        const ro = await withPool(cfg, async (pool) => {
           return runOperationalRefresh({
             pool,
             client,
@@ -888,23 +1027,24 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
             logger: dailySyncLog,
           });
         });
+        acc.refreshOperacional = ro;
         const dur = Date.now() - t0;
         steps.push({ name: "refresh-operacional", status: "OK", durationMs: dur });
+        acc.passosOk.add("refresh-operacional");
+        pipelineLog.log(`  produtos read=${ro.productsRead} upserted=${ro.productsUpserted} errors=${ro.productsErrors}`);
         pipelineLog.log(
-          `  produtos read=${refreshOperacional.productsRead} upserted=${refreshOperacional.productsUpserted} errors=${refreshOperacional.productsErrors}`,
-        );
-        pipelineLog.log(
-          refreshOperacional.stockSaltado
+          ro.stockSaltado
             ? `  stock: saltado (sem dbo.StocksMov)`
-            : `  stock    read=${refreshOperacional.stockRead} upserted=${refreshOperacional.stockUpserted} errors=${refreshOperacional.stockErrors}`,
+            : `  stock    read=${ro.stockRead} upserted=${ro.stockUpserted} errors=${ro.stockErrors}`,
         );
         pipelineLog.log(`  refresh operacional OK em ${fmtDuration(dur)}`);
       } catch (err) {
         const dur = Date.now() - t0;
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
         steps.push({ name: "refresh-operacional", status: "ERROR", durationMs: dur, message: msg });
         if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `refresh-operacional falhou: ${msg}`;
+        marcarFalha("refresh-operacional", eFalhaTransitoria(err));
         pipelineLog.log(`✗ refresh-operacional ERROR: ${msg} — repetível na corrida seguinte`);
       }
       pipelineLog.log("");
@@ -919,12 +1059,16 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     // refresh operacional acima já passa por aqui pelo endpoint de produtos
     // para os activos; este passo cobre também os retirados e é a mesma regra
     // do servidor. Falha aqui é PARTIAL (idempotente, repete-se amanhã).
-    {
+    if (acc.passosOk.has("designacoes")) {
+      steps.push({ name: "designacoes", status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
+    } else {
       const t0 = Date.now();
+      client.definirContexto({ dia: parsedDate, etapa: "designacoes" });
       try {
         const dz = await withPool(cfg, async (pool) =>
           runDesignacoesRefresh({ pool, client, farmaciaId, logger: dailySyncLog }),
         );
+        acc.passosOk.add("designacoes");
         if (dz.aplicavel) {
           const dur = Date.now() - t0;
           steps.push({ name: "designacoes", status: "OK", durationMs: dur });
@@ -934,10 +1078,11 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         }
       } catch (err) {
         const dur = Date.now() - t0;
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
         steps.push({ name: "designacoes", status: "ERROR", durationMs: dur, message: msg });
         if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `designações falhou: ${msg}`;
+        marcarFalha("designacoes", eFalhaTransitoria(err));
         pipelineLog.log(`✗ designações ERROR: ${msg} — repetível na corrida seguinte`);
       }
     }
@@ -946,8 +1091,12 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     if (args.skipAggregate) {
       steps.push({ name: "aggregate-month", status: "SKIPPED", durationMs: 0, message: "--skip-aggregate" });
       pipelineLog.log(`⏭ Step 2/2: aggregate-month SKIPPED (--skip-aggregate)`);
+    } else if (acc.passosOk.has("aggregate-month") && acc.aggregateResp) {
+      steps.push({ name: "aggregate-month", status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
+      pipelineLog.log(`⏭ Step 2/2: aggregate-month já concluído na tentativa anterior — não se repete.`);
     } else {
       const tAgg = Date.now();
+      client.definirContexto({ dia: parsedDate, etapa: "aggregate-month" });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ Step 2/2: aggregate-month ${month}`);
       pipelineLog.raw(RULE);
@@ -967,28 +1116,29 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         // `tipoDocumentoClass IN ('VENDA','DEVOLUCAO_ANULACAO')`),
         // portanto isto não altera números — decide apenas se o mês
         // aborta ou avança deixando-as de fora.
-        aggregateResp = await comRetryDeRede(
-          () =>
-            client.pipelineAggregateMonth(
-              {
-                month,
-                write: true,
-                allowUnknowns: cfg.allowUnknowns === true,
-                allowOrphans: cfg.allowOrphans === true,
-              },
-              90_000,
-            ),
-          (s) => pipelineLog.log(s),
+        //
+        // As retentativas por falha de rede/timeout/502-504 são do cliente HTTP (política
+        // central); aqui só se vê o resultado final.
+        const resp = await client.pipelineAggregateMonth(
+          {
+            month,
+            write: true,
+            allowUnknowns: cfg.allowUnknowns === true,
+            allowOrphans: cfg.allowOrphans === true,
+          },
+          90_000,
         );
+        acc.aggregateResp = resp;
         const dur = Date.now() - tAgg;
         steps.push({ name: "aggregate-month", status: "OK", durationMs: dur });
-        aggregateLog.log(`aggregate-month ${month} response: ${JSON.stringify(aggregateResp, null, 2)}`);
+        acc.passosOk.add("aggregate-month");
+        aggregateLog.log(`aggregate-month ${month} response: ${JSON.stringify(resp, null, 2)}`);
         pipelineLog.log(`  aggregate-month OK em ${fmtDuration(dur)}`);
-        pipelineLog.log(`  rows inserted: ${aggregateResp.rowsInserted}  deleted: ${aggregateResp.rowsDeleted}`);
-        pipelineLog.log(`  unknowns: ${aggregateResp.preflight.unknowns}`);
-        pipelineLog.log(`  non-stock services: ${aggregateResp.preflight.nonStockServices}`);
-        pipelineLog.log(`  operational orphans: ${aggregateResp.preflight.operationalOrphans}`);
-        pipelineLog.log(`  valorBruto Σ: ${fmtEur(aggregateResp.totals.valorBruto)} EUR`);
+        pipelineLog.log(`  rows inserted: ${resp.rowsInserted}  deleted: ${resp.rowsDeleted}`);
+        pipelineLog.log(`  unknowns: ${resp.preflight.unknowns}`);
+        pipelineLog.log(`  non-stock services: ${resp.preflight.nonStockServices}`);
+        pipelineLog.log(`  operational orphans: ${resp.preflight.operationalOrphans}`);
+        pipelineLog.log(`  valorBruto Σ: ${fmtEur(resp.totals.valorBruto)} EUR`);
         pipelineLog.log("");
       } catch (err) {
         const dur = Date.now() - tAgg;
@@ -999,160 +1149,209 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
           if (err.statusCode === 409) pipelineStatus = "ABORTED";
           else pipelineStatus = "ERROR";
         } else {
-          msg = err instanceof Error ? err.message : String(err);
+          msg = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
           pipelineStatus = "ERROR";
         }
         steps.push({ name: "aggregate-month", status: "ERROR", durationMs: dur, message: msg });
         errorMessage = `aggregate-month falhou: ${msg}`;
+        marcarFalha("aggregate-month", eFalhaTransitoria(err));
         pipelineLog.log(`✗ aggregate-month ${pipelineStatus}: ${msg}`);
         aggregateLog.log(`aggregate-month ${month} ${pipelineStatus}: ${msg}`);
-        return 1;
+        return sair(1);
       }
     }
   } catch (err) {
     pipelineStatus = "ERROR";
-    errorMessage = err instanceof Error ? err.message : String(err);
+    errorMessage = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
+    marcarFalha("inesperado", eFalhaTransitoria(err));
     pipelineLog.log(`✗ ERROR inesperado: ${errorMessage}`);
-    return 1;
+    return sair(1);
   } finally {
     const wallMs = Date.now() - t0;
     const finishedAt = new Date();
+    // Só se retoma se TODAS as falhas desta tentativa foram transitórias.
+    const transitoria = pipelineStatus !== "OK" && falhasTransitorias > 0 && falhasPermanentes === 0;
+    const vaiRetomar = !ctx.ultima && transitoria;
+    const statsHttp = client.estatisticas();
 
-    // Resumo final
+    // Resumo final desta tentativa
     pipelineLog.raw("");
     pipelineLog.raw(DOUBLE_RULE);
-    pipelineLog.log(`DAILY PIPELINE ${pipelineStatus}`);
-    pipelineLog.log(`Date: ${parsedDate}`);
+    pipelineLog.log(`DAILY PIPELINE ${pipelineStatus}${vaiRetomar ? " (falha transitória — será repetido)" : ""}`);
+    pipelineLog.log(`Date: ${parsedDate}  |  Tentativa ${ctx.tentativa}/${ctx.total}`);
     pipelineLog.raw("");
-    if (dailySyncCounts) {
-      pipelineLog.log(`Products synced: ${dailySyncCounts.productsUpserted}`);
-      pipelineLog.log(`Stock rows synced: ${dailySyncCounts.stockUpserted}`);
-      pipelineLog.log(`Sales lines synced: ${dailySyncCounts.salesUpserted}`);
+    if (acc.dailySyncCounts) {
+      pipelineLog.log(`Products synced: ${acc.dailySyncCounts.productsUpserted}`);
+      pipelineLog.log(`Stock rows synced: ${acc.dailySyncCounts.stockUpserted}`);
+      pipelineLog.log(`Sales lines synced: ${acc.dailySyncCounts.salesUpserted}`);
       pipelineLog.raw("");
     }
-    if (refreshOperacional) {
+    if (acc.refreshOperacional) {
       pipelineLog.log(`Refresh operacional (catálogo inteiro):`);
-      pipelineLog.log(`  products upserted: ${refreshOperacional.productsUpserted}`);
+      pipelineLog.log(`  products upserted: ${acc.refreshOperacional.productsUpserted}`);
       pipelineLog.log(
-        refreshOperacional.stockSaltado
+        acc.refreshOperacional.stockSaltado
           ? `  stock: saltado (sem StocksMov)`
-          : `  stock upserted: ${refreshOperacional.stockUpserted}`,
+          : `  stock upserted: ${acc.refreshOperacional.stockUpserted}`,
       );
       pipelineLog.raw("");
     }
-    if (aggregateResp) {
+    if (acc.aggregateResp) {
       pipelineLog.log(`VendaMensal:`);
-      pipelineLog.log(`  rows inserted: ${aggregateResp.rowsInserted}`);
-      pipelineLog.log(`  valorBruto: ${fmtEur(aggregateResp.totals.valorBruto)} EUR`);
-      pipelineLog.log(`  devoluções: ${aggregateResp.preflight.byClass.DEVOLUCAO_ANULACAO ?? 0}`);
+      pipelineLog.log(`  rows inserted: ${acc.aggregateResp.rowsInserted}`);
+      pipelineLog.log(`  valorBruto: ${fmtEur(acc.aggregateResp.totals.valorBruto)} EUR`);
+      pipelineLog.log(`  devoluções: ${acc.aggregateResp.preflight.byClass.DEVOLUCAO_ANULACAO ?? 0}`);
       pipelineLog.raw("");
-      pipelineLog.log(`Unknown TipoDocs: ${aggregateResp.preflight.unknowns}`);
-      pipelineLog.log(`Operational orphans: ${aggregateResp.preflight.operationalOrphans}`);
+      pipelineLog.log(`Unknown TipoDocs: ${acc.aggregateResp.preflight.unknowns}`);
+      pipelineLog.log(`Operational orphans: ${acc.aggregateResp.preflight.operationalOrphans}`);
       pipelineLog.raw("");
     }
     if (errorMessage) {
       pipelineLog.log(`Error: ${errorMessage}`);
       pipelineLog.raw("");
     }
+    pipelineLog.log(
+      `HTTP: pedidos=${statsHttp.pedidos} retentativas=${statsHttp.retentativas} recuperados=${statsHttp.recuperadosPorRetentativa} ` +
+        `(após falha ambígua=${statsHttp.recuperadosAposAmbigua}) falhas definitivas=${statsHttp.falhasDefinitivas}`,
+    );
     pipelineLog.log(`Duration total: ${fmtDuration(wallMs)}`);
     pipelineLog.raw(DOUBLE_RULE);
 
-    // Record run no SaaS (best effort — não falha o pipeline)
-    if (farmaciaId) {
-      try {
-        const client = new SaasClient(cfg);
+    if (!vaiRetomar) {
+      const pedidosRecuperadosHttp = statsHttp.recuperadosPorRetentativa - acc.recuperadosHttpInicio;
+      const desfecho = classificarDesfecho({
+        status: pipelineStatus,
+        tentativas: ctx.tentativa,
+        pedidosRecuperadosHttp,
+        diaEmFalta: ctx.diaEmFalta,
+      });
+
+      // Record run no SaaS (best effort — não falha o pipeline; se o SaaS estiver inacessível guarda-se localmente)
+      if (farmaciaId) {
         const details = {
           dailyDate: parsedDate,
           aggregateMonth: month,
           steps,
-          dailySync: dailySyncCounts ?? undefined,
-          refreshOperacional: refreshOperacional ?? undefined,
+          dailySync: acc.dailySyncCounts ?? undefined,
+          refreshOperacional: acc.refreshOperacional ?? undefined,
           // O veredicto viaja para o SaaS com os tipos por declarar lá
           // dentro. É o que faz a diferença entre "salesSkipped=1117" —
           // que não diz o que fazer — e "ATENDIMENTO_DETALHE:77×1090",
           // que diz. Sem isto, diagnosticar exige o log da farmácia.
-          saudeVendas: saudeVendas
+          saudeVendas: acc.saudeVendas
             ? {
-                saudavel: saudeVendas.saudavel,
-                fraccaoSkipped: Number(saudeVendas.fraccaoSkipped.toFixed(4)),
-                motivo: saudeVendas.motivo,
-                tiposPorClassificar: dailySyncCounts?.salesTiposPorClassificar ?? [],
+                saudavel: acc.saudeVendas.saudavel,
+                fraccaoSkipped: Number(acc.saudeVendas.fraccaoSkipped.toFixed(4)),
+                motivo: acc.saudeVendas.motivo,
+                tiposPorClassificar: acc.dailySyncCounts?.salesTiposPorClassificar ?? [],
               }
             : undefined,
-          aggregate: aggregateResp
+          aggregate: acc.aggregateResp
             ? {
                 ano: parseInt(month.slice(0, 4), 10),
                 mes: parseInt(month.slice(5, 7), 10),
-                rawLines: aggregateResp.preflight.rawLines,
-                produtosDistinct: aggregateResp.preflight.produtosDistinct,
-                atendimentosDistinct: aggregateResp.preflight.atendimentosDistinct,
-                byClass: aggregateResp.preflight.byClass,
-                unknowns: aggregateResp.preflight.unknowns,
-                nonStockServices: aggregateResp.preflight.nonStockServices,
-                operationalOrphans: aggregateResp.preflight.operationalOrphans,
-                rowsInserted: aggregateResp.rowsInserted,
-                rowsDeleted: aggregateResp.rowsDeleted,
-                valorBrutoSum: aggregateResp.totals.valorBruto,
-                quantidadeLiquidaSum: aggregateResp.totals.quantidadeLiquida,
-                linhasVendaSum: aggregateResp.totals.linhasVenda,
-                atendimentosSum: aggregateResp.totals.atendimentos,
-                aggregateRunId: aggregateResp.pipelineRunId,
+                rawLines: acc.aggregateResp.preflight.rawLines,
+                produtosDistinct: acc.aggregateResp.preflight.produtosDistinct,
+                atendimentosDistinct: acc.aggregateResp.preflight.atendimentosDistinct,
+                byClass: acc.aggregateResp.preflight.byClass,
+                unknowns: acc.aggregateResp.preflight.unknowns,
+                nonStockServices: acc.aggregateResp.preflight.nonStockServices,
+                operationalOrphans: acc.aggregateResp.preflight.operationalOrphans,
+                rowsInserted: acc.aggregateResp.rowsInserted,
+                rowsDeleted: acc.aggregateResp.rowsDeleted,
+                valorBrutoSum: acc.aggregateResp.totals.valorBruto,
+                quantidadeLiquidaSum: acc.aggregateResp.totals.quantidadeLiquida,
+                linhasVendaSum: acc.aggregateResp.totals.linhasVenda,
+                atendimentosSum: acc.aggregateResp.totals.atendimentos,
+                aggregateRunId: acc.aggregateResp.pipelineRunId,
               }
             : undefined,
+          // rev98 — como o dia foi concluído (ou não): sem dados de negócio.
+          resiliencia: {
+            desfecho,
+            tentativaPipeline: ctx.tentativa,
+            totalTentativasPipeline: ctx.total,
+            diaEmFalta: ctx.diaEmFalta,
+            http: statsHttp,
+            falhaTransitoria: transitoria,
+          },
         };
         // Idempotency key determinístico: retries da MESMA execução
         // (mesmo startedAt) produzem a mesma key → upsert server-side.
-        // Mudança de qualquer componente (dia ou hora de arranque) gera
-        // key nova, preservando audit log para runs independentes.
+        // O `startedAt` é o da 1.ª tentativa do dia nesta execução: as retomas actualizam
+        // o MESMO registo em vez de criar um por tentativa. Mudança de qualquer componente
+        // (dia ou execução) gera key nova, preservando audit log para runs independentes.
         const idempotencyKey = `daily-pipeline:${farmaciaId}:${parsedDate}:${startedAt.toISOString()}`;
-        await client.pipelineRecord(
+        client.definirContexto({ dia: parsedDate, etapa: "pipeline-record" });
+        await registarPipelineRunDuravel(
+          client,
           {
             farmaciaId,
             kind: "daily-pipeline",
             status: pipelineStatus,
             startedAt: startedAt.toISOString(),
             finishedAt: finishedAt.toISOString(),
-            durationMs: wallMs,
+            durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
             dateRef: parsedDate,
             errorMessage,
             details,
             triggeredBy: "agent",
             idempotencyKey,
           },
-          15_000
+          (s) => pipelineLog.log(s),
         );
+      }
+
+      // Estado local + alerta operacional
+      const dirE = dirEstadoPadrao();
+      const farmaciaChave = farmaciaId || cfg.farmacia;
+      try {
+        if (pipelineStatus === "OK") {
+          removerPendente(dirE, parsedDate);
+          const res = resolverAlertasDoDia(dirE, farmaciaChave, parsedDate);
+          if (res.length > 0) pipelineLog.log(`✓ Alerta(s) resolvido(s) para ${parsedDate}: ${res.map((a) => a.causa).join(", ")}`);
+        } else {
+          registarPendente(dirE, { dia: parsedDate, estado: pipelineStatus, causa: `${passoFalhado ?? "pipeline"}: ${redigir(errorMessage ?? "", [cfg.ingestKey])}` });
+          const r = await abrirAlerta(
+            dirE,
+            {
+              farmacia: farmaciaChave,
+              dia: parsedDate,
+              causa: causaDaFalha({ passoFalhado, transitoria, status: pipelineStatus }),
+              mensagem: redigir(errorMessage ?? "falha do pipeline", [cfg.ingestKey]),
+            },
+            criarNotificador(cfg),
+          );
+          if (r.notificou) pipelineLog.log(`⚠ ALERTA enviado: ${r.alerta.causa} (${parsedDate})`);
+          else if (r.erroNotificacao) pipelineLog.log(`⚠ ALERTA registado em run/pipeline-alertas.json mas a notificação FALHOU: ${r.erroNotificacao} — a causa mantém-se e será reenviada.`);
+          else pipelineLog.log(`⚠ Alerta já existente para esta causa (${r.alerta.causa}, ${parsedDate}) — sem notificação duplicada.`);
+        }
       } catch (err) {
-        pipelineLog.log(
-          `⚠ Falha a registar PipelineRun no SaaS: ${err instanceof Error ? err.message : String(err)}`
-        );
+        pipelineLog.log(`⚠ Não foi possível actualizar o estado local/alerta: ${redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey])}`);
+      }
+      pipelineLog.log(`RESULTADO ${parsedDate}: ${ROTULO_DESFECHO[desfecho]}`);
+
+      // Ping final ao Healthchecks.io: OK → endpoint padrão. As FALHAS notificam-se pelo alerta
+      // (uma vez por farmácia/dia/causa) — não se repete o /fail em cada tentativa ou corrida.
+      if (pipelineStatus === "OK") {
+        const summaryBody = [
+          `daily-pipeline ${pipelineStatus}`,
+          `date=${parsedDate}`,
+          `duration=${fmtDuration(wallMs)}`,
+          `desfecho=${desfecho}`,
+          acc.dailySyncCounts ? `sales=${acc.dailySyncCounts.salesUpserted}` : null,
+          acc.aggregateResp ? `agg_rows=${acc.aggregateResp.rowsInserted}` : null,
+        ].filter(Boolean).join("\n");
+        await pingHealthcheck(cfg.healthcheckUrl, "ok", summaryBody, pipelineLog);
       }
     }
 
-    // Ping final ao Healthchecks.io. Endpoint variant baseado no
-    // status: OK → endpoint padrão; ERROR/ABORTED → /fail.
-    const summaryBody = [
-      `daily-pipeline ${pipelineStatus}`,
-      `date=${parsedDate}`,
-      `duration=${fmtDuration(wallMs)}`,
-      dailySyncCounts ? `sales=${dailySyncCounts.salesUpserted}` : null,
-      aggregateResp ? `agg_rows=${aggregateResp.rowsInserted}` : null,
-      errorMessage ? `error=${errorMessage.slice(0, 200)}` : null,
-    ].filter(Boolean).join("\n");
-    await pingHealthcheck(
-      cfg.healthcheckUrl,
-      pipelineStatus === "OK" ? "ok" : "fail",
-      summaryBody,
-      pipelineLog
-    );
-
-    // Flush logs
-    await Promise.allSettled([
-      pipelineLog.flush(),
-      dailySyncLog.flush(),
-      aggregateLog.flush(),
-    ]);
-    if (lockAcquired) await releaseLock();
+    // Flush logs (e o lock mantém-se se há retoma; liberta-se no fim das tentativas)
+    await Promise.allSettled([pipelineLog.flush(), dailySyncLog.flush(), aggregateLog.flush()]);
+    void lockAcquired;
   }
 
-  return pipelineStatus === "OK" ? 0 : pipelineStatus === "PARTIAL" ? EXIT_PARTIAL : 1;
+  const rcSaida = pipelineStatus === "OK" ? 0 : pipelineStatus === "PARTIAL" ? EXIT_PARTIAL : 1;
+  const transitoriaFinal = pipelineStatus !== "OK" && falhasTransitorias > 0 && falhasPermanentes === 0;
+  return { rc: rcSaida, status: pipelineStatus, transitoria: transitoriaFinal, erro: errorMessage, passoFalhado };
 }
