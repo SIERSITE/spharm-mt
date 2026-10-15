@@ -31,6 +31,7 @@
  */
 
 import { EXIT_TRANSITORIO, eFalhaTransitoria, houveFalhaTransitoriaDefinitiva } from "./politica-retry.js";
+import { adquirirLock, ErroLockOcupado, type LockHandle } from "./lock-pipeline.js";
 import { testConnection } from "./commands/test-connection.js";
 import { discover } from "./commands/discover.js";
 import { discoverProducts } from "./commands/discover-products.js";
@@ -314,6 +315,18 @@ async function sairLimpo(code: number): Promise<never> {
   process.exit(code);
 }
 
+/** Comandos que escrevem no SaaS e não gerem o seu próprio lock (daily-pipeline, full-sync e sync-now fazem-no por si). */
+const COMANDOS_DE_ESCRITA = new Set([
+  "bootstrap-upload",
+  "products-upload",
+  "stock-upload",
+  "daily-sync",
+  "fornecedores-upload",
+  "compras-upload",
+  "devolucoes-fornecedor-upload",
+  "stocksmov-upload",
+]);
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cmd = args[0];
@@ -342,13 +355,31 @@ async function main(): Promise<void> {
     return;
   }
 
+  // rev98: comandos que ESCREVEM no SaaS passam pelo lock único (heartbeat). Os subcomandos lançados por daily-pipeline/full-sync
+  // herdam o lock do pai; --plan, test-connection, *-dry-run, previews e discovery não usam lock.
+  let lockDoComando: LockHandle | null = null;
+  if (COMANDOS_DE_ESCRITA.has(cmd) && !args.includes("--help") && !args.includes("-h")) {
+    const iDia = Math.max(args.indexOf("--date"), args.indexOf("--to"));
+    try {
+      lockDoComando = await adquirirLock({ modo: cmd, dia: iDia >= 0 ? (args[iDia + 1] ?? null) : null, force: args.includes("--force") });
+    } catch (err) {
+      if (err instanceof ErroLockOcupado) {
+        console.error(`✗ ${err.message}`);
+        await sairLimpo(1);
+      }
+      throw err;
+    }
+  }
+
   try {
     const exitCode = await entry.run();
     // rev98: um subcomando que falhou por causa TRANSITÓRIA do SaaS (esgotadas as retentativas HTTP) sai com
     // EXIT_TRANSITORIO (75) em vez de 1 — é o que permite ao daily-pipeline esperar e repetir. O próprio
     // daily-pipeline mantém os seus códigos (0/1/2).
+    lockDoComando?.libertar();
     await sairLimpo(exitCode !== 0 && cmd !== "daily-pipeline" && houveFalhaTransitoriaDefinitiva() ? EXIT_TRANSITORIO : exitCode);
   } catch (err) {
+    lockDoComando?.libertar();
     console.error("[fatal]", err instanceof Error ? err.message : err);
     if (err instanceof Error && err.stack) {
       console.error(err.stack.split("\n").slice(1, 4).join("\n"));
