@@ -30,6 +30,7 @@
  *   · daily-sync
  */
 
+import { EXIT_TRANSITORIO, eFalhaTransitoria, houveFalhaTransitoriaDefinitiva } from "./politica-retry.js";
 import { testConnection } from "./commands/test-connection.js";
 import { discover } from "./commands/discover.js";
 import { discoverProducts } from "./commands/discover-products.js";
@@ -302,6 +303,17 @@ function printHelp(): void {
   console.log("Docs:   ver agent/README.md");
 }
 
+/**
+ * Termina o processo SEM perder o código de saída. Em Windows, `process.exit()` com uma ligação HTTP (undici/keep-alive)
+ * ainda a fechar pode abortar o Node com `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` (0xC0000409) — o Agendador
+ * veria um código estranho em vez do real. Uma pausa curta deixa os handles fecharem antes de sair.
+ */
+async function sairLimpo(code: number): Promise<never> {
+  process.exitCode = code;
+  await new Promise((r) => setTimeout(r, 100));
+  process.exit(code);
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cmd = args[0];
@@ -332,13 +344,16 @@ async function main(): Promise<void> {
 
   try {
     const exitCode = await entry.run();
-    process.exit(exitCode);
+    // rev98: um subcomando que falhou por causa TRANSITÓRIA do SaaS (esgotadas as retentativas HTTP) sai com
+    // EXIT_TRANSITORIO (75) em vez de 1 — é o que permite ao daily-pipeline esperar e repetir. O próprio
+    // daily-pipeline mantém os seus códigos (0/1/2).
+    await sairLimpo(exitCode !== 0 && cmd !== "daily-pipeline" && houveFalhaTransitoriaDefinitiva() ? EXIT_TRANSITORIO : exitCode);
   } catch (err) {
     console.error("[fatal]", err instanceof Error ? err.message : err);
     if (err instanceof Error && err.stack) {
       console.error(err.stack.split("\n").slice(1, 4).join("\n"));
     }
-    process.exit(1);
+    await sairLimpo(cmd !== "daily-pipeline" && (eFalhaTransitoria(err) || houveFalhaTransitoriaDefinitiva()) ? EXIT_TRANSITORIO : 1);
   }
 }
 
