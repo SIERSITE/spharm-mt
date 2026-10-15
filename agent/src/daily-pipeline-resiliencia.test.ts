@@ -64,5 +64,13 @@ check(cli.includes("EXIT_TRANSITORIO") && cli.includes("houveFalhaTransitoriaDef
 check(cli.includes("sairLimpo"), "saída limpa (evita o crash 0xC0000409 do Node em Windows com ligações a fechar)");
 check(!/comRetryDeRede/.test(dp), "o retry local antigo (3× de 3 s só no aggregate-month) foi substituído pela política central");
 
+console.log("\nG · SQL Server transitório, log em tempo real e lock com heartbeat");
+const sqlClient = ler("./sql-client.ts");
+check(/function ehTransitoria\(err: unknown\): boolean \{\s*return eFalhaTransitoria\(err\) \|\| eFalhaSqlTransitoria\(err\);/.test(dp), "o pipeline retoma falhas transitórias do SQL Server (além das do SaaS)");
+check(sqlClient.includes("classificarErroSql(err)") && sqlClient.includes("if (!classe.transitoria) throw err;"), "withPool só repete o transitório; o permanente sobe de imediato");
+check(sqlClient.includes("marcarFalhaTransitoriaDefinitiva()"), "esgotadas as retentativas SQL o comando sai com 75");
+check(/appendFileSync\(this\.filePath, `\$\{linha\}\\n`/.test(dp), "o log do dia é escrito linha a linha (execução longa deixa o log atualizado)");
+check(dp.includes("descreverLock()") && dp.includes("esperasSqlDoAmbiente()"), "--plan mostra o estado do lock (só leitura) e a política SQL");
+
 console.log(`\n${ok} OK, ${ko} falhas`);
 process.exit(ko === 0 ? 0 : 1);
