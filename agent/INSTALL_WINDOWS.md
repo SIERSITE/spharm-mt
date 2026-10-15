@@ -329,6 +329,20 @@ dos 2 minutos que substituiu), autenticação, lock/claim, timeout local,
 política de retry, e o comando `schtasks` exacto para instalar/actualizar
 a tarefa — em [docs/sync-now.md](docs/sync-now.md).
 
+### 8.2b Resiliência da sincronização diária (rev98)
+
+A partir da rev98 o `daily-pipeline` recupera sozinho de falhas transitórias: repete cada pedido ao SaaS (original + 4 retentativas,
+~5/15/30/60 s), espera ~15 min e repete o dia (até 4 tentativas, mesmo dia, sem repetir os passos já concluídos) e, no arranque seguinte,
+recupera os dias em falta por ordem cronológica. **Não depende** do `RestartOnFailure` do Agendador. Detalhes, política exata, auditoria de
+idempotência e ficheiros de estado em `RESILIENCIA.md` (neste pacote).
+
+* **Dry-run do plano** (nada é executado nem escrito): `run-daily-pipeline-plan.bat` ou `node.exe agent.cjs daily-pipeline --plan`.
+* A tarefa agendada tem de permitir execuções longas: `ExecutionTimeLimit` ≥ 3 horas (a espera entre tentativas é de ~15 min).
+* `agent.config.json` não precisa de alterações; as opções novas (`options.httpRetryDelaysMs`, `httpTimeoutMs`, `pipelineMaxAttempts`,
+  `pipelineRetryWaitMinutes`, `catchUpMaxDays`) são opcionais.
+* Estado local em `run\` (`pipeline-pendentes.json`, `pipeline-alertas.json`, `pipelinerun-pendentes\`); falhas definitivas ficam também no
+  Registo de Eventos do Windows (Application, origem `SPharmMT-Agent`).
+
 ### 8.3 Como parar / desinstalar
 
 Como o agent não é um serviço Windows na v0.1:
