@@ -177,7 +177,7 @@
     "agent:discover": "tsx agent/src/cli.ts discover",
     "agent:health": "tsx agent/src/cli.ts health",
     "agent:package": "node agent/build.mjs",
-    "test:agent-resiliencia": "tsx agent/src/http-resiliencia.test.ts && tsx agent/src/resiliencia-pipeline.test.ts && tsx agent/src/plano-integracao.test.ts && tsx agent/src/daily-pipeline-resiliencia.test.ts && tsx agent/src/daily-pipeline-lock-observability.test.ts && tsx agent/src/catch-up.test.ts",
+    "test:agent-resiliencia": "tsx agent/src/http-resiliencia.test.ts && tsx agent/src/resiliencia-pipeline.test.ts && tsx agent/src/plano-integracao.test.ts && tsx agent/src/daily-pipeline-resiliencia.test.ts && tsx agent/src/lock-heartbeat.test.ts && tsx agent/src/sql-resiliencia.test.ts && tsx agent/src/daily-pipeline-lock-observability.test.ts && tsx agent/src/catch-up.test.ts",
     "test:agent-reenvio-idempotente-db": "tsx scripts/tests/test-agent-reenvio-idempotente-db.ts",
     "agent:publish-base": "tsx scripts/admin/upload-agent-base.ts",
     "test:tenant-resolution": "tsx scripts/tests/test-tenant-resolution.ts",

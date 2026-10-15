@@ -337,7 +337,7 @@ recupera os dias em falta por ordem cronológica. **Não depende** do `RestartOn
 idempotência e ficheiros de estado em `RESILIENCIA.md` (neste pacote).
 
 * **Dry-run do plano** (nada é executado nem escrito): `run-daily-pipeline-plan.bat` ou `node.exe agent.cjs daily-pipeline --plan`.
-* A tarefa agendada tem de permitir execuções longas: `ExecutionTimeLimit` ≥ 3 horas (a espera entre tentativas é de ~15 min).
+* A tarefa agendada deve ter `ExecutionTimeLimit = PT8H` — só um teto de segurança, não a duração normal (~3,5 min); a retoma espera ~15 min entre tentativas.
 * `agent.config.json` não precisa de alterações; as opções novas (`options.httpRetryDelaysMs`, `httpTimeoutMs`, `pipelineMaxAttempts`,
   `pipelineRetryWaitMinutes`, `catchUpMaxDays`) são opcionais.
 * Estado local em `run\` (`pipeline-pendentes.json`, `pipeline-alertas.json`, `pipelinerun-pendentes\`); falhas definitivas ficam também no
