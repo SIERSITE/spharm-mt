@@ -45,7 +45,7 @@
 
 import { parseArgs } from "node:util";
 import { promises as fs } from "node:fs";
-import { mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
@@ -85,7 +85,8 @@ import {
 import { avaliarSaudeVendas, type VeredictoVendas } from "../saude-vendas.js";
 import { ontemNaFarmacia } from "../janela.js";
 import { janelaConsulta } from "../catch-up.js";
-import { acquireLock, lockPertenceAEsteProcesso, releaseLock } from "../lock-pipeline.js";
+import { acquireLock, descreverLock, lockPertenceAEsteProcesso, releaseLock } from "../lock-pipeline.js";
+import { eFalhaSqlTransitoria, esperasSqlDoAmbiente } from "../sql-erros.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -282,19 +283,32 @@ function logsDir(): string {
 class TeeLogger {
   private readonly chunks: string[] = [];
   constructor(private readonly filePath: string) {}
+  /**
+   * rev98: cada linha vai para o ficheiro NO MOMENTO (append), não só no fim. Uma execução longa (retoma de ~15 min entre
+   * tentativas, ou um SaaS lento) deixa o log atualizado e legível enquanto corre — e sobrevive a uma morte abrupta.
+   */
+  private escrever(linha: string): void {
+    try {
+      appendFileSync(this.filePath, `${linha}\n`, { encoding: "utf8" });
+    } catch {
+      /* o log em disco nunca derruba o pipeline */
+    }
+  }
   log(line: string): void {
     const ts = new Date().toISOString();
     const formatted = `[${ts}] ${line}`;
     this.chunks.push(formatted);
+    this.escrever(formatted);
     console.log(line);
   }
   raw(line: string): void {
     // Sem timestamp — preserva formatação ASCII art.
     this.chunks.push(line);
+    this.escrever(line);
     console.log(line);
   }
   async flush(): Promise<void> {
-    await fs.writeFile(this.filePath, this.chunks.join("\n") + "\n", { encoding: "utf8" });
+    /* já escrito linha a linha */
   }
 }
 
@@ -330,6 +344,12 @@ function fmtEur(n: number): string {
 }
 
 /* ---------- Falhas de rede ---------- */
+
+/** Falha que vale a pena retomar mais tarde: SaaS (retentativas HTTP esgotadas) OU SQL Server transitório (ver sql-erros.ts). */
+function ehTransitoria(err: unknown): boolean {
+  return eFalhaTransitoria(err) || eFalhaSqlTransitoria(err);
+}
+
 
 /**
  * Uma falha de REDE não é uma resposta.
@@ -697,6 +717,10 @@ export async function dailyPipeline(): Promise<number> {
       `jitter ${Math.round(politica.jitter * 100)}%, timeout ${politica.timeoutMs / 1000}s por pedido. ` +
       `Retoma do pipeline: ${cfg.pipelineTentativas} tentativas, ${Math.round(cfg.pipelineEsperaMs / 60_000)} min entre elas.`,
   );
+  console.log(
+    `Política SQL Server: ${esperasSqlDoAmbiente().length} retentativa(s) só para falhas transitórias (${esperasSqlDoAmbiente().map((m) => `${m / 1000}s`).join(", ") || "—"}); credenciais/objeto/coluna/sintaxe/configuração nunca se repetem.`,
+  );
+  console.log(`Lock (run/pipeline.lock): ${descreverLock()}`);
   if (!args.plan) await recuperarPendenciasDeEnvio(cfg, clientePlano, (s) => console.log(s));
   const plano = await planearDias(cfg, clientePlano, maxCatchUp, (s) => console.log(s));
   const { dias, adiados } = plano;
@@ -874,7 +898,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
     } catch (err) {
       pipelineStatus = "ERROR";
       errorMessage = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
-      marcarFalha("farmacia", eFalhaTransitoria(err) || ehFalhaDeRede(err));
+      marcarFalha("farmacia", ehTransitoria(err) || ehFalhaDeRede(err));
       pipelineLog.log(`✗ ERROR [farmacia]: ${errorMessage}`);
       return sair(1);
     }
@@ -953,7 +977,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
         steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: msg });
         pipelineStatus = "ERROR";
         errorMessage = `daily-sync falhou: ${msg}`;
-        marcarFalha("daily-sync", eFalhaTransitoria(err));
+        marcarFalha("daily-sync", ehTransitoria(err));
         pipelineLog.log(`✗ daily-sync ERROR: ${msg}`);
         return sair(1);
       }
@@ -1044,7 +1068,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
         steps.push({ name: "refresh-operacional", status: "ERROR", durationMs: dur, message: msg });
         if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `refresh-operacional falhou: ${msg}`;
-        marcarFalha("refresh-operacional", eFalhaTransitoria(err));
+        marcarFalha("refresh-operacional", ehTransitoria(err));
         pipelineLog.log(`✗ refresh-operacional ERROR: ${msg} — repetível na corrida seguinte`);
       }
       pipelineLog.log("");
@@ -1082,7 +1106,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
         steps.push({ name: "designacoes", status: "ERROR", durationMs: dur, message: msg });
         if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `designações falhou: ${msg}`;
-        marcarFalha("designacoes", eFalhaTransitoria(err));
+        marcarFalha("designacoes", ehTransitoria(err));
         pipelineLog.log(`✗ designações ERROR: ${msg} — repetível na corrida seguinte`);
       }
     }
@@ -1154,7 +1178,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
         }
         steps.push({ name: "aggregate-month", status: "ERROR", durationMs: dur, message: msg });
         errorMessage = `aggregate-month falhou: ${msg}`;
-        marcarFalha("aggregate-month", eFalhaTransitoria(err));
+        marcarFalha("aggregate-month", ehTransitoria(err));
         pipelineLog.log(`✗ aggregate-month ${pipelineStatus}: ${msg}`);
         aggregateLog.log(`aggregate-month ${month} ${pipelineStatus}: ${msg}`);
         return sair(1);
@@ -1163,7 +1187,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
   } catch (err) {
     pipelineStatus = "ERROR";
     errorMessage = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
-    marcarFalha("inesperado", eFalhaTransitoria(err));
+    marcarFalha("inesperado", ehTransitoria(err));
     pipelineLog.log(`✗ ERROR inesperado: ${errorMessage}`);
     return sair(1);
   } finally {

@@ -272,6 +272,7 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_HTTP_RETRY_JITTER", options.httpRetryJitter);
   set("SPHARMMT_HTTP_TIMEOUT_MS", options.httpTimeoutMs);
   set("SPHARMMT_HTTP_RETRY_AFTER_MAX_MS", options.httpRetryAfterMaxMs);
+  set("SPHARMMT_SQL_RETRY_ESPERAS_MS", Array.isArray(options.sqlRetryDelaysMs) ? options.sqlRetryDelaysMs.join(",") : options.sqlRetryDelaysMs);
   set("SPHARMMT_PIPELINE_TENTATIVAS", options.pipelineMaxAttempts);
   set("SPHARMMT_PIPELINE_ESPERA_MIN", options.pipelineRetryWaitMinutes);
   set("SPHARMMT_CATCHUP_MAX_DIAS", options.catchUpMaxDays);
