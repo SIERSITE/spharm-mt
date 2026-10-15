@@ -5,18 +5,44 @@
  * ≥ 20). Centraliza:
  *  · Headers de auth: `Authorization: Bearer <key>` + `X-Tenant-Slug`
  *  · Tratamento de errors HTTP com status code preservado
- *  · Timeout configurável por chamada (default 30s)
+ *  · Timeout explícito por pedido (por tentativa; default da política, 30 s)
  *  · User-Agent identificável para logs server-side
+ *  · RETENTATIVAS centralizadas (rev98) — ver `politica-retry.ts`: tentativa
+ *    original + 4 retentativas (≈ 5/15/30/60 s + jitter), `Retry-After`
+ *    respeitado, só para falhas transitórias (fetch failed, timeout, reset da
+ *    ligação, DNS temporário, HTTP 408/425/429/502/503/504). 400/401/403/404/
+ *    409/422 e erros de validação NUNCA se repetem.
  *
- * Não faz retry interno — caller decide se quer retry baseado no
- * statusCode. Para o piloto, falhas transientes são reportadas e o
- * operador retry manualmente.
+ * Idempotência: uma retentativa reenvia EXATAMENTE o mesmo corpo (a string
+ * JSON é serializada uma só vez) — as mesmas chaves naturais/`idempotencyKey`/
+ * `ingestRunId`. Todos os endpoints do pipeline diário são idempotentes
+ * (auditoria em `agent/docs/resiliencia.md`). Os endpoints de CLAIM/ACK do
+ * outbox (orders, sync-requests) NÃO usam retry: um claim cuja resposta se
+ * perdeu não se repete às cegas.
+ *
+ * Os logs nunca incluem o token, os headers nem o corpo dos pedidos.
  */
 
 import type { AgentConfig } from "./config.js";
 import { fimExclusivoDoDia } from "./janela.js";
+import {
+  calcularEspera,
+  classificarErroDeRede,
+  classificarStatus,
+  marcarFalhaTransitoriaDefinitiva,
+  mesclarPolitica,
+  parseRetryAfter,
+  politicaDoAmbiente,
+  redigir,
+  type ClasseFalha,
+  type PoliticaRetry,
+} from "./politica-retry.js";
 
 export class SaasApiError extends Error {
+  /** Nº de tentativas HTTP feitas até esta resposta (1 = sem retentativas). */
+  public tentativas = 1;
+  /** `true` quando era uma resposta retentável (408/425/429/502/503/504) e as retentativas esgotaram-se. */
+  public transitoria = false;
   constructor(
     message: string,
     public readonly statusCode: number,
@@ -29,23 +55,154 @@ export class SaasApiError extends Error {
   }
 }
 
+/**
+ * Falha de rede (sem resposta utilizável). A mensagem mantém o prefixo histórico
+ * `SaaS <método> <path> — falha de rede: …` (há código que a reconhece por texto).
+ */
+export class SaasNetworkError extends Error {
+  public readonly transitoria: boolean;
+  constructor(
+    message: string,
+    public readonly classe: ClasseFalha,
+    public readonly path: string,
+    public readonly method: string,
+    public readonly tentativas: number,
+  ) {
+    super(message);
+    this.name = "SaasNetworkError";
+    this.transitoria = classe.retentavel;
+  }
+}
+
+/** Contexto de log (nunca dados de negócio): onde estamos no pipeline. */
+export type ContextoLog = { dia?: string; etapa?: string };
+
+export type OpcoesPedido = {
+  body?: unknown;
+  timeoutMs?: number;
+  expectJson?: boolean;
+  /** `false` desliga as retentativas; objeto parcial sobrepõe a política do cliente. */
+  retry?: false | Partial<PoliticaRetry>;
+  /** Nº do lote (só para o log). */
+  lote?: number;
+  /** HTTP 500 com `acquire_lock` no corpo = lock de agregação ocupado (o pedido original ainda corre): repete. */
+  repetirLockOcupado?: boolean;
+  /**
+   * Depois de uma retentativa de um pedido cuja primeira tentativa foi AMBÍGUA, uma resposta 200 com
+   * `errors[]` (conflitos de unicidade com o pedido original ainda a correr) é repetida mais uma vez.
+   */
+  repetirSeErrosAposAmbigua?: boolean;
+  /**
+   * Resposta já resolvida quando, DEPOIS de uma retentativa, o servidor responde que o trabalho já está feito
+   * (ex.: `finalize` → 409 sem_corrida_aberta). Devolve `undefined` para seguir o fluxo normal.
+   */
+  aceitarComoFeito?: (status: number, corpo: string) => unknown | undefined;
+};
+
+export type OpcoesCliente = {
+  politica?: PoliticaRetry;
+  /** Para testes: espera injetável. */
+  dormir?: (ms: number) => Promise<void>;
+  aleatorio?: () => number;
+  agora?: () => number;
+  log?: (linha: string) => void;
+  /** `fetch` injetável (testes). */
+  fetchImpl?: typeof fetch;
+};
+
+export type EstatisticasHttp = {
+  pedidos: number;
+  /** Pedidos que só tiveram sucesso depois de uma ou mais retentativas. */
+  recuperadosPorRetentativa: number;
+  /** Destes, quantos tiveram uma tentativa anterior AMBÍGUA (o servidor pode já ter escrito). */
+  recuperadosAposAmbigua: number;
+  retentativas: number;
+  falhasDefinitivas: number;
+};
+
 export class SaasClient {
   private readonly endpoint: string;
   private readonly tenantSlug: string;
   private readonly ingestKey: string;
   private readonly agentVersion: string;
+  private readonly politica: PoliticaRetry;
+  private readonly dormir: (ms: number) => Promise<void>;
+  private readonly aleatorio: () => number;
+  private readonly agora: () => number;
+  private readonly logFn: (linha: string) => void;
+  private readonly fetchImpl: typeof fetch;
+  private contexto: ContextoLog = {};
+  private readonly stats: EstatisticasHttp = {
+    pedidos: 0,
+    recuperadosPorRetentativa: 0,
+    recuperadosAposAmbigua: 0,
+    retentativas: 0,
+    falhasDefinitivas: 0,
+  };
 
-  constructor(cfg: Pick<AgentConfig, "saasEndpoint" | "tenantSlug" | "ingestKey" | "agentVersion">) {
+  constructor(
+    cfg: Pick<AgentConfig, "saasEndpoint" | "tenantSlug" | "ingestKey" | "agentVersion"> & { politicaRetry?: PoliticaRetry },
+    opts: OpcoesCliente = {},
+  ) {
     this.endpoint = cfg.saasEndpoint.replace(/\/+$/, "");
     this.tenantSlug = cfg.tenantSlug;
     this.ingestKey = cfg.ingestKey;
     this.agentVersion = cfg.agentVersion;
+    this.politica = opts.politica ?? cfg.politicaRetry ?? politicaDoAmbiente();
+    this.dormir = opts.dormir ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.aleatorio = opts.aleatorio ?? Math.random;
+    this.agora = opts.agora ?? Date.now;
+    this.logFn = opts.log ?? ((l) => console.log(l));
+    this.fetchImpl = opts.fetchImpl ?? ((...a) => fetch(...a));
+    // Subprocessos do daily-pipeline herdam o dia/etapa só para o log (nunca dados de negócio).
+    this.contexto = { dia: process.env.SPHARMMT_CTX_DIA || undefined, etapa: process.env.SPHARMMT_CTX_ETAPA || undefined };
+  }
+
+  /** Dia de referência e etapa do pipeline, só para os logs (nunca dados de negócio). */
+  definirContexto(ctx: ContextoLog): void {
+    this.contexto = { ...ctx };
+  }
+
+  /** Contadores acumulados deste cliente (para o resumo final do pipeline). */
+  estatisticas(): EstatisticasHttp {
+    return { ...this.stats };
+  }
+
+  /** Política efetiva (para diagnóstico). */
+  politicaEfetiva(): PoliticaRetry {
+    return { ...this.politica, esperasMs: [...this.politica.esperasMs] };
+  }
+
+  private log(linha: string): void {
+    // Última barreira: nenhum segredo chega ao log, aconteça o que acontecer à mensagem original.
+    this.logFn(redigir(linha, [this.ingestKey]));
+  }
+
+  private prefixoLog(method: string, path: string, lote?: number): string {
+    const partes = [`[http] ${method} ${path.split("?")[0]}`];
+    if (this.contexto.dia) partes.push(`dia=${this.contexto.dia}`);
+    if (this.contexto.etapa) partes.push(`etapa=${this.contexto.etapa}`);
+    if (lote !== undefined) partes.push(`lote=${lote}`);
+    return partes.join(" ");
   }
 
   private async request<T>(
     method: "GET" | "POST",
     path: string,
-    opts: { body?: unknown; timeoutMs?: number; expectJson?: boolean } = {}
+    opts: OpcoesPedido = {}
+  ): Promise<T> {
+    return this.executar<T>(method, path, {}, opts);
+  }
+
+  /**
+   * Núcleo único: tentativa original + retentativas da política. O corpo é serializado UMA vez e
+   * reenviado byte a byte (mesmas chaves de idempotência). Só se avança com uma resposta válida.
+   */
+  private async executar<T>(
+    method: "GET" | "POST",
+    path: string,
+    extraHeaders: Record<string, string>,
+    opts: OpcoesPedido = {}
   ): Promise<T> {
     const url = `${this.endpoint}${path.startsWith("/") ? path : "/" + path}`;
     const headers: Record<string, string> = {
@@ -53,46 +210,190 @@ export class SaasClient {
       "X-Tenant-Slug": this.tenantSlug,
       Accept: "application/json",
       "User-Agent": `spharmmt-agent/${this.agentVersion}`,
+      ...extraHeaders,
     };
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const corpo = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
+    if (corpo !== undefined) headers["Content-Type"] = "application/json";
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method,
-        headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`SaaS ${method} ${path} — falha de rede: ${msg}`);
-    } finally {
-      clearTimeout(timeout);
-    }
+    const politica =
+      opts.retry === false
+        ? { ...this.politica, esperasMs: [] as number[] }
+        : opts.retry
+          ? mesclarPolitica(opts.retry, this.politica)
+          : this.politica;
+    const timeoutMs = opts.timeoutMs ?? politica.timeoutMs;
+    const total = politica.esperasMs.length + 1;
+    const pref = this.prefixoLog(method, path, opts.lote);
+    this.stats.pedidos++;
 
-    if (!res.ok) {
-      let body = "";
+    let houveAmbigua = false;
+    let ultimaFalhaLog = "";
+    let jaRepetiuPorErros = false;
+
+    for (let tentativa = 1; tentativa <= total; tentativa++) {
+      const t0 = this.agora();
+      const ultima = tentativa === total;
+      let classe: ClasseFalha | null = null;
+      let detalheFalha = "";
+      let retryAfterMs: number | null = null;
+      let res: Response | undefined;
+
+      // ── 1) enviar ──────────────────────────────────────────────
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        body = await res.text();
-      } catch {}
-      const snippet = body.slice(0, 500);
-      if (res.status === 401) this.diagnostico401(method, url, snippet);
-      throw new SaasApiError(
-        `SaaS ${method} ${path} → HTTP ${res.status}: ${snippet || "(corpo vazio)"}`,
-        res.status,
-        path,
-        method,
-        snippet
-      );
-    }
+        res = await this.fetchImpl(url, { method, headers, body: corpo, signal: controller.signal });
+      } catch (err) {
+        clearTimeout(timer);
+        classe = classificarErroDeRede(err);
+        detalheFalha = redigir(err instanceof Error ? err.message : String(err), [this.ingestKey]);
+        if (classe.codigo) detalheFalha += ` [${classe.codigo}]`;
+      }
 
-    if (opts.expectJson === false) {
-      return undefined as T;
+      // ── 2) ler a resposta (o corpo também pode perder-se a meio) ──
+      let textoCorpo = "";
+      let jsonCorpo: unknown;
+      let corpoLido = false;
+      if (res) {
+        try {
+          if (!res.ok) {
+            textoCorpo = (await res.text()).slice(0, 500);
+          } else if (opts.expectJson !== false) {
+            jsonCorpo = await res.json();
+          }
+          corpoLido = true;
+        } catch (err) {
+          classe = classificarErroDeRede(err, { faseCorpo: true });
+          detalheFalha = `resposta incompleta: ${redigir(err instanceof Error ? err.message : String(err), [this.ingestKey])}`;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      const dur = this.agora() - t0;
+
+      // ── 3) sucesso ─────────────────────────────────────────────
+      if (res && res.ok && corpoLido) {
+        // Uma retentativa que apanhou 200 com errors[] por conflito com o pedido original ainda a correr.
+        const errosNaResposta =
+          jsonCorpo && typeof jsonCorpo === "object" && Array.isArray((jsonCorpo as { errors?: unknown }).errors)
+            ? (jsonCorpo as { errors: unknown[] }).errors.length
+            : 0;
+        if (opts.repetirSeErrosAposAmbigua && houveAmbigua && errosNaResposta > 0 && !ultima && !jaRepetiuPorErros) {
+          jaRepetiuPorErros = true;
+          const espera = calcularEspera(tentativa, politica, null, this.aleatorio);
+          this.log(
+            `${pref} tentativa ${tentativa}/${total}: HTTP ${res.status} com ${errosNaResposta} erro(s) por item após falha ambígua ` +
+              `(conflito com o pedido original?) — nova tentativa em ${(espera / 1000).toFixed(1)}s`,
+          );
+          this.stats.retentativas++;
+          await this.dormir(espera);
+          continue;
+        }
+        if (tentativa > 1) {
+          this.stats.recuperadosPorRetentativa++;
+          if (houveAmbigua) this.stats.recuperadosAposAmbigua++;
+          this.log(
+            `${pref} ✓ concluído na tentativa ${tentativa}/${total} em ${dur}ms` +
+              (houveAmbigua ? " (houve tentativa ambígua — pedido idempotente repetido com o mesmo corpo)" : "") +
+              (ultimaFalhaLog ? ` | última falha: ${ultimaFalhaLog}` : ""),
+          );
+        }
+        if (opts.expectJson === false) return undefined as T;
+        return jsonCorpo as T;
+      }
+
+      // ── 4) resposta HTTP de erro ──────────────────────────────
+      if (res && !res.ok && corpoLido) {
+        const status = res.status;
+        const snippet = redigir(textoCorpo, [this.ingestKey]);
+        // «já está feito»: depois de uma retentativa o servidor diz que o trabalho existe.
+        if (tentativa > 1 && opts.aceitarComoFeito) {
+          const r = opts.aceitarComoFeito(status, snippet);
+          if (r !== undefined) {
+            this.stats.recuperadosPorRetentativa++;
+            if (houveAmbigua) this.stats.recuperadosAposAmbigua++;
+            this.log(
+              `${pref} ✓ tentativa ${tentativa}/${total}: HTTP ${status} após falha ambígua — o servidor já tinha concluído o pedido anterior; aceite como sucesso idempotente`,
+            );
+            return r as T;
+          }
+        }
+        let c = classificarStatus(status);
+        // 500 `acquire_lock`: o servidor está a processar o pedido original (ou outro igual) — espera e repete.
+        if (!c.retentavel && status === 500 && opts.repetirLockOcupado && /acquire_lock/i.test(snippet)) {
+          c = { tipo: "http_retentavel", retentavel: true, ambigua: false, statusCode: status };
+        }
+        classe = c;
+        retryAfterMs = parseRetryAfter(res.headers.get("retry-after"), this.agora());
+        detalheFalha = `HTTP ${status}`;
+
+        if (!c.retentavel || ultima) {
+          if (status === 401) this.diagnostico401(method, url, snippet);
+          this.stats.falhasDefinitivas++;
+          if (c.retentavel) {
+            marcarFalhaTransitoriaDefinitiva();
+            this.log(
+              `${pref} ✗ FALHA DEFINITIVA após ${tentativa}/${total} tentativas: HTTP ${status} (${c.tipo}${houveAmbigua ? ", houve tentativa ambígua" : ""}) em ${dur}ms`,
+            );
+          } else {
+            this.log(`${pref} ✗ HTTP ${status} (${c.tipo}) — não se repete (tentativa ${tentativa}/${total}, ${dur}ms)`);
+          }
+          const err = new SaasApiError(
+            `SaaS ${method} ${path} → HTTP ${status}: ${snippet || "(corpo vazio)"}`,
+            status,
+            path,
+            method,
+            snippet
+          );
+          err.tentativas = tentativa;
+          err.transitoria = c.retentavel;
+          throw err;
+        }
+      } else if (classe) {
+        // ── 5) falha de rede / timeout / corpo incompleto ───────────
+        if (!classe.retentavel || ultima) {
+          this.stats.falhasDefinitivas++;
+          if (classe.retentavel) marcarFalhaTransitoriaDefinitiva();
+          this.log(
+            `${pref} ✗ ${classe.retentavel ? `FALHA DEFINITIVA após ${tentativa}/${total} tentativas` : "falha não retentável"}: ${classe.tipo}` +
+              `${classe.ambigua ? " (resultado ambíguo: o servidor pode ter processado o pedido)" : ""} — ${detalheFalha} (${dur}ms)`,
+          );
+          throw new SaasNetworkError(
+            `SaaS ${method} ${path} — falha de rede: ${detalheFalha}` + (tentativa > 1 ? ` (após ${tentativa} tentativas)` : ""),
+            classe,
+            path,
+            method,
+            tentativa,
+          );
+        }
+      }
+
+      // ── 6) preparar a retentativa ─────────────────────────────
+      const c = classe as ClasseFalha;
+      if (c.ambigua) houveAmbigua = true;
+      ultimaFalhaLog = `${c.tipo}${c.statusCode ? ` ${c.statusCode}` : ""}${c.codigo ? ` ${c.codigo}` : ""}`;
+      // O lock de agregação ocupado e os timeouts ambíguos precisam de MAIS tempo: o pedido original pode
+      // ainda estar a correr no servidor (a janela de retry do lock no servidor é de ~1 s).
+      let espera = calcularEspera(tentativa, politica, retryAfterMs, this.aleatorio);
+      if (opts.repetirLockOcupado && (c.ambigua || c.statusCode === 500)) espera = Math.max(espera, 30_000);
+      this.stats.retentativas++;
+      this.log(
+        `${pref} tentativa ${tentativa}/${total} falhou: ${c.tipo}${c.statusCode ? ` (HTTP ${c.statusCode})` : ""}` +
+          `${c.codigo ? ` [${c.codigo}]` : ""} em ${dur}ms — ` +
+          `${c.ambigua ? "AMBÍGUA (o servidor pode já ter processado; repete-se o mesmo pedido idempotente)" : "o servidor não chegou a processar"}` +
+          `${retryAfterMs !== null ? `; Retry-After=${Math.round(retryAfterMs / 1000)}s` : ""} — nova tentativa em ${(espera / 1000).toFixed(1)}s`,
+      );
+      await this.dormir(espera);
     }
-    return (await res.json()) as T;
+    // inalcançável: o ciclo termina sempre com return ou throw
+    throw new SaasNetworkError(
+      `SaaS ${method} ${path} — falha de rede: esgotadas as tentativas`,
+      { tipo: "outro", retentavel: false, ambigua: false },
+      path,
+      method,
+      total,
+    );
   }
 
   // ── Endpoints concretos ─────────────────────────────────────────
@@ -163,9 +464,10 @@ export class SaasClient {
    */
   async bootstrapProducts(
     body: { farmaciaId: string; items: unknown[] },
-    timeoutMs?: number
+    timeoutMs?: number,
+    extra: { lote?: number } = {}
   ): Promise<BootstrapBatchResponse> {
-    return this.request("POST", "/api/ingest/v1/bootstrap/products", { body, timeoutMs });
+    return this.request("POST", "/api/ingest/v1/bootstrap/products", { body, timeoutMs, lote: extra.lote });
   }
 
   /**
@@ -194,6 +496,12 @@ export class SaasClient {
     return this.request("POST", "/api/ingest/v1/bootstrap/products/finalize", {
       body,
       timeoutMs,
+      // Se a 1.ª tentativa chegou ao servidor (resposta perdida), o sweep já foi feito e a corrida fechada:
+      // a repetição devolve 409 sem_corrida_aberta. SÓ depois de uma retentativa isso significa «já está feito».
+      aceitarComoFeito: (status, corpo) =>
+        status === 409 && /sem_corrida_aberta/.test(corpo)
+          ? { ok: true as const, farmaciaId: body.farmaciaId, runStartedAt: body.runStartedAt, retiredCount: 0, durationMs: 0, jaFinalizado: true }
+          : undefined,
     });
   }
 
@@ -205,9 +513,10 @@ export class SaasClient {
    */
   async bootstrapStock(
     body: { farmaciaId: string; items: unknown[] },
-    timeoutMs?: number
+    timeoutMs?: number,
+    extra: { lote?: number } = {}
   ): Promise<BootstrapBatchResponse & { aggregated?: number }> {
-    return this.request("POST", "/api/ingest/v1/bootstrap/stock", { body, timeoutMs });
+    return this.request("POST", "/api/ingest/v1/bootstrap/stock", { body, timeoutMs, lote: extra.lote });
   }
 
   /**
@@ -218,9 +527,10 @@ export class SaasClient {
    */
   async bootstrapSalesLines(
     body: { farmaciaId: string; items: unknown[] },
-    timeoutMs?: number
+    timeoutMs?: number,
+    extra: { lote?: number } = {}
   ): Promise<BootstrapBatchResponse & { orphanProductLines?: number; nonStockServiceLines?: number; operationalOrphans?: number }> {
-    return this.request("POST", "/api/ingest/v1/bootstrap/sales-lines", { body, timeoutMs });
+    return this.request("POST", "/api/ingest/v1/bootstrap/sales-lines", { body, timeoutMs, lote: extra.lote });
   }
 
   /**
@@ -245,6 +555,7 @@ export class SaasClient {
     return this.request("POST", "/api/ingest/v1/bootstrap/fornecedores", {
       body,
       timeoutMs,
+      repetirSeErrosAposAmbigua: true,
     });
   }
 
@@ -268,6 +579,7 @@ export class SaasClient {
     return this.request("POST", "/api/ingest/v1/bootstrap/compras", {
       body,
       timeoutMs,
+      repetirSeErrosAposAmbigua: true,
     });
   }
 
@@ -318,6 +630,7 @@ export class SaasClient {
     return this.request("POST", "/api/ingest/v1/bootstrap/devolucoes-fornecedor", {
       body,
       timeoutMs,
+      repetirSeErrosAposAmbigua: true,
     });
   }
 
@@ -343,6 +656,7 @@ export class SaasClient {
     return this.request("POST", "/api/admin/pipeline/aggregate-month", {
       body,
       timeoutMs: timeoutMs ?? 60_000,
+      repetirLockOcupado: true,
     });
   }
 
@@ -366,6 +680,7 @@ export class SaasClient {
     return this.request("POST", "/api/admin/pipeline/aggregate-compras", {
       body: { ...body, to: fimExclusivoDoDia(body.to) },
       timeoutMs: timeoutMs ?? 90_000,
+      repetirLockOcupado: true,
     });
   }
 
@@ -390,6 +705,7 @@ export class SaasClient {
     return this.request("POST", "/api/admin/pipeline/aggregate-devolucoes", {
       body: { ...body, to: fimExclusivoDoDia(body.to) },
       timeoutMs: timeoutMs ?? 90_000,
+      repetirLockOcupado: true,
     });
   }
 
@@ -454,7 +770,7 @@ export class SaasClient {
       "GET",
       url,
       headers,
-      { timeoutMs: options.timeoutMs }
+      { timeoutMs: options.timeoutMs, retry: false } // claim: não se repete às cegas
     );
   }
 
@@ -472,7 +788,7 @@ export class SaasClient {
     return this.request(
       "POST",
       `/api/outbox/v1/orders/${encodeURIComponent(outboxId)}/ack`,
-      { body, timeoutMs }
+      { body, timeoutMs, retry: false }
     );
   }
 
@@ -496,7 +812,7 @@ export class SaasClient {
     return this.request(
       "POST",
       `/api/outbox/v1/orders/${encodeURIComponent(outboxId)}/nack`,
-      { body, timeoutMs }
+      { body, timeoutMs, retry: false }
     );
   }
 
@@ -543,6 +859,7 @@ export class SaasClient {
       options.timeoutMs ?? (waitSeconds > 0 ? syncNowLongPollTimeoutMs(waitSeconds) : undefined);
     return this.requestWithHeaders<PendingSyncRequestsResponse>("GET", url, headers, {
       timeoutMs,
+      retry: false, // long-poll com claim: o ciclo seguinte do poll é a «retentativa»
     });
   }
 
@@ -561,7 +878,7 @@ export class SaasClient {
     return this.request(
       "POST",
       `/api/outbox/v1/sync-requests/${encodeURIComponent(syncRequestId)}/ack`,
-      { body: { resultado }, timeoutMs }
+      { body: { resultado }, timeoutMs, retry: false }
     );
   }
 
@@ -580,7 +897,7 @@ export class SaasClient {
     return this.request(
       "POST",
       `/api/outbox/v1/sync-requests/${encodeURIComponent(syncRequestId)}/fail`,
-      { body: { error }, timeoutMs }
+      { body: { error }, timeoutMs, retry: false }
     );
   }
 
@@ -625,51 +942,9 @@ export class SaasClient {
     method: "GET" | "POST",
     path: string,
     extraHeaders: Record<string, string>,
-    opts: { body?: unknown; timeoutMs?: number } = {}
+    opts: OpcoesPedido = {}
   ): Promise<T> {
-    const url = `${this.endpoint}${path.startsWith("/") ? path : "/" + path}`;
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.ingestKey}`,
-      "X-Tenant-Slug": this.tenantSlug,
-      Accept: "application/json",
-      "User-Agent": `spharmmt-agent/${this.agentVersion}`,
-      ...extraHeaders,
-    };
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method,
-        headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`SaaS ${method} ${path} — falha de rede: ${msg}`);
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!res.ok) {
-      let body = "";
-      try {
-        body = await res.text();
-      } catch {}
-      const snippet = body.slice(0, 500);
-      if (res.status === 401) this.diagnostico401(method, url, snippet);
-      throw new SaasApiError(
-        `SaaS ${method} ${path} → HTTP ${res.status}: ${snippet || "(corpo vazio)"}`,
-        res.status,
-        path,
-        method,
-        snippet
-      );
-    }
-    return (await res.json()) as T;
+    return this.executar<T>(method, path, extraHeaders, opts);
   }
 }
 

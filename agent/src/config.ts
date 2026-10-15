@@ -12,6 +12,7 @@
 import "dotenv/config";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { politicaDoAmbiente, type PoliticaRetry } from "./politica-retry.js";
 
 /**
  * Estratégia de paths: tudo relativo a `process.cwd()`. Em distribuição
@@ -138,7 +139,26 @@ export type AgentConfig = {
   ordersInsertConfigError?: string;
   // Misc
   agentVersion: string;
+  /**
+   * rev98 — resiliência (TODOS opcionais em `agent.config.json → options`; sem eles valem os defaults
+   * seguros, por isso uma configuração rev97 continua válida sem migração):
+   *   · `politicaRetry`   ← options.httpRetryDelaysMs[], httpRetryJitter, httpTimeoutMs, httpRetryAfterMaxMs
+   *   · `pipelineTentativas` ← options.pipelineMaxAttempts (default 4 = 1 + 3 retomas)
+   *   · `pipelineEsperaMs`   ← options.pipelineRetryWaitMinutes (default 15)
+   *   · `catchUpMaxDias`     ← options.catchUpMaxDays (default 7)
+   */
+  politicaRetry: PoliticaRetry;
+  pipelineTentativas: number;
+  pipelineEsperaMs: number;
+  catchUpMaxDias: number;
 };
+
+function inteiroPositivoDoAmbiente(nome: string, padrao: number, max: number): number {
+  const v = process.env[nome];
+  if (v === undefined || v.trim() === "") return padrao;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), max) : padrao;
+}
 
 /** Erro tipado — caller pode imprimir lista completa de falhas. */
 export class ConfigError extends Error {
@@ -247,6 +267,14 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   // flag de linha de comandos que alguem se lembra de escrever uma vez.
   set("SPHARMMT_ALLOW_UNKNOWNS", options.allowUnknowns);
   set("SPHARMMT_ALLOW_ORPHANS", options.allowOrphans);
+  // rev98 — resiliência (opcional; ausente = defaults seguros)
+  set("SPHARMMT_HTTP_RETRY_ESPERAS_MS", Array.isArray(options.httpRetryDelaysMs) ? options.httpRetryDelaysMs.join(",") : options.httpRetryDelaysMs);
+  set("SPHARMMT_HTTP_RETRY_JITTER", options.httpRetryJitter);
+  set("SPHARMMT_HTTP_TIMEOUT_MS", options.httpTimeoutMs);
+  set("SPHARMMT_HTTP_RETRY_AFTER_MAX_MS", options.httpRetryAfterMaxMs);
+  set("SPHARMMT_PIPELINE_TENTATIVAS", options.pipelineMaxAttempts);
+  set("SPHARMMT_PIPELINE_ESPERA_MIN", options.pipelineRetryWaitMinutes);
+  set("SPHARMMT_CATCHUP_MAX_DIAS", options.catchUpMaxDays);
 
   set("ERP_SQLSERVER_HOST", sqlServer.host);
   set("ERP_SQLSERVER_PORT", sqlServer.port);
@@ -458,6 +486,10 @@ export function loadConfig(scope: Scope): AgentConfig {
     ordersInsert,
     ordersInsertConfigError,
     agentVersion,
+    politicaRetry: politicaDoAmbiente(),
+    pipelineTentativas: inteiroPositivoDoAmbiente("SPHARMMT_PIPELINE_TENTATIVAS", 4, 10),
+    pipelineEsperaMs: inteiroPositivoDoAmbiente("SPHARMMT_PIPELINE_ESPERA_MIN", 15, 120) * 60_000,
+    catchUpMaxDias: inteiroPositivoDoAmbiente("SPHARMMT_CATCHUP_MAX_DIAS", 7, 60),
   };
 }
 

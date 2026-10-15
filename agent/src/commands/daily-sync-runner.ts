@@ -517,7 +517,8 @@ async function pipelineProducts(
     } else {
       const response: BootstrapBatchResponse = await client.bootstrapProducts(
         { farmaciaId, items },
-        BATCH_TIMEOUT_MS
+        BATCH_TIMEOUT_MS,
+        { lote: batches }
       );
       counts.productsUpserted += response.upserted;
       counts.productsSkipped += response.skipped.length;
@@ -607,7 +608,7 @@ async function pipelineStock(
         `  batch ${batches}: read=${rs.recordset.length} produtos=${distinctProducts.size} (dry-run — sem POST)`
       );
     } else {
-      const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+      const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS, { lote: batches });
       counts.stockUpserted += response.upserted;
       counts.stockErrors += response.errors.length;
       const aggregated = (response as { aggregated?: number }).aggregated ?? distinctProducts.size;
@@ -784,7 +785,8 @@ async function lerFonte(
       } else {
         const response = await client.bootstrapSalesLines(
           { farmaciaId, items },
-          BATCH_TIMEOUT_MS
+          BATCH_TIMEOUT_MS,
+          { lote: batches }
         );
         counts.salesUpserted += response.upserted;
         counts.salesSkipped += response.skipped.length;
