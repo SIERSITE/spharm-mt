@@ -76,9 +76,10 @@
  * NÃO toca dashboard / export-orders / outbox workers.
  */
 
+import { adquirirLock, type LockHandle } from "../lock-pipeline.js";
 import { parseArgs } from "node:util";
 import { promises as fs } from "node:fs";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
@@ -96,7 +97,6 @@ import {
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
-const STALE_LOCK_MS = 6 * 60 * 60 * 1000;
 
 // ─────────────────────────────────────────────────────────────────────
 // CLI
@@ -169,43 +169,17 @@ function printHelp(): void {
 // Lockfile (partilhado com daily-pipeline → mutuamente exclusivos)
 // ─────────────────────────────────────────────────────────────────────
 
-function lockFilePath(): string {
-  return path.join(process.cwd(), "run", "pipeline.lock");
-}
+// rev98: MESMO módulo e protocolo de lock (com heartbeat) do daily-pipeline e do sync-now — ver `lock-pipeline.ts`.
+// Os subcomandos que o full-sync lança herdam o lock via SPHARMMT_LOCK_RUN_ID.
+let lockHandle: LockHandle | null = null;
 
-function acquireLock(force: boolean): void {
-  const lock = lockFilePath();
-  mkdirSync(path.dirname(lock), { recursive: true });
-  if (existsSync(lock)) {
-    try {
-      const data = JSON.parse(readFileSync(lock, "utf8")) as { startedAt?: string; pid?: number; kind?: string };
-      const ageMs = Date.now() - new Date(data.startedAt ?? 0).getTime();
-      if (!force && Number.isFinite(ageMs) && ageMs >= 0 && ageMs < STALE_LOCK_MS) {
-        throw new Error(
-          `Outro pipeline já corre (pid=${data.pid}, kind=${data.kind}, started=${data.startedAt}). Usa --force ou aguarda.`
-        );
-      }
-      console.warn("⚠ Lockfile stale ou --force — a reclamar.");
-    } catch (err) {
-      if (!force) throw err instanceof Error ? err : new Error(String(err));
-    }
-  }
-  writeFileSync(
-    lock,
-    JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), kind: "full-sync" }, null, 2) + "\n",
-    "utf8"
-  );
+async function acquireLock(force: boolean): Promise<void> {
+  lockHandle = await adquirirLock({ modo: "full-sync", force });
 }
 
 function releaseLock(): void {
-  const lock = lockFilePath();
-  if (existsSync(lock)) {
-    try {
-      unlinkSync(lock);
-    } catch {
-      /* ignore */
-    }
-  }
+  lockHandle?.libertar();
+  lockHandle = null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -537,7 +511,7 @@ export async function fullSync(): Promise<number> {
   }
 
   try {
-    acquireLock(args.force);
+    await acquireLock(args.force);
     lockAcquired = true;
 
     // ── Fases 1-3: in-process (partilham um pool SQL) ──

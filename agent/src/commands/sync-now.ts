@@ -111,10 +111,8 @@
  * o reclama normalmente — nenhuma acção extra necessária.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { adquirirLock, ErroLockOcupado, type LockHandle } from "../lock-pipeline.js";
 import * as os from "node:os";
-import * as path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
 import {
@@ -210,80 +208,29 @@ function withLocalTimeout<T>(promise: Promise<T>, ms: number, label: string): Pr
 // exactamente o cenário que se quer evitar (um `daily-pipeline` que
 // precise do lock teria de esperar por um sync-now ocioso).
 //
-// A verificação de liveness por PID (via `tasklist`) é copiada de
-// `daily-pipeline.ts::isPidAlive` — não apenas a idade do timestamp —
-// porque um `daily-pipeline`/`full-sync` legítimo pode correr durante
-// HORAS (full-sync histórico de uma farmácia grande). Um sync-now que
-// só olhasse para a idade do lock e o considerasse "stale" ao fim de,
-// digamos, 10 minutos sequestraria o lock de um pipeline nocturno ainda
-// vivo. Só um PID confirmadamente morto (ou um lock preso há mais de
-// `STALE_LOCK_MS`, rede de segurança final) é reclamado.
+// rev98: a deteção de locks órfãos já não é «PID existe». O lock tem HEARTBEAT (renovado por um worker thread a cada
+// 10 s) e só é reclamado se o processo morreu, se o PID pertence agora a outro programa, ou se o heartbeat expirou
+// (120 s) — um `daily-pipeline`/`full-sync` legítimo que corra horas mantém o heartbeat vivo e nunca é sequestrado,
+// e um lock órfão (reinício do PC, PID reutilizado) recupera-se em minutos, não em 6 h. Ver `lock-pipeline.ts`.
 // ─────────────────────────────────────────────────────────────────────
 
-const STALE_LOCK_MS = 6 * 60 * 60 * 1000; // 6h — mesma rede de segurança do daily-pipeline.
+// rev98: o lock passa a ser o módulo ÚNICO `lock-pipeline.ts` (heartbeat, `runId`, reclamação só de locks órfãos/expirados).
+let lockHandle: LockHandle | null = null;
 
-type LockFileContent = { pid: number; startedAt: string; kind: string };
-
-function lockFilePath(): string {
-  return path.join(process.cwd(), "run", "pipeline.lock");
-}
-
-function isPidAlive(pid: number): boolean | null {
-  if (process.platform !== "win32") return null;
-  if (!Number.isFinite(pid) || pid <= 0) return null;
+/** Devolve `null` se conseguiu adquirir; uma mensagem se recusou (lock ocupado por uma execução ativa). */
+async function acquireLock(): Promise<string | null> {
   try {
-    const r = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/NH", "/FO", "CSV"], {
-      encoding: "utf8",
-      timeout: 5_000,
-    });
-    if (r.status !== 0 || !r.stdout) return null;
-    const out = r.stdout.trim();
-    if (out.toLowerCase().includes("no tasks")) return false;
-    return out.startsWith('"');
-  } catch {
+    lockHandle = await adquirirLock({ modo: "sync-now" });
     return null;
+  } catch (e) {
+    if (e instanceof ErroLockOcupado) return `${e.message} — sync-now recusa correr em paralelo.`;
+    throw e;
   }
-}
-
-/** Devolve `null` se conseguiu adquirir; uma mensagem se recusou (lock ocupado). */
-function acquireLock(): string | null {
-  const lock = lockFilePath();
-  mkdirSync(path.dirname(lock), { recursive: true });
-
-  if (existsSync(lock)) {
-    try {
-      const data = JSON.parse(readFileSync(lock, "utf8")) as LockFileContent;
-      const ageMs = Date.now() - new Date(data.startedAt).getTime();
-      const alive = isPidAlive(data.pid);
-      const stale = alive === false || !Number.isFinite(ageMs) || ageMs > STALE_LOCK_MS;
-      if (!stale) {
-        return `Outro pipeline já corre (pid=${data.pid}, kind=${data.kind}, started=${data.startedAt}) — sync-now recusa correr em paralelo.`;
-      }
-      console.warn(
-        `⚠ Lockfile de ${data.kind ?? "?"} (pid=${data.pid}) já não está vivo ou está stale — sync-now a reclamar.`
-      );
-    } catch {
-      console.warn("⚠ Lockfile ilegível — sync-now a sobrescrever.");
-    }
-  }
-
-  writeFileSync(
-    lock,
-    JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), kind: "sync-now" }, null, 2) + "\n",
-    "utf8"
-  );
-  return null;
 }
 
 function releaseLock(): void {
-  const lock = lockFilePath();
-  if (existsSync(lock)) {
-    try {
-      unlinkSync(lock);
-    } catch {
-      /* ignore */
-    }
-  }
+  lockHandle?.libertar();
+  lockHandle = null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -423,7 +370,7 @@ export async function syncNow(): Promise<number> {
   console.log("");
 
   // ── SÓ AGORA o lock — algo foi reclamado e vai ser processado.
-  const lockRefusal = acquireLock();
+  const lockRefusal = await acquireLock();
   const decision = decidePostClaim(lockRefusal);
   if (decision.action === "fail-lock-busy") {
     console.log(decision.message);
