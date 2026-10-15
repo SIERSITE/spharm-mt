@@ -102,7 +102,19 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // commit completo, data UTC, sha256 de cada ficheiro) e o build recusa
 // árvore suja. A rev96 ficou sem manifesto e com o commit abreviado dum
 // SHA intermédio no agent.cjs, o que não permitia provar a sua origem.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "97";
+// rev98 — RESILIÊNCIA da sincronização diária (incidente da Silveirense, 15/10/2026: `fetch failed` no 6.º lote de
+// produtos depois de o servidor já o ter processado; o agent abortou o pipeline e o Agendador não o reexecutou):
+//   · retentativas centralizadas no cliente HTTP (original + 4: ~5/15/30/60 s + jitter, Retry-After, timeout
+//     explícito) só para falhas transitórias; 400/401/403/404/409/422 nunca se repetem; o mesmo corpo/chaves de
+//     idempotência em cada repetição (auditoria de idempotência dos endpoints em docs/resiliencia.md);
+//   · retoma de nível superior no daily-pipeline (4 tentativas, ~15 min entre elas, mesmo dia, checkpoint dos passos
+//     confirmados, lock mantido), sem depender do RestartOnFailure do Agendador;
+//   · catch-up com pista local (run/pipeline-pendentes.json) quando o SaaS não informa os dias concluídos;
+//   · PipelineRun com fallback local idempotente; alertas deduplicados (farmácia+dia+causa) e resolvidos;
+//   · logs de cada pedido (endpoint/etapa/dia/lote/tentativa/tipo de falha/ambígua) sem segredos;
+//   · `daily-pipeline --plan` (dry-run do plano) e wrapper run-daily-pipeline-plan.bat.
+// Só código do agent: SEM alterações ao SaaS, SEM migrations, `agent.config.json` rev97 continua válido (opções novas opcionais).
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "98";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
@@ -317,6 +329,14 @@ function copyResources(endpoint) {
       path.join(DIST_ROOT, "SECURITY.md"),
       endpoint
     );
+  }
+
+  // Resiliência da sincronização diária (rev98): documento operacional dentro do pacote.
+  const resilienciaSrc = path.join(AGENT_ROOT, "docs", "resiliencia.md");
+  if (fs.existsSync(resilienciaSrc)) {
+    fs.copyFileSync(resilienciaSrc, path.join(DIST_ROOT, "RESILIENCIA.md"));
+  } else {
+    throw new Error("agent/docs/resiliencia.md não existe — a rev98 não pode ser empacotada sem a documentação operacional.");
   }
 
   // Um marcador a zero significa que alguém reescreveu a fonte e voltou
@@ -1939,6 +1959,29 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // daily-pipeline-plan — dry-run do plano (rev98): mostra a política de retentativas e os dias que seriam
+  // processados (incluindo dias em falta). Só leituras: NÃO corre o pipeline, NÃO escreve no SaaS.
+  const dailyPipelinePlanBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — daily-pipeline --plan (dry-run do plano; nada e executado)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `node.exe agent.cjs daily-pipeline --plan`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo Exit code: %EXIT%`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-daily-pipeline-plan.bat"),
+    dailyPipelinePlanBat,
+    "utf8"
+  );
+
   // sync-now-poll-auto — Bloco E, TASK SCHEDULER target (poll de 2 em 2 min).
   // Mesmo estilo de exportOrdersAutoBat: sem prompts, sem janela visivel,
   // tudo redirigido para o log. Cada execucao: GET pending (so a farmacia
@@ -2223,6 +2266,8 @@ function writeReadme() {
     `  run-export-orders-auto.bat      Task Scheduler: 1 ciclo de export-orders. Log em logs\\export-orders-*.log.`,
     `  run-export-orders-once.bat      Execucao manual interactiva (pause no fim).`,
     `  run-sync-now-poll-auto.bat      Task Scheduler (2/2 min): poll de sync-now. Log em logs\\sync-now-*.log. Ver agent/docs/sync-now.md.`,
+    `  run-daily-pipeline-plan.bat     rev98: dry-run do plano do daily-pipeline (dias em falta + politica de retentativas). Nada e executado.`,
+    `  RESILIENCIA.md                  rev98: retentativas, retoma, dias em falta, alertas e idempotencia dos endpoints`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,
