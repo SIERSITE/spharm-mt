@@ -101,7 +101,7 @@ console.log("\n=== C. O catch do lock regista um step e preserva farmaciaId (nã
 {
   const idxLock = src.indexOf("await acquireLock(");
   const idxCatchLock = src.indexOf("} catch (err) {", idxLock);
-  const idxFimCatchLock = src.indexOf("}", src.indexOf("return 1;", idxCatchLock));
+  const idxFimCatchLock = src.indexOf("}", src.indexOf("return sair(1);", idxCatchLock));
   ok(idxCatchLock !== -1, "encontra o catch de acquireLock");
   const corpoCatchLock = idxCatchLock !== -1 ? src.slice(idxCatchLock, idxFimCatchLock + 1) : "";
   ok(/pipelineStatus = "ABORTED"/.test(corpoCatchLock), "…marca o pipeline como ABORTED");
@@ -122,8 +122,9 @@ console.log("\n=== D. O finally regista PipelineRun sempre que farmaciaId existe
     "o finally continua a gatear o registo por farmaciaId — não precisou de nenhuma excepção nova",
   );
   ok(
-    src.includes("await client.pipelineRecord("),
-    "…e chama pipelineRecord (POST /api/admin/pipeline/record) dentro desse bloco",
+    // rev98: o registo passa por `registarPipelineRunDuravel` (retentativas + outbox local), que chama pipelineRecord.
+    src.includes("await registarPipelineRunDuravel(") && ficheiroCompleto.includes("await client.pipelineRecord("),
+    "…e chama pipelineRecord (POST /api/admin/pipeline/record) — via registarPipelineRunDuravel — dentro desse bloco",
   );
   // A garantia central: como A+B+C provam que farmaciaId chega sempre
   // preenchido a um abort de lock, esta condição já existente no finally
