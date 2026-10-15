@@ -104,7 +104,7 @@ async function main() {
       try { await acquireLock(false, "daily-pipeline", "2026-10-14", process.argv[3]); console.log("FILHO:ADQUIRIU"); process.exit(0); } catch { console.log("FILHO:RECUSADO"); process.exit(3); }
     }
     await acquireLock(false, "daily-pipeline", "2026-10-14", dir);
-    const filho = () => spawnSync(process.execPath, ["--import", "tsx", process.argv[1]!, "--filho", dir], { encoding: "utf8" });
+    const filho = () => spawnSync(process.execPath, ["--import", "tsx", process.argv[1]!, "--filho", dir], { encoding: "utf8", env: { ...process.env, SPHARMMT_LOCK_RUN_ID: "" } }); // processo ESTRANHO: sem a herança do lock
     const f1 = filho();
     check(f1.status === 3 && /FILHO:RECUSADO/.test(f1.stdout), "um 2.º processo é RECUSADO enquanto o 1.º tem o lock (incl. durante a espera da retoma)");
     // reentrada: o mesmo processo (retoma) reaproveita o lock
