@@ -43,13 +43,14 @@ Configurável em `agent.config.json → options` (**todas opcionais**; ausentes 
   "httpRetryAfterMaxMs": 120000,
   "pipelineMaxAttempts": 4,
   "pipelineRetryWaitMinutes": 15,
-  "catchUpMaxDays": 7
+  "catchUpMaxDays": 7,
+  "sqlRetryDelaysMs": [5000, 20000]
 }
 ```
 
 (`"httpRetryDelaysMs": []` desliga as retentativas HTTP.) Valores inválidos são ignorados. Equivalentes por variável de ambiente:
 `SPHARMMT_HTTP_RETRY_ESPERAS_MS`, `SPHARMMT_HTTP_RETRY_JITTER`, `SPHARMMT_HTTP_TIMEOUT_MS`, `SPHARMMT_HTTP_RETRY_AFTER_MAX_MS`,
-`SPHARMMT_PIPELINE_TENTATIVAS`, `SPHARMMT_PIPELINE_ESPERA_MIN`, `SPHARMMT_CATCHUP_MAX_DIAS`.
+`SPHARMMT_PIPELINE_TENTATIVAS`, `SPHARMMT_PIPELINE_ESPERA_MIN`, `SPHARMMT_CATCHUP_MAX_DIAS`, `SPHARMMT_SQL_RETRY_ESPERAS_MS`.
 
 ### Resposta perdida ≠ pedido perdido
 
@@ -89,10 +90,43 @@ no total (1 + 3 retomas), registando `tentativa k/4`:
   designações, aggregate-month): numa retoma não se repetem; um passo sem checkpoint (ou depois de um reinício) repete-se de forma idempotente;
 * só retoma se **todas** as falhas da tentativa forem transitórias (HTTP esgotado, subprocesso a sair com 75 = `EX_TEMPFAIL`); um 409 de gate
   (`unknowns_present`…), uma falha de validação ou a saúde das vendas **não** esperam — o catch-up volta a propô-los;
-* o **lock** (`run/pipeline.lock`) mantém-se durante a espera: nenhuma segunda execução entra; um processo concorrente é recusado;
+* o **lock** (`run/pipeline.lock`, com heartbeat — ver 4b) mantém-se durante a espera: nenhuma segunda execução entra; um processo concorrente é recusado;
 * as tentativas intermédias **não** registam `PipelineRun` nem alertam — só o desfecho final (a mesma `idempotencyKey` cobre a execução toda);
 * o estado `pendente` é gravado **antes** de dormir: se o computador ou o processo reiniciar durante a espera, o dia é recuperado pelo catch-up na
   corrida seguinte (3).
+
+## 4b. Lock único com heartbeat (`lock-pipeline.ts`)
+
+O MESMO módulo e protocolo para `daily-pipeline`, `full-sync`, `sync-now` e os comandos de escrita avulsos (`products-upload`, `stock-upload`,
+`bootstrap-upload`, `fornecedores-upload`, `compras-upload`, `devolucoes-fornecedor-upload`, `stocksmov-upload`, `daily-sync`). **Sem lock:**
+`--plan`, `test-connection`, `*-dry-run`, previews e discovery. Os subcomandos lançados por `daily-pipeline`/`full-sync` herdam o lock do pai
+(`SPHARMMT_LOCK_RUN_ID`): não o renovam nem o libertam.
+
+* **Criação atómica e exclusiva** (`wx`): só um processo ganha, mesmo com vários a reclamar em simultâneo.
+* **Conteúdo** (JSON, sem segredos): `runId` (UUID da execução), `pid`, `host`, `imagem` (ex.: `node.exe`), `criadoEm`, `heartbeatEm`, `modo`, `dia`.
+* **Heartbeat** a cada 10 s, escrito (tmp + rename) por um **worker thread** — o agent tem chamadas bloqueantes (`spawnSync`, queries) e um timer
+  normal deixaria de disparar com o processo vivo.
+* **Só se reclama** um lock quando: o processo **já não existe**; ou o PID pertence a **outro programa** (Windows: `tasklist` devolve outra imagem —
+  PID reutilizado); ou o **heartbeat expirou** (120 s) — cobre reinícios do PC e PID reutilizado por outro `node.exe`; ou `--force`. Um lock com
+  heartbeat fresco e processo vivo nunca é reclamado, por mais horas que dure a execução. Locks rev97 (sem heartbeat): só se o processo morreu ou
+  passaram 6 h.
+* **A libertação compara o `runId`**, não o PID: uma execução nunca liberta (nem reescreve, nem renova) o lock de outra; se o perde, o heartbeat para
+  e a execução fica a sabê-lo.
+* Libertação também no fim normal do processo (handler de `exit`). Morte abrupta ⇒ lock órfão ⇒ reclamado no arranque seguinte em segundos
+  (processo morto) ou em ≤ 2 min (heartbeat expirado), **não** em 6 h.
+* `--plan` mostra o estado do lock só em leitura (`livre` / `OCUPADO — …` / `órfão (reclamável) — …`).
+
+## 4c. Falhas do SQL Server (`sql-erros.ts`, `withPool`)
+
+Classificação prudente sobre os erros reais do `mssql` (`code`, `number`, `originalError`); **desconhecido ⇒ não transitório**.
+
+| Transitórias (repetem-se) | Permanentes (nunca se repetem) |
+| --- | --- |
+| `ETIMEOUT` (ligação ou pedido) · `ESOCKET` · `ECONNCLOSED` · reset/ligação terminada · rede temporária (`ECONNREFUSED` com o serviço a reiniciar, `EHOSTUNREACH`, `EAI_AGAIN`) · pool a fechar/indisponível · deadlock (1205) · servidor a desligar (6005/6006) · Winsock 10053/10054/10060/10061 | credenciais (`ELOGIN`/18456) · base inexistente (4060) · tabela (208) / coluna (207) inexistente · sintaxe (102/156…) · permissão (229/262…) · nome do servidor errado (`ENOTFOUND`) · certificado/encrypt mal configurado · configuração inválida · qualquer erro desconhecido |
+
+`withPool` repete **só o transitório**: até 2 retentativas (5 s e 20 s; `options.sqlRetryDelaysMs`), cada uma com um **pool novo** (o anterior é fechado sem
+mascarar o erro). Esgotadas, o erro sai marcado como transitório e o comando sai com 75 ⇒ o `daily-pipeline` retoma (até 4 tentativas, ~15 min) e, em
+qualquer caso, o dia fica pendente para o catch-up da corrida seguinte. Um erro permanente falha logo, sem esperas: não vira um ciclo de horas.
 
 ## 5. Recuperação de dias em falta (catch-up)
 
@@ -148,5 +182,6 @@ esgotadas as retentativas (o `daily-pipeline` usa-o para esperar e repetir; mant
 * O checkpoint é **em memória**: depois de um reinício repete-se o dia todo (idempotente, ~3,5 min na Silveirense).
 * Se o SaaS estiver em baixo mais de ~45 min (4 tentativas), o dia fica para o catch-up da corrida seguinte — com o alerta aberto.
 * `aggregate-month` regista um `PipelineRun` por chamada (também nas repetições) — só ruído no histórico.
-* Uma falha no ERP SQL Server (não no SaaS) **não** é considerada transitória e não espera; o catch-up volta a propor o dia.
-* O agente exige que a tarefa agendada permita execuções longas (`ExecutionTimeLimit` ≥ 3 h; ver as instruções de instalação).
+* Um pedido SQL que expira repetidamente por ser genuinamente lento (e não por falha de rede) gasta as retentativas e a retoma antes de falhar; resolve-se afinando a query ou `sqlServer.requestTimeoutMs`, não esperando mais.
+* O heartbeat é um worker thread: se o computador **suspender** (sleep/hibernação) mais de 120 s, o lock pode ser reclamado por outra execução ao acordar; a primeira passa a saber que o perdeu (`perdido()`).
+* A tarefa agendada deve ter `ExecutionTimeLimit = PT8H` — **só um teto de segurança** (pior caso teórico de um dia ≈ 3 h 25 min); a execução normal demora o mesmo que na rev97 (~3,5 min).
