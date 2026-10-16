@@ -51,18 +51,15 @@ export function ScrollSeparadores() {
       raf = 0;
       const e = escopoRef.current;
       const i = idRef.current;
-      const dbg = ((window as unknown as { __scrollLog?: unknown[] }).__scrollLog ??= []);
       if (e && i && Date.now() - mudouEm.current > JANELA_IGNORAR_MS) {
         for (const [chave, pos] of pendentes) {
           const anterior = estadoSeparadores.ler<Pos>(e, i, PREFIXO + chave);
           if (!pos.x && !pos.y && anterior && (anterior.x || anterior.y) && Date.now() - cliqueEm.current < JANELA_CLIQUE_MS) {
-            dbg.push({ t: Date.now() % 100000, acao: "ignora-zero-pos-clique", i, chave });
             continue;
           }
           estadoSeparadores.escrever(e, i, PREFIXO + chave, pos);
-          dbg.push({ t: Date.now() % 100000, acao: "grava", i, chave, pos });
         }
-      } else dbg.push({ t: Date.now() % 100000, acao: "ignora", i, dt: Date.now() - mudouEm.current, p: [...pendentes] });
+      }
       pendentes.clear();
     };
     const aoScroll = (ev: Event) => {
@@ -104,16 +101,13 @@ export function ScrollSeparadores() {
     let cancelado = false;
     const inicio = Date.now();
     const feitos = new Set<string>();
-    const cancelar = (ev: Event) => {
+    const cancelar = () => {
       cancelado = true;
-      dbg2.push({ t: Date.now() % 100000, acao: "cancela", tipo: ev.type });
     };
     const eventos = ["wheel", "touchstart", "keydown", "mousedown"] as const;
     for (const ev of eventos) window.addEventListener(ev, cancelar, { passive: true, once: true });
 
     const guardado = (chave: string) => estadoSeparadores.ler<Pos>(escopo, id, PREFIXO + chave);
-    const dbg2 = ((window as unknown as { __scrollLog?: unknown[] }).__scrollLog ??= []);
-    dbg2.push({ t: Date.now() % 100000, acao: "ativa", id, j: guardado("__janela") });
     const tentar = () => {
       if (cancelado || Date.now() - inicio > MAX_MS_RESTAURO) return;
       const j = guardado("__janela");
@@ -121,7 +115,6 @@ export function ScrollSeparadores() {
         const alturaMax = document.documentElement.scrollHeight - window.innerHeight;
         if (alturaMax >= j.y - 1) {
           window.scrollTo(j.x, j.y);
-          dbg2.push({ t: Date.now() % 100000, acao: "restaura", id, j });
           feitos.add("__janela");
         }
       }

@@ -21,7 +21,10 @@ const check = (cond: boolean, label: string, detalhe?: string) => {
 };
 
 const ctx = readFileSync(new URL("../../lib/workspace/task-bar-context.tsx", import.meta.url), "utf8");
-const bar = readFileSync(new URL("../../components/layout/task-bar.tsx", import.meta.url), "utf8");
+// A tabela de rotas passou para lib/workspace/rotas.ts (fonte única da barra, do estado por separador e da navegação contextual).
+const barSrc = readFileSync(new URL("../../components/layout/task-bar.tsx", import.meta.url), "utf8");
+const rotasSrc = readFileSync(new URL("../../lib/workspace/rotas.ts", import.meta.url), "utf8");
+const bar = barSrc + "\n" + rotasSrc;
 const shell = readFileSync(new URL("../../components/layout/app-shell.tsx", import.meta.url), "utf8");
 const layout = readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
 const detailClient = readFileSync(new URL("../../components/encomendas/order-detail-client.tsx", import.meta.url), "utf8");
@@ -61,7 +64,7 @@ console.log("\nE · a barra está montada na AppShell; logout avisa se a tarefa 
 {
   check(/<TaskBar \/>/.test(shell), "E1: <TaskBar /> está montada na AppShell");
   check(/onSubmit=\{handleLogoutSubmit\}/.test(shell), "E2: o formulário de logout tem o guard ligado");
-  check(/activa\?\.sujo && !confirm\(/.test(shell), "E3: o logout só pede confirmação quando a tarefa ACTIVA está suja — nunca bloqueia um logout limpo");
+  check(/tarefas\.find\(\(t\) => t\.sujo\)/.test(shell) && /suja && !confirm\(/.test(shell), "E3: o logout só pede confirmação quando ALGUM separador está sujo (terminar sessão liberta o estado de todos) — nunca bloqueia um logout limpo");
 }
 
 console.log("\nF · o indicador de 'sujo' na barra usa o MESMO sinal que já governa o beforeunload/autosave — nunca uma segunda fonte de verdade");
@@ -171,9 +174,14 @@ console.log("\nL · Vendas — referência completa do mecanismo de workspace (B
     /moduleKey: "vendas"/.test(vendas),
     "L3: chaveado por módulo \"vendas\" — nunca colide com outro módulo workspace-aware"
   );
+  // Antes: um efeito apagava rows/período ao mudar de workspace (e o resultado perdia-se para sempre). Agora o resultado vive no
+  // ESTADO DO SEPARADOR (lib/workspace/estado-separador.ts): trocar de workspace re-hidrata o do separador de destino — nunca
+  // mostra a tabela de outra análise E o resultado da análise que se deixou fica guardado.
   check(
-    /setHasGenerated\(false\);\s*\n\s*setRows\(\[\]\);\s*\n\s*setPeriodHeader\(null\);\s*\n\s*setGenerationError\(null\);\s*\n\s*\}, \[workspaceId\]\);/.test(vendas),
-    "L4: trocar de workspace limpa RESULTADOS calculados anteriores — nunca mostra a tabela de uma análise com os filtros de outra"
+    /useEstadoSeparador<SalesReportRow\[\]>\("vendas:rows"/.test(vendas) &&
+      /useEstadoSeparador<SalesPeriodHeader \| null>\("vendas:periodHeader"/.test(vendas) &&
+      !/setHasGenerated\(false\);\s*\n\s*setRows\(\[\]\);\s*\n\s*setPeriodHeader\(null\);\s*\n\s*setGenerationError\(null\);\s*\n\s*\}, \[workspaceId\]\);/.test(vendas),
+    "L4: o resultado de Vendas vive no estado do SEPARADOR (re-hidratado ao trocar de workspace): nunca mostra a tabela de uma análise com os filtros de outra, e a análise deixada mantém o seu resultado"
   );
   check(
     /ordenacaoTabela: EstadoOrdenacao<ColunaVendas>/.test(vendas),

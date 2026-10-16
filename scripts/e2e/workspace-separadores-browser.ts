@@ -172,7 +172,7 @@ async function suiteInterna(browser: Browser, amb: Ambiente, seed: { userId: str
   check((await page.locator('tr[data-tabela-linha^="comparacao"]').count()) === linhasCmp, `Margens: as ${linhasCmp} linhas da comparação estão lá, sem recarregar`);
   await page.waitForTimeout(1200);
   const scrollDepoisM = await scrollY(page);
-  check(Math.abs(scrollDepoisM - scrollJanelaM) <= 4, `Margens: scroll restaurado: ${scrollJanelaM} → ${scrollDepoisM}`, JSON.stringify(await page.evaluate(() => (window as unknown as { __scrollLog?: unknown[] }).__scrollLog?.slice(-14))));
+  check(Math.abs(scrollDepoisM - scrollJanelaM) <= 4, `Margens: scroll restaurado: ${scrollJanelaM} → ${scrollDepoisM}`);
   await page.waitForTimeout(600);
   check(net.acoes().length - baseline2 === 0, `Margens: NENHUM pedido de Server Action ao voltar (${net.acoes().length - baseline2}) — a comparação não é repetida`, detalheAcoes(net, baseline2));
   check((await page.locator('[data-testid="vendas-tabela"]').count()) === 0 && (await page.locator('[data-testid="vendas-sel-contagem"]').count()) === 0, "o separador oculto (Vendas) não está montado: não recebe foco, não corre efeitos");

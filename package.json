@@ -62,6 +62,8 @@
     "test:infarmed-registo-reversivel-db": "tsx scripts/tests/test-infarmed-registo-reversivel-db.ts",
     "e2e:tarefa-c": "tsx scripts/e2e/tarefa-c-browser.ts",
     "e2e:vendas-mapa-visual": "tsx scripts/e2e/vendas-mapa-visual-browser.ts",
+    "e2e:workspace-separadores": "tsx scripts/e2e/workspace-separadores-browser.ts",
+    "test:workspace-separadores": "tsx scripts/tests/test-workspace-separadores.ts",
     "test:infarmed-reverter-db": "tsx scripts/tests/test-infarmed-reverter-db.ts",
     "test:ordenacao-custo-selecao": "tsx scripts/tests/test-ordenacao-custo-selecao.ts",
     "ops:infarmed-carga": "tsx scripts/ops/infarmed-carga-regulamentar.ts",
