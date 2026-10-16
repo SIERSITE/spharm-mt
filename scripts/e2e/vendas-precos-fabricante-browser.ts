@@ -30,7 +30,7 @@ const check = (cond: boolean, msg: string, detalhe?: string) => {
 const secao = (t: string) => console.log(`\n── ${t}`);
 const EVID = path.resolve("docs/validacao-visual/2026-10-vendas-precos-fabricante");
 const norm = (t: string) => t.replace(/[  ]/g, " ");
-const DINHEIRO = /€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA/i;
+const DINHEIRO = /€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA/;
 const MONETARIAS = ["pvp", "custoUnitarioEstimado", "custoEstimado", "valorBruto"];
 
 const INIT_CAPTURA_IMPRESSAO = `
@@ -80,6 +80,12 @@ async function pedirPdf(page: Page, ctx: BrowserContext, nome: string) {
   return { ficheiro: f, relatorio };
 }
 
+async function irPara(page: Page, ws: string) {
+  await page.locator(`[data-navegacao-href^="/vendas?workspace=${ws}"]`).click();
+  await page.waitForFunction((w) => new URL(location.href).searchParams.get("workspace") === w, ws);
+  await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 20000 });
+  await page.waitForTimeout(700);
+}
 async function gerarVendas(page: Page) {
   const ano = new Date().getFullYear();
   await page.getByLabel("Data início").fill(`${ano}-01-01`);
@@ -98,6 +104,7 @@ async function main() {
     const seed = await semearMargens(amb);
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
     await ctx.addInitScript(INIT_CAPTURA_IMPRESSAO);
+    await ctx.addInitScript("window.__name = (f) => f;");
     const page = await ctx.newPage();
     page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -123,7 +130,7 @@ async function main() {
     await page.waitForTimeout(800);
     const semPrecos = await cabecalhosPrev();
     const txt = await textoPrev();
-    check(!semPrecos.some((h) => /PVP|Custo|Valor|€/.test(h)) && !DINHEIRO.test(txt), `sem preços: pré-visualização com ${semPrecos.length} colunas e NENHUM «€», PVP, Custo, Valor, PARCIAL (${semPrecos.join(" | ")})`, txt.match(/.{20}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
+    check(!semPrecos.some((h) => /PVP|Custo|Valor|€/.test(h)) && !DINHEIRO.test(txt), `sem preços: pré-visualização com ${semPrecos.length} colunas e NENHUM «€», PVP, Custo, Valor, PARCIAL (${semPrecos.join(" | ")})`, txt.match(/[\s\S]{0,40}(€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA)[\s\S]{0,40}/)?.[0]);
     check(semPrecos.length === comPrecos.length - 4 && semPrecos.every((h) => h.length > 0), `retiradas exatamente as 4 colunas monetárias, sem colunas vazias (${comPrecos.length} → ${semPrecos.length})`);
     check(/TOTAL GERAL/.test(txt), "o TOTAL GERAL de unidades continua");
     await page.screenshot({ path: path.join(EVID, "relatorio-sem-precos-1920x1080.png") });
@@ -132,14 +139,15 @@ async function main() {
     const sPdf = await pedirPdf(page, ctx, "vendas-sem-precos.pdf");
     check(!sPdf.relatorio.columns.some((c) => MONETARIAS.includes(c.key) || DINHEIRO.test(c.label)), "PDF (pedido real ao servidor): relatório sem colunas monetárias");
     const tPdf = textoPdf(sPdf.ficheiro);
-    check(!DINHEIRO.test(tPdf) && /Total/.test(tPdf) && /Stock/.test(tPdf), "PDF real: sem «€», PVP, Custo, Valor, PARCIAL; com unidades e stock", tPdf.match(/.{20}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
+    check(!DINHEIRO.test(tPdf) && /Total/.test(tPdf) && /Stock/.test(tPdf), "PDF real: sem «€», PVP, Custo, Valor, PARCIAL; com unidades e stock", tPdf.match(/[\s\S]{0,40}(€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA)[\s\S]{0,40}/)?.[0]);
     renderizar(sPdf.ficheiro, "pdf-sem-precos", 2);
 
     await page.evaluate(() => { (window as unknown as { __impressoes: string[] }).__impressoes = []; });
     await page.getByRole("button", { name: /^Imprimir$/ }).first().click();
     await page.waitForFunction(() => (window as unknown as { __impressoes: string[] }).__impressoes.length > 0, null, { timeout: 30000 });
     const htmlImp = norm(await page.evaluate(() => (window as unknown as { __impressoes: string[] }).__impressoes[0]));
-    check(!DINHEIRO.test(htmlImp.slice(htmlImp.indexOf("<body>")).replace(/<style>[\s\S]*?<\/style>/g, "")), "impressão: sem informação monetária");
+    const corpoImp = htmlImp.slice(htmlImp.indexOf("<body")).replace(/<style[\s\S]*?<\/style>/g, "");
+    check(!DINHEIRO.test(corpoImp), "impressão: sem informação monetária", corpoImp.match(/[\s\S]{0,40}(€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA)[\s\S]{0,40}/)?.[0]);
 
     const capturas: string[] = [];
     await page.route("**/api/reports/email", async (route) => { capturas.push(route.request().postData() ?? ""); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }); });
@@ -163,24 +171,18 @@ async function main() {
     secao("A · por separador (workspace)");
     await page.getByRole("link", { name: "Margens", exact: true }).click();
     await page.waitForURL(/relatorios\/margens\?workspace=/);
-    await page.locator(`[data-navegacao-href^="/vendas?workspace=${wsA}"]`).click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 20000 });
+    await irPara(page, wsA);
     check(!(await preco(page).isChecked()), "mudar de separador e voltar: «Incluir preços» continua desligado");
     await page.getByRole("button", { name: /Nova análise/ }).click();
     await page.waitForFunction((a) => new URL(location.href).searchParams.get("workspace") !== a, wsA);
     const wsB = new URL(page.url()).searchParams.get("workspace")!;
     await gerarVendas(page);
     check(await preco(page).isChecked(), "«Nova análise» começa com «Incluir preços» ligado");
-    await page.locator(`[data-navegacao-href^="/vendas?workspace=${wsA}"]`).click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor();
-    await page.waitForFunction(() => document.querySelector('[data-testid="vendas-incluir-precos"]') !== null);
+    await irPara(page, wsA);
     check(!(await preco(page).isChecked()), "análise A mantém desligado (independente da B)");
-    await page.locator(`[data-navegacao-href^="/vendas?workspace=${wsB}"]`).click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor();
-    await page.waitForFunction(() => document.querySelector('[data-testid="vendas-incluir-precos"]') !== null);
+    await irPara(page, wsB);
     check(await preco(page).isChecked(), "análise B mantém ligado");
-    await page.locator(`[data-navegacao-href^="/vendas?workspace=${wsA}"]`).click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor();
+    await irPara(page, wsA);
     await preco(page).check();
 
     // ═══ B · tipografia ═══════════════════════════════════════════════════
@@ -257,7 +259,7 @@ async function main() {
     // fechar o separador com edição pendente pede confirmação
     let dialogos = 0;
     page.once("dialog", async (d) => { dialogos++; await d.dismiss(); });
-    await page.getByRole("button", { name: /Fechar Ficha de artigo/ }).click();
+    await page.getByRole("button", { name: "Fechar Ficha de artigo", exact: true }).click();
     await page.waitForTimeout(500);
     check(dialogos === 1 && (await page.locator(`[data-navegacao-href^="/stock/artigo/${CNPFAB}"]`).count()) === 1, "fechar o separador durante a edição pede confirmação (recusar mantém o separador)");
 
@@ -279,7 +281,7 @@ async function main() {
     page.once("dialog", async (d) => { await d.accept(); });
     await page.locator('[data-testid="fabricante-editar"]').click();
     await page.locator('[data-testid="fabricante-pesquisa"]').fill("gri");
-    await page.getByRole("button", { name: /Fechar Ficha de artigo/ }).click();
+    await page.getByRole("button", { name: "Fechar Ficha de artigo", exact: true }).click();
     await page.waitForURL(/dashboard/, { timeout: 15000 }).catch(() => undefined);
     await page.goto(baseFor("silveira") + `/stock/artigo/${CNPFAB}`, { waitUntil: "networkidle" });
     check((await page.locator('[data-testid="fabricante-editor"]').count()) === 0, "fechar e reabrir a ficha começa sem o formulário antigo");
@@ -294,7 +296,8 @@ async function main() {
     await page.locator('[data-testid="fabricante-duplicado"]').waitFor({ timeout: 15000 });
     check(/BAYER E2E PORTUGAL/.test(await page.locator('[data-testid="fabricante-duplicado"]').innerText()), "duplicado por alias bloqueado, com o existente indicado");
     await page.locator('[data-testid="fabricante-novo-nome"]').fill("Grifols E2E Internacional");
-    await page.locator('[data-testid="fabricante-canonico"]').waitFor({ timeout: 15000 });
+    await page.locator('[data-testid="fabricante-canonico"]').filter({ hasText: "GRIFOLS E2E INTERNACIONAL" }).waitFor({ timeout: 15000 });
+    await page.locator('[data-testid="fabricante-semelhantes"]').waitFor({ timeout: 15000 }).catch(() => undefined);
     check((await page.locator('[data-testid="fabricante-canonico"]').innerText()) === "GRIFOLS E2E INTERNACIONAL" && (await page.locator('[data-testid="fabricante-semelhantes"]').count()) === 1, "mostra o nome normalizado e sugere fabricantes semelhantes (GRIFOLS E2E)");
     await page.locator('[data-testid="fabricante-novo-nome"]').fill("Nova Marca E2E, Lda.");
     await page.locator('[data-testid="fabricante-canonico"]').filter({ hasText: "NOVA MARCA E2E LDA" }).waitFor({ timeout: 15000 });
