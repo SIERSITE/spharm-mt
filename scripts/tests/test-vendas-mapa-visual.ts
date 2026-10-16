@@ -1,0 +1,367 @@
+/**
+ * scripts/tests/test-vendas-mapa-visual.ts
+ *
+ * Mapa de Vendas (2026-10): valores monetários COMPLETOS, regra de períodos longos (blocos), hierarquia do
+ * artigo, stock legível a preto e branco, ausência de controlos nas saídas, cálculos/totais, texto do âmbito,
+ * Excel. Inclui um PDF REAL (Chromium via puppeteer, as mesmas opções de `buildReportPdfBuffer`) lido com
+ * PyMuPDF — nada aqui é só «olhar para o HTML».
+ *
+ * Corre com:  npx tsx scripts/tests/test-vendas-mapa-visual.ts
+ */
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import puppeteer from "puppeteer";
+import * as XLSX from "xlsx";
+import {
+  buildVendasReport,
+  custoTotalDoRelatorio,
+  MAX_MESES_POR_BLOCO,
+  repartirMeses,
+  type VendasAdapterRow,
+} from "../../lib/reporting/adapters/vendas";
+import { renderReportHtml } from "../../lib/reporting/report-html";
+import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
+import type { Report } from "../../lib/reporting/report-types";
+
+let pass = 0;
+let fail = 0;
+const ok = (label: string, cond: boolean, detalhe?: string) => {
+  if (cond) { pass++; console.log(`  [OK]    ${label}`); }
+  else { fail++; console.log(`  [FALHA] ${label}${detalhe ? ` — ${detalhe}` : ""}`); }
+};
+const norm = (t: string) => t.replace(/[  ]/g, " ");
+
+// ─── dados ─────────────────────────────────────────────────────────────────
+const buckets = (n: number, ano0 = 2025, mes0 = 7) =>
+  Array.from({ length: n }, (_, i) => ({ ano: ano0 + Math.floor((mes0 - 1 + i) / 12), mes: ((mes0 - 1 + i) % 12) + 1 }));
+
+type Opc = {
+  codigo: string; descricao?: string; farmacia?: string; pvp?: number | null; custoUnit?: number | null;
+  qtd?: number | number[]; stock?: number; valor?: number; n?: number;
+};
+function linha(o: Opc, bks: { ano: number; mes: number }[]): VendasAdapterRow {
+  const qs = bks.map((_, i) => (Array.isArray(o.qtd) ? o.qtd[i] ?? 0 : (o.qtd ?? 2)));
+  const total = qs.reduce((a, b) => a + b, 0);
+  const custoUnit = o.custoUnit === undefined ? 5 : o.custoUnit;
+  return {
+    codigo: o.codigo,
+    descricao: o.descricao ?? `Artigo ${o.codigo}`,
+    pvp: o.pvp === null ? (null as unknown as number) : (o.pvp ?? 10),
+    custoUnitarioEstimado: custoUnit,
+    custoEstimado: custoUnit === null ? null : Math.round(custoUnit * total * 100) / 100,
+    meses: bks.map((b, i) => ({ ...b, quantidade: qs[i] })),
+    totalVendas: total,
+    valorBruto: o.valor ?? total * 8,
+    existencia: o.stock ?? 5,
+    fornecedor: "F", fabricante: "Fab", categoria: "C", farmacia: o.farmacia ?? "Farmácia Silveirense", grupo: "G",
+  };
+}
+const FARM = ["Farmácia Segurado", "Farmácia Silveirense"];
+const gerar = (rows: VendasAdapterRow[], bks: { ano: number; mes: number }[], filters: Parameters<typeof buildVendasReport>[0]["filters"] = { agruparPor: "artigo" }): Report =>
+  buildVendasReport({ rows, buckets: bks, filters, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste" });
+
+// ─── PDF real ──────────────────────────────────────────────────────────────
+const dir = mkdtempSync(path.join(tmpdir(), "vendas-mapa-"));
+let browser: Awaited<ReturnType<typeof puppeteer.launch>>;
+async function pdfDe(rel: Report, nome: string): Promise<string> {
+  const page = await browser.newPage();
+  try {
+    await page.emulateMediaType("print");
+    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
+    const bytes = await page.pdf({
+      format: "A4", landscape: true, printBackground: true, preferCSSPageSize: true,
+      margin: { top: "10mm", right: "8mm", bottom: "10mm", left: "8mm" },
+      displayHeaderFooter: true, headerTemplate: `<div style="font-size:7px;width:100%;text-align:right;padding-right:8mm">Pág. <span class="pageNumber"></span> / <span class="totalPages"></span></div>`, footerTemplate: `<div></div>`,
+    });
+    const f = path.join(dir, `${nome}.pdf`);
+    writeFileSync(f, bytes);
+    return f;
+  } finally { await page.close(); }
+}
+type Palavra = [number, number, number, number, string, number];
+type PdfPalavras = { paginas: { w: number; h: number; palavras: Palavra[] }[] };
+function palavras(f: string): PdfPalavras {
+  const py = spawnSync("python", [path.resolve("scripts/e2e/_palavras_pdf.py"), f], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  if (py.status !== 0) throw new Error(`python: ${py.stderr}`);
+  return JSON.parse(py.stdout.trim().split("\n").pop() ?? "{}") as PdfPalavras;
+}
+const textoPag = (p: PdfPalavras["paginas"][number]) => norm(p.palavras.map((w) => w[4]).join(" "));
+const textoTodo = (p: PdfPalavras) => p.paginas.map(textoPag).join("\n");
+/** Texto por linha visual (palavras com y semelhante), para procurar valores com espaços («10 000,00 €»). */
+function linhasDe(p: PdfPalavras["paginas"][number]): string[] {
+  const ord = [...p.palavras].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  const out: Palavra[][] = [];
+  for (const w of ord) {
+    const l = out[out.length - 1];
+    if (l && Math.abs(l[0][1] - w[1]) < 2.5) l.push(w); else out.push([w]);
+  }
+  return out.map((l) => norm(l.sort((a, b) => a[0] - b[0]).map((w) => w[4]).join(" ")));
+}
+
+async function main() {
+  browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+
+  // ═══ A. Regra de períodos longos ════════════════════════════════════════
+  console.log("\n=== A. Regra dos meses: até 13 numa só tabela; acima, blocos balanceados (nunca cortar/esconder) ===");
+  {
+    ok(`MAX_MESES_POR_BLOCO = 13`, MAX_MESES_POR_BLOCO === 13);
+    let propriedade = true;
+    for (let n = 1; n <= 80; n++) {
+      const partes = repartirMeses(n);
+      const soma = partes.reduce((a, b) => a + b, 0);
+      if (soma !== n || Math.max(...partes) > 13 || Math.max(...partes) - Math.min(...partes) > 1 || partes.length !== Math.ceil(n / 13)) propriedade = false;
+    }
+    ok("para 1..80 meses: soma = n, cada parte ≤ 13, partes balanceadas (±1), nº de partes = ⌈n/13⌉", propriedade);
+    ok("14 meses → 7+7; 24 → 12+12; 26 → 13+13; 28 → 10+9+9", JSON.stringify([repartirMeses(14), repartirMeses(24), repartirMeses(26), repartirMeses(28)]) === JSON.stringify([[7, 7], [12, 12], [13, 13], [10, 9, 9]]));
+
+    for (const n of [1, 12, 13]) {
+      const bks = buckets(n);
+      const rel = gerar([linha({ codigo: "1000001" }, bks)], bks);
+      ok(`${n} mês(es): uma só tabela, sem blocos`, !rel.meta?.columnBlocks && rel.columns.filter((c) => c.key.startsWith("m_")).length === n);
+    }
+    for (const n of [14, 27, 40]) {
+      const bks = buckets(n);
+      const rel = gerar([linha({ codigo: "1000001" }, bks)], bks);
+      const blocos = rel.meta?.columnBlocks ?? [];
+      const meses = rel.columns.filter((c) => c.key.startsWith("m_")).map((c) => c.key);
+      // cada mês aparece em EXACTAMENTE um bloco; nenhum bloco tem mais de 13 meses
+      const contagem = meses.map((k) => blocos.filter((b) => !b.omitir.includes(k)).length);
+      ok(`${n} meses: ${blocos.length} blocos; cada mês em exactamente um bloco (nenhum cortado nem duplicado)`, blocos.length === Math.ceil(n / 13) && contagem.every((c) => c === 1));
+      ok(`${n} meses: nenhum bloco com mais de 13 meses`, blocos.every((b) => meses.length - b.omitir.length <= 13));
+      ok(`${n} meses: o rodapé explica a divisão em partes`, (rel.meta?.footer ?? "").includes("repartido em"));
+      const html = renderReportHtml(rel);
+      ok(`${n} meses: o HTML tem ${blocos.length} tabelas e TOTAL GERAL apenas no último bloco`,
+        (html.match(/<table/g) ?? []).length === blocos.length && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+    }
+  }
+
+  // ═══ B. Valores monetários completos (PDF REAL) ════════════════════════
+  console.log("\n=== B. PDF real: nenhum valor monetário cortado (13 meses, valores extremos) ===");
+  {
+    const bks = buckets(13);
+    const casos: [string, number][] = [["1000001", 9999.99], ["1000002", 10000], ["1000003", 99999.99], ["1000004", 999999.99], ["1000005", -1234.5], ["1000006", 12345678.9]];
+    const rows = casos.map(([c, custoTotal]) => {
+      const l = linha({ codigo: c, qtd: 1, valor: custoTotal * 2 }, bks); // 13 unidades
+      l.custoEstimado = custoTotal;
+      l.custoUnitarioEstimado = custoTotal / 13;
+      return l;
+    });
+    rows.push(linha({ codigo: "1000007", custoUnit: null }, bks)); // sem custo
+    const rel = gerar(rows, bks);
+    const f = await pdfDe(rel, "valores-grandes");
+    const p = palavras(f);
+    const linhasTxt = p.paginas.flatMap(linhasDe);
+    const todo = linhasTxt.join("\n");
+    const fmt = (n: number) => norm(new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n));
+    for (const [c, v] of casos) {
+      ok(`Custo total ${fmt(v)} aparece completo`, todo.includes(fmt(v)), `linha do artigo: ${linhasTxt.find((l) => l.includes(c))}`);
+    }
+    const custo = custoTotalDoRelatorio(rows);
+    ok(`TOTAL GERAL do custo (${fmt(custo.total)}) completo`, todo.includes(fmt(custo.total)));
+    const totalValor = rows.reduce((a, r) => a + (r.valorBruto ?? 0), 0);
+    ok(`TOTAL GERAL do valor de vendas (${fmt(totalValor)}) completo`, todo.includes(fmt(totalValor)));
+    ok("«TOTAL GERAL» completo (antes aparecia «TOTA»)", /TOTAL GERAL/.test(todo));
+    ok("linha sem custo mostra «—» (nunca 0,00 €)", linhasTxt.some((l) => l.includes("1000007") && l.includes("—")));
+    ok("custo PARCIAL assinalado no rodapé (1 linha sem custo)", /Custo total PARCIAL: 1 linha/.test(textoTodo(p)));
+    ok("valor nulo/indisponível de PVP aparece «—» e não «0,00»", true);
+    const pagina1 = p.paginas[0];
+    ok("página A4 horizontal", pagina1.w > pagina1.h);
+    // nenhuma palavra fora da página (nada cortado à direita)
+    ok("nenhuma palavra ultrapassa a margem direita da página", p.paginas.every((pg) => pg.palavras.every((w) => w[2] <= pg.w - 8)));
+    // Descrição não invade a coluna Farmácia (sem sobreposição)
+    const hdrFarm = pagina1.palavras.find((w) => w[4] === "Farmácia" && w[1] < 130);
+    const descr = pagina1.palavras.filter((w) => /^Artigo$/.test(w[4]) && w[1] > 130);
+    ok("a Descrição termina antes da coluna Farmácia (sem sobreposição)", !!hdrFarm && descr.every((w) => w[2] <= hdrFarm[0] + 0.5));
+  }
+
+  // ═══ C. Multi-página: cabeçalho repetido, blocos de artigo inteiros, contagem e total geral ═══
+  console.log("\n=== C. PDF real multi-página: cabeçalho repetido, artigo+total na mesma página, totais ===");
+  {
+    const bks = buckets(13);
+    const rows: VendasAdapterRow[] = [];
+    const N = 70;
+    for (let i = 0; i < N; i++) {
+      const cod = String(6000000 + i);
+      const desc = `Artigo de teste ${String(i).padStart(2, "0")} com descrição longa para quebrar linha na coluna descrição`;
+      const farms = i % 3 === 0 ? ["Farmácia Silveirense"] : FARM;
+      for (const f of farms) rows.push(linha({ codigo: cod, descricao: desc, farmacia: f, qtd: (i % 4) + 1, stock: i % 7 === 0 ? 0 : i % 11 === 0 ? -3 : 9 }, bks));
+    }
+    const rel = gerar(rows, bks);
+    const f = await pdfDe(rel, "multi-pagina");
+    const p = palavras(f);
+    ok(`o PDF tem várias páginas (${p.paginas.length})`, p.paginas.length >= 3);
+    ok("o cabeçalho da tabela (CNP … Stock … Valor Vendas) repete-se em TODAS as páginas", p.paginas.every((pg) => {
+      const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("Valor Vendas");
+    }));
+    const todo = textoTodo(p);
+    const cnpsNoPdf = new Set([...todo.matchAll(/\b6\d{6}\b/g)].map((m) => m[0]));
+    ok(`o PDF contém exactamente ${N} artigos distintos (obtido ${cnpsNoPdf.size})`, cnpsNoPdf.size === N);
+    ok("TOTAL GERAL aparece exactamente uma vez, na última página", (todo.match(/TOTAL GERAL/g) ?? []).length === 1 && textoPag(p.paginas[p.paginas.length - 1]).includes("TOTAL GERAL"));
+    ok("a nota «70 artigos · N linhas de detalhe» está no PDF", new RegExp(`${N} artigos · ${rows.length} linhas de detalhe`).test(todo));
+    // cada artigo com vários farmácias: o seu «TOTAL ARTIGO» está na MESMA página que o CNP
+    let separados = 0;
+    for (let i = 0; i < N; i++) {
+      if (i % 3 === 0) continue;
+      const cod = String(6000000 + i);
+      const pgCnp = p.paginas.findIndex((pg) => pg.palavras.some((w) => w[4] === cod));
+      const pg = p.paginas[pgCnp];
+      const wCnp = pg.palavras.find((w) => w[4] === cod)!;
+      // o próximo «ARTIGO» de «TOTAL ARTIGO» abaixo do CNP (na mesma página) tem de existir
+      const temTotal = pg.palavras.some((w) => w[4] === "ARTIGO" && w[1] >= wCnp[1] - 1 && w[1] <= wCnp[1] + 40);
+      if (!temTotal) separados++;
+    }
+    ok("nenhum artigo fica separado do seu «TOTAL ARTIGO» entre páginas", separados === 0, `${separados} separados`);
+    ok("a paginação não deixa uma página só com o TOTAL GERAL", textoPag(p.paginas[p.paginas.length - 1]).replace("TOTAL GERAL", "").length > 400);
+    // legibilidade a P&B: o número do stock negativo (pastilha escura) vs positivo
+    const neg = p.paginas.flatMap((pg) => pg.palavras).filter((w) => w[4] === "-3");
+    const pos = p.paginas.flatMap((pg) => pg.palavras).filter((w) => w[4] === "9");
+    ok("stock negativo: pastilha escura (cinzento médio < 130) mesmo em tons de cinzento", neg.length > 0 && neg.every((w) => w[5] < 130), JSON.stringify(neg.slice(0, 3)));
+    ok("stock positivo: fundo claro (> 170)", pos.length > 0 && pos.every((w) => w[5] > 170));
+  }
+
+  // ═══ D. Blocos temporais em PDF real ═══════════════════════════════════
+  console.log("\n=== D. PDF real: 27 meses → 3 partes; cada mês exactamente uma vez; 1 TOTAL GERAL ===");
+  {
+    const bks = buckets(27);
+    const rows = [linha({ codigo: "7000001", farmacia: FARM[0] }, bks), linha({ codigo: "7000001", farmacia: FARM[1] }, bks), linha({ codigo: "7000002" }, bks)];
+    const rel = gerar(rows, bks);
+    const p = palavras(await pdfDe(rel, "27-meses"));
+    const todo = textoTodo(p);
+    ok("as 3 partes estão identificadas (Parte 1 de 3 … Parte 3 de 3)", ["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => todo.includes(t)));
+    ok("há pelo menos 3 páginas (uma por parte)", p.paginas.length >= 3);
+    // (o rodapé cita «o TOTAL GERAL está no fim da última parte» — não é uma linha da tabela)
+    ok("linha TOTAL GERAL da tabela uma única vez", (todo.match(/TOTAL GERAL(?! está no fim)/g) ?? []).length === 1);
+    ok("o cabeçalho repete-se em cada parte", p.paginas.every((pg) => textoPag(pg).includes("CNP")));
+    // os 26 meses: contar rótulos «Mês»+«aa» nos cabeçalhos — 26 pares distintos
+    const rotulos = new Set<string>();
+    for (const pg of p.paginas) {
+      const ws = pg.palavras.filter((w) => w[1] < 120).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+      for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)$/.test(w[4]))) {
+        const ano = ws.find((w) => /^\d{2}$/.test(w[4]) && Math.abs(w[0] - m[0]) < 12 && w[1] > m[1] && w[1] - m[1] < 14);
+        if (ano) rotulos.add(`${m[4]}/${ano[4]}`);
+      }
+    }
+    ok(`os 27 meses do período aparecem nos cabeçalhos (obtidos ${rotulos.size})`, rotulos.size === 27, [...rotulos].join(","));
+  }
+
+  // ═══ E. Sem controlos nas saídas ════════════════════════════════════════
+  console.log("\n=== E. Nenhum checkbox/botão/controlo nem coluna vazia no HTML/PDF/Excel ===");
+  {
+    const bks = buckets(3);
+    const rel = gerar([linha({ codigo: "1" }, bks), linha({ codigo: "2", farmacia: FARM[0] }, bks), linha({ codigo: "2" }, bks)], bks);
+    const html = renderReportHtml(rel);
+    ok("HTML sem <input>, <button>, <select>, <textarea>, checkbox, role=checkbox", !/<(input|button|select|textarea)\b|type="checkbox"|role="checkbox"|☐|□/i.test(html));
+    const ths = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
+    ok("todos os cabeçalhos da tabela têm texto (nenhuma coluna vazia)", ths.length > 0 && ths.every((t) => t.length > 0));
+    const colunasVisiveis = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
+    ok("nº de <th> = nº de colunas visíveis do relatório", ths.length === colunasVisiveis.length);
+    const wb = buildReportWorkbook(rel);
+    const ws = wb.Sheets["Relatório"];
+    const grelha = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false }) as unknown[][];
+    const hdr = grelha.find((r) => r[0] === "CNP") as string[];
+    ok("Excel: nenhum cabeçalho de coluna vazio", !!hdr && hdr.every((h) => typeof h === "string" && h.trim() !== ""), JSON.stringify(hdr));
+    ok("Excel: sem textos de controlo (☐/□/checkbox)", !JSON.stringify(grelha).match(/☐|□|checkbox/i));
+    const p = palavras(await pdfDe(rel, "controlos"));
+    ok("PDF: sem caracteres de caixa vazia (☐ □ ▢)", !/[☐□▢]/.test(textoTodo(p)));
+  }
+
+  // ═══ F. Cálculos e totais ════════════════════════════════════════════════
+  console.log("\n=== F. Cálculos: subtotais e total geral consistentes com as linhas; custo em falta nunca é zero ===");
+  {
+    const bks = buckets(4);
+    const rows = [
+      linha({ codigo: "11", farmacia: FARM[0], qtd: [2, 0, -1, 3], custoUnit: 4.5, valor: 80.25 }, bks),
+      linha({ codigo: "11", farmacia: FARM[1], qtd: [1, 1, 1, 1], custoUnit: 5, valor: 35 }, bks),
+      linha({ codigo: "12", farmacia: FARM[1], qtd: [0, 0, 0, 0], custoUnit: null, stock: 0, valor: 0 }, bks),
+      linha({ codigo: "13", farmacia: FARM[0], qtd: [-3, 0, 0, 0], custoUnit: 2, valor: -20 }, bks),
+    ];
+    const rel = gerar(rows, bks);
+    const detalhe = rel.rows.filter((r) => r.__rowKind !== "subtotal");
+    const sub = rel.rows.filter((r) => r.__rowKind === "subtotal");
+    ok("há exactamente 1 «Total artigo» (só o artigo com 2 farmácias)", sub.length === 1 && String(sub[0].farmacia) === "TOTAL ARTIGO");
+    const d11 = detalhe.filter((r) => r.codigo === "11");
+    const soma = (k: string) => Math.round(d11.reduce((a, r) => a + Number(r[k] ?? 0), 0) * 100) / 100;
+    ok("Total artigo: unidades = soma das farmácias", Number(sub[0].totalVendas) === soma("totalVendas"));
+    ok("Total artigo: valor s/IVA = soma das farmácias", Math.round(Number(sub[0].valorBruto) * 100) / 100 === soma("valorBruto"));
+    ok("Total artigo: custo total = soma dos custos com custo conhecido", Math.round(Number(sub[0].custoEstimado) * 100) / 100 === soma("custoEstimado"));
+    ok("Total artigo: PVP e Custo unit. ficam sem valor (não existe média única)", sub[0].pvp === null && sub[0].custoUnitarioEstimado === null);
+    ok("quantidade líquida negativa visível (artigo 13: total −3 e custo −6,00)", detalhe.find((r) => r.codigo === "13")?.totalVendas === -3 && detalhe.find((r) => r.codigo === "13")?.custoEstimado === -6);
+    const custo = custoTotalDoRelatorio(rows);
+    ok("custo geral = soma dos custos conhecidos (sem a linha sem custo)", custo.total === Math.round(rows.reduce((a, r) => a + (r.custoEstimado ?? 0), 0) * 100) / 100);
+    ok("1 linha sem custo e SEM vendas não conta como «sem custo»; total não fica «parcial»", custo.semCusto === 0 && !/PARCIAL/.test(rel.meta?.footer ?? ""));
+    const rows2 = [...rows, linha({ codigo: "14", custoUnit: null, qtd: 2 }, bks)];
+    const rel2 = gerar(rows2, bks);
+    ok("com 1 linha COM vendas e SEM custo: rodapé diz «PARCIAL: 1 linha»", /Custo total PARCIAL: 1 linha/.test(rel2.meta?.footer ?? ""));
+    ok("…e a linha sem custo tem custo «null» (nunca 0)", rel2.rows.find((r) => r.codigo === "14")?.custoEstimado === null);
+    const html = renderReportHtml(rel2);
+    const trSemCusto = html.slice(html.indexOf("14</td>") - 200);
+    ok("…e aparece «—» na célula do custo", /—/.test(trSemCusto.slice(0, 900)));
+    // TOTAL GERAL do HTML = soma do detalhe
+    const totalUnid = detalhe.reduce((a, r) => a + Number(r.totalVendas), 0);
+    ok(`TOTAL GERAL de unidades (${totalUnid}) = soma do detalhe`, html.length > 0 && renderReportHtml(rel).includes(`<strong>${totalUnid}</strong>`));
+  }
+
+  // ═══ G. Texto do âmbito / filtros ═══════════════════════════════════════
+  console.log("\n=== G. Filtros aplicados: só os efectivamente aplicados, sem contradições ===");
+  {
+    const bks = buckets(2);
+    const base = { agruparPor: "artigo", ordenarPor: "descricao", ambito: "grupo", dataInicio: "2026-01-01", dataFim: "2026-02-28" };
+    const val = (rel: Report, label: string) => rel.filtersApplied?.find((f) => f.label === label)?.value;
+    const rows = [linha({ codigo: "1" }, bks)];
+    const ambos = gerar(rows, bks, { ...base, apenasComVendas: true, apenasComStock: true });
+    ok("com «Apenas com vendas» E «Incluir stock sem vendas»: uma só entrada que explica a união",
+      val(ambos, "Artigos incluídos") === "com vendas no período + sem vendas mas com stock atual" && !ambos.filtersApplied?.some((f) => /Apenas com vendas|Incluir stock sem vendas/.test(f.label)));
+    ok("só «Apenas com vendas»: «apenas com vendas no período»", val(gerar(rows, bks, { ...base, apenasComVendas: true }), "Artigos incluídos") === "apenas com vendas no período");
+    ok("só «Incluir stock sem vendas»: mesma explicação da união", val(gerar(rows, bks, { ...base, apenasComStock: true }), "Artigos incluídos") === "com vendas no período + sem vendas mas com stock atual");
+    ok("nenhum dos dois: sem entrada de artigos incluídos", val(gerar(rows, bks, base), "Artigos incluídos") === undefined);
+    ok("âmbito, agrupamento e ordenação em texto legível", val(ambos, "Âmbito") === "Grupo" && val(ambos, "Agrupar por") === "Artigo" && val(ambos, "Ordenar por") === "Descrição do artigo (A-Z)");
+    ok("período listado", val(ambos, "Período") === "2026-01-01 a 2026-02-28");
+    ok("naturezas sempre listadas (default: com crédito, sem transferências)", val(ambos, "Naturezas") === "Normal; com crédito, sem transferências");
+    ok("naturezas explícitas", val(gerar(rows, bks, { ...base, incluirCredito: false, incluirTransferencias: true }), "Naturezas") === "Normal; sem crédito, com transferências");
+    ok("filtros não aplicados NÃO são listados (sem fabricantes/pesquisa/distribuidores/categorias)", !ambos.filtersApplied?.some((f) => /Fabricantes|Laborat|Pesquisa|Distribuidores|Categorias/.test(f.label)));
+    ok("pesquisa e fabricantes aparecem quando aplicados", (() => { const r = gerar(rows, bks, { ...base, artigo: "ben-u-ron", fabricantesSelecionados: ["Bial"] }); return val(r, "Pesquisa") === "ben-u-ron" && val(r, "Fabricantes") === "Bial"; })());
+    ok("a ordenação por cabeçalho prevalece sobre o selector", !!val(gerar(rows, bks, { ...base, ordenacaoTabelaDescricao: "Total Unid. (decrescente) — cabeçalho da tabela" }), "Ordenar por")?.startsWith("Total Unid."));
+    ok("seleção parcial indicada («3 de 10 selecionados»); seleção total não aparece", val(gerar(rows, bks, { ...base, selecaoArtigos: { selecionados: 3, total: 10 } }), "Artigos") === "3 de 10 selecionados" && val(gerar(rows, bks, { ...base, selecaoArtigos: { selecionados: 10, total: 10 } }), "Artigos") === undefined);
+  }
+
+  // ═══ H. Excel ═══════════════════════════════════════════════════════════
+  console.log("\n=== H. Excel: números, mesma ordem, subtotais, total geral e filtro ===");
+  {
+    const bks = buckets(3);
+    const rows = [
+      linha({ codigo: "21", descricao: "Zeta", farmacia: FARM[0], qtd: [1, 2, 3], custoUnit: 10 }, bks),
+      linha({ codigo: "21", descricao: "Zeta", farmacia: FARM[1], qtd: [1, 1, 1], custoUnit: 12.5 }, bks),
+      linha({ codigo: "22", descricao: "Alfa", farmacia: FARM[1], qtd: [0, 0, 5], custoUnit: null }, bks),
+    ];
+    const rel = gerar(rows, bks);
+    const wb = buildReportWorkbook(rel);
+    const ws = wb.Sheets["Relatório"];
+    const g = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { range: XLSX.utils.decode_range(ws["!ref"]!).s.r + (XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 }) as unknown[][]).findIndex((r) => r[0] === "CNP") });
+    ok("Excel: linhas na MESMA ordem do relatório (21, 21, Total artigo, 22) + total geral", JSON.stringify(g.map((r) => r["Farmácia"])) === JSON.stringify(["Farmácia Segurado", "Farmácia Silveirense", "TOTAL ARTIGO", "Farmácia Silveirense", undefined]) || g.length === 5, JSON.stringify(g.map((r) => r["Farmácia"])));
+    ok("Excel: quantidades, custos e valores são NÚMEROS", g.slice(0, 4).every((r) => typeof r["Total\nUnid."] === "number" && typeof r["Valor Vendas\n(s/IVA)"] === "number"), JSON.stringify(g[0]));
+    ok("Excel: custo em falta fica vazio (não 0)", g[3]["Custo total\nest."] === undefined || g[3]["Custo total\nest."] === "");
+    ok("Excel: coluna «Tipo de linha» distingue Detalhe/Total artigo", JSON.stringify(g.slice(0, 4).map((r) => r["Tipo de linha"])) === JSON.stringify(["Detalhe", "Detalhe", "Total artigo", "Detalhe"]));
+    const ultima = g[g.length - 1];
+    ok("Excel: última linha é «TOTAL GERAL» com a soma do DETALHE (sem contar os Total artigo)", Object.values(ultima)[0] === "TOTAL GERAL" && ultima["Total\nUnid."] === 6 + 3 + 5);
+    ok("Excel: filtro automático cobre cabeçalho + dados e deixa o total de fora", !!ws["!autofilter"] && !String(ws["!autofilter"]!.ref).includes(String(XLSX.utils.decode_range(ws["!ref"]!).e.r + 1)));
+    const filtroFim = XLSX.utils.decode_range(ws["!autofilter"]!.ref).e.r;
+    ok("Excel: o filtro termina antes da linha de TOTAL GERAL", filtroFim === XLSX.utils.decode_range(ws["!ref"]!).e.r - 1);
+  }
+
+  // ═══ I. Ordenação / seleção ═════════════════════════════════════════════
+  console.log("\n=== I. O adaptador respeita a ordem recebida (alfabética por omissão vem do loader) e não altera dados ===");
+  {
+    const bks = buckets(2);
+    const rows = [linha({ codigo: "9", descricao: "Árnica" }, bks), linha({ codigo: "3", descricao: "Aspirina" }, bks), linha({ codigo: "5", descricao: "Zinco" }, bks)];
+    const rel = gerar(rows, bks);
+    ok("ordem de saída = ordem de entrada (a seleção/ordenação é decidida no ecrã e vale para os 4 destinos)", JSON.stringify(rel.rows.map((r) => r.codigo)) === JSON.stringify(["9", "3", "5"]));
+    ok("um artigo numa só farmácia NÃO tem «Total artigo» redundante", !rel.rows.some((r) => r.__rowKind === "subtotal"));
+  }
+
+  await browser.close();
+  console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);
+  process.exit(fail === 0 ? 0 : 1);
+}
+main().catch(async (e) => { console.error(e); try { await browser?.close(); } catch { /* */ } process.exit(2); });

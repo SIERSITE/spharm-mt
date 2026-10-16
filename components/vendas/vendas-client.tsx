@@ -699,23 +699,20 @@ export function VendasClient({
    * controlo de seleção fica na 1.ª ocorrência do código.
    */
   const infoLinhas = useMemo(() => {
+    const contiguo = agruparPor === "artigo";
     const vistos = new Set<string>();
+    const out: Array<{ inicioArtigo: boolean; grupoAlt: boolean; primeiraDoCodigo: boolean; mostrarIdentificacao: boolean }> = [];
     let grupo = -1;
     let codigoAnterior: string | null = null;
-    return linhasTabela.map(({ row, subtotal }) => {
-      const contiguo = agruparPor === "artigo";
+    for (const { row, subtotal } of linhasTabela) {
       const inicioArtigo = !subtotal && (!contiguo || row.codigo !== codigoAnterior);
       if (inicioArtigo) grupo += 1;
       if (!subtotal) codigoAnterior = row.codigo;
       const primeiraDoCodigo = !subtotal && !vistos.has(row.codigo);
       if (primeiraDoCodigo) vistos.add(row.codigo);
-      return {
-        inicioArtigo,
-        grupoAlt: grupo % 2 === 1,
-        primeiraDoCodigo,
-        mostrarIdentificacao: contiguo ? inicioArtigo : true,
-      };
-    });
+      out.push({ inicioArtigo, grupoAlt: grupo % 2 === 1, primeiraDoCodigo, mostrarIdentificacao: contiguo ? inicioArtigo : true });
+    }
+    return out;
   }, [linhasTabela, agruparPor]);
 
   const resumo = useMemo(() => {

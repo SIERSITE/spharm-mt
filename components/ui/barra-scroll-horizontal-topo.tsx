@@ -7,6 +7,10 @@ import { useEffect, useRef, useState } from "react";
  * cabe. Assim o scroll horizontal está sempre à mão, sem ter de descer centenas de linhas até ao fim. Só de ecrã —
  * nunca entra na impressão/PDF/Excel/email (`print:hidden` + `data-nao-imprimir`).
  */
+function moverScrollHorizontal(el: HTMLElement, x: number) {
+  if (el.scrollLeft !== x) el.scrollLeft = x;
+}
+
 export function BarraScrollHorizontalTopo({ alvo }: { alvo: React.RefObject<HTMLDivElement | null> }) {
   const barra = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(0);
@@ -42,7 +46,7 @@ export function BarraScrollHorizontalTopo({ alvo }: { alvo: React.RefObject<HTML
   });
   const daBarra = () => {
     const el = alvo.current;
-    if (el && barra.current && el.scrollLeft !== barra.current.scrollLeft) el.scrollLeft = barra.current.scrollLeft;
+    if (el && barra.current) moverScrollHorizontal(el, barra.current.scrollLeft);
   };
   return (
     <div

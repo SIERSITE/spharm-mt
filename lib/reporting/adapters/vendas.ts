@@ -256,7 +256,7 @@ function colunaPct(textos: string[], cabecalho: string, d: Densidade, extraPx = 
 
 /**
  * Regra para períodos longos: até MAX_MESES_POR_BLOCO (13) meses, uma coluna por mês numa só tabela; acima, o período
- * reparte-se em ceil(n / 13) blocos de tamanho o mais igual possível (14 → 7+7; 24 → 12+12; 26 → 9+9+8), cada um numa
+ * reparte-se em ceil(n / 13) blocos de tamanho o mais igual possível (14 → 7+7; 24 → 12+12; 27 → 9+9+9; 28 → 10+9+9), cada um numa
  * página nova com a identificação do artigo e os totais do PERÍODO COMPLETO repetidos. Nunca se corta nem se esconde um mês.
  */
 export function repartirMeses(n: number): number[] {
