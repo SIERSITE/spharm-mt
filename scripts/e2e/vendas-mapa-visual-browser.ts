@@ -240,8 +240,10 @@ async function main() {
       check(!transborda || info.barraVisivel, `${w}×${h}: ${transborda ? `tabela mais larga (${info.sw} > ${info.cw}) → barra de scroll no TOPO visível` : "a tabela cabe sem scroll horizontal"}`);
       if (transborda) {
         // alcançar a última coluna SEM descer ao fim da tabela
-        await page.evaluate(() => { const b = document.querySelector('[data-testid="barra-scroll-topo"]') as HTMLElement; b.scrollLeft = b.scrollWidth; });
-        await page.waitForTimeout(300);
+        await page.evaluate((sel2) => { (document.querySelector(sel2) as HTMLElement).scrollTop = 0; const b = document.querySelector('[data-testid="barra-scroll-topo"]') as HTMLElement; b.scrollLeft = b.scrollWidth; }, SEL);
+        // a barra espelho propaga o scroll para a tabela de forma assíncrona (evento scroll): espera até estabilizar
+        await page.waitForFunction((sel2) => { const c = document.querySelector(sel2) as HTMLElement; return c.scrollLeft > 0 && c.scrollLeft + c.clientWidth >= c.scrollWidth - 2; }, SEL, { timeout: 10000 }).catch(() => undefined);
+        await page.waitForTimeout(200);
         const r = await page.evaluate((sel) => {
           const c = document.querySelector(sel) as HTMLElement;
           const ths = Array.from(c.querySelectorAll("thead th")) as HTMLElement[];
