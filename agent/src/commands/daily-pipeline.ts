@@ -85,7 +85,8 @@ import {
 import { avaliarSaudeVendas, type VeredictoVendas } from "../saude-vendas.js";
 import { ontemNaFarmacia } from "../janela.js";
 import { janelaConsulta } from "../catch-up.js";
-import { acquireLock, descreverLock, lockPertenceAEsteProcesso, releaseLock } from "../lock-pipeline.js";
+import { acquireLock, descreverLock, ErroLockPerdido, exigirLock, lockPerdidoAgora, lockPertenceAEsteProcesso, releaseLock } from "../lock-pipeline.js";
+import { correrSubcomando } from "../subprocesso.js";
 import { eFalhaSqlTransitoria, esperasSqlDoAmbiente } from "../sql-erros.js";
 
 const RULE = "─".repeat(70);
@@ -202,18 +203,14 @@ function printHelp(): void {
  * invoca: uma só implementação destes pipelines, com as mesmas flags e a
  * mesma idempotência.
  */
-function correrComandoDoDia(cmd: string, date: string, extra: string[] = [], etapa?: string): number {
+async function correrComandoDoDia(cmd: string, date: string, extra: string[] = [], etapa?: string): Promise<number> {
   const entry = process.argv[1] ?? "";
   const isTs = entry.endsWith(".ts");
   const args = [cmd, "--from", date, "--to", date, ...extra];
   const nodeArgs = isTs ? ["--import", "tsx", entry, ...args] : [entry, ...args];
   // O dia/etapa só servem para o log do cliente HTTP do subprocesso (nunca dados de negócio).
-  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: { ...process.env, SPHARMMT_CTX_DIA: date, SPHARMMT_CTX_ETAPA: etapa ?? cmd } });
-  if (r.error) {
-    console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
-    return 1;
-  }
-  return typeof r.status === "number" ? r.status : 1;
+  // Assíncrono e vigiado: se esta execução perder o lock, o subprocesso é terminado (ver subprocesso.ts).
+  return correrSubcomando(nodeArgs, { ...process.env, SPHARMMT_CTX_DIA: date, SPHARMMT_CTX_ETAPA: etapa ?? cmd }, { perdido: lockPerdidoAgora, nome: cmd });
 }
 
 /**
@@ -223,19 +220,11 @@ function correrComandoDoDia(cmd: string, date: string, extra: string[] = [], eta
  * `--from/--to` — o seu `parseArgs` corre com `strict: true`, portanto
  * passar-lhos não seria ignorado: rebentava com "unknown option".
  */
-function correrComandoSemJanela(cmd: string, date?: string, etapa?: string): number {
+async function correrComandoSemJanela(cmd: string, date?: string, etapa?: string): Promise<number> {
   const entry = process.argv[1] ?? "";
   const isTs = entry.endsWith(".ts");
   const nodeArgs = isTs ? ["--import", "tsx", entry, cmd] : [entry, cmd];
-  const r = spawnSync(process.execPath, nodeArgs, {
-    stdio: "inherit",
-    env: { ...process.env, ...(date ? { SPHARMMT_CTX_DIA: date } : {}), SPHARMMT_CTX_ETAPA: etapa ?? cmd },
-  });
-  if (r.error) {
-    console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
-    return 1;
-  }
-  return typeof r.status === "number" ? r.status : 1;
+  return correrSubcomando(nodeArgs, { ...process.env, ...(date ? { SPHARMMT_CTX_DIA: date } : {}), SPHARMMT_CTX_ETAPA: etapa ?? cmd }, { perdido: lockPerdidoAgora, nome: cmd });
 }
 
 /**
@@ -924,6 +913,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       pipelineLog.log(`⏭ Step 1/2: daily-sync já concluído na tentativa anterior — não se repete.`);
     } else {
       const tDailySync = Date.now();
+      exigirLock(); // ponto seguro: perdi o lock? então não escrevo mais nada
       client.definirContexto({ dia: parsedDate, etapa: "daily-sync" });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ Step 1/2: daily-sync ${parsedDate}`);
@@ -999,9 +989,10 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ ${p.label} ${parsedDate}`);
       pipelineLog.raw(RULE);
+      exigirLock(); // ponto seguro: perdi o lock? então não lanço mais nenhuma fase
       const rc = p.janela
-        ? correrComandoDoDia(p.cmd, parsedDate, [], p.label)
-        : correrComandoSemJanela(p.cmd, parsedDate, p.label);
+        ? await correrComandoDoDia(p.cmd, parsedDate, [], p.label)
+        : await correrComandoSemJanela(p.cmd, parsedDate, p.label);
       const dur = Date.now() - t0;
       if (rc === 0) {
         steps.push({ name: p.label, status: "OK", durationMs: dur });
@@ -1037,6 +1028,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       pipelineLog.log(`⏭ Refresh operacional já concluído na tentativa anterior — não se repete.`);
     } else {
       const t0 = Date.now();
+      exigirLock();
       client.definirContexto({ dia: parsedDate, etapa: "refresh-operacional" });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ Refresh operacional (catálogo inteiro) ${parsedDate}`);
@@ -1087,6 +1079,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       steps.push({ name: "designacoes", status: "OK", durationMs: 0, message: "já concluído na tentativa anterior (checkpoint)" });
     } else {
       const t0 = Date.now();
+      exigirLock();
       client.definirContexto({ dia: parsedDate, etapa: "designacoes" });
       try {
         const dz = await withPool(cfg, async (pool) =>
@@ -1120,6 +1113,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       pipelineLog.log(`⏭ Step 2/2: aggregate-month já concluído na tentativa anterior — não se repete.`);
     } else {
       const tAgg = Date.now();
+      exigirLock();
       client.definirContexto({ dia: parsedDate, etapa: "aggregate-month" });
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ Step 2/2: aggregate-month ${month}`);
@@ -1185,14 +1179,23 @@ async function correrDiaCompleto(parsedDate: string, args: Args, ctx: CtxTentati
       }
     }
   } catch (err) {
-    pipelineStatus = "ERROR";
+    pipelineStatus = err instanceof ErroLockPerdido ? "ABORTED" : "ERROR";
     errorMessage = redigir(err instanceof Error ? err.message : String(err), [cfg.ingestKey]);
-    marcarFalha("inesperado", ehTransitoria(err));
+    marcarFalha(err instanceof ErroLockPerdido ? "lock" : "inesperado", ehTransitoria(err));
     pipelineLog.log(`✗ ERROR inesperado: ${errorMessage}`);
     return sair(1);
   } finally {
     const wallMs = Date.now() - t0;
     const finishedAt = new Date();
+    // Perdi o lock durante esta tentativa (reclamado com --force, apagado…)? Não continuo, não retomo e não toco no lock da nova dona.
+    if (lockPerdidoAgora()) {
+      pipelineStatus = "ABORTED";
+      errorMessage = `LOCK PERDIDO: outra execução tem agora o run/pipeline.lock — esta execução parou antes de escrever mais. ${errorMessage ?? ""}`.trim();
+      falhasTransitorias = 0;
+      falhasPermanentes = Math.max(1, falhasPermanentes);
+      passoFalhado = "lock";
+      pipelineLog.log("✗ LOCK PERDIDO: esta execução abortou (nenhuma escrita posterior; o lock da nova dona não é tocado).");
+    }
     // Só se retoma se TODAS as falhas desta tentativa foram transitórias.
     const transitoria = pipelineStatus !== "OK" && falhasTransitorias > 0 && falhasPermanentes === 0;
     const vaiRetomar = !ctx.ultima && transitoria;

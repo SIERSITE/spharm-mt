@@ -76,7 +76,8 @@
  * NÃO toca dashboard / export-orders / outbox workers.
  */
 
-import { adquirirLock, type LockHandle } from "../lock-pipeline.js";
+import { adquirirLock, exigirLock, lockPerdidoAgora, type LockHandle } from "../lock-pipeline.js";
+import { correrSubcomando } from "../subprocesso.js";
 import { parseArgs } from "node:util";
 import { promises as fs } from "node:fs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -221,22 +222,16 @@ function persistState(state: StateFile): void {
 // Subprocess: invoca um comando-irmão do agent (fornecedores/compras/devol.)
 // ─────────────────────────────────────────────────────────────────────
 
-function spawnAgentCommand(cmd: string, extraArgs: string[]): number {
+async function spawnAgentCommand(cmd: string, extraArgs: string[]): Promise<number> {
   const entry = process.argv[1] ?? "";
   const isTs = entry.endsWith(".ts");
   // Produção: `node agent.cjs <cmd>`. Dev (tsx): `node --import tsx cli.ts <cmd>`.
   const nodeArgs = isTs
     ? ["--import", "tsx", entry, cmd, ...extraArgs]
     : [entry, cmd, ...extraArgs];
-  const r = spawnSync(process.execPath, nodeArgs, {
-    stdio: "inherit",
-    env: process.env,
-  });
-  if (r.error) {
-    console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
-    return 1;
-  }
-  return typeof r.status === "number" ? r.status : 1;
+  exigirLock(); // ponto seguro: perdi o lock? então não lanço mais nenhuma fase
+  // Assíncrono e vigiado: se o full-sync perder o lock, o subprocesso é terminado (ver subprocesso.ts).
+  return correrSubcomando(nodeArgs, process.env, { perdido: lockPerdidoAgora, nome: cmd });
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -547,15 +542,15 @@ export async function fullSync(): Promise<number> {
 
     // ── Fases 4-6: subprocess dos comandos provados ──
     await execPhase("fornecedores", async () => {
-      const code = spawnAgentCommand(dryRun ? "fornecedores-dry-run" : "fornecedores-upload", []);
+      const code = await spawnAgentCommand(dryRun ? "fornecedores-dry-run" : "fornecedores-upload", []);
       return { status: code === 0 ? "DONE" : "FAILED", metric: `exit=${code}` };
     });
     await execPhase("compras", async () => {
-      const code = spawnAgentCommand(dryRun ? "compras-dry-run" : "compras-upload", ["--from", from, "--to", to]);
+      const code = await spawnAgentCommand(dryRun ? "compras-dry-run" : "compras-upload", ["--from", from, "--to", to]);
       return { status: code === 0 ? "DONE" : "FAILED", metric: `exit=${code}` };
     });
     await execPhase("devolucoes", async () => {
-      const code = spawnAgentCommand(
+      const code = await spawnAgentCommand(
         dryRun ? "devolucoes-fornecedor-dry-run" : "devolucoes-fornecedor-upload",
         ["--from", from, "--to", to]
       );
@@ -620,7 +615,7 @@ export async function fullSync(): Promise<number> {
     // permite retomar esta fase depois de uma falha a meio sem limpar
     // nada primeiro.
     await execPhase("movimentos", async () => {
-      const code = spawnAgentCommand(dryRun ? "stocksmov-dry-run" : "stocksmov-upload", [
+      const code = await spawnAgentCommand(dryRun ? "stocksmov-dry-run" : "stocksmov-upload", [
         "--from",
         from,
         "--to",
