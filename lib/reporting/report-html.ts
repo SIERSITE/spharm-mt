@@ -380,7 +380,15 @@ function renderTable(report: Report): string {
           const tone = cellToneClass(valor, c);
           if (tone) classes.push(tone);
           if (c.noClip) classes.push("nc");
+          if (c.spanGroup) classes.push("sg");
           if (mesAlt.has(c.key)) classes.push("mes-alt");
+          if (c.monthAlt) {
+            // zero → «·» apagado; > 0 → semibold; < 0 (devoluções) → bold a vermelho-escuro (o sinal «-» mantém-se)
+            const nv = numericValue(valor);
+            if (nv === 0) classes.push("mes-v");
+            else if (nv !== null && nv < 0) classes.push("mq", "mneg");
+            else if (nv !== null) classes.push("mq");
+          }
           let conteudoBase = escapeHtml(cellText(row, c));
           if (c.stockIndicator && !subtotal) {
             const st = stockClass(valor);
@@ -467,17 +475,28 @@ function renderTable(report: Report): string {
     const tableDensity = report.meta?.tableDensity;
     const tableClass = tableDensity && tableDensity !== "cozy" ? ` class="table-density-${tableDensity}"` : "";
 
+    // Hierarquia «clean»: a contagem e as notas do relatório vão numa linha FINAL DA PRÓPRIA TABELA. Fora dela (como
+    // `.report-footer`) podiam cair sozinhas numa página nova, sem o cabeçalho da tabela; dentro, se não couberem, a
+    // página seguinte repete o cabeçalho.
+    const notaFinal =
+      ultimo && report.meta?.hierarchy === "clean"
+        ? `<tbody class="nota-tbody"><tr><td colspan="${colsB.length}"><div class="nota-count">${escapeHtml(
+            report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`,
+          )}</div><div class="nota-final"><span class="footer-note">${escapeHtml(report.meta?.footer ?? "SPharm.MT")}</span><span class="footer-brand">SPharm.MT · www.spharm.pt</span></div></td></tr></tbody>`
+        : "";
+
     return `
       <table${tableClass}>
         <colgroup>${colgroup}</colgroup>
         <thead><tr>${headerCells}</tr></thead>
         ${tbodyHtml}
         ${totalsRow}
+        ${notaFinal}
       </table>`;
   };
 
   const nota = report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`;
-  const rodapeTabela = `<div class="row-count">${escapeHtml(nota)}</div>`;
+  const rodapeTabela = report.meta?.hierarchy === "clean" ? "" : `<div class="row-count">${escapeHtml(nota)}</div>`;
 
   if (!blocos) {
     return `
@@ -504,6 +523,7 @@ function renderTable(report: Report): string {
 
 function renderFooter(report: Report): string {
   const footer = report.meta?.footer ?? "SPharm.MT";
+  if (report.meta?.hierarchy === "clean") return ""; // a nota vai na última linha da tabela (ver `notaFinal`)
   if (!isCompact(report)) {
     return `<footer class="report-footer">${escapeHtml(footer)}</footer>`;
   }
@@ -959,6 +979,111 @@ const STYLES = `
     border-left: 4px solid #111827; background: #f3f4f6;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     HIERARQUIA LIMPA — meta.hierarchy:"clean" (Mapa de Vendas, 2026-10)
+     Relatório leve e profissional, na direção do PDF de referência do cliente:
+       cabeçalho da tabela .... fundo quase branco, texto escuro, UMA linha inferior (1.5px)
+       corpo .................. SEM grelha: sem linhas verticais, sem caixas por célula; só filetes horizontais
+                                finos (#eceff3) entre farmácias
+       artigo ................. espaço no topo + UMA linha fina (1px) a separá-lo do anterior; sem zebra
+       linhas da farmácia ..... subordinadas (texto normal, cinzento escuro)
+       TOTAL ARTIGO ........... fundo cinzento muito claro + semibold, sem molduras
+       TOTAL GERAL ............ cinzento claro, bold, linha superior de 1.5px (nível acima do subtotal)
+       meses .................. brancos, com película de 2.5 % em meses alternados; valores > 0 a semibold, «·» a cinzento
+       stock .................. positivo: número; zero: contorno fino; negativo: pastilha escura pequena
+     A hierarquia não depende só da cor (peso, espaço, filetes) — lê-se em escala de cinzentos.
+     Escopado a .hierarchy-clean: Margens (hierarchy-strong) fica exactamente como estava.
+     ═══════════════════════════════════════════════════════════════════ */
+  .page.density-compact.hierarchy-clean { color: #1f2937; }
+  .page.density-compact.hierarchy-clean .report-header.compact { border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 5px; }
+  .page.density-compact.hierarchy-clean .head-title h1 { font-size: 17px; color: #111827; }
+  .page.density-compact.hierarchy-clean .filter-line { font-size: 9.5px; color: #4b5563; row-gap: 3px; }
+  .page.density-compact.hierarchy-clean .filter-item:not(:last-child) { border-right: 1px solid #e5e7eb; }
+  .page.density-compact.hierarchy-clean .table-wrap { margin-top: 8px; }
+
+  /* tabela: sem grelha */
+  .page.density-compact.hierarchy-clean table { border-collapse: collapse; }
+  .page.density-compact.hierarchy-clean thead th {
+    background: #f8fafc !important; color: #1f2937 !important; font-weight: 600;
+    border: 0; border-bottom: 1.5px solid #334155; padding-top: 5px; padding-bottom: 5px;
+    text-transform: none; letter-spacing: 0; line-height: 1.25; vertical-align: bottom;
+  }
+  .page.density-compact.hierarchy-clean tbody td {
+    border: 0; border-bottom: 1px solid #eef0f3;
+    color: #374151; line-height: 1.3; vertical-align: middle;
+  }
+  .page.density-compact.hierarchy-clean tbody.row-group td,
+  .page.density-compact.hierarchy-clean tbody.row-group-alt td,
+  .page.density-compact.hierarchy-clean tbody tr:hover td { background: #ffffff !important; }
+
+  /* artigo: espaço + uma linha fina a separá-lo do anterior */
+  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { border-top: 1px solid #6b7280; padding-top: 5px; }
+  .page.density-compact.hierarchy-clean tbody.row-group:first-of-type > tr:first-child > td { border-top: 0; }
+  .page.density-compact.hierarchy-clean tbody.row-group > tr:last-child > td { border-bottom: 0; }
+  .page.density-compact.hierarchy-clean tbody td.sg { color: #111827; vertical-align: middle; }
+  .page.density-compact.hierarchy-clean tbody td.sg + td.sg { font-weight: 600; }
+  .page.density-compact.hierarchy-clean tbody td.sg:first-child { color: #374151; font-weight: 500; }
+  .page.density-compact.hierarchy-clean tbody tr.subtotal-row td strong { font-weight: 600; }
+
+  /* TOTAL ARTIGO: cinzento muito claro, semibold, sem molduras */
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td,
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row:hover td {
+    background: #f1f3f6 !important; color: #111827; font-weight: 600;
+    border: 0; border-top: 1px solid #e2e5ea; padding-top: 3.5px; padding-bottom: 3.5px;
+  }
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td:first-child { border-left: 0; }
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.cell-tone-danger,
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.cell-tone-success { background: #f1f3f6 !important; }
+
+  /* TOTAL GERAL: um nível acima do subtotal, ainda leve */
+  .page.density-compact.hierarchy-clean .totals-tbody td {
+    background: #e5e8ed !important; color: #111827; font-weight: 700;
+    border: 0; border-top: 1.5px solid #334155; border-bottom: 1px solid #334155;
+    padding-top: 5px; padding-bottom: 5px;
+  }
+
+  /* meses: brancos; película mínima nos alternados; valores com peso, «·» apagado */
+  .page.density-compact.hierarchy-clean tbody td.mes-alt { background-image: linear-gradient(rgba(15, 23, 42, 0.028), rgba(15, 23, 42, 0.028)) !important; }
+  .page.density-compact.hierarchy-clean thead th.mes-alt { background-image: none !important; }
+  .page.density-compact.hierarchy-clean tbody td.mes-v { color: #9ca3af; }
+  .page.density-compact.hierarchy-clean tbody td.mq { color: #111827; font-weight: 600; }
+  .page.density-compact.hierarchy-clean tbody tr.subtotal-row td.mes-v { color: #9ca3af; }
+  .page.density-compact.hierarchy-clean tbody td.mneg { color: #111827; font-weight: 700; color: #7f1d1d; }
+
+  /* stock: positivo = número (tom verde muito leve); zero = contorno fino; negativo = pastilha escura pequena */
+  .page.density-compact.hierarchy-clean tbody td.cell-tone-success { background: #f0f8f3 !important; color: #14532d; }
+  .page.density-compact.hierarchy-clean tbody td.cell-tone-danger { background: #fcf0f0 !important; color: #7f1d1d; }
+  .page.density-compact.hierarchy-clean tbody td.stk-neg { background: #fcf0f0 !important; }
+  .page.density-compact.hierarchy-clean tbody td.stk-pos { font-weight: 500; }
+  .page.density-compact.hierarchy-clean tbody td.stk-zero .stk-box {
+    min-width: 1.4em; padding: 0 2px; border: 1px solid #6b7280; border-radius: 2px; color: #7f1d1d; font-weight: 600;
+  }
+  .page.density-compact.hierarchy-clean tbody td.stk-neg .stk-box {
+    min-width: 1.4em; padding: 0 2px; background: #374151 !important; color: #ffffff !important; border-radius: 2px; font-weight: 700;
+  }
+
+  /* blocos temporais: legenda discreta */
+  .page.density-compact.hierarchy-clean .bloco-titulo { background: #f8fafc; border-left: 3px solid #94a3b8; color: #374151; margin-top: 6px; }
+  .page.density-compact.hierarchy-clean .row-count { color: #6b7280; }
+  .page.density-compact.hierarchy-clean tbody.nota-tbody td { border: 0 !important; background: #ffffff !important; padding: 8px 0 0 0; font-size: 8px; line-height: 1.35; color: #6b7280; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
+  .page.density-compact.hierarchy-clean .nota-count { text-align: right; font-style: italic; margin-bottom: 4px; }
+  .page.density-compact.hierarchy-clean .nota-final { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+  .page.density-compact.hierarchy-clean .nota-final .footer-note { max-width: 82%; }
+  .page.density-compact.hierarchy-clean .nota-final .footer-brand { white-space: nowrap; }
+  .page.density-compact.hierarchy-clean .report-footer.compact { color: #6b7280; font-size: 8px; margin-top: 8px; }
+
+  /* tipografia: maior e com mais respiração (o adapter mede as larguras com as mesmas métricas) */
+  .page.density-compact.hierarchy-clean table { font-size: 10px; }
+  .page.density-compact.hierarchy-clean thead th { font-size: 9px; padding-left: 5px; padding-right: 5px; }
+  .page.density-compact.hierarchy-clean tbody td { padding: 3.5px 5px; }
+  .page.density-compact.hierarchy-clean table.table-density-tight { font-size: 9px; }
+  .page.density-compact.hierarchy-clean table.table-density-tight thead th { font-size: 8px; padding-left: 4px; padding-right: 4px; }
+  .page.density-compact.hierarchy-clean table.table-density-tight tbody td { padding: 3px 4px; }
+  .page.density-compact.hierarchy-clean table.table-density-ultratight { font-size: 8.5px; }
+  .page.density-compact.hierarchy-clean table.table-density-ultratight thead th { font-size: 7.5px; padding-left: 3px; padding-right: 3px; }
+  .page.density-compact.hierarchy-clean table.table-density-ultratight tbody td { padding: 2.5px 3px; }
+  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { padding-top: 5px; }
+
   @media print {
     html, body { width: 100%; }
     .bloco-novo { break-before: page; page-break-before: always; }
@@ -986,7 +1111,7 @@ export function renderReportHtml(report: Report): string {
   const orientation = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
   const styles = STYLES.replace("__ORIENTATION__", orientation);
   const pageClass = isCompact(report)
-    ? `page density-compact${report.meta?.hierarchy === "strong" ? " hierarchy-strong" : ""}`
+    ? `page density-compact${report.meta?.hierarchy === "strong" ? " hierarchy-strong" : report.meta?.hierarchy === "clean" ? " hierarchy-clean" : ""}`
     : "page";
 
   return `<!doctype html>

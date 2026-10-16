@@ -268,9 +268,11 @@ export type ReportMeta = {
    *     início de cada bloco, blocos alternados em tons bem distintos, linha
    *     de subtotal em negrito com fundo escuro e bordas fortes, cabeçalho de
    *     tabela de alto contraste. Pensado para papel e impressoras
-   *     monocromáticas (Vendas, 2026-10). Nunca afecta o Excel.
+   *     monocromáticas (Margens). Nunca afecta o Excel.
+   *   · "clean"         — relatório leve, sem grelha: cabeçalho de tabela claro, um filete fino por artigo,
+   *     «Total artigo» em cinzento muito claro, sem blocos escuros (Mapa de Vendas, 2026-10). Lê-se em cinzentos.
    */
-  hierarchy?: "normal" | "strong";
+  hierarchy?: "normal" | "strong" | "clean";
   /**
    * Reparte as colunas em BLOCOS TEMPORAIS (páginas) quando há demasiadas para uma página A4 legível — HTML/PDF/print
    * apenas (o Excel e o ecrã mostram sempre todas). Cada bloco omite as colunas listadas em `omitir` (as dos outros

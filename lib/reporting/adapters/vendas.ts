@@ -221,7 +221,7 @@ export const MAX_MESES_POR_BLOCO = 13;
 
 /** Largura mínima da Descrição (em %) abaixo da qual a página deixava de ser legível — os testes garantem que nunca se atinge. */
 export const DESCRICAO_MIN_PCT = 11;
-const DESCRICAO_PREFERIDA_PCT = 17;
+const DESCRICAO_PREFERIDA_PCT = 14;
 /** Largura confortável de uma coluna de mês e o mínimo absoluto (3 dígitos + sinal). */
 const MES_CONFORTO_PCT = 4.2;
 const MES_MINIMO_PCT = 2.6;
@@ -230,9 +230,9 @@ type Densidade = "cozy" | "tight" | "ultratight";
 
 /** Fontes/paddings reais do CSS (report-html.ts, `.table-density-*`). */
 const METRICAS: Record<Densidade, { td: number; th: number; pad: number }> = {
-  cozy: { td: 9, th: 8.5, pad: 5 },
-  tight: { td: 8.5, th: 7.5, pad: 4 },
-  ultratight: { td: 8, th: 7, pad: 3 },
+  cozy: { td: 10, th: 9, pad: 5 },
+  tight: { td: 9, th: 8, pad: 4 },
+  ultratight: { td: 8.5, th: 7.5, pad: 3 },
 };
 
 /** Largura estimada, em px, de um texto — por excesso (dígito de uma fonte larga ≈ 0.64 em). */
@@ -319,9 +319,11 @@ function buildColumns(
 
   // Meses: confortáveis se sobra espaço; senão encolhem até ao mínimo do CONTEÚDO — nunca abaixo (cortava o número).
   const disponivel = 100 - fixos;
-  let perMonth = mesesPorBloco > 0 ? Math.max(mesMin, MES_CONFORTO_PCT) : 0;
-  if (mesesPorBloco > 0 && disponivel - perMonth * mesesPorBloco < DESCRICAO_PREFERIDA_PCT) {
-    perMonth = Math.max(mesMin, (disponivel - DESCRICAO_PREFERIDA_PCT) / mesesPorBloco);
+  // Poucos meses: colunas de mês mais largas (relatório arejado, como no de referência); muitos: o conforto de sempre.
+  const conforto = mesesPorBloco <= 6 ? 6.2 : MES_CONFORTO_PCT;
+  let perMonth = mesesPorBloco > 0 ? Math.max(mesMin, conforto) : 0;
+  if (mesesPorBloco > 0 && disponivel - perMonth * mesesPorBloco < (mesesPorBloco <= 6 ? 22 : DESCRICAO_PREFERIDA_PCT)) {
+    perMonth = Math.max(mesMin, (disponivel - (mesesPorBloco <= 6 ? 22 : DESCRICAO_PREFERIDA_PCT)) / mesesPorBloco);
   }
   const descricaoPct = Math.max(0, disponivel - perMonth * mesesPorBloco);
 
@@ -718,7 +720,7 @@ export function buildVendasReport(input: {
       ? `Custo total PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
       : "",
     columnBlocks
-      ? `Período de ${input.buckets.length} meses repartido em ${columnBlocks.length} blocos de, no máximo, ${MAX_MESES_POR_BLOCO} meses (cada bloco pode ocupar várias páginas, com o cabeçalho repetido). Cada bloco mostra os seus meses e «Total unid. do bloco» (só desses meses); as colunas «Período:» (unidades, custo total est., valor de vendas) e o TOTAL GERAL só aparecem no fim do último bloco e referem-se ao período completo.`
+      ? `Período de ${input.buckets.length} meses em ${columnBlocks.length} blocos de, no máximo, ${MAX_MESES_POR_BLOCO} meses (cabeçalho repetido em cada página): «Total unid. do bloco» soma só os meses do bloco; as colunas «Período:» e o TOTAL GERAL só aparecem no fim do último bloco.`
       : "",
   ].filter(Boolean).join(" ");
 
@@ -740,7 +742,7 @@ export function buildVendasReport(input: {
       density: "compact",
       // Impressão/PDF: hierarquia que sobrevive a papel e a preto e branco
       // (borda forte por artigo, blocos alternados, TOTAL ARTIGO escuro).
-      hierarchy: "strong",
+      hierarchy: "clean",
       tableDensity: density,
       columnBlocks,
       tableNote: `${artigos} artigo${artigos === 1 ? "" : "s"} · ${input.rows.length} linha${input.rows.length === 1 ? "" : "s"} de detalhe`,

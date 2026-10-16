@@ -130,7 +130,7 @@ async function main() {
       const contagem = meses.map((k) => blocos.filter((b) => !b.omitir.includes(k)).length);
       ok(`${n} meses: ${blocos.length} blocos; cada mês em exactamente um bloco (nenhum cortado nem duplicado)`, blocos.length === Math.ceil(n / 13) && contagem.every((c) => c === 1));
       ok(`${n} meses: nenhum bloco com mais de 13 meses`, blocos.every((b) => meses.length - b.omitir.length <= 13));
-      ok(`${n} meses: o rodapé explica a divisão em partes`, (rel.meta?.footer ?? "").includes("repartido em"));
+      ok(`${n} meses: o rodapé explica a divisão em partes`, /em \d+ blocos de, no máximo, 13 meses/.test(rel.meta?.footer ?? ""));
       const html = renderReportHtml(rel);
       ok(`${n} meses: o HTML tem ${blocos.length} tabelas e TOTAL GERAL apenas no último bloco`,
         (html.match(/<table/g) ?? []).length === blocos.length && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
@@ -243,13 +243,13 @@ async function main() {
     ok(`${nMeses} meses: ${nBlocos} blocos identificados («Parte i de ${nBlocos}»)`, inicio.every((i) => i >= 0) && inicio.every((v, i) => i === 0 || v > inicio[i - 1]));
     const fins = inicio.map((v, i) => (i + 1 < nBlocos ? inicio[i + 1] : p.paginas.length));
     ok(`${nMeses} meses: CADA bloco ocupa várias páginas (${inicio.map((v, i) => fins[i] - v).join("+")})`, inicio.every((v, i) => fins[i] - v >= 2));
-    ok(`${nMeses} meses: o cabeçalho repete-se em TODAS as páginas de TODOS os blocos`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")));
+    ok(`${nMeses} meses: o cabeçalho repete-se em TODAS as páginas de TODOS os blocos`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")), txtPag.map((t, i) => `${i + 1}:${t.includes("CNP")}/${t.includes("Descrição")}/${t.includes("Stock")}`).join(" "));
     // nenhum artigo desaparece nem se repete dentro do mesmo bloco
     const cnpsPorBloco = inicio.map((v, i) => new Set([...txtPag.slice(v, fins[i]).join(" ").matchAll(/\b70\d{5}\b/g)].map((m) => m[0])));
     ok(`${nMeses} meses: os 90 artigos aparecem em CADA bloco (nenhum desaparece ou fica cortado)`, cnpsPorBloco.every((c) => c.size === 90));
     // linha TOTAL GERAL: uma só, na última página, depois do último artigo
     const nTG = linhasTodas.filter((l) => l.startsWith("TOTAL GERAL")).length;
-    ok(`${nMeses} meses: «TOTAL GERAL» uma única vez, no fim do último bloco`, nTG === 1 && txtPag[p.paginas.length - 1].includes("TOTAL GERAL"));
+    ok(`${nMeses} meses: «TOTAL GERAL» uma única vez, no fim do último bloco`, nTG === 1 && txtPag[p.paginas.length - 1].includes("TOTAL GERAL"), `nTG=${nTG} ultima=${txtPag[p.paginas.length - 1].slice(0, 200)}`);
     // regra inequívoca dos totais
     const ultimoTxt = txtPag.slice(inicio[nBlocos - 1], fins[nBlocos - 1]).join(" ");
     ok(`${nMeses} meses: colunas «Total unid. do bloco» em todos os blocos`, inicio.every((v, i) => txtPag.slice(v, fins[i]).join(" ").includes("do bloco")));
@@ -394,6 +394,47 @@ async function main() {
     const rel = gerar(rows, bks);
     ok("ordem de saída = ordem de entrada (a seleção/ordenação é decidida no ecrã e vale para os 4 destinos)", JSON.stringify(rel.rows.map((r) => r.codigo)) === JSON.stringify(["9", "3", "5"]));
     ok("um artigo numa só farmácia NÃO tem «Total artigo» redundante", !rel.rows.some((r) => r.__rowKind === "subtotal"));
+  }
+
+  // ═══ J. Aspeto limpo (hierarchy "clean"): sem faixa escura, sem grelha, filetes finos, subtotal leve ═══
+  console.log("\n=== J. Aspeto limpo: cabeçalho claro, sem grelha completa, filetes finos, subtotal/total leves (CSS + PDF real, em cinzentos) ===");
+  {
+    const bks = buckets(13);
+    const rows: VendasAdapterRow[] = [];
+    for (let i = 0; i < 40; i++) {
+      for (const f of i % 3 === 0 ? [FARM[1]] : FARM) rows.push(linha({ codigo: String(6700000 + i), descricao: `Artigo limpo ${i}`, farmacia: f, qtd: (i % 3) + 1, stock: i % 6 === 0 ? 0 : i % 11 === 0 ? -2 : 8 }, bks));
+    }
+    const rel = gerar(rows, bks);
+    const html = renderReportHtml(rel);
+    const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+    const clean = css.slice(css.indexOf("HIERARQUIA LIMPA"), css.indexOf("@media print {"));
+    ok("Vendas usa a hierarquia limpa", rel.meta?.hierarchy === "clean" && /class="page density-compact hierarchy-clean"/.test(html));
+    ok("cabeçalho da tabela: fundo quase branco, texto escuro, SEM faixa azul-escura", /hierarchy-clean thead th \{[^}]*background: #f8fafc[^}]*color: #1f2937/.test(clean) && !/hierarchy-clean thead th \{[^}]*background: #(0|1)/.test(clean));
+    ok("cabeçalho da tabela: uma única linha inferior de 1.5px, sem contornos nas células", /hierarchy-clean thead th \{[^}]*border: 0; border-bottom: 1\.5px solid/.test(clean));
+    ok("corpo: sem caixa por célula (border:0) e só filete horizontal fino (1px)", /hierarchy-clean tbody td \{\s*border: 0; border-bottom: 1px solid #eef0f3/.test(clean));
+    ok("nenhuma linha vertical (border-left/right) no corpo clean", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(clean));
+    const espessuras = [...clean.matchAll(/border(?:-top|-bottom)?:\s*([0-9.]+)px/g)].map((m) => Number(m[1]));
+    ok(`todas as linhas do relatório limpo têm ≤ 1.5px (máx. ${Math.max(...espessuras)}px)`, espessuras.length > 0 && Math.max(...espessuras) <= 1.5);
+    ok("«Total artigo»: fundo cinzento muito claro (#f1f3f6), semibold, sem molduras", /tr\.subtotal-row td,[^{]*\{\s*background: #f1f3f6 !important;[^}]*font-weight: 600;\s*border: 0;/.test(clean));
+    ok("«TOTAL GERAL»: nível acima do subtotal (bold, fundo #e5e8ed), sem bloco escuro", /\.totals-tbody td \{\s*background: #e5e8ed !important;[^}]*font-weight: 700/.test(clean));
+    const fundos = [...clean.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
+    ok(`único fundo escuro no relatório limpo: a pastilha do stock negativo (${fundos.join(",")})`, fundos.length === 1 && fundos[0] === "374151");
+    ok("os meses não têm linhas verticais nem fundo forte (película ≤ 3 %)", /rgba\(15, 23, 42, 0\.028\)/.test(clean) && !/mes-alt[^{]*\{[^}]*border/.test(clean));
+    ok("nota/legenda final dentro da tabela (nunca órfã numa página sem cabeçalho)", /<tbody class="nota-tbody">/.test(html) && !/<footer class="report-footer/.test(html));
+    ok("Margens (hierarchy-strong) mantém o seu desenho: regras strong intactas", /hierarchy-strong thead th \{[^}]*background: #1f2937/.test(css));
+
+    // PDF real, a CINZENTOS: o cabeçalho e os totais têm fundo claro; só o stock negativo é escuro
+    const p = palavras(await pdfDe(rel, "limpo-13"));
+    const pg = p.paginas[0].palavras;
+    const gris = (txt: string) => pg.filter((w) => w[4] === txt).map((w) => w[5]);
+    ok(`PDF a cinzentos: cabeçalho «Descrição»/«Stock» sobre fundo claro (cinza ${gris("Descrição")[0]}/${gris("Stock")[0]})`, gris("Descrição")[0] > 180 && gris("Stock")[0] > 180);
+    const totArt = pg.filter((w) => w[4] === "TOTAL" && pg.some((x) => x[4] === "ARTIGO" && Math.abs(x[1] - w[1]) < 2));
+    ok(`PDF a cinzentos: «TOTAL ARTIGO» sobre cinzento claro (${totArt.map((w) => w[5]).slice(0, 3)})`, totArt.length > 0 && totArt.every((w) => w[5] > 190));
+    ok("PDF: stock negativo continua a destacar-se (pastilha escura)", p.paginas.flatMap((x) => x.palavras).filter((w) => w[4] === "-2").some((w) => w[5] < 140));
+    const ultima = p.paginas[p.paginas.length - 1].palavras;
+    const tg = ultima.find((w) => w[4] === "GERAL");
+    ok(`PDF a cinzentos: «TOTAL GERAL» sobre cinzento claro (${tg?.[5]})`, !!tg && tg[5] > 170);
+    ok("PDF: sem sobreposições — as colunas de dados não invadem a Descrição", p.paginas[0].palavras.filter((w) => w[4].startsWith("Artigo")).every((w) => w[2] < p.paginas[0].palavras.find((x) => x[4] === "Farmácia")![0]));
   }
 
   await browser.close();

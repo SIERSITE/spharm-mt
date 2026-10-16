@@ -81,10 +81,12 @@ console.log("\n=== A. Imprimir e PDF partilham o mesmo HTML/CSS ===");
 
 console.log("\n=== B. Opt-in: só Vendas pede a hierarquia forte ===");
 {
-  ok("o relatório de Vendas declara meta.hierarchy = strong", report.meta?.hierarchy === "strong");
-  ok("a página de Vendas leva a classe hierarchy-strong", /class="page density-compact hierarchy-strong"/.test(html));
+  // Vendas passou a «clean» (2026-10, fix/vendas-pdf-clean: relatório leve, sem blocos escuros); «strong» fica para Margens.
+  ok("o relatório de Vendas declara meta.hierarchy = clean", report.meta?.hierarchy === "clean");
+  ok("a página de Vendas leva a classe hierarchy-clean", /class="page density-compact hierarchy-clean"/.test(html));
+  ok("com hierarchy=strong a página leva hierarchy-strong (Margens)", /class="page density-compact hierarchy-strong"/.test(renderReportHtml({ ...report, meta: { ...report.meta!, hierarchy: "strong" } })));
   const semOptIn = renderReportHtml({ ...report, meta: { ...report.meta!, hierarchy: undefined } });
-  ok("sem meta.hierarchy a classe não aparece", /class="page density-compact"/.test(semOptIn) && !/class="page density-compact hierarchy-strong"/.test(semOptIn));
+  ok("sem meta.hierarchy a classe não aparece", /class="page density-compact"/.test(semOptIn) && !/class="page density-compact hierarchy-(strong|clean)"/.test(semOptIn));
   // Margens (2026-10, feat/margens-cnpe-cabecalhos-anuladas) adotou deliberadamente a mesma hierarquia forte.
   ok("o relatório de Margens (Por Produto) também declara meta.hierarchy = strong", /hierarchy:\s*"strong"/.test(src("lib/reporting/adapters/margens.ts")));
   const outros = ["devolucoes", "encomendas", "excessos", "inventario"].map((n) => `lib/reporting/adapters/${n}.ts`);
