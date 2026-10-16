@@ -8,7 +8,7 @@
  *
  * Corre com:  npx tsx scripts/tests/test-vendas-mapa-visual.ts
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -435,6 +435,92 @@ async function main() {
     const tg = ultima.find((w) => w[4] === "GERAL");
     ok(`PDF a cinzentos: «TOTAL GERAL» sobre cinzento claro (${tg?.[5]})`, !!tg && tg[5] > 170);
     ok("PDF: sem sobreposições — as colunas de dados não invadem a Descrição", p.paginas[0].palavras.filter((w) => w[4].startsWith("Artigo")).every((w) => w[2] < p.paginas[0].palavras.find((x) => x[4] === "Farmácia")![0]));
+  }
+
+  // ═══ K. «Incluir preços» desligado: nenhuma informação monetária nas saídas visuais; Excel completo; números +1 px ═══
+  console.log("\n=== K. Incluir preços (Relatório/impressão/PDF/email) e números +1px ===");
+  {
+    const MONETARIAS = ["pvp", "custoUnitarioEstimado", "custoEstimado", "valorBruto"];
+    const semDinheiro = (txt: string) => !/€|PVP|Custo|Valor Vendas|Valor vendas|vendas \(s\/IVA\)|PARCIAL|s\/IVA/i.test(txt);
+    for (const nMeses of [3, 13, 14, 27]) {
+      for (const farms of [1, 2]) {
+        const bks = buckets(nMeses);
+        const rows: VendasAdapterRow[] = [];
+        for (let i = 0; i < 8; i++) {
+          for (const f of farms === 1 ? [FARM[1]] : FARM) {
+            rows.push(linha({ codigo: String(5000000 + i), farmacia: f, qtd: bks.map((_, k) => (i === 3 && k === 1 ? -2 : (i + k) % 3)), custoUnit: i === 5 ? null : 999999.99, pvp: i === 2 ? 10000 : null === null ? 12.5 : 0, valor: 99999.99, stock: i % 3 === 0 ? 0 : 6 }, bks));
+          }
+        }
+        const sel = { selecionados: 5, total: 8 }; // seleção parcial
+        const base = { agruparPor: "artigo", selecaoArtigos: sel };
+        const com = gerar(rows, bks, base);
+        const sem = buildVendasReport({ rows, buckets: bks, filters: base, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste", incluirPrecos: false });
+        const tag = `${nMeses} meses · ${farms} farmácia(s)`;
+        const chavesSem = sem.columns.map((c) => c.key);
+        ok(`${tag}: com preços mantém as colunas monetárias de sempre`, MONETARIAS.every((k) => com.columns.some((c) => c.key === k)));
+        ok(`${tag}: sem preços NENHUMA coluna monetária (nem vazia nem reservada)`, MONETARIAS.every((k) => !chavesSem.includes(k)) && sem.columns.every((c) => !/PVP|Custo|Valor|€/i.test(c.label)));
+        const html = renderReportHtml(sem);
+        const corpo = html.slice(html.indexOf("<body>"));
+        ok(`${tag}: sem preços o HTML (relatório/impressão/PDF/email) não tem «€», PVP, Custo, Valor, PARCIAL, s/IVA`, semDinheiro(corpo.replace(/<style>[\s\S]*?<\/style>/g, "")), corpo.match(/.{30}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
+        ok(`${tag}: sem preços o resumo não tem valores monetários`, (sem.summary ?? []).every((s) => s.format !== "currency") && (sem.summary ?? []).length === 3);
+        ok(`${tag}: o rodapé não fala de custos; fala de stock e de «·»`, !/Custo|PMC|PARCIAL|IVA/.test(sem.meta?.footer ?? "") && /Stock atual/.test(sem.meta?.footer ?? ""));
+        ok(`${tag}: mantém CNP, Descrição, Farmácia, meses, unidades e stock`, ["codigo", "descricao", "farmacia", "totalVendas", "existencia"].every((k) => chavesSem.includes(k)) && chavesSem.filter((k) => k.startsWith("m_")).length === nMeses);
+        const ths = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
+        ok(`${tag}: nenhum cabeçalho vazio (sem colunas vazias)`, ths.length > 0 && ths.every((t) => t.length > 0));
+        const blocos = sem.meta?.columnBlocks;
+        const larg = (r: Report, omitir: string[] = []) => r.columns.filter((c) => !c.hidden && !c.excelOnly && !omitir.includes(c.key)).reduce((a, c) => a + (c.width ?? 0), 0);
+        const maxSem = Math.max(...(blocos ? blocos.map((b) => larg(sem, b.omitir)) : [larg(sem)]));
+        ok(`${tag}: as larguras recalculadas somam ≤ 100 por página (${maxSem.toFixed(1)})`, maxSem <= 100.05);
+        const dSem = sem.columns.find((c) => c.key === "descricao")!.width!;
+        const dCom = com.columns.find((c) => c.key === "descricao")!.width!;
+        ok(`${tag}: a Descrição aproveita o espaço libertado (${dCom.toFixed(1)}% → ${dSem.toFixed(1)}%)`, dSem > dCom);
+        if (nMeses > 13) {
+          const ultimo = blocos![blocos!.length - 1];
+          const periodoSem = sem.columns.filter((c) => /Período/.test(c.label)).map((c) => c.key);
+          ok(`${tag}: nos blocos sem preços a única coluna «Período:» é a de unidades`, periodoSem.join() === "totalVendas" && !ultimo.omitir.includes("totalVendas"));
+          ok(`${tag}: TOTAL GERAL uma só vez no fim do último bloco`, (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+        }
+      }
+    }
+    // O Excel não muda com a opção: o report «completo» continua com tudo (ReportActions.excelReport)
+    const bks = buckets(3);
+    const r = [linha({ codigo: "1" }, bks)];
+    const cheio = buildReportWorkbook(buildVendasReport({ rows: r, buckets: bks, filters: { agruparPor: "artigo" }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "G", incluirPrecos: true }));
+    const cab = (XLSX.utils.sheet_to_json<unknown[]>(cheio.Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][]).find((x) => x[0] === "CNP") as string[];
+    ok("Excel de Vendas continua completo (PVP, custos e valor de vendas)", cab.some((h) => /PVP/.test(h)) && cab.some((h) => /Custo total/.test(h)) && cab.some((h) => /Valor Vendas/.test(h)));
+    ok("o relatório SEM preços não é usado no Excel: os botões usam `excelReport` (relatório completo)", /excelReport=\{\(\) => construirRelatorio\(\{ precos: true \}\)\}/.test(readFileSync("components/vendas/vendas-client.tsx", "utf8")));
+
+    // PDF REAL sem preços: 13 meses, seleção parcial, valores enormes e negativos nos DADOS (não podem aparecer)
+    {
+      const b13 = buckets(13);
+      const rows: VendasAdapterRow[] = [];
+      for (let i = 0; i < 40; i++) for (const f of i % 3 === 0 ? [FARM[1]] : FARM) rows.push(linha({ codigo: String(5100000 + i), descricao: `Artigo sem preços ${i}`, farmacia: f, qtd: b13.map((_, k) => ((i + k) % 4) - (k === 2 && i % 5 === 0 ? 3 : 0)), custoUnit: i % 7 === 0 ? null : 999999.99, pvp: 99999.99, valor: 999999.99, stock: i % 6 === 0 ? 0 : i % 11 === 0 ? -2 : 8 }, b13));
+      const relSem = buildVendasReport({ rows, buckets: b13, filters: { agruparPor: "artigo", selecaoArtigos: { selecionados: 30, total: 40 } }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo", incluirPrecos: false });
+      const p = palavras(await pdfDe(relSem, "sem-precos-13"));
+      const txt = textoTodo(p);
+      ok("PDF real sem preços: nenhum «€», PVP, Custo, Valor, PARCIAL, s/IVA", semDinheiro(txt), txt.match(/.{20}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
+      ok("PDF real sem preços: várias páginas, cabeçalho repetido e TOTAL GERAL uma vez", p.paginas.length >= 2 && p.paginas.every((pg) => textoPag(pg).includes("Descrição")) && p.paginas.flatMap(linhasDe).filter((l) => l.startsWith("TOTAL GERAL")).length === 1);
+      ok("PDF real sem preços: unidades, total de unidades e stock presentes", /Total/.test(txt) && /Stock/.test(txt) && /Unid\./.test(txt));
+      ok("PDF real sem preços: valores negativos de quantidade continuam visíveis", /-3/.test(txt));
+      ok("PDF real sem preços: «Seleção parcial» indicada (30 de 40)", /Artigos:\s*30 de 40 selecionados/.test(txt.replace(/\n/g, " ")));
+      ok("PDF real sem preços: nada cortado à direita (a Descrição ganhou espaço)", p.paginas.every((pg) => pg.palavras.every((w) => w[2] <= pg.w - 8)));
+    }
+
+    // Números +1 px: no PDF (3 meses, densidade «cozy») a altura das palavras numéricas excede a do texto da descrição
+    {
+      const b3 = buckets(3);
+      const rows = [linha({ codigo: "5200001", descricao: "Texto da descricao do artigo", qtd: [11, 22, 33], valor: 1234.5 }, b3)];
+      const rel = gerar(rows, b3);
+      const p = palavras(await pdfDe(rel, "tipografia"));
+      const ws = p.paginas[0].palavras;
+      const altura = (pred: (w: Palavra) => boolean) => { const h = ws.filter(pred).map((w) => w[3] - w[1]).sort((a, b) => a - b); return h[Math.floor(h.length / 2)] ?? 0; };
+      const hTexto = altura((w) => /^(Texto|descricao|artigo|Silveirense)$/.test(w[4]));
+      const hNum = altura((w) => /^(11|22|33)$/.test(w[4]));
+      ok(`números maiores que o texto (altura ${hNum.toFixed(2)} vs ${hTexto.toFixed(2)} pt)`, hNum > hTexto && hNum / hTexto < 1.2, `${hNum}/${hTexto}`);
+      const html = renderReportHtml(rel);
+      ok("CSS: números +1px e descrição/cabeçalho sem alteração", /hierarchy-clean tbody td\.num \{ font-size: calc\(1em \+ 1px\); \}/.test(html) && !/hierarchy-clean tbody td\.sg \{[^}]*font-size/.test(html));
+      ok("só há 4 fontes de números sem aumento no relatório não-limpo (Margens/outros intactos)", !renderReportHtml({ ...rel, meta: { ...rel.meta!, hierarchy: "strong" } }).includes('class="num"'));
+    }
   }
 
   await browser.close();
