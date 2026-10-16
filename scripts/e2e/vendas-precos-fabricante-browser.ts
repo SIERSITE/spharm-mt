@@ -19,6 +19,7 @@ import * as XLSX from "xlsx";
 import { chromium, type Page, type BrowserContext } from "playwright";
 import { baseFor, criarAmbiente, SECRET } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
+import { iniciarSmtpSink } from "./_smtp-sink";
 import { semearMargens } from "./_margens-comum";
 
 let ok = 0;
@@ -149,8 +150,11 @@ async function main() {
     const corpoImp = htmlImp.slice(htmlImp.indexOf("<body")).replace(/<style[\s\S]*?<\/style>/g, "");
     check(!DINHEIRO.test(corpoImp), "impressão: sem informação monetária", corpoImp.match(/[\s\S]{0,40}(€|PVP|Custo|Valor Vendas|Valor vendas|PARCIAL|s\/IVA)[\s\S]{0,40}/)?.[0]);
 
+    // SMTP real (sink local): o servidor gera e ENVIA os anexos; abrimos os ficheiros recebidos
+    const smtp = await iniciarSmtpSink();
+    await amb.prisma.emailConfig.create({ data: { smtpHost: "127.0.0.1", smtpPort: smtp.port, smtpSecure: false, fromEmail: "spharm@exemplo.invalid", isActive: true } });
     const capturas: string[] = [];
-    await page.route("**/api/reports/email", async (route) => { capturas.push(route.request().postData() ?? ""); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }); });
+    await page.route("**/api/reports/email", async (route) => { capturas.push(route.request().postData() ?? ""); await route.continue(); });
     await page.getByRole("button", { name: /^Email$/ }).first().click();
     await page.getByPlaceholder("nome@dominio.pt, outro@dominio.pt").fill("destinatario@exemplo.invalid");
     await page.getByRole("button", { name: /^Enviar$/ }).click();
@@ -159,6 +163,26 @@ async function main() {
     check(!em.report.columns.some((c) => MONETARIAS.includes(c.key)), "email (PDF anexo): o relatório enviado respeita a opção do momento do envio — sem preços");
     check(!!em.excelReport && MONETARIAS.every((k) => em.excelReport!.columns.some((c) => c.key === k)), "email (Excel anexo): continua completo, com preços");
     await page.unroute("**/api/reports/email");
+    await page.waitForFunction(() => true);
+    for (let t = 0; t < 40 && smtp.mensagens.length === 0; t++) await page.waitForTimeout(250);
+    const recebidos = smtp.anexos();
+    const xlsxRecebido = recebidos.find((a) => /\.xlsx$/i.test(a.filename));
+    const pdfRecebido = recebidos.find((a) => /\.pdf$/i.test(a.filename));
+    check(!!xlsxRecebido && !!pdfRecebido, `email real recebido no SMTP com 2 anexos: ${recebidos.map((a) => a.filename).join(", ")}`);
+    if (xlsxRecebido) {
+      fs.writeFileSync(path.join(EVID, "email-recebido.xlsx"), xlsxRecebido.conteudo);
+      const wbE = XLSX.read(xlsxRecebido.conteudo, { type: "buffer" });
+      const gE = XLSX.utils.sheet_to_json<unknown[]>(wbE.Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
+      const cabE = ((gE.find((r) => r[0] === "CNP") ?? []) as string[]).map(String);
+      check(cabE.some((h) => /PVP/.test(h)) && cabE.some((h) => /Custo\s+unit/i.test(h)) && cabE.some((h) => /Custo\s+total/.test(h)) && cabE.some((h) => /Valor\s+Vendas/.test(h)), `XLSX RECEBIDO por email (opção desligada): contém PVP, custos e Valor Vendas s/IVA (${cabE.join(" | ")})`);
+    }
+    if (pdfRecebido) {
+      const fPdf = path.join(EVID, "email-recebido.pdf");
+      fs.writeFileSync(fPdf, pdfRecebido.conteudo);
+      const tE = textoPdf(fPdf);
+      check(!DINHEIRO.test(tE) && /Stock/.test(tE), "PDF RECEBIDO por email (opção desligada): sem informação monetária");
+    }
+    smtp.fechar();
     await page.getByRole("button", { name: "Fechar" }).click().catch(() => undefined);
 
     const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);

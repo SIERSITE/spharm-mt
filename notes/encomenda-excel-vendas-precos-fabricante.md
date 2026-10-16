@@ -9,7 +9,7 @@ Base: `fix/workspace-preservar-estado-separadores` @ 7241eef5f3439a4bebe1da71140
 - Ficheiro: `encomenda-<farmacia>-<fornecedor>-<numero|id>.xlsx`.
 
 ## 2/3. Vendas
-- «Incluir preços» (por separador, `useEstadoSeparador("vendas:incluirPrecos")`, ligado por omissão e em «Nova análise») afeta Relatório, impressão, PDF e email (PDF). O Excel mantém-se completo.
+- «Incluir preços» (por separador, `useEstadoSeparador("vendas:incluirPrecos")`, ligado por omissão e em «Nova análise») afeta Relatório, impressão, PDF e email (PDF). O Excel de Vendas mantém-se SEMPRE completo (com PVP, custos e vendas s/IVA), no download direto e quando anexado ao email: `ReportActions.excelReport` = `construirRelatorio({ precos: true })` e a rota de email usa `payload.excelReport` para o anexo Excel (`app/api/reports/email/route.ts`). O email é só texto + anexos; não tem corpo HTML.
 - Números do mapa +1 px (`td.num`), apenas no relatório «clean» (Vendas); Margens inalterado.
 
 ## 4. Fabricante na ficha do artigo
