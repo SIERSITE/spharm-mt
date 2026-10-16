@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Module from "node:module";
 import { SignJWT } from "jose";
+import { request as httpRequest } from "node:http";
 import * as XLSX from "xlsx";
 import { chromium, type Page } from "playwright";
 import { baseFor, criarAmbiente, SECRET, type Ambiente } from "./_ambiente-silveira";
@@ -66,6 +67,18 @@ function estruturaCorreta(x: Awaited<ReturnType<typeof descarregar>>, esperado: 
   check(typeof x.aoa[0][0] === "number" && !/^(CNP|Designa|Quantidade)/i.test(String(x.aoa[0][1])) && x.ws["A1"].z === "0", `${rotulo}: sem cabeçalho — a 1.ª linha é já o 1.º produto (CNP ${x.aoa[0][0]} · ${x.aoa[0][1]} · ${x.aoa[0][2]})`);
   check(JSON.stringify(ordenadas) === JSON.stringify(esperado), `${rotulo}: conteúdo IGUAL ao detalhe persistido (${esperado.length} produtos, quantidades a encomendar)`, `obtido=${JSON.stringify(ordenadas.slice(0, 3))} esperado=${JSON.stringify(esperado.slice(0, 3))}`);
   check(x.aoa.every((r) => (r[2] as number) > 0) && !Object.values(x.ws).some((c) => c && typeof c === "object" && "f" in (c as object)), `${rotulo}: nenhuma quantidade zero e nenhuma fórmula`);
+}
+
+function obter(u: string, cookie?: string): Promise<{ status: number; headers: Record<string, string> }> {
+  const url = new URL(u);
+  return new Promise((resolve, reject) => {
+    const r = httpRequest({ host: "localhost", port: Number(url.port), path: url.pathname + url.search, method: "GET", headers: { host: url.host, ...(cookie ? { cookie } : {}) } }, (res) => {
+      res.resume();
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, String(v)])) }));
+    });
+    r.on("error", reject);
+    r.end();
+  });
 }
 
 async function main() {
@@ -124,7 +137,7 @@ async function main() {
       }
     }
     // cada encomenda só tem as SUAS linhas (as farmácias partilham CNPs mas não linhas)
-    const totalBd = await amb.prisma.linhaEncomenda.count({ where: { quantidadeAjustada: { gt: 0 } } });
+    const totalBd = await amb.prisma.linhaEncomenda.count({ where: { quantidadeAjustada: { gt: 0 }, listaEncomendaId: { in: ids.slice(0, nEnc) } } });
     const totalXlsx = Object.values(guardados).reduce((s, l) => s + l.length, 0);
     check(totalXlsx === totalBd, `a soma das linhas dos Excel (${totalXlsx}) = linhas com quantidade > 0 na BD (${totalBd}): nada duplicado nem em falta`);
 
@@ -147,28 +160,25 @@ async function main() {
     secao("3 · Autorização e isolamento");
     const url = (id: string) => baseFor("silveira") + `/api/encomendas/${id}/excel`;
     const semSessao = await browser.newContext();
-    const r401 = await semSessao.request.get(url(idDet));
-    check(r401.status() === 401, `sem sessão → 401 (${r401.status()})`);
+    const r401 = await obter(url(idDet));
+    check(r401.status === 401, `sem sessão → 401 (${r401.status})`);
     const jwt = (perfil: string, farmaciaId: string | null) =>
       new SignJWT({ sub: seed.userId, email: "x@spharm.test", nome: "X", perfil, farmaciaId, tenant: "silveira" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(SECRET));
-    const comPerfil = async (perfil: string, farmaciaId: string | null) => {
-      const c = await browser.newContext();
-      await c.addCookies([{ name: "session", value: await jwt(perfil, farmaciaId), url: baseFor("silveira") }]);
-      return c;
-    };
+    const comPerfil = async (perfil: string, farmaciaId: string | null) => `session=${await jwt(perfil, farmaciaId)}`;
+    const cookiesPagina = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
     const lista = await amb.prisma.listaEncomenda.findUniqueOrThrow({ where: { id: idDet }, select: { farmaciaId: true } });
     const outraFarmacia = seed.farmaciaIds.find((f) => f !== lista.farmaciaId)!;
-    const rOperador = await (await comPerfil("OPERADOR", lista.farmaciaId)).request.get(url(idDet));
-    check(rOperador.status() === 403, `perfil só de leitura (OPERADOR) → 403 (${rOperador.status()})`);
-    const rOutra = await (await comPerfil("GESTOR_FARMACIA", outraFarmacia)).request.get(url(idDet));
-    check(rOutra.status() === 403, `gestor de OUTRA farmácia → 403 (${rOutra.status()})`);
-    const rPropria = await (await comPerfil("GESTOR_FARMACIA", lista.farmaciaId)).request.get(url(idDet) + (fornDet ? `?fornecedor=${fornDet}` : ""));
-    check(rPropria.status() === 200 && (rPropria.headers()["content-type"] ?? "").includes("spreadsheetml"), `gestor da PRÓPRIA farmácia → 200 (${rPropria.status()})`);
-    const r404 = await page.request.get(url("cmoutrotenant0000000000000"));
-    check(r404.status() === 404, `id inexistente nesta base (ex.: encomenda de outro tenant) → 404 (${r404.status()})`);
-    const r409 = await page.request.get(url(idDet) + "?fornecedor=fornecedor-sem-linhas");
-    check(r409.status() === 409, `fornecedor sem linhas a encomendar → 409 (${r409.status()})`);
-    check(rPropria.headers()["cache-control"] === "no-store", "resposta sem cache");
+    const rOperador = await obter(url(idDet), await comPerfil("OPERADOR", lista.farmaciaId));
+    check(rOperador.status === 403, `perfil só de leitura (OPERADOR) → 403 (${rOperador.status})`);
+    const rOutra = await obter(url(idDet), await comPerfil("GESTOR_FARMACIA", outraFarmacia));
+    check(rOutra.status === 403, `gestor de OUTRA farmácia → 403 (${rOutra.status})`);
+    const rPropria = await obter(url(idDet) + (fornDet ? `?fornecedor=${fornDet}` : ""), await comPerfil("GESTOR_FARMACIA", lista.farmaciaId));
+    check(rPropria.status === 200 && (rPropria.headers["content-type"] ?? "").includes("spreadsheetml"), `gestor da PRÓPRIA farmácia → 200 (${rPropria.status})`);
+    const r404 = await obter(url("cmoutrotenant0000000000000"), cookiesPagina);
+    check(r404.status === 404, `id inexistente nesta base (ex.: encomenda de outro tenant) → 404 (${r404.status})`);
+    const r409 = await obter(url(idDet) + "?fornecedor=fornecedor-sem-linhas", cookiesPagina);
+    check(r409.status === 409, `fornecedor sem linhas a encomendar → 409 (${r409.status})`);
+    check(rPropria.headers["cache-control"] === "no-store", "resposta sem cache");
   } finally {
     await browser.close();
     await amb.parar();
