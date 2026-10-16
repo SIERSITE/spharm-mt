@@ -46,7 +46,8 @@ console.log("A · ordenação alfabética por omissão");
   eq(p.map((x) => x.cnp), [1, 2, 1], "A4: linhas da proposta A–Z (Alcool, álcool, Zinco)");
 
   const cliente = ler("components/encomendas/order-create-client.tsx");
-  check(/useOrdenacao<ColunaEncomenda>\(null\)/.test(cliente), "A5: proposta — sem ordenação inicial escolhida");
+  // (o 2.º argumento opcional é a chave do estado por separador: a ordenação sobrevive a mudar de separador — não altera o inicial `null`)
+  check(/useOrdenacao<ColunaEncomenda>\(null(, "nova:ordenacao")?\)/.test(cliente), "A5: proposta — sem ordenação inicial escolhida");
   check(/setOrdenacao\(null\); \}\}/.test(cliente), "A6: «Limpar filtros» repõe a ordem alfabética");
   check(/if \(!ordenacao\) \{\s*\n\s*return ordenarArtigos/.test(cliente) && /return ordenarLinhas\(list, ordenacao/.test(cliente), "A7: ordenação explícita prevalece");
   check(/SQL_ORDEM_ARTIGOS/.test(ler("lib/margens-data.ts")) && /SQL_ORDEM_ARTIGOS/.test(ler("lib/inventario-data.ts")), "A8: ordem no servidor (SQL) em Margens e Inventário");
@@ -116,7 +117,8 @@ console.log("\nC · seleção de artigos para impressão");
   check(/new Set\(codigosVisiveis\)/.test(c) && /\[\.\.\.new Set\(linhasImprimiveis\.map/.test(c), "C6: «selecionar todos» cobre todo o resultado filtrado, não só a página");
   check(/selecao\.geracao === geracao/.test(c) && /setGeracao\(/.test(c), "C7: nova geração de resultado repõe «todos selecionados»");
   check(/artigos selecionados para impressão/.test(c), "C8: indicador «N de M artigos selecionados para impressão»");
-  check(/useState<\{ geracao: number; codigos: Set<string> \} \| null>/.test(c), "C9: estado guarda só identificadores (códigos)");
+  // (a seleção vive agora no estado do SEPARADOR — useEstadoSeparador — e continua a guardar só os códigos)
+  check(/use(?:Estado(?:Separador)?|State)<\{ geracao: number; codigos: Set<string> \} \| null>/.test(c), "C9: estado guarda só identificadores (códigos)");
 }
 
 console.log("\nD · a expansão CNPEM é só de ecrã (nunca na impressão, PDF, Excel ou e-mail)");
