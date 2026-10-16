@@ -24,6 +24,7 @@
  */
 
 import type { AgentConfig } from "./config.js";
+import { verificarGuardaEscrita } from "./guarda-escrita.js";
 import { fimExclusivoDoDia } from "./janela.js";
 import {
   calcularEspera,
@@ -85,6 +86,11 @@ export type OpcoesPedido = {
   retry?: false | Partial<PoliticaRetry>;
   /** Nº do lote (só para o log). */
   lote?: number;
+  /**
+   * Não verifica a propriedade do lock antes deste pedido. Só para o registo do resultado (`PipelineRun`) — que uma execução
+   * que perdeu o lock ainda deve poder reportar — nunca para escritas de dados.
+   */
+  semGuarda?: boolean;
   /** HTTP 500 com `acquire_lock` no corpo = lock de agregação ocupado (o pedido original ainda corre): repete. */
   repetirLockOcupado?: boolean;
   /**
@@ -231,6 +237,8 @@ export class SaasClient {
     let jaRepetiuPorErros = false;
 
     for (let tentativa = 1; tentativa <= total; tentativa++) {
+      // Perdi o lock? Então NÃO escrevo (nem repito uma escrita): aborta antes de enviar. Leituras (GET) não são escritas.
+      if (method !== "GET" && !opts.semGuarda) verificarGuardaEscrita();
       const t0 = this.agora();
       const ultima = tentativa === total;
       let classe: ClasseFalha | null = null;
@@ -718,7 +726,7 @@ export class SaasClient {
     body: PipelineRecordBody,
     timeoutMs?: number
   ): Promise<{ ok: true; pipelineRunId: string }> {
-    return this.request("POST", "/api/admin/pipeline/record", { body, timeoutMs });
+    return this.request("POST", "/api/admin/pipeline/record", { body, timeoutMs, semGuarda: true });
   }
 
   /**
