@@ -93,6 +93,8 @@ export function ArtigoPanel() {
       titulo: `Artigo — ${data.designacao}`,
       tipo: "artigo",
       href: `/stock/artigo/${data.cnp}`,
+      // Navegação contextual: a ficha lembra de onde veio («Voltar a Vendas», «Voltar a Stock»…).
+      ...(taskBar.activaId && taskBar.activaId !== `/stock/artigo/${data.cnp}` ? { origemId: taskBar.activaId } : {}),
     });
     router.push(`/stock/artigo/${data.cnp}`);
   }

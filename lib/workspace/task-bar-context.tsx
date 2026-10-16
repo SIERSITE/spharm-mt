@@ -121,6 +121,10 @@ type ContextoTaskBar = {
   actualizarTitulo: (id: string, titulo: string) => void;
   /** Localização completa a que o separador regressa (pathname + pesquisa/ordenação/página) — no-op se não mudou. */
   actualizarHref: (id: string, href: string) => void;
+  /** A barra de tarefas é recriada em cada página (vive dentro da AppShell): a «navegação pelo separador» tem de viver aqui. */
+  assinalarNavegacaoPelaBarra: () => void;
+  /** Devolve (e repõe) se a última navegação foi um clique num separador — esse não define «origem». */
+  consumirNavegacaoPelaBarra: () => boolean;
   /** `tenant:utilizador` — escopo do estado em memória dos separadores (ver estado-separador.ts); `null` sem sessão. */
   escopo: string | null;
 };
@@ -224,13 +228,23 @@ export function TaskBarProvider({
     setEstado((prev) => reduzirTitulo(prev, id, titulo));
   }, []);
 
+  const viaBarraRef = useRef(false);
+  const assinalarNavegacaoPelaBarra = useCallback(() => {
+    viaBarraRef.current = true;
+  }, []);
+  const consumirNavegacaoPelaBarra = useCallback(() => {
+    const v = viaBarraRef.current;
+    viaBarraRef.current = false;
+    return v;
+  }, []);
+
   const actualizarHref = useCallback((id: string, href: string) => {
     setEstado((prev) => reduzirHref(prev, id, href));
   }, []);
 
   const valor = useMemo<ContextoTaskBar>(
-    () => ({ tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, escopo }),
-    [tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, escopo]
+    () => ({ tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, assinalarNavegacaoPelaBarra, consumirNavegacaoPelaBarra, escopo }),
+    [tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, assinalarNavegacaoPelaBarra, consumirNavegacaoPelaBarra, escopo]
   );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;

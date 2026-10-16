@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { estadoSeparadores } from "@/lib/workspace/armazem-separadores";
 import { useEscopoSeparadores } from "@/lib/workspace/task-bar-context";
 import { useIdSeparador } from "@/lib/workspace/estado-separador";
@@ -23,7 +23,14 @@ import { useIdSeparador } from "@/lib/workspace/estado-separador";
  */
 const PREFIXO = "__scroll:";
 const JANELA_IGNORAR_MS = 500;
-const MAX_TENTATIVAS = 90; // ≈ 1,5 s a 60 fps
+/**
+ * Depois de um clique (que pode iniciar uma navegação), a página antiga pode ser esvaziada/encolhida ANTES de a nova estar
+ * pronta (o RSC demora): o browser repõe então o scroll a (0, 0) e um evento «scroll = 0» chegaria antes de o separador mudar,
+ * apagando a posição que o utilizador deixou. Um (0, 0) logo a seguir a um clique, quando já havia uma posição guardada,
+ * é esse esvaziamento e não é gravado. (Deslocar de propósito para o topo depois de um clique continua a gravar-se passado este tempo.)
+ */
+const JANELA_CLIQUE_MS = 3000;
+const MAX_MS_RESTAURO = 3000; // o conteúdo (tabelas, iframes) pode chegar depois da 1.ª pintura
 
 type Pos = { x: number; y: number };
 
@@ -33,62 +40,88 @@ export function ScrollSeparadores() {
   const idRef = useRef<string | null>(id);
   const escopoRef = useRef<string | null>(escopo);
   const mudouEm = useRef(0);
+  const cliqueEm = useRef(0);
 
   // Gravação: um listener global em captura apanha o scroll da janela e de qualquer contentor.
   useEffect(() => {
-    let pendente: { chave: string; pos: Pos } | null = null;
+    // Um slot por chave: a janela e um contentor podem mexer no mesmo fotograma e as duas posições têm de ficar guardadas.
+    const pendentes = new Map<string, Pos>();
     let raf = 0;
     const gravar = () => {
       raf = 0;
       const e = escopoRef.current;
       const i = idRef.current;
-      if (pendente && e && i && Date.now() - mudouEm.current > JANELA_IGNORAR_MS) {
-        estadoSeparadores.escrever(e, i, PREFIXO + pendente.chave, pendente.pos);
-      }
-      pendente = null;
+      const dbg = ((window as unknown as { __scrollLog?: unknown[] }).__scrollLog ??= []);
+      if (e && i && Date.now() - mudouEm.current > JANELA_IGNORAR_MS) {
+        for (const [chave, pos] of pendentes) {
+          const anterior = estadoSeparadores.ler<Pos>(e, i, PREFIXO + chave);
+          if (!pos.x && !pos.y && anterior && (anterior.x || anterior.y) && Date.now() - cliqueEm.current < JANELA_CLIQUE_MS) {
+            dbg.push({ t: Date.now() % 100000, acao: "ignora-zero-pos-clique", i, chave });
+            continue;
+          }
+          estadoSeparadores.escrever(e, i, PREFIXO + chave, pos);
+          dbg.push({ t: Date.now() % 100000, acao: "grava", i, chave, pos });
+        }
+      } else dbg.push({ t: Date.now() % 100000, acao: "ignora", i, dt: Date.now() - mudouEm.current, p: [...pendentes] });
+      pendentes.clear();
     };
     const aoScroll = (ev: Event) => {
       const alvo = ev.target;
       if (alvo === document || alvo === document.documentElement || alvo === document.body) {
-        pendente = { chave: "__janela", pos: { x: window.scrollX, y: window.scrollY } };
+        pendentes.set("__janela", { x: window.scrollX, y: window.scrollY });
       } else if (alvo instanceof HTMLElement) {
         const el = alvo.closest<HTMLElement>("[data-scroll-key]");
         if (!el) return;
-        pendente = { chave: el.dataset.scrollKey as string, pos: { x: el.scrollLeft, y: el.scrollTop } };
+        pendentes.set(el.dataset.scrollKey as string, { x: el.scrollLeft, y: el.scrollTop });
       } else return;
       if (!raf) raf = requestAnimationFrame(gravar);
     };
+    const aoClicar = () => {
+      cliqueEm.current = Date.now();
+    };
     document.addEventListener("scroll", aoScroll, { capture: true, passive: true });
+    document.addEventListener("click", aoClicar, { capture: true, passive: true });
     return () => {
       document.removeEventListener("scroll", aoScroll, true);
+      document.removeEventListener("click", aoClicar, true);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
 
-  // Restauração ao ativar um separador.
-  useEffect(() => {
+  // Mudança de separador: ANTES de pintar (layout effect) passa a ignorar os eventos de scroll que a própria troca de página
+  // provoca (o documento encolhe e o browser repõe o scroll a 0 de forma assíncrona) — com um efeito passivo esse evento
+  // podia chegar primeiro e apagar a posição do separador que se acabou de deixar.
+  useLayoutEffect(() => {
     idRef.current = id;
     escopoRef.current = escopo;
     mudouEm.current = Date.now();
+  }, [escopo, id]);
+
+  // Restauração ao ativar um separador.
+  useEffect(() => {
     if (!escopo || !id) return;
 
     let cancelado = false;
-    let tentativas = 0;
+    const inicio = Date.now();
     const feitos = new Set<string>();
-    const cancelar = () => {
+    const cancelar = (ev: Event) => {
       cancelado = true;
+      dbg2.push({ t: Date.now() % 100000, acao: "cancela", tipo: ev.type });
     };
     const eventos = ["wheel", "touchstart", "keydown", "mousedown"] as const;
     for (const ev of eventos) window.addEventListener(ev, cancelar, { passive: true, once: true });
 
     const guardado = (chave: string) => estadoSeparadores.ler<Pos>(escopo, id, PREFIXO + chave);
+    const dbg2 = ((window as unknown as { __scrollLog?: unknown[] }).__scrollLog ??= []);
+    dbg2.push({ t: Date.now() % 100000, acao: "ativa", id, j: guardado("__janela") });
     const tentar = () => {
-      if (cancelado || tentativas++ > MAX_TENTATIVAS) return;
+      if (cancelado || Date.now() - inicio > MAX_MS_RESTAURO) return;
       const j = guardado("__janela");
       if (j && !feitos.has("__janela") && (j.x || j.y)) {
         const alturaMax = document.documentElement.scrollHeight - window.innerHeight;
         if (alturaMax >= j.y - 1) {
           window.scrollTo(j.x, j.y);
+          dbg2.push({ t: Date.now() % 100000, acao: "restaura", id, j });
           feitos.add("__janela");
         }
       }

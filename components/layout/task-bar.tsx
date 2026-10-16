@@ -23,8 +23,6 @@ export function TaskBar() {
   const searchParams = useSearchParams();
   const workspaceParam = searchParams.get("workspace");
   const ultimaIdentidadeRef = useRef<string | null>(null);
-  // Navegação iniciada pelo clique no próprio separador: não define «origem» (só as navegações por links/botões da app definem).
-  const viaBarraRef = useRef(false);
 
   const rotaActual = pathname ? resolverRota(pathname) : null;
 
@@ -52,10 +50,12 @@ export function TaskBar() {
 
     const identidade = rotaActual.workspace ? `${pathname}?workspace=${workspaceParam}` : pathname;
     if (ultimaIdentidadeRef.current === identidade) return;
-    const anterior = ultimaIdentidadeRef.current;
     ultimaIdentidadeRef.current = identidade;
-    const origemId = !viaBarraRef.current && anterior && anterior !== identidade ? anterior : undefined;
-    viaBarraRef.current = false;
+    // Origem = o separador que estava ativo antes desta navegação (a barra é recriada em cada página: o «anterior» e a
+    // «navegação pelo separador» vêm do contexto, que sobrevive). Clicar num separador nunca define origem.
+    const anterior = taskBar.activaId;
+    const viaBarra = taskBar.consumirNavegacaoPelaBarra();
+    const origemId = !viaBarra && anterior && anterior !== identidade ? anterior : undefined;
     taskBar.abrirOuActivar({
       id: identidade,
       titulo: rotaActual.titulo,
@@ -80,7 +80,7 @@ export function TaskBar() {
   if (!taskBar || taskBar.tarefas.length === 0) return null;
 
   function irPara(t: Tarefa) {
-    viaBarraRef.current = true;
+    taskBar!.assinalarNavegacaoPelaBarra();
     // scroll:false — a posição de scroll do separador é restaurada por components/layout/scroll-separadores.tsx.
     router.push(t.href, { scroll: false });
   }

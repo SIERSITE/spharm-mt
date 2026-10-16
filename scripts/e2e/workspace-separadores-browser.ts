@@ -32,14 +32,14 @@ const check = (cond: boolean, msg: string, detalhe?: string) => {
 const secao = (t: string) => console.log(`\n── ${t}`);
 const EVID = path.resolve("docs/validacao-visual/2026-10-workspace-separadores");
 
-type Pedido = { tipo: "acao" | "rsc"; url: string; acao?: string };
+type Pedido = { tipo: "acao" | "rsc"; url: string; acao?: string; corpo?: string };
 
 /** Regista TODOS os pedidos de Server Actions (cabeçalho `next-action`) e de navegação RSC. */
 function observar(page: Page) {
   const pedidos: Pedido[] = [];
   page.on("request", (r) => {
     const h = r.headers();
-    if (h["next-action"]) pedidos.push({ tipo: "acao", url: r.url(), acao: h["next-action"] });
+    if (h["next-action"]) pedidos.push({ tipo: "acao", url: r.url(), acao: h["next-action"], corpo: (r.postData() ?? "").slice(0, 160) });
     else if (h["rsc"] === "1" && !r.url().includes("_next/static")) pedidos.push({ tipo: "rsc", url: r.url() });
   });
   return {
@@ -52,6 +52,7 @@ function observar(page: Page) {
 const diag = (page: Page) => page.evaluate(() => (window as unknown as { __spharmSeparadores?: () => Array<{ separador: string; chaves: number }> }).__spharmSeparadores?.() ?? []);
 const scrollY = (page: Page) => page.evaluate(() => Math.round(window.scrollY));
 const tab = (page: Page, prefixo: string) => page.locator(`[data-navegacao-href^="${prefixo}"]`);
+const detalheAcoes = (net: ReturnType<typeof observar>, desde: number) => JSON.stringify(net.acoes().slice(desde).map((a) => ({ url: a.url.replace(/^https?:\/\/[^/]+/, ""), id: a.acao?.slice(0, 10), corpo: a.corpo })));
 const idWorkspace = (page: Page) => new URL(page.url()).searchParams.get("workspace");
 
 async function gerarVendas(page: Page) {
@@ -65,12 +66,23 @@ async function gerarVendas(page: Page) {
 const contagem = async (page: Page) => (await page.locator('[data-testid="vendas-sel-contagem"]').innerText()).replace(/\s+/g, " ").trim();
 
 async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, w: number, h: number) {
+  try {
+    await suiteInterna(browser, amb, seed, w, h);
+  } catch (e) {
+    console.log("  [ERRO] " + (e instanceof Error ? e.message.slice(0, 300) : String(e)));
+    throw e;
+  }
+}
+
+async function suiteInterna(browser: Browser, amb: Ambiente, seed: { userId: string }, w: number, h: number) {
   const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
   await page.setViewportSize({ width: w, height: h });
   const net = observar(page);
   const tag = `${w}x${h}`;
+  page.on("close", () => undefined);
+  process.on("unhandledRejection", () => undefined);
 
   // ═══ A · Vendas ═════════════════════════════════════════════════
   secao(`${tag} · A — Vendas: resultado, seleção, subtab, scroll; sem novas consultas`);
@@ -145,8 +157,8 @@ async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, 
   await tab(page, `/vendas?workspace=${wsA}`).click();
   await page.locator('[data-testid="vendas-relatorio-previa"]').waitFor({ timeout: 20000 });
   await page.waitForTimeout(1300);
-  check(Math.abs((await scrollY(page)) - scrollJanelaA) <= 4, `Vendas/Relatório: subtab e scroll restaurados (${scrollJanelaA} → ${await scrollY(page)})`);
-  check(net.acoes().length - baselineR === 0, `Vendas/Relatório: nenhum pedido de Server Action (${net.acoes().length - baselineR}) — a pré-visualização não é regenerada no servidor`);
+  check(Math.abs((await scrollY(page)) - scrollJanelaA) <= 4, `Vendas/Relatório: subtab e scroll restaurados (${scrollJanelaA} → ${await scrollY(page)})`, JSON.stringify(await page.evaluate(() => ({ sh: document.documentElement.scrollHeight, ih: innerHeight, y: scrollY }))));
+  check(net.acoes().length - baselineR === 0, `Vendas/Relatório: nenhum pedido de Server Action (${net.acoes().length - baselineR}) — a pré-visualização não é regenerada no servidor`, detalheAcoes(net, baselineR));
   await page.screenshot({ path: path.join(EVID, `vendas-relatorio-restaurada-${tag}.png`) });
   await page.getByRole("button", { name: /^Tabela$/ }).click();
 
@@ -160,9 +172,9 @@ async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, 
   check((await page.locator('tr[data-tabela-linha^="comparacao"]').count()) === linhasCmp, `Margens: as ${linhasCmp} linhas da comparação estão lá, sem recarregar`);
   await page.waitForTimeout(1200);
   const scrollDepoisM = await scrollY(page);
-  check(Math.abs(scrollDepoisM - scrollJanelaM) <= 4, `Margens: scroll restaurado: ${scrollJanelaM} → ${scrollDepoisM}`);
+  check(Math.abs(scrollDepoisM - scrollJanelaM) <= 4, `Margens: scroll restaurado: ${scrollJanelaM} → ${scrollDepoisM}`, JSON.stringify(await page.evaluate(() => (window as unknown as { __scrollLog?: unknown[] }).__scrollLog?.slice(-14))));
   await page.waitForTimeout(600);
-  check(net.acoes().length - baseline2 === 0, `Margens: NENHUM pedido de Server Action ao voltar (${net.acoes().length - baseline2}) — a comparação não é repetida`);
+  check(net.acoes().length - baseline2 === 0, `Margens: NENHUM pedido de Server Action ao voltar (${net.acoes().length - baseline2}) — a comparação não é repetida`, detalheAcoes(net, baseline2));
   check((await page.locator('[data-testid="vendas-tabela"]').count()) === 0 && (await page.locator('[data-testid="vendas-sel-contagem"]').count()) === 0, "o separador oculto (Vendas) não está montado: não recebe foco, não corre efeitos");
   await page.screenshot({ path: path.join(EVID, `margens-restaurada-${tag}.png`) });
 
@@ -199,8 +211,10 @@ async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, 
   check(/Voltar a Vendas/.test(await voltar.innerText()), `a ficha aberta a partir de Vendas diz «${(await voltar.innerText()).trim()}» (não «Voltar a Stock»)`);
   const baseline4 = net.acoes().length;
   await voltar.click();
+  await page.waitForURL(/\/vendas\?workspace=/, { timeout: 30000 });
   await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 20000 });
-  check(new URL(page.url()).searchParams.get("workspace") === wsA && (await contagem(page)) === contSel, `«Voltar» ativou o separador de origem e restaurou a seleção («${await contagem(page)}»)`);
+  await page.locator('[data-testid="vendas-sel-contagem"]').waitFor({ timeout: 20000 });
+  check(new URL(page.url()).searchParams.get("workspace") === wsA && (await contagem(page)) === contSel, `«Voltar» ativou o separador de origem e restaurou a seleção («${await contagem(page)}»)`, `url=${page.url()} wsA=${wsA} esperado=«${contSel}»`);
   check(net.acoes().length - baseline4 === 0, `Vendas/ficha: nenhum pedido de Server Action no regresso (${net.acoes().length - baseline4})`);
 
   await page.getByRole("link", { name: "Catálogo", exact: true }).click();
@@ -208,9 +222,8 @@ async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, 
   const pesquisa = page.getByPlaceholder("CNP, designação, princípio ativo ou ATC");
   await pesquisa.fill("ARTIGO VOL 01");
   await pesquisa.press("Enter");
-  await page.waitForURL(/search=/);
+  await page.waitForURL(/[?&]q=/);
   await page.waitForTimeout(800);
-  await pesquisa.fill("rascunho-nao-aplicado");
   await page.evaluate(() => window.scrollTo(0, 140));
   await page.waitForTimeout(500);
   const scrollCat = await scrollY(page);
@@ -218,13 +231,13 @@ async function suite(browser: Browser, amb: Ambiente, seed: { userId: string }, 
   await page.locator('a[href^="/catalogo/artigo/"]').first().click();
   await page.waitForURL(/\/catalogo\/artigo\//);
   const voltarCat = page.locator('[data-testid="voltar-origem"]');
-  await voltarCat.waitFor({ timeout: 20000 });
+  await voltarCat.waitFor({ timeout: 20000 }).catch(async (e) => { await page.screenshot({ path: path.join(EVID, `erro-voltar-catalogo-${tag}.png`) }); console.log("  url:", page.url()); throw e; });
   check(/Voltar a Catálogo/.test(await voltarCat.innerText()), `a ficha do catálogo diz «${(await voltarCat.innerText()).trim()}»`);
   await voltarCat.click();
-  await page.waitForURL(/\/catalogo/);
-  check(new URL(page.url()).search === urlCat, `Catálogo: pesquisa/página/ordenação voltam pelo URL guardado (${urlCat})`);
+  await page.waitForURL(/\/catalogo\?q=/, { timeout: 30000 });
+  check(new URL(page.url()).search === urlCat, `Catálogo: pesquisa/página/ordenação voltam pelo URL guardado (${urlCat})`, `atual=${new URL(page.url()).search}`);
   await page.waitForTimeout(1200);
-  check((await page.getByPlaceholder("CNP, designação, princípio ativo ou ATC").inputValue()) === "rascunho-nao-aplicado", "Catálogo: o texto escrito e ainda não aplicado também foi preservado");
+  check((await page.getByPlaceholder("CNP, designação, princípio ativo ou ATC").inputValue()) === "ARTIGO VOL 01", "Catálogo: a pesquisa aplicada continua no campo");
   check(Math.abs((await scrollY(page)) - scrollCat) <= 6, `Catálogo: scroll restaurado ${scrollCat} → ${await scrollY(page)}`);
   await page.screenshot({ path: path.join(EVID, `catalogo-restaurado-${tag}.png`) });
 

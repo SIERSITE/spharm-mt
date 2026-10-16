@@ -90,7 +90,13 @@ export function useEstadoSeparador<T>(
     return resolverInicial();
   };
 
-  const [suporte, setSuporte] = useState<{ escopo: string | null; id: string | null; valor: T }>(() => ({ escopo, id, valor: ler() }));
+  const [suporte, setSuporte] = useState<{ escopo: string | null; id: string | null; valor: T }>(() => {
+    const valor = ler();
+    // 1.ª criação neste separador: o valor inicial passa a estar no armazém. É o que faz sobreviver estado que a página
+    // MUTA no sítio (Set/Map/cache de pedidos feitos) sem passar pelo setter — senão, ao voltar, recomeçava vazio.
+    if (ativo && escopo && id && !estadoSeparadores.tem(escopo, id, chave)) estadoSeparadores.escrever(escopo, id, chave, valor);
+    return { escopo, id, valor };
+  });
 
   // Mesma página, outro separador (ex.: `?workspace=` diferente) ou escopo diferente: re-hidrata para o novo.
   // (A identidade é a do separador — `ativo` não conta: alternar a persistência não re-hidrata nem repõe nada.)
