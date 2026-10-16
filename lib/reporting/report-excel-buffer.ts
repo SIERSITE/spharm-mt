@@ -66,7 +66,7 @@ function computeTotal(col: ReportColumn, rows: Report["rows"]): number {
  * Esta função é pura e segura em qualquer runtime (Node ou browser).
  */
 export function buildReportWorkbook(report: Report): XLSX.WorkBook {
-  const cols = report.columns.filter((c) => !c.hidden);
+  const cols = report.columns.filter((c) => !c.hidden && !c.htmlOnly);
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
   const merges: XLSX.Range[] = [];

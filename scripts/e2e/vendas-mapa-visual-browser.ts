@@ -411,6 +411,27 @@ async function main() {
     await page.getByRole("button", { name: "Fechar" }).click().catch(() => undefined);
     await page.unroute("**/api/reports/email");
 
+    // ═══ Separador «Relatório» = o MESMO documento ═══════════════════
+    secao("4b · Separador «Relatório» — pré-visualização fiel (uma só estrutura visual)");
+    await page.getByRole("button", { name: /^Relatório$/ }).click();
+    const frame = page.locator('[data-testid="vendas-relatorio-previa"]');
+    await frame.waitFor({ timeout: 30000 });
+    await page.waitForTimeout(800);
+    const fr = page.frameLocator('[data-testid="vendas-relatorio-previa"]');
+    const htmlPrev = await frame.evaluate((el) => (el as HTMLIFrameElement).contentDocument!.documentElement.outerHTML);
+    const normTab = (h: string) => tabelaDe(h).replace(/<tr[^>]*>/g, "#").replace(/<[^>]+>/g, "|").replace(/&amp;/g, "&").replace(/\|+/g, "|").replace(/&#39;/g, "'").replace(/&nbsp;|[\u202f\u00a0]/g, " ");
+    check(normTab(htmlPrev) === normTab(renderReportHtml(sTodos.relatorio)), "«Relatório»: a tabela é IDÊNTICA à do PDF/impressão");
+    check(!/<(input|button|select)\b|type="checkbox"/.test(htmlPrev), "«Relatório»: sem controlos");
+    const txtPrev = norm(await fr.locator("body").innerText());
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 10000], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
+      check(txtPrev.includes(eur(v)), `«Relatório»: custo ${eur(v)} completo (${cnp})`);
+    }
+    check(txtPrev.includes("TOTAL GERAL") && txtPrev.includes(eur(custoTotalPdf)), `«Relatório»: TOTAL GERAL do custo ${eur(custoTotalPdf)} completo`);
+    check(!/Página 1 de 1|SoftReis Informática/.test(txtPrev), "«Relatório»: o layout antigo desapareceu");
+    check((await fr.locator("thead th").count()) === 6 + 13 + 3, "«Relatório»: mesmas colunas do PDF (6 + 13 meses + 3)");
+    await page.screenshot({ path: path.join(EVID, "ecra-relatorio-13-meses.png") });
+    await page.getByRole("button", { name: /^Tabela$/ }).click();
+
     // ═══ 3b · Seleção ══════════════════════════════════════════════
     secao("5 · Seleção de artigos e saídas");
     const contagem = async () => (await page.locator('[data-testid="vendas-sel-contagem"]').innerText()).replace(/\s+/g, " ");
@@ -464,8 +485,8 @@ async function main() {
     renderizar(s27.ficheiro, "pdf-27-meses", 3);
     const t27 = p27w.paginas.map(textoPag).join("\n");
     check(["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => t27.includes(t)), "PDF: as 3 partes identificadas");
-    check((t27.match(/TOTAL GERAL(?! está no fim)/g) ?? []).length === 1, "PDF: TOTAL GERAL uma única vez (fim da última parte)");
-    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /repartido em 3 partes/.test(t27), "PDF: nota explicativa da divisão em partes");
+    check(p27w.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1, "PDF: linha TOTAL GERAL uma única vez (fim do último bloco)");
+    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /repartido em 3 blocos/.test(t27), "PDF: nota explicativa da divisão em partes");
     check(p27w.paginas.every((pg) => textoPag(pg).includes("CNP")), "PDF: cabeçalho em todas as páginas de todas as partes");
     const n27 = nDetalhe(s27.relatorio);
     check(n27 > 0, `relatório de 27 meses com ${n27} linhas de detalhe`);
@@ -474,6 +495,29 @@ async function main() {
     const g3 = XLSX.utils.sheet_to_json<unknown[]>(XLSX.readFile(path.join(EVID, "vendas-27-meses.xlsx")).Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
     const cab3 = g3.find((r) => r[0] === "CNP") as string[];
     check(cab3.length === 6 + 27 + 3 + 1, `Excel de 27 meses: todos os meses numa folha só (${cab3.length} colunas, incl. «Tipo de linha»)`);
+    // cada bloco com várias páginas e totais inequívocos (27 meses)
+    const txt27 = p27w.paginas.map(textoPag);
+    const ini27 = [1, 2, 3].map((i) => txt27.findIndex((t) => t.includes(`Parte ${i} de 3`)));
+    const fim27 = [ini27[1], ini27[2], p27w.paginas.length];
+    check(ini27.every((v, i) => v >= 0 && fim27[i] - v >= 2), `27 meses: cada bloco ocupa várias páginas (${ini27.map((v, i) => fim27[i] - v).join("+")})`);
+    check(txt27.slice(ini27[0], fim27[0]).concat(txt27.slice(ini27[1], fim27[1])).every((t) => !/Período:\s*(Total|custo|valor)/.test(t.replace(/colunas «Período:»/g, ""))), "27 meses: colunas «Período:» só no último bloco");
+    check(txt27.slice(ini27[2], fim27[2]).join(" ").includes("Período:") && txt27.every((t) => t.includes("do bloco")), "27 meses: «Total unid. do bloco» em todos os blocos; «Período:» no último");
+    const dets = s27.relatorio.rows.filter((r) => r.__rowKind !== "subtotal");
+    const somaB = [0, 1, 2].reduce((a, i) => a + dets.reduce((b, r) => b + Number(r[`tb_${i}`]), 0), 0);
+    check(somaB === dets.reduce((a, r) => a + Number(r.totalVendas), 0), `27 meses: Σ «Total unid. do bloco» (${somaB}) = total do período`);
+    renderizar(s27.ficheiro, "pdf-27-meses-blocos", 8);
+
+    // 14 meses: 2 blocos, cada um com várias páginas
+    secao("7b · 14 meses → 2 blocos de 7");
+    const p14 = periodo(14);
+    await gerar(page, p14.from, p14.to);
+    const s14 = await pedirPdf(page, ctx, "vendas-14-meses.pdf");
+    const w14 = palavrasPdf(s14.ficheiro);
+    const t14 = w14.paginas.map(textoPag);
+    const i14 = [1, 2].map((i) => t14.findIndex((t) => t.includes(`Parte ${i} de 2`)));
+    check(i14.every((v) => v >= 0) && i14[1] - i14[0] >= 2 && w14.paginas.length - i14[1] >= 2, `14 meses: 2 blocos, cada um com várias páginas (${i14[1] - i14[0]}+${w14.paginas.length - i14[1]})`);
+    check(w14.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1 && t14.every((t) => t.includes("CNP")), "14 meses: TOTAL GERAL uma vez; cabeçalho em todas as páginas");
+    renderizar(s14.ficheiro, "pdf-14-meses", 4);
     await page.screenshot({ path: path.join(EVID, "ecra-27-meses.png") });
   } finally {
     await browser.close();

@@ -221,29 +221,65 @@ async function main() {
     ok("stock positivo: fundo claro (> 170)", pos.length > 0 && pos.every((w) => w[5] > 170));
   }
 
-  // ═══ D. Blocos temporais em PDF real ═══════════════════════════════════
-  console.log("\n=== D. PDF real: 27 meses → 3 partes; cada mês exactamente uma vez; 1 TOTAL GERAL ===");
-  {
-    const bks = buckets(27);
-    const rows = [linha({ codigo: "7000001", farmacia: FARM[0] }, bks), linha({ codigo: "7000001", farmacia: FARM[1] }, bks), linha({ codigo: "7000002" }, bks)];
+  // ═══ D. Blocos temporais em PDF real, cada bloco com VÁRIAS páginas ═════════════════════
+  console.log("\n=== D. PDF real: 14 e 27 meses com muitos artigos — cada bloco ocupa várias páginas; totais inequívocos ===");
+  for (const nMeses of [14, 27]) {
+    const bks = buckets(nMeses);
+    const rows: VendasAdapterRow[] = [];
+    for (let i = 0; i < 90; i++) {
+      const cod = String(7000000 + i);
+      const farms = i % 3 === 0 ? [FARM[1]] : FARM;
+      for (const f of farms) rows.push(linha({ codigo: cod, descricao: `Artigo de teste ${i} com descrição razoavelmente longa`, farmacia: f, qtd: bks.map((_, k) => ((i + k) % 5) - (k === 2 && i % 7 === 0 ? 3 : 0)), custoUnit: 4.25 + (i % 6), stock: i % 8 === 0 ? 0 : 7, valor: 100 + i }, bks));
+    }
     const rel = gerar(rows, bks);
-    const p = palavras(await pdfDe(rel, "27-meses"));
-    const todo = textoTodo(p);
-    ok("as 3 partes estão identificadas (Parte 1 de 3 … Parte 3 de 3)", ["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => todo.includes(t)));
-    ok("há pelo menos 3 páginas (uma por parte)", p.paginas.length >= 3);
-    // (o rodapé cita «o TOTAL GERAL está no fim da última parte» — não é uma linha da tabela)
-    ok("linha TOTAL GERAL da tabela uma única vez", (todo.match(/TOTAL GERAL(?! está no fim)/g) ?? []).length === 1);
-    ok("o cabeçalho repete-se em cada parte", p.paginas.every((pg) => textoPag(pg).includes("CNP")));
-    // os 26 meses: contar rótulos «Mês»+«aa» nos cabeçalhos — 26 pares distintos
+    const nBlocos = Math.ceil(nMeses / 13);
+    const blocos = rel.meta!.columnBlocks!;
+    const p = palavras(await pdfDe(rel, `${nMeses}-meses`));
+    const txtPag = p.paginas.map(textoPag);
+    const todo = txtPag.join("\n");
+    const linhasTodas = p.paginas.flatMap(linhasDe);
+    // página inicial de cada bloco = a que tem «Parte i de n»
+    const inicio = Array.from({ length: nBlocos }, (_, i) => txtPag.findIndex((t) => t.includes(`Parte ${i + 1} de ${nBlocos}`)));
+    ok(`${nMeses} meses: ${nBlocos} blocos identificados («Parte i de ${nBlocos}»)`, inicio.every((i) => i >= 0) && inicio.every((v, i) => i === 0 || v > inicio[i - 1]));
+    const fins = inicio.map((v, i) => (i + 1 < nBlocos ? inicio[i + 1] : p.paginas.length));
+    ok(`${nMeses} meses: CADA bloco ocupa várias páginas (${inicio.map((v, i) => fins[i] - v).join("+")})`, inicio.every((v, i) => fins[i] - v >= 2));
+    ok(`${nMeses} meses: o cabeçalho repete-se em TODAS as páginas de TODOS os blocos`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")));
+    // nenhum artigo desaparece nem se repete dentro do mesmo bloco
+    const cnpsPorBloco = inicio.map((v, i) => new Set([...txtPag.slice(v, fins[i]).join(" ").matchAll(/\b70\d{5}\b/g)].map((m) => m[0])));
+    ok(`${nMeses} meses: os 90 artigos aparecem em CADA bloco (nenhum desaparece ou fica cortado)`, cnpsPorBloco.every((c) => c.size === 90));
+    // linha TOTAL GERAL: uma só, na última página, depois do último artigo
+    const nTG = linhasTodas.filter((l) => l.startsWith("TOTAL GERAL")).length;
+    ok(`${nMeses} meses: «TOTAL GERAL» uma única vez, no fim do último bloco`, nTG === 1 && txtPag[p.paginas.length - 1].includes("TOTAL GERAL"));
+    // regra inequívoca dos totais
+    const ultimoTxt = txtPag.slice(inicio[nBlocos - 1], fins[nBlocos - 1]).join(" ");
+    ok(`${nMeses} meses: colunas «Total unid. do bloco» em todos os blocos`, inicio.every((v, i) => txtPag.slice(v, fins[i]).join(" ").includes("do bloco")));
+    ok(`${nMeses} meses: colunas «Período:» (unidades, custo, valor) SÓ no último bloco`, /Período/.test(ultimoTxt) && inicio.slice(0, -1).every((v, i) => !/Período:/.test(txtPag.slice(v, fins[i]).join(" ").replace(/colunas «Período:»/g, ""))));
+    ok(`${nMeses} meses: o título de cada bloco diz que «Total unid. do bloco» soma só os seus meses`, blocos.every((b) => /soma apenas estes meses/.test(b.titulo)) && blocos[nBlocos - 1].titulo.includes("período completo"));
+    // valores: soma dos totais de bloco = total do período (TOTAL GERAL)
+    const detalhe = rel.rows.filter((r) => r.__rowKind !== "subtotal");
+    const totPeriodo = detalhe.reduce((a, r) => a + Number(r.totalVendas), 0);
+    const somaBlocos = blocos.reduce((a, _, i) => a + detalhe.reduce((b, r) => b + Number(r[`tb_${i}`]), 0), 0);
+    ok(`${nMeses} meses: Σ totais dos blocos (${somaBlocos}) = total do período (${totPeriodo})`, somaBlocos === totPeriodo);
+    const lTG = linhasTodas.find((l) => l.startsWith("TOTAL GERAL")) ?? "";
+    ok(`${nMeses} meses: TOTAL GERAL mostra o total do período (${totPeriodo}) e o custo/valor completos`, lTG.includes(String(totPeriodo).replace(/(\d)(?=(\d{3})+$)/, "$1 ")) || lTG.split(" ").includes(String(totPeriodo)));
+    const tbUlt = detalhe.reduce((a, r) => a + Number(r[`tb_${nBlocos - 1}`]), 0);
+    ok(`${nMeses} meses: …e o «Total unid. do bloco» do último bloco (${tbUlt}) na mesma linha`, lTG.split(" ").includes(String(tbUlt)));
+    // cada mês exactamente uma vez por bloco → 14/27 rótulos distintos no total
     const rotulos = new Set<string>();
     for (const pg of p.paginas) {
-      const ws = pg.palavras.filter((w) => w[1] < 120).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+      const ws = pg.palavras.filter((w) => w[1] < 130).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
       for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)$/.test(w[4]))) {
         const ano = ws.find((w) => /^\d{2}$/.test(w[4]) && Math.abs(w[0] - m[0]) < 12 && w[1] > m[1] && w[1] - m[1] < 14);
         if (ano) rotulos.add(`${m[4]}/${ano[4]}`);
       }
     }
-    ok(`os 27 meses do período aparecem nos cabeçalhos (obtidos ${rotulos.size})`, rotulos.size === 27, [...rotulos].join(","));
+    ok(`${nMeses} meses: todos os meses do período aparecem nos cabeçalhos (obtidos ${rotulos.size})`, rotulos.size === nMeses);
+    // Excel: uma folha com TODOS os meses, sem colunas de bloco; totais do período
+    const wb = buildReportWorkbook(rel);
+    const ws = wb.Sheets["Relatório"];
+    const grelha = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false }) as unknown[][];
+    const hdr = (grelha.find((r) => r[0] === "CNP") ?? []) as string[];
+    ok(`${nMeses} meses: Excel com os ${nMeses} meses numa folha e sem colunas «do bloco»`, hdr.filter((h) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)\n\d\d$/.test(h)).length === nMeses && !hdr.some((h) => /do bloco/.test(h)));
   }
 
   // ═══ E. Sem controlos nas saídas ════════════════════════════════════════

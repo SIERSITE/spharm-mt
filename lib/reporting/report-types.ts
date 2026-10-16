@@ -57,6 +57,8 @@ export type ReportColumn = {
    * também: `hidden` esconde de TUDO, incluindo Excel.
    */
   excelOnly?: boolean;
+  /** Só existe em HTML/PDF/print — nunca no Excel (ex.: totais por bloco temporal; o Excel mostra todos os meses numa folha). */
+  htmlOnly?: boolean;
   /**
    * Sublinha discreta sob esta célula, só em HTML/PDF/print — nunca no
    * Excel, que fica com o valor plano da coluna. Aponta para OUTRA

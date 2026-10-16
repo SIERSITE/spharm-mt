@@ -35,6 +35,7 @@ import { compararArtigos } from "@/lib/ordenacao-artigos";
 import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/reporting/vendas-filtros";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
+import { renderReportHtml } from "@/lib/reporting/report-html";
 import { BarraScrollHorizontalTopo } from "@/components/ui/barra-scroll-horizontal-topo";
 import {
   ordenarLinhas,
@@ -971,8 +972,61 @@ export function VendasClient({
     setOrdenacaoTabela(null);
   }
 
-  const showFarmaciaColumnInReport =
-    ambito === "comparativo" || farmaciasSelecionadas.length !== 1;
+  /** O MESMO relatório para ecrã («Relatório»), PDF, impressão, Excel e email — só os artigos selecionados. */
+  const construirRelatorio = () =>
+    buildVendasReport({
+      // Exactamente as linhas visíveis, na mesma sequência:
+      // `rowsOrdenadas` é o que a tabela renderiza (filtros +
+      // agrupamento + ordenação do selector + ordenação por
+      // cabeçalho) — `orderedRows` parava antes do clique no
+      // cabeçalho, por isso a exportação podia sair numa
+      // ordem diferente da que o utilizador via no ecrã. Em
+      // "comparativo" a tabela mostra `comparativoRows` (a
+      // sua própria ordenação fixa por código+farmácia, sem
+      // selector nem cabeçalho clicável) — o export segue-a.
+      rows: linhasParaRelatorio,
+      buckets,
+      filters: {
+        ambito,
+        farmaciasSelecionadas,
+        fornecedoresSelecionados,
+        fabricantesSelecionados,
+        categoriasSelecionadas,
+        artigo,
+        cnps: listaCodigos ? listaCodigos.cnps : undefined,
+        dataInicio: periodHeader?.from ?? dataInicio,
+        dataFim: periodHeader?.to ?? dataFim,
+        agruparPor,
+        ordenarPor,
+        apenasComVendas,
+        apenasComStock,
+        incluirManutencao,
+        subcategoriasSelecionadas,
+        utilizacoesSelecionadas,
+        incluirCredito,
+        incluirTransferencias,
+        ordenacaoTabelaDescricao: descreverOrdenacaoTabela(ordenacao, buckets),
+        selecaoArtigos: selecaoAplicavel ? { selecionados: nSelecionados, total: codigosVisiveis.length } : undefined,
+      },
+      universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, categorias },
+      organization: formatFarmaciaHeader(
+        farmaciasSelecionadas,
+        farmaciasInfo
+      ),
+    });
+
+  // Separador «Relatório» = pré-visualização FIEL do documento (o mesmo HTML que gera PDF e impressão): uma só
+  // estrutura visual, sem versão paralela do mapa. Só se calcula com o separador ativo.
+  /* eslint-disable react-hooks/exhaustive-deps -- depende do estado inteiro do mapa; recalcula só com o separador ativo */
+  const htmlPrevia = useMemo(
+    () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
+    [modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
+      apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
+      fornecedoresSelecionados, fabricantesSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
+      artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
+  );
+  /* eslint-enable react-hooks/exhaustive-deps */
+
 
   // Trigger explícito: chama a server action com o conjunto canónico
   // de filtros (`SharedReportFilters`). Período e filtros de
@@ -1195,48 +1249,7 @@ export function VendasClient({
               )}
               <ReportActions
                 hide={!hasGenerated || semArtigosParaImprimir ? { print: true, pdf: true, excel: true, email: true } : undefined}
-                report={() =>
-                  buildVendasReport({
-                    // Exactamente as linhas visíveis, na mesma sequência:
-                    // `rowsOrdenadas` é o que a tabela renderiza (filtros +
-                    // agrupamento + ordenação do selector + ordenação por
-                    // cabeçalho) — `orderedRows` parava antes do clique no
-                    // cabeçalho, por isso a exportação podia sair numa
-                    // ordem diferente da que o utilizador via no ecrã. Em
-                    // "comparativo" a tabela mostra `comparativoRows` (a
-                    // sua própria ordenação fixa por código+farmácia, sem
-                    // selector nem cabeçalho clicável) — o export segue-a.
-                    rows: linhasParaRelatorio,
-                    buckets,
-                    filters: {
-                      ambito,
-                      farmaciasSelecionadas,
-                      fornecedoresSelecionados,
-                      fabricantesSelecionados,
-                      categoriasSelecionadas,
-                      artigo,
-                      cnps: listaCodigos ? listaCodigos.cnps : undefined,
-                      dataInicio: periodHeader?.from ?? dataInicio,
-                      dataFim: periodHeader?.to ?? dataFim,
-                      agruparPor,
-                      ordenarPor,
-                      apenasComVendas,
-                      apenasComStock,
-                      incluirManutencao,
-                      subcategoriasSelecionadas,
-                      utilizacoesSelecionadas,
-                      incluirCredito,
-                      incluirTransferencias,
-                      ordenacaoTabelaDescricao: descreverOrdenacaoTabela(ordenacao, buckets),
-                      selecaoArtigos: selecaoAplicavel ? { selecionados: nSelecionados, total: codigosVisiveis.length } : undefined,
-                    },
-                    universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, categorias },
-                    organization: formatFarmaciaHeader(
-                      farmaciasSelecionadas,
-                      farmaciasInfo
-                    ),
-                  })
-                }
+                report={construirRelatorio}
               />
               {hasGenerated && rows.length > 0 && (
                 <button
@@ -1670,165 +1683,13 @@ export function VendasClient({
 
             <div className="max-h-[calc(100vh-360px)] overflow-y-auto p-4">
               <div className="mx-auto max-w-[1200px] space-y-4">
-                <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="border-b border-dashed border-slate-300 pb-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-[11px] text-slate-500">
-                          {formatFarmaciaHeader(farmaciasSelecionadas, farmaciasInfo)}
-                        </div>
-                        <div className="mt-2 text-[15px] font-semibold text-slate-900">
-                          Mapa de Evolução de Vendas -{" "}
-                          {ambito === "farmacia"
-                            ? "Farmácia"
-                            : ambito === "grupo"
-                              ? "Grupo"
-                              : "Comparativo"}
-                        </div>
-                        <div className="mt-1 text-[12px] text-slate-600">
-                          Período: De {formatDatePt(periodHeader?.from ?? dataInicio)} até{" "}
-                          {formatDatePt(periodHeader?.to ?? dataFim)}
-                        </div>
-                      </div>
-
-                      <div className="text-right text-[12px] text-slate-500">
-                        <div>{new Date().toLocaleDateString("pt-PT")}</div>
-                        <div className="mt-1">Moeda: Euro</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-                    {ambito === "comparativo" ? (
-                      <table className="min-w-full text-left">
-                        <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                          <tr>
-                            <th className="px-3 py-2 font-semibold">Código</th>
-                            <th className="px-3 py-2 font-semibold">Descrição</th>
-                            <th className="px-3 py-2 font-semibold">Farmácia</th>
-                            {buckets.map((b) => (
-                              <th
-                                key={`rep-comp-th-${bucketKey(b)}`}
-                                className="px-3 py-2 text-center font-semibold"
-                              >
-                                {bucketLabel(b)}
-                              </th>
-                            ))}
-                            <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
-                            <th className="px-3 py-2 text-center font-semibold">Exist.</th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
-                          {comparativoRows.map((row, index) => (
-                            <tr key={`report-comp-${row.codigo}-${row.farmacia}-${index}`}>
-                              <td className="whitespace-nowrap px-3 py-1.5">{row.codigo}</td>
-                              <td className="px-3 py-1.5">{row.descricao}</td>
-                              <td className="px-3 py-1.5">{row.farmacia}</td>
-                              {row.meses.map((m, i) => (
-                                <td
-                                  key={`rep-comp-td-${row.codigo}-${row.farmacia}-${i}`}
-                                  className="px-3 py-1.5 text-center"
-                                >
-                                  {m.quantidade}
-                                </td>
-                              ))}
-                              <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
-                              <td className="px-3 py-1.5 text-center">{row.existencia}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <table className="min-w-full text-left">
-                        <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                          <tr>
-                            <th className="px-3 py-2 font-semibold">Código</th>
-                            <th className="px-3 py-2 font-semibold">Descrição</th>
-
-                            {showFarmaciaColumnInReport && (
-                              <th className="px-3 py-2 font-semibold">Farmácia</th>
-                            )}
-
-                            {buckets.map((b) => (
-                              <th
-                                key={`rep-th-${bucketKey(b)}`}
-                                className="px-3 py-2 text-center font-semibold"
-                              >
-                                {bucketLabel(b)}
-                              </th>
-                            ))}
-                            <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
-                            <th className="px-3 py-2 text-center font-semibold">Exist.</th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
-                          {linhasTabela.map(({ row, subtotal, key }) => (
-                            <tr
-                              key={`report-${key}`}
-                              className={
-                                subtotal ? "bg-slate-100 font-semibold text-slate-900" : undefined
-                              }
-                            >
-                              <td className="whitespace-nowrap px-3 py-1.5">
-                                {subtotal ? "" : row.codigo}
-                              </td>
-                              <td className="px-3 py-1.5">
-                                {subtotal ? ROTULO_TOTAL_ARTIGO : row.descricao}
-                              </td>
-
-                              {showFarmaciaColumnInReport && (
-                                <td className="px-3 py-1.5">{subtotal ? "" : row.farmacia}</td>
-                              )}
-
-                              {row.meses.map((m, i) => (
-                                <td
-                                  key={`rep-${key}-m-${i}`}
-                                  className="px-3 py-1.5 text-center"
-                                >
-                                  {m.quantidade}
-                                </td>
-                              ))}
-                              <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
-                              <td className="px-3 py-1.5 text-center">{row.existencia}</td>
-                            </tr>
-                          ))}
-
-                          {incluirTotais && orderedRows.length > 0 && (
-                            <tr className="bg-slate-50 font-semibold text-slate-900">
-                              <td
-                                className="px-3 py-2"
-                                colSpan={showFarmaciaColumnInReport ? 3 : 2}
-                              >
-                                Totais
-                              </td>
-                              {buckets.map((b, i) => (
-                                <td
-                                  key={`rep-total-${bucketKey(b)}`}
-                                  className="px-3 py-2 text-center"
-                                >
-                                  {sumBucket(orderedRows, i)}
-                                </td>
-                              ))}
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.totalVendas))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.existencia))}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400">
-                    <div>SoftReis Informática</div>
-                    <div>Página 1 de 1</div>
-                  </div>
-                </div>
+                {semArtigosParaImprimir ? (
+                  <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+                    Nenhum artigo selecionado — selecione pelo menos um artigo na vista «Tabela» para ver o relatório.
+                  </p>
+                ) : (
+                  <PreviaRelatorio html={htmlPrevia} />
+                )}
 
                 {ambito === "grupo" && reportByFarmacia.length > 0 && (
                   <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -1837,7 +1698,7 @@ export function VendasClient({
                         Distribuição por farmácia
                       </h3>
                       <p className="mt-1 text-[12px] text-slate-600">
-                        Leitura do total consolidado repartido por farmácia.
+                        Total consolidado repartido por farmácia — sobre o resultado filtrado (não depende da seleção de artigos para impressão).
                       </p>
                     </div>
 
@@ -1854,9 +1715,9 @@ export function VendasClient({
                                 {bucketLabel(b)}
                               </th>
                             ))}
-                            <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
-                            <th className="px-3 py-2 text-center font-semibold">Exist.</th>
-                            <th className="px-3 py-2 text-center font-semibold">Valor</th>
+                            <th className="px-3 py-2 text-center font-semibold">Total Unid.</th>
+                            <th className="px-3 py-2 text-center font-semibold">Stock</th>
+                            <th className="px-3 py-2 text-center font-semibold">Vendas s/IVA (€)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
@@ -2081,11 +1942,6 @@ function formatMoney(value: number) {
   });
 }
 
-function formatDatePt(value: string) {
-  const date = new Date(value);
-  return date.toLocaleDateString("pt-PT");
-}
-
 function humanizeOption(option: string) {
   const map: Record<string, string> = {
     totalVendas: "Total vendas",
@@ -2229,4 +2085,24 @@ function descreverOrdenacaoTabela(
     nome = b ? bucketLabel(b) : "mês";
   }
   return `${nome ?? ordenacao.coluna} (${ordenacao.direcao === "asc" ? "crescente" : "decrescente"}) — cabeçalho da tabela`;
+}
+
+/**
+ * Pré-visualização fiel do relatório (PDF/impressão/Excel/email): o MESMO HTML, num iframe isolado (os estilos do
+ * relatório não contaminam a aplicação). Só ecrã.
+ */
+function PreviaRelatorio({ html }: { html: string }) {
+  return (
+    <div data-nao-imprimir className="print:hidden">
+      <p className="mb-2 text-[12px] text-slate-500">
+        Pré-visualização do documento exatamente como sai em PDF, impressão, Excel e email — só os artigos selecionados.
+      </p>
+      <iframe
+        title="Pré-visualização do relatório de Vendas"
+        data-testid="vendas-relatorio-previa"
+        srcDoc={html}
+        className="h-[calc(100vh-380px)] min-h-[520px] w-full rounded-xl border border-slate-300 bg-white"
+      />
+    </div>
+  );
 }
