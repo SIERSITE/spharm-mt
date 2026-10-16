@@ -291,9 +291,24 @@ function cellText(row: ReportRow, col: ReportColumn): string {
   const raw = effectiveCellValue(row, col);
   if (col.zeroAsDash) {
     const n = numericValue(raw);
-    if (n === 0) return "–";
+    if (n === 0) return col.zeroText ?? "–";
   }
   return formatCell(raw, col.format);
+}
+
+/**
+ * Um grupo (artigo) com mais linhas do que isto NÃO usa `rowspan`: o bloco pode atravessar páginas e a célula
+ * agrupada só existiria na primeira. Nesse caso CNP/Descrição repetem-se em cada linha (identificação suficiente).
+ */
+const MAX_LINHAS_COM_ROWSPAN = 14;
+
+/** Classe de estado de stock (ver `ReportColumn.stockIndicator`), ou "". */
+function stockClass(value: ReportCell): string {
+  const n = numericValue(value);
+  if (n === null) return "";
+  if (n < 0) return "stk-neg";
+  if (n === 0) return "stk-zero";
+  return "stk-pos";
 }
 
 function renderTable(report: Report): string {
@@ -303,26 +318,8 @@ function renderTable(report: Report): string {
     return `<section class="table-wrap"><div class="empty">Sem dados a apresentar.</div></section>`;
   }
 
-  // <colgroup> com larguras explícitas — combinado com table-layout:fixed
-  // garante que as colunas respeitam os tamanhos definidos pelo adapter.
-  const colgroup = cols
-    .map((c) => {
-      const w = widthToCss(c.width);
-      return `<col${w ? ` style="width:${w}"` : ""} />`;
-    })
-    .join("");
-
-  const headerCells = cols
-    .map((c) => {
-      const style = alignStyle(defaultAlignFor(c));
-      // Um rótulo pode trazer "\n" para pedir cabeçalho em duas linhas
-      // (ex.: meses "JAN\n26", ou "Custo unit.\nest.") — a forma mais
-      // curta de dar mais largura de leitura a cada linha sem estreitar
-      // a coluna nem cortar texto.
-      const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
-      return `<th style="${style}">${label}</th>`;
-    })
-    .join("");
+  // Blocos temporais (ver ReportMeta.columnBlocks): sem blocos = um só, com todas as colunas — HTML idêntico ao de sempre.
+  const blocos = report.meta?.columnBlocks && report.meta.columnBlocks.length > 1 ? report.meta.columnBlocks : null;
 
   // Grupos por GROUP_KEY (runs contíguos) — ver report-types.ts. Uma
   // linha sem grupo (a maioria dos relatórios, hoje) forma sempre um
@@ -337,95 +334,172 @@ function renderTable(report: Report): string {
       grupoDoIndice.set(g.startIndex + offset, { length: g.length, isFirst: offset === 0 });
     }
   }
+  const semGrupos = grupos.every((g) => g.groupKey === undefined);
 
-  const renderRow = (row: ReportRow, idx: number): string => {
-    const subtotal = ehLinhaSubtotal(row);
-    const grupo = grupoDoIndice.get(idx) ?? { length: 1, isFirst: true };
-    const tds = cols
+  const renderBloco = (colsB: ReportColumn[], ultimo: boolean, fator: number): string => {
+    // <colgroup> com larguras explícitas — combinado com table-layout:fixed
+    // garante que as colunas respeitam os tamanhos definidos pelo adapter.
+    const colgroup = colsB
       .map((c) => {
-        if (c.spanGroup && grupo.length > 1 && !grupo.isFirst) {
-          // Coberta pelo rowspan emitido na 1ª linha do grupo — uma
-          // tabela HTML válida não pode repetir esta célula.
-          return "";
-        }
-        const style = alignStyle(defaultAlignFor(c));
-        const tone = cellToneClass(effectiveCellValue(row, c), c);
-        const classAttr = tone ? ` class="${tone}"` : "";
-        const rowspanAttr = c.spanGroup && grupo.length > 1 && grupo.isFirst ? ` rowspan="${grupo.length}"` : "";
-        const principal = escapeHtml(cellText(row, c));
-        const notaRaw = c.noteKey ? row[c.noteKey] : undefined;
-        const conteudo =
-          typeof notaRaw === "string" && notaRaw !== ""
-            ? `<div class="cell-main">${principal}</div><div class="cell-note">${escapeHtml(notaRaw)}</div>`
-            : principal;
-        return subtotal
-          ? `<td style="${style}"${rowspanAttr}${classAttr}><strong>${conteudo}</strong></td>`
-          : `<td style="${style}"${rowspanAttr}${classAttr}>${conteudo}</td>`;
+        const w = widthToCss(c.width && fator !== 1 && c.width <= 100 ? c.width * fator : c.width);
+        return `<col${w ? ` style="width:${w}"` : ""} />`;
       })
       .join("");
-    return subtotal ? `<tr class="subtotal-row">${tds}</tr>` : `<tr>${tds}</tr>`;
-  };
 
-  const linhasHtml = report.rows.map(renderRow);
-  const semGrupos = grupos.every((g) => g.groupKey === undefined);
-  const tbodyHtml = semGrupos
-    ? `<tbody>${linhasHtml.join("")}</tbody>`
-    : grupos
-        .map((g, gi) => {
-          const linhasDoGrupo: string[] = [];
-          for (let offset = 0; offset < g.length; offset++) {
-            linhasDoGrupo.push(linhasHtml[g.startIndex + offset]);
+    // Paridade dos meses DENTRO do bloco (fundo alternado discreto).
+    const mesAlt = new Set<string>();
+    colsB.filter((c) => c.monthAlt).forEach((c, i) => { if (i % 2 === 1) mesAlt.add(c.key); });
+
+    const headerCells = colsB
+      .map((c) => {
+        const style = alignStyle(defaultAlignFor(c));
+        // Um rótulo pode trazer "\n" para pedir cabeçalho em duas linhas
+        // (ex.: meses "JAN\n26", ou "Custo unit.\nest.") — a forma mais
+        // curta de dar mais largura de leitura a cada linha sem estreitar
+        // a coluna nem cortar texto.
+        const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
+        const cls = [c.noClip ? "nc" : "", mesAlt.has(c.key) ? "mes-alt" : ""].filter(Boolean).join(" ");
+        return `<th style="${style}"${cls ? ` class="${cls}"` : ""}>${label}</th>`;
+      })
+      .join("");
+
+    const renderRow = (row: ReportRow, idx: number): string => {
+      const subtotal = ehLinhaSubtotal(row);
+      const grupo = grupoDoIndice.get(idx) ?? { length: 1, isFirst: true };
+      const usaSpan = grupo.length > 1 && grupo.length <= MAX_LINHAS_COM_ROWSPAN;
+      const tds = colsB
+        .map((c) => {
+          if (c.spanGroup && usaSpan && !grupo.isFirst) {
+            // Coberta pelo rowspan emitido na 1ª linha do grupo — uma
+            // tabela HTML válida não pode repetir esta célula.
+            return "";
           }
-          // Zebra POR GRUPO (não por linha) em modo compacto — um artigo
-          // com 5 farmácias é um bloco só, não cinco riscas alternadas.
-          // Também é a fronteira de "não cortar entre páginas" (ver CSS
-          // .row-group { break-inside: avoid }).
-          const alt = compact && gi % 2 === 1 ? " row-group-alt" : "";
-          return `<tbody class="row-group${alt}">${linhasDoGrupo.join("")}</tbody>`;
+          const style = alignStyle(defaultAlignFor(c));
+          const valor = effectiveCellValue(row, c);
+          const classes: string[] = [];
+          const tone = cellToneClass(valor, c);
+          if (tone) classes.push(tone);
+          if (c.noClip) classes.push("nc");
+          if (mesAlt.has(c.key)) classes.push("mes-alt");
+          let conteudoBase = escapeHtml(cellText(row, c));
+          if (c.stockIndicator && !subtotal) {
+            const st = stockClass(valor);
+            if (st) {
+              classes.push(st);
+              // Zero (caixa) e negativo (inversão) levam a pastilha; o positivo fica número simples.
+              if (st !== "stk-pos") conteudoBase = `<span class="stk-box">${conteudoBase}</span>`;
+            }
+          }
+          const classAttr = classes.length > 0 ? ` class="${classes.join(" ")}"` : "";
+          const rowspanAttr = c.spanGroup && usaSpan && grupo.isFirst ? ` rowspan="${grupo.length}"` : "";
+          const notaRaw = c.noteKey ? row[c.noteKey] : undefined;
+          const conteudo =
+            typeof notaRaw === "string" && notaRaw !== ""
+              ? `<div class="cell-main">${conteudoBase}</div><div class="cell-note">${escapeHtml(notaRaw)}</div>`
+              : conteudoBase;
+          return subtotal
+            ? `<td style="${style}"${rowspanAttr}${classAttr}><strong>${conteudo}</strong></td>`
+            : `<td style="${style}"${rowspanAttr}${classAttr}>${conteudo}</td>`;
         })
         .join("");
+      return subtotal ? `<tr class="subtotal-row">${tds}</tr>` : `<tr>${tds}</tr>`;
+    };
 
-  // TOTAIS SOBRE O DETALHE, e não sobre `report.rows`: com os subtotais
-  // dentro, cada artigo contava duas vezes.
-  const totals = computeTotals(cols, linhasDeDetalhe(report.rows));
-  const hasTotals = Object.keys(totals).length > 0;
-  // Ponto 6 (quebra de página): NUNCA `<tfoot>` — `display:table-footer-
-  // group` repete o conteúdo no fim de TODAS as páginas do PDF/impressão
-  // de uma tabela multi-página (comportamento standard do motor de
-  // paginação, confirmado com PDFs reais via Puppeteer: "TOTAL GERAL"
-  // aparecia — com o valor final, já somado — logo na 1ª página, antes
-  // de a tabela sequer acabar). Um `<tbody>` final comum aparece só UMA
-  // vez, no fim natural do conteúdo, exactamente onde deve estar.
-  const totalsRow = hasTotals
-    ? `<tbody class="totals-tbody"><tr>${cols
-        .map((c, i) => {
-          const style = alignStyle(defaultAlignFor(c));
+    const linhasHtml = report.rows.map(renderRow);
+    const tbodyHtml = semGrupos
+      ? `<tbody>${linhasHtml.join("")}</tbody>`
+      : grupos
+          .map((g, gi) => {
+            const linhasDoGrupo: string[] = [];
+            for (let offset = 0; offset < g.length; offset++) {
+              linhasDoGrupo.push(linhasHtml[g.startIndex + offset]);
+            }
+            // Zebra POR GRUPO (não por linha) em modo compacto — um artigo
+            // com 5 farmácias é um bloco só, não cinco riscas alternadas.
+            // Também é a fronteira de "não cortar entre páginas" (ver CSS
+            // .row-group { break-inside: avoid }).
+            const alt = compact && gi % 2 === 1 ? " row-group-alt" : "";
+            return `<tbody class="row-group${alt}">${linhasDoGrupo.join("")}</tbody>`;
+          })
+          .join("");
+
+    // TOTAIS SOBRE O DETALHE, e não sobre `report.rows`: com os subtotais
+    // dentro, cada artigo contava duas vezes.
+    const totals = computeTotals(colsB, linhasDeDetalhe(report.rows));
+    const hasTotals = Object.keys(totals).length > 0 && ultimo;
+    // Ponto 6 (quebra de página): NUNCA `<tfoot>` — `display:table-footer-
+    // group` repete o conteúdo no fim de TODAS as páginas do PDF/impressão
+    // de uma tabela multi-página (comportamento standard do motor de
+    // paginação, confirmado com PDFs reais via Puppeteer: "TOTAL GERAL"
+    // aparecia — com o valor final, já somado — logo na 1ª página, antes
+    // de a tabela sequer acabar). Um `<tbody>` final comum aparece só UMA
+    // vez, no fim natural do conteúdo, exactamente onde deve estar.
+    //
+    // Compacto: o rótulo ocupa TODAS as colunas até à primeira com total
+    // (colspan) — "TOTAL GERAL" numa coluna de CNP estreita aparecia
+    // cortado como «TOTA». Nos restantes relatórios fica na 1ª célula.
+    let totalsRow = "";
+    if (hasTotals) {
+      const primeiroComTotal = colsB.findIndex((c) => c.showTotal);
+      const spanRotulo = compact && primeiroComTotal > 1 ? primeiroComTotal : 1;
+      const celulas: string[] = [];
+      for (let i = 0; i < colsB.length; i++) {
+        const c = colsB[i];
+        const style = alignStyle(defaultAlignFor(c));
+        const nc = c.noClip ? ` class="nc"` : "";
+        if (i === 0) {
           // "TOTAL GERAL", não "Total" — para nunca se confundir, à
           // primeira vista, com "TOTAL ARTIGO" (o subtotal por linha,
           // ver .subtotal-row acima) numa tabela com muitas linhas.
-          if (i === 0) return `<td style="${style}"><strong>TOTAL GERAL</strong></td>`;
-          if (c.showTotal) {
-            return `<td style="${style}"><strong>${escapeHtml(formatCell(totals[c.key], c.format))}</strong></td>`;
-          }
-          return `<td></td>`;
-        })
-        .join("")}</tr></tbody>`
-    : "";
+          celulas.push(`<td style="text-align:left;"${spanRotulo > 1 ? ` colspan="${spanRotulo}"` : ""}><strong>TOTAL GERAL</strong></td>`);
+          i += spanRotulo - 1;
+          continue;
+        }
+        if (c.showTotal) {
+          celulas.push(`<td style="${style}"${nc}><strong>${escapeHtml(formatCell(totals[c.key], c.format))}</strong></td>`);
+        } else {
+          celulas.push(`<td></td>`);
+        }
+      }
+      totalsRow = `<tbody class="totals-tbody"><tr>${celulas.join("")}</tr></tbody>`;
+    }
 
-  const tableDensity = report.meta?.tableDensity;
-  const tableClass = tableDensity && tableDensity !== "cozy" ? ` class="table-density-${tableDensity}"` : "";
+    const tableDensity = report.meta?.tableDensity;
+    const tableClass = tableDensity && tableDensity !== "cozy" ? ` class="table-density-${tableDensity}"` : "";
 
-  return `
-    <section class="table-wrap">
+    return `
       <table${tableClass}>
         <colgroup>${colgroup}</colgroup>
         <thead><tr>${headerCells}</tr></thead>
         ${tbodyHtml}
         ${totalsRow}
-      </table>
-      <div class="row-count">${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}</div>
+      </table>`;
+  };
+
+  const nota = report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`;
+  const rodapeTabela = `<div class="row-count">${escapeHtml(nota)}</div>`;
+
+  if (!blocos) {
+    return `
+    <section class="table-wrap">${renderBloco(cols, true, 1)}
+      ${rodapeTabela}
     </section>
   `;
+  }
+
+  // Blocos temporais: cada um é uma tabela completa (cabeçalho próprio, repetido em cada página pelo motor).
+  const partes = blocos.map((b, i) => {
+    const colsB = cols.filter((c) => !b.omitir.includes(c.key));
+    const soma = colsB.reduce((s, c) => s + (c.width && c.width <= 100 ? c.width : 0), 0);
+    const fator = soma > 0 && soma < 100 ? 100 / soma : 1;
+    const ultimo = i === blocos.length - 1;
+    return `
+    <section class="table-wrap bloco-temporal${i > 0 ? " bloco-novo" : ""}">
+      <div class="bloco-titulo"><strong>Parte ${i + 1} de ${blocos.length}</strong> · ${escapeHtml(b.titulo)}</div>${renderBloco(colsB, ultimo, fator)}
+      ${ultimo ? rodapeTabela : ""}
+    </section>`;
+  });
+  return partes.join("\n");
 }
 
 function renderFooter(report: Report): string {
@@ -847,8 +921,47 @@ const STYLES = `
     border-bottom: 2px solid #111827;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     MAPA DE VENDAS (2026-10) — valores completos, stock legível a P&B,
+     meses alternados discretos, blocos temporais.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Valores monetários: NUNCA cortados (a largura da coluna é calculada pelo adapter para o texto caber). */
+  .page.density-compact thead th.nc,
+  .page.density-compact tbody td.nc {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Fundo alternado dos meses: película de 4% de tinta, por cima do fundo do bloco — quase imperceptível, nunca decisiva. */
+  .page.density-compact tbody td.mes-alt { background-image: linear-gradient(rgba(15, 23, 42, 0.045), rgba(15, 23, 42, 0.045)) !important; }
+  .page.density-compact thead th.mes-alt { background-image: linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)) !important; }
+
+  /* Stock: positivo = número simples (verde suave); zero = número em CAIXA; negativo = branco sobre preto. */
+  .page.density-compact tbody td.stk-pos { font-weight: 600; }
+  .page.density-compact tbody td.stk-zero .stk-box {
+    display: inline-block; min-width: 1.6em; text-align: center;
+    border: 1px solid #111827; border-radius: 2px; padding: 0 2px; font-weight: 700; color: #7f1d1d;
+  }
+  .page.density-compact tbody td.stk-neg .stk-box {
+    display: inline-block; min-width: 1.6em; text-align: center;
+    background: #111827 !important; color: #ffffff !important; border-radius: 2px; padding: 0 3px; font-weight: 800;
+  }
+  /* A célula de stock já não leva o tom de fundo do bloco "cheio": o indicador é o próprio número. */
+  .page.density-compact.hierarchy-strong tbody td.stk-zero { background: #fbe4e4 !important; }
+  .page.density-compact.hierarchy-strong tbody td.stk-neg { background: #f3c9c9 !important; }
+
+  /* Blocos temporais (períodos longos): cada parte numa página nova, com legenda própria. */
+  .bloco-titulo {
+    font-size: 9px; color: #1f2937; margin: 4px 0 4px 0; padding: 2px 6px;
+    border-left: 4px solid #111827; background: #f3f4f6;
+  }
+
   @media print {
     html, body { width: 100%; }
+    .bloco-novo { break-before: page; page-break-before: always; }
     /* Um artigo nunca se separa do seu TOTAL ARTIGO (quando o motor o permite). */
     tr.subtotal-row { break-before: avoid; page-break-before: avoid; }
     .page { padding: 0; }

@@ -101,7 +101,11 @@ console.log("\n=== C. Não depende só da cor ===");
   const sub = bloco.slice(bloco.indexOf("tr.subtotal-row td {"));
   ok("TOTAL ARTIGO: bold, fundo mais escuro, bordas superior E inferior de 2px", /font-weight: 700/.test(sub) && /background: #b9c4d0/.test(sub) && /border-top: 2px solid/.test(sub) && /border-bottom: 2px solid/.test(sub));
   ok("linhas da farmácia subordinadas: separador ponteado, texto mais suave", /border-bottom: 1px dotted/.test(bloco) && /color: #374151/.test(bloco));
-  ok("nenhum fundo mais escuro que o cabeçalho e o total geral (tinta contida)", !/background: #(0|1)[0-9a-f]{5}/i.test(bloco.replace(/#1f2937/g, "")));
+  // Mapa de Vendas 2026-10: o ÚNICO outro fundo escuro permitido é o indicador de STOCK NEGATIVO — uma pastilha inline do
+  // tamanho do número (`.stk-neg .stk-box`), nunca uma célula/bloco. Remove-se só essa regra e verifica-se que é inline.
+  const regraStockNegativo = /\.page\.density-compact tbody td\.stk-neg \.stk-box \{[^}]*\}/.exec(bloco)?.[0] ?? "";
+  ok("stock negativo: pastilha escura apenas inline-block no número (não na célula)", /display: inline-block/.test(regraStockNegativo) && /background: #111827/.test(regraStockNegativo));
+  ok("nenhum fundo mais escuro que o cabeçalho e o total geral (tinta contida)", !/background: #(0|1)[0-9a-f]{5}/i.test(bloco.replace(/#1f2937/g, "").replace(regraStockNegativo, "")));
   ok("TOTAL ARTIGO nunca fica separado do seu artigo (impressão)", /tr\.subtotal-row \{ break-before: avoid/.test(css));
   ok("o artigo inteiro não parte entre páginas (row-group)", /tbody\.row-group \{\s*break-inside: avoid/.test(css));
   ok("o cabeçalho repete nas páginas seguintes", /thead \{ display: table-header-group; \}/.test(css));

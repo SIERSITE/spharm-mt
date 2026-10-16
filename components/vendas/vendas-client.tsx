@@ -2,7 +2,7 @@
 
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import { correspondeAPesquisa } from "@/lib/reporting/pesquisa-termos";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { runVendasReport } from "@/app/vendas/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
@@ -35,6 +35,7 @@ import { compararArtigos } from "@/lib/ordenacao-artigos";
 import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/reporting/vendas-filtros";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
+import { BarraScrollHorizontalTopo } from "@/components/ui/barra-scroll-horizontal-topo";
 import {
   ordenarLinhas,
   proximaOrdenacao,
@@ -689,6 +690,34 @@ export function VendasClient({
     });
   }, [rowsOrdenadas, agruparPor, buckets, farmacias]);
 
+  const contentorTabelaRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Para cada linha da tabela: é o início de um artigo? mostra CNP/Descrição? leva o controlo de seleção? Com
+   * «Agrupar por = Artigo» as linhas de um artigo são contíguas (CNP/Descrição só na 1.ª, como no PDF); nos outros
+   * agrupamentos o mesmo CNP pode repetir-se afastado, por isso cada linha identifica-se a si própria e só o
+   * controlo de seleção fica na 1.ª ocorrência do código.
+   */
+  const infoLinhas = useMemo(() => {
+    const vistos = new Set<string>();
+    let grupo = -1;
+    let codigoAnterior: string | null = null;
+    return linhasTabela.map(({ row, subtotal }) => {
+      const contiguo = agruparPor === "artigo";
+      const inicioArtigo = !subtotal && (!contiguo || row.codigo !== codigoAnterior);
+      if (inicioArtigo) grupo += 1;
+      if (!subtotal) codigoAnterior = row.codigo;
+      const primeiraDoCodigo = !subtotal && !vistos.has(row.codigo);
+      if (primeiraDoCodigo) vistos.add(row.codigo);
+      return {
+        inicioArtigo,
+        grupoAlt: grupo % 2 === 1,
+        primeiraDoCodigo,
+        mostrarIdentificacao: contiguo ? inicioArtigo : true,
+      };
+    });
+  }, [linhasTabela, agruparPor]);
+
   const resumo = useMemo(() => {
     // Valor gravado no ledger, não `totalVendas × pvp`. O `pvp` vem de
     // ProdutoFarmacia — é o preço de HOJE na prateleira — e usá-lo aqui
@@ -1197,6 +1226,12 @@ export function VendasClient({
                       apenasComVendas,
                       apenasComStock,
                       incluirManutencao,
+                      subcategoriasSelecionadas,
+                      utilizacoesSelecionadas,
+                      incluirCredito,
+                      incluirTransferencias,
+                      ordenacaoTabelaDescricao: descreverOrdenacaoTabela(ordenacao, buckets),
+                      selecaoArtigos: selecaoAplicavel ? { selecionados: nSelecionados, total: codigosVisiveis.length } : undefined,
                     },
                     universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, categorias },
                     organization: formatFarmaciaHeader(
@@ -1411,12 +1446,13 @@ export function VendasClient({
               </div>
             </div>
 
-            <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto">
+            <BarraScrollHorizontalTopo alvo={contentorTabelaRef} />
+            <div ref={contentorTabelaRef} className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto" data-testid="vendas-contentor-tabela">
               {ambito !== "comparativo" ? (
-                <table className="min-w-full text-left">
-                  <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
+                <table className="tabela-vendas min-w-full text-left" data-testid="vendas-tabela">
+                  <thead className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-[0.06em] text-slate-500">
                     <tr>
-                      <th className="w-8 px-2 py-2.5">
+                      <th className="col-chk px-2 py-2.5">
                         <input
                           type="checkbox"
                           data-testid="vendas-sel-todos"
@@ -1426,43 +1462,23 @@ export function VendasClient({
                           onChange={alternarTodos}
                         />
                       </th>
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="codigo" className="px-4 py-2.5 font-semibold">Código</CabecalhoOrdenavel>
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="descricao" className="px-3 py-2.5 font-semibold">Descrição</CabecalhoOrdenavel>
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pvp" align="center" className="px-2 py-2.5 font-semibold">
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="codigo" className="col-cnp px-2 py-2.5 font-semibold">CNP</CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="descricao" className="col-desc px-2 py-2.5 font-semibold">Descrição</CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmacia" className="px-2 py-2.5 font-semibold">Farmácia</CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pvp" align="right" className="px-2 py-2.5 font-semibold">
                         PVP
                       </CabecalhoOrdenavel>
-                      {/* «est.» no titulo: e' o PMC/PUC de HOJE, nao o
-                          custo a data da venda. Só o unitário — a coluna
-                          de custo TOTAL foi removida a pedido (2026-09). */}
-                      <CabecalhoOrdenavel
-                        as="th"
-                        ordenacao={ordenacao}
-                        onOrdenar={alternar}
-                        coluna="custoUnitarioEstimado"
-                        align="right"
-                        className="px-2 py-2.5 font-semibold"
-                      >
+                      {/* «est.» no titulo: e' o PMC/PUC de HOJE, nao o custo a data da venda. */}
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="custoUnitarioEstimado" align="right" className="px-2 py-2.5 font-semibold">
                         Custo unit. est.
                       </CabecalhoOrdenavel>
-                      {/* Custo TOTAL estimado = custo unit. est. × quantidade líquida
-                          (2026-10; tinha sido retirado em 2026-09). */}
-                      <CabecalhoOrdenavel
-                        as="th"
-                        ordenacao={ordenacao}
-                        onOrdenar={alternar}
-                        coluna="custoEstimado"
-                        align="right"
-                        className="px-2 py-2.5 font-semibold"
-                      >
+                      {/* Custo TOTAL estimado = custo unit. est. × quantidade líquida. */}
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="custoEstimado" align="right" className="px-2 py-2.5 font-semibold">
                         Custo total est.
                       </CabecalhoOrdenavel>
-                      {/* As colunas mensais são dinâmicas — dependem do
-                          período escolhido. A chave de ordenação leva o
-                          ÍNDICE do bucket (`mes:0`, `mes:1`…) e não o
-                          ano-mês: é a posição em `row.meses` que o
-                          acessor precisa, e é ela que sobrevive a uma
-                          mudança de período sem apontar para o mês
-                          errado. */}
+                      {/* As colunas mensais são dinâmicas — dependem do período escolhido. A chave de ordenação leva o
+                          ÍNDICE do bucket (`mes:0`, `mes:1`…) e não o ano-mês: é a posição em `row.meses` que o acessor
+                          precisa, e é ela que sobrevive a uma mudança de período sem apontar para o mês errado. */}
                       {buckets.map((b, i) => (
                         <CabecalhoOrdenavel
                           key={`th-${bucketKey(b)}`}
@@ -1471,125 +1487,116 @@ export function VendasClient({
                           onOrdenar={alternar}
                           coluna={`mes:${i}` as ColunaVendas}
                           align="center"
-                          className="px-2 py-2.5 font-semibold"
+                          className="col-mes px-1.5 py-2.5 font-semibold"
                         >
                           {bucketLabel(b)}
                         </CabecalhoOrdenavel>
                       ))}
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="totalVendas" align="center" className="px-2 py-2.5 font-semibold">
-                        Tot. Ven.
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="totalVendas" align="right" className="px-2 py-2.5 font-semibold">
+                        Total Unid.
                       </CabecalhoOrdenavel>
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="existencia" align="center" className="px-2 py-2.5 font-semibold">
-                        Exist.
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="existencia" align="center" className="px-2 py-2.5 font-semibold" title="Stock atual (à data de geração), não histórico">
+                        Stock
+                      </CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="valorBruto" align="right" className="px-2 py-2.5 font-semibold">
+                        Vendas s/IVA (€)
                       </CabecalhoOrdenavel>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-                    {linhasTabela.map(({ row, subtotal, key }, idx) => (
-                      <tr
-                        key={key}
-                        data-codigo={row.codigo}
-                        className={[
-                          subtotal ? "bg-slate-100/80 font-semibold text-slate-900" : "transition hover:bg-slate-50/70",
-                          selecaoAplicavel && !estaSelecionado(row.codigo) ? "opacity-60" : "",
-                        ].join(" ")}
-                      >
-                        <td className="w-8 px-2 py-2.5 align-top">
-                          {/* Um só controlo por ARTIGO (na sua 1.ª linha) — nunca por linha de farmácia. */}
-                          {!subtotal && linhasTabela.findIndex((l) => !l.subtotal && l.row.codigo === row.codigo) === idx && (
-                            <input
-                              type="checkbox"
-                              data-testid={`vendas-sel-artigo-${row.codigo}`}
-                              aria-label={`Incluir na impressão: ${row.descricao}`}
-                              checked={estaSelecionado(row.codigo)}
-                              onChange={() => alternarArtigo(row.codigo)}
-                            />
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 align-top">
-                          <span className="font-medium text-slate-800">
-                            {subtotal ? "" : row.codigo}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 align-top">
-                          {subtotal ? (
-                            <span className="text-[12px] uppercase tracking-wide text-slate-600">
-                              {ROTULO_TOTAL_ARTIGO}
-                            </span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <ArtigoLink
-                                cnp={Number(row.codigo)}
-                                className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
-                              >
-                                {row.descricao}
-                              </ArtigoLink>
-                              <div className="text-[12px] text-slate-500">
-                                {agruparPor === "artigo" || ambito === "farmacia"
-                                  ? row.farmacia
-                                  : row.grupo && row.grupo !== row.categoria
-                                    ? `${row.categoria} · ${row.grupo}`
-                                    : row.categoria}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
-                        </td>
-                        <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
-                          {fmtCustoOuTraco(row.custoUnitarioEstimado)}
-                        </td>
-                        <td className="px-2 py-2.5 text-right tabular-nums text-slate-700" data-col="custo-total">
-                          {fmtCustoOuTraco(row.custoEstimado)}
-                        </td>
-                        {row.meses.map((m, i) => (
-                          <td
-                            key={`${key}-m-${i}`}
-                            className="px-2 py-2.5 text-center"
-                          >
-                            {m.quantidade}
+                  <tbody className="text-[12.5px] text-slate-700">
+                    {linhasTabela.map(({ row, subtotal, key }, idx) => {
+                      const info = infoLinhas[idx];
+                      return (
+                        <tr
+                          key={key}
+                          data-codigo={row.codigo}
+                          data-vd-linha={subtotal ? "total-artigo" : "detalhe"}
+                          data-vd-inicio={info.inicioArtigo ? "true" : undefined}
+                          data-vd-alt={info.grupoAlt ? "true" : undefined}
+                          className={selecaoAplicavel && !estaSelecionado(row.codigo) ? "opacity-60" : undefined}
+                        >
+                          <td className="col-chk px-2 py-1.5 align-top">
+                            {/* Um só controlo por ARTIGO (na sua 1.ª linha) — nunca por linha de farmácia. */}
+                            {!subtotal && info.primeiraDoCodigo && (
+                              <input
+                                type="checkbox"
+                                data-testid={`vendas-sel-artigo-${row.codigo}`}
+                                aria-label={`Incluir na impressão: ${row.descricao}`}
+                                checked={estaSelecionado(row.codigo)}
+                                onChange={() => alternarArtigo(row.codigo)}
+                              />
+                            )}
                           </td>
-                        ))}
-                        <td className="px-2 py-2.5 text-center font-semibold text-slate-900">
-                          {row.totalVendas}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {row.existencia}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="col-cnp px-2 py-1.5 align-top">
+                            <span className="font-medium text-slate-800">{!subtotal && info.mostrarIdentificacao ? row.codigo : ""}</span>
+                          </td>
+                          <td className="col-desc px-2 py-1.5 align-top">
+                            {subtotal || !info.mostrarIdentificacao ? null : (
+                              <div className="space-y-0.5">
+                                <ArtigoLink
+                                  cnp={Number(row.codigo)}
+                                  className="block font-semibold leading-4 text-slate-900 transition hover:text-emerald-600"
+                                >
+                                  {row.descricao}
+                                </ArtigoLink>
+                                {agruparPor !== "artigo" && ambito !== "farmacia" && (
+                                  <div className="text-[11px] text-slate-500">
+                                    {row.grupo && row.grupo !== row.categoria ? `${row.categoria} · ${row.grupo}` : row.categoria}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className={`whitespace-nowrap px-2 py-1.5 align-top ${subtotal ? "font-bold uppercase tracking-wide text-slate-900" : ""}`}>
+                            {subtotal ? "Total artigo" : row.farmacia}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
+                            {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-600">
+                            {fmtCustoOuTraco(row.custoUnitarioEstimado)}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-800" data-col="custo-total">
+                            {fmtCustoOuTraco(row.custoEstimado)}
+                          </td>
+                          {row.meses.map((m, i) => (
+                            <td
+                              key={`${key}-m-${i}`}
+                              data-mes-alt={i % 2 === 1 ? "" : undefined}
+                              className="whitespace-nowrap px-1.5 py-1.5 text-center align-top tabular-nums"
+                            >
+                              <QuantidadeMes valor={m.quantidade} />
+                            </td>
+                          ))}
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top font-semibold tabular-nums text-slate-900">
+                            {row.totalVendas}
+                          </td>
+                          <td className="px-2 py-1.5 text-center align-top">
+                            {subtotal ? <span className="font-semibold tabular-nums">{row.existencia}</span> : <StockCelula valor={row.existencia} />}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-800" data-col="valor-vendas">
+                            {fmtCustoOuTraco(row.valorBruto)}
+                          </td>
+                        </tr>
+                      );
+                    })}
 
                     {incluirTotais && orderedRows.length > 0 && (
-                      <tr className="bg-slate-50/70 font-semibold text-slate-900">
-                        <td className="px-4 py-2.5" colSpan={4}>
-                          Totais
-                        </td>
-                        <td className="px-2 py-2.5" />
-                        <td
-                          className="px-2 py-2.5 text-right tabular-nums"
-                          data-testid="vendas-total-custo"
-                          title={resumo.linhasSemCusto > 0 ? `PARCIAL: ${resumo.linhasSemCusto} linha(s) sem custo conhecido ficam fora do total` : undefined}
-                        >
-                          {fmtCustoOuTraco(resumo.custoTotal)}
-                          {resumo.linhasSemCusto > 0 ? " *" : ""}
-                        </td>
-                        {buckets.map((b, i) => (
-                          <td
-                            key={`total-tabela-${bucketKey(b)}`}
-                            className="px-2 py-2.5 text-center"
-                          >
-                            {sumBucket(orderedRows, i)}
-                          </td>
-                        ))}
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.totalVendas))}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.existencia))}
-                        </td>
-                      </tr>
+                      <LinhaTotalVendas
+                        rotulo="TOTAL GERAL"
+                        testidCusto="vendas-total-custo"
+                        linhas={orderedRows}
+                        nMeses={buckets.length}
+                      />
+                    )}
+                    {incluirTotais && selecaoAplicavel && orderedRows.length > 0 && nSelecionados < codigosVisiveis.length && nSelecionados > 0 && (
+                      <LinhaTotalVendas
+                        rotulo={`TOTAL SELECIONADO (${nSelecionados} artigos)`}
+                        testidCusto="vendas-total-custo-selecionado"
+                        linhas={linhasParaRelatorio}
+                        nMeses={buckets.length}
+                      />
                     )}
                   </tbody>
                 </table>
@@ -2118,6 +2125,7 @@ type ColunaVendas =
   | "totalVendas"
   | "existencia"
   | "farmacia"
+  | "valorBruto"
   | `mes:${number}`;
 
 function acessorVendas(row: SalesReportRow, coluna: ColunaVendas): ValorOrdenavel {
@@ -2145,4 +2153,83 @@ function acessorVendas(row: SalesReportRow, coluna: ColunaVendas): ValorOrdenave
 function fmtCustoOuTraco(v: number | null): string {
   if (v === null || !Number.isFinite(v)) return "—";
   return `${formatMoney(v)} €`;
+}
+
+
+/** Quantidade de um mês: «·» sem vendas, valor com sinal quando negativo (devoluções/anulações acima das vendas). */
+function QuantidadeMes({ valor }: { valor: number }) {
+  if (valor === 0) return <span className="text-slate-300" aria-label="sem vendas">·</span>;
+  if (valor < 0) return <span className="font-semibold text-rose-700" title="Quantidade líquida negativa (devoluções/anulações)">{valor}</span>;
+  return <span>{valor}</span>;
+}
+
+/**
+ * Stock ATUAL: positivo = número simples; zero = número em CAIXA; negativo = branco sobre escuro. Lê-se a preto e
+ * branco (a cor só reforça) — igual ao PDF/impressão.
+ */
+function StockCelula({ valor }: { valor: number }) {
+  if (valor < 0) {
+    return <span className="inline-block min-w-[1.6em] rounded bg-slate-900 px-1 text-center font-bold tabular-nums text-white" data-stock="negativo" title="Stock negativo">{valor}</span>;
+  }
+  if (valor === 0) {
+    return <span className="inline-block min-w-[1.6em] rounded border border-slate-900 bg-rose-50 px-1 text-center font-bold tabular-nums text-rose-800" data-stock="zero" title="Sem stock">0</span>;
+  }
+  return <span className="font-semibold tabular-nums text-emerald-800" data-stock="positivo">{valor}</span>;
+}
+
+/** Linha de totais da tabela de Vendas — soma só o DETALHE (nunca os «Total artigo»), igual ao relatório. */
+function LinhaTotalVendas({
+  rotulo,
+  testidCusto,
+  linhas,
+  nMeses,
+}: {
+  rotulo: string;
+  testidCusto: string;
+  linhas: AggregatedRow[];
+  nMeses: number;
+}) {
+  const custo = custoTotalDoRelatorio(linhas);
+  return (
+    <tr data-vd-linha="total-geral" className="font-bold text-slate-900">
+      <td colSpan={3} className="col-total-rotulo px-2 py-2">{rotulo}</td>
+      <td colSpan={3} className="px-2 py-2" />
+      <td
+        className="whitespace-nowrap px-2 py-2 text-right tabular-nums"
+        data-testid={testidCusto}
+        title={custo.semCusto > 0 ? `PARCIAL: ${custo.semCusto} linha(s) sem custo conhecido ficam fora do total` : undefined}
+      >
+        {fmtCustoOuTraco(custo.total)}
+        {custo.semCusto > 0 ? " *" : ""}
+      </td>
+      {Array.from({ length: nMeses }, (_, i) => (
+        <td key={`tot-mes-${i}`} data-mes-alt={i % 2 === 1 ? "" : undefined} className="whitespace-nowrap px-1.5 py-2 text-center tabular-nums">
+          {sumBucket(linhas, i)}
+        </td>
+      ))}
+      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{sum(linhas.map((r) => r.totalVendas))}</td>
+      <td className="px-2 py-2" />
+      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums" data-col="valor-vendas">
+        {fmtCustoOuTraco(linhas.reduce((acc, r) => acc + r.valorBruto, 0))}
+      </td>
+    </tr>
+  );
+}
+
+/** Texto da ordenação por cabeçalho (sobrepõe-se ao selector «Ordenar por»); `undefined` se ninguém clicou num cabeçalho. */
+function descreverOrdenacaoTabela(
+  ordenacao: { coluna: ColunaVendas; direcao: "asc" | "desc" } | null,
+  buckets: { ano: number; mes: number }[],
+): string | undefined {
+  if (!ordenacao) return undefined;
+  const nomes: Record<string, string> = {
+    codigo: "CNP", descricao: "Descrição", farmacia: "Farmácia", pvp: "PVP", custoUnitarioEstimado: "Custo unit. est.",
+    custoEstimado: "Custo total est.", totalVendas: "Total Unid.", existencia: "Stock", valorBruto: "Vendas s/IVA",
+  };
+  let nome = nomes[ordenacao.coluna];
+  if (!nome && ordenacao.coluna.startsWith("mes:")) {
+    const b = buckets[Number(ordenacao.coluna.slice(4))];
+    nome = b ? bucketLabel(b) : "mês";
+  }
+  return `${nome ?? ordenacao.coluna} (${ordenacao.direcao === "asc" ? "crescente" : "decrescente"}) — cabeçalho da tabela`;
 }

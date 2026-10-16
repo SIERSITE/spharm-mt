@@ -344,6 +344,52 @@ body {
   .tabela-margens .col-exp, .tabela-margens .col-cnp, .tabela-margens .col-desc, .tabela-margens .col-msg .msg-fixa { position: static; }
 }
 
+/* ============================================================
+   Mapa de Vendas (ecrã): a MESMA hierarquia do relatório PDF
+   ------------------------------------------------------------
+   · artigo = bloco: borda forte no início, fundo alternado por artigo, «Total artigo» a negrito;
+   · cabeçalho fixo em cima; checkbox + CNP + Descrição fixos à esquerda (todas as colunas continuam acessíveis por
+     scroll horizontal, com barra espelho no topo — ver BarraScrollHorizontalTopo);
+   · valores monetários e números em tabular-nums, sem quebra; nada depende só da cor.
+   Só afeta o ecrã: PDF/impressão/Excel/email usam o relatório (renderReportHtml), nunca esta tabela.
+   ============================================================ */
+.tabela-vendas { border-collapse: separate; border-spacing: 0; }
+.tabela-vendas thead th {
+  position: sticky; top: 0; z-index: 30;
+  background-color: #eef2f6; vertical-align: bottom; line-height: 1.2;
+  box-shadow: inset 0 -2px 0 #64748b;
+}
+.tabela-vendas thead th button > span.truncate { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
+.tabela-vendas thead th.text-right button { text-align: right; }
+.tabela-vendas tbody td { background-color: #ffffff; border-bottom: 1px dotted #cbd5e1; }
+.tabela-vendas tbody tr[data-vd-alt="true"] > td { background-color: #f1f5f9; }
+.tabela-vendas tbody tr[data-vd-inicio="true"] > td { border-top: 2px solid #475569; }
+.tabela-vendas tbody tr:hover > td { background-color: #e0f2fe; }
+.tabela-vendas tbody tr[data-vd-linha="total-artigo"] > td {
+  background-color: #cbd5e1; font-weight: 700; color: #0f172a;
+  border-top: 1px solid #475569; border-bottom: 2px solid #475569;
+}
+.tabela-vendas tbody tr[data-vd-linha="total-geral"] > td {
+  background-color: #94a3b8; color: #0f172a; border-top: 3px double #0f172a; border-bottom: 2px solid #0f172a;
+}
+/* meses alternados: película de 3,5 % de tinta — quase imperceptível */
+.tabela-vendas td[data-mes-alt] { background-image: linear-gradient(rgba(15, 23, 42, 0.035), rgba(15, 23, 42, 0.035)); }
+
+/* colunas fixas à esquerda: seleção | CNP | Descrição */
+.tabela-vendas .col-chk, .tabela-vendas .col-cnp, .tabela-vendas .col-desc { position: sticky; z-index: 20; }
+.tabela-vendas .col-chk { left: 0; width: 2rem; min-width: 2rem; max-width: 2rem; }
+.tabela-vendas .col-cnp { left: 2rem; width: 5rem; min-width: 5rem; white-space: nowrap; }
+.tabela-vendas .col-desc { left: 7rem; min-width: 13rem; max-width: 17rem; box-shadow: 1px 0 0 #cbd5e1; }
+.tabela-vendas thead th.col-chk, .tabela-vendas thead th.col-cnp, .tabela-vendas thead th.col-desc { z-index: 40; background-color: #eef2f6; }
+.tabela-vendas thead th.col-desc { box-shadow: inset 0 -2px 0 #64748b, 1px 0 0 #cbd5e1; }
+.tabela-vendas thead th.col-mes { min-width: 3rem; }
+/* rótulo da linha de totais: ancorado à esquerda no scroll horizontal */
+.tabela-vendas .col-total-rotulo { position: sticky; left: 0; z-index: 20; white-space: nowrap; }
+
+@media print {
+  .tabela-vendas .col-chk, .tabela-vendas .col-cnp, .tabela-vendas .col-desc, .tabela-vendas .col-total-rotulo { position: static; }
+}
+
 @media (forced-colors: active) {
   .tabela-fixa thead th { border-bottom: 2px solid CanvasText; box-shadow: none; }
   .tabela-fixa tbody > tr { border-bottom: 1px solid CanvasText; }

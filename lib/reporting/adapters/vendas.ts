@@ -90,6 +90,8 @@ import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { filtroListaImportada } from "../filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { formatCell } from "../report-formatters";
+import { rotuloNaturezas } from "../natureza-venda";
 import {
   agruparPorArtigo,
   contarReferenciasUnicas,
@@ -171,103 +173,147 @@ export type VendasAdapterFilters = {
   incluirManutencao?: boolean;
   /** CNP da lista importada por ficheiro. Ver `SharedReportFilters.cnps`. */
   cnps?: number[];
+  subcategoriasSelecionadas?: string[];
+  utilizacoesSelecionadas?: string[];
+  /** Naturezas de venda (ver natureza-venda.ts) — os defaults do relatório oficial se omitidos. */
+  incluirCredito?: boolean;
+  incluirTransferencias?: boolean;
+  /**
+   * Descrição da ordenação EFECTIVA quando o utilizador clicou num cabeçalho da tabela (sobrepõe-se ao selector
+   * «Ordenar por»). Omitido ⇒ vale `ordenarPor`.
+   */
+  ordenacaoTabelaDescricao?: string;
+  /** Artigos selecionados para impressão / artigos do resultado. Só se mostra quando é uma seleção PARCIAL. */
+  selecaoArtigos?: { selecionados: number; total: number };
+};
+
+const ROTULO_AMBITO: Record<string, string> = { farmacia: "Farmácia", grupo: "Grupo", comparativo: "Comparativo" };
+const ROTULO_AGRUPAR: Record<string, string> = {
+  artigo: "Artigo", grupo: "Grupo", fornecedor: "Distribuidor", fabricante: "Fabricante", categoria: "Categoria", farmacia: "Farmácia",
+};
+const ROTULO_ORDENAR: Record<string, string> = {
+  descricao: "Descrição do artigo (A-Z)", totalVendas: "Total vendas", codigo: "Código", existencia: "Existência",
 };
 
 /**
- * Larguras-base (sem buckets), em % da largura útil da página — de
- * TODAS as colunas visíveis no HTML/PDF, incluindo PVP/Custo unit. est.
- * (correcção 2026-09: já não são `excelOnly` — ver a nota grande no
- * topo do ficheiro, e `buildColumns`).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LARGURAS CALCULADAS PELO CONTEÚDO (2026-10)
  *
- * Correcção (2026-09, redesenho): Farmácia moved para logo a seguir à
- * Descrição (era a última coluna) — é onde a referência visual a põe, e
- * faz mais sentido ler "este artigo, nesta farmácia" antes dos números
- * mês-a-mês. `codigo`/`descricao` só desenham na 1ª linha de cada artigo
- * (rowspan — ver `spanGroup` em report-types.ts), por isso a largura de
- * Descrição não compete com o número de farmácias do grupo.
+ * Causa do defeito «Custo total est. cortado acima de 9 999,99 €»: as colunas tinham percentagens FIXAS (7 % …) e as
+ * células têm `overflow:hidden`. «10 000,00 €» (11 caracteres) já não cabia em 7 % de uma página com 13 meses, e o PDF
+ * mostrava «10 000,0»; o «TOTAL GERAL» (1.ª coluna, CNP) aparecia como «TOTA». Agora cada coluna monetária/numérica
+ * recebe a largura do SEU texto mais largo (linhas, subtotais e total geral incluídos), medida com uma métrica
+ * conservadora (a de uma fonte larga, DejaVu — a que o Chromium do contentor usa se não houver Arial). A Descrição fica
+ * com o resto; é a única coluna que pode quebrar linha.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
-const BASE_WIDTH_FIXED_COLS = {
-  codigo: 6,
-  // Reduzida de 20 para 17 (correcção 2026-09, PVP/Custo por farmácia):
-  // já não precisa de caber a sublinha "PVP: X | Custo: Y" — só o texto
-  // da descrição — o espaço libertado ajuda PVP/Custo (abaixo) e os
-  // meses.
-  descricao: 15,
-  // Correcção (2026-09): a coluna Farmácia é o que a linha TOTAL ARTIGO
-  // usa para o próprio rótulo (bold, 12 caracteres — mais largo que
-  // qualquer nome de farmácia sem o prefixo "Farmácia "). A 8% ficava
-  // demasiado estreita a 15 meses (fixedScale reduzia-a mais ainda) e
-  // "TOTAL ARTIGO" cortava para "TOTAL AR…" — legível a menos, não a
-  // mais, exactamente o que não se queria ao encolher a linha.
-  farmacia: 11,
-  // PVP/Custo (correcção 2026-09): voltam a ser colunas VISÍVEIS no
-  // HTML/PDF, não só no Excel — ver a nota grande no topo do ficheiro.
-  // Estreitas de propósito: são só um valor em euros por linha.
-  pvp: 6,
-  custoUnitarioEstimado: 7,
-  // Custo TOTAL estimado (custo unit. × quantidade líquida) — 2026-10.
-  custoEstimado: 7,
-  totalVendas: 6,
-  existencia: 5,
-  valorVendas: 8,
+
+/** Largura útil de uma página A4 horizontal com margens de 8 mm: 281 mm ≈ 1062 px. */
+const LARGURA_UTIL_PX = 1062;
+
+/** Máximo de colunas de mês por página/bloco. Acima disto o período reparte-se em blocos (ver `repartirMeses`). */
+export const MAX_MESES_POR_BLOCO = 13;
+
+/** Largura mínima da Descrição (em %) abaixo da qual a página deixava de ser legível — os testes garantem que nunca se atinge. */
+export const DESCRICAO_MIN_PCT = 11;
+const DESCRICAO_PREFERIDA_PCT = 17;
+/** Largura confortável de uma coluna de mês e o mínimo absoluto (3 dígitos + sinal). */
+const MES_CONFORTO_PCT = 4.2;
+const MES_MINIMO_PCT = 2.6;
+
+type Densidade = "cozy" | "tight" | "ultratight";
+
+/** Fontes/paddings reais do CSS (report-html.ts, `.table-density-*`). */
+const METRICAS: Record<Densidade, { td: number; th: number; pad: number }> = {
+  cozy: { td: 9, th: 8.5, pad: 5 },
+  tight: { td: 8.5, th: 7.5, pad: 4 },
+  ultratight: { td: 8, th: 7, pad: 3 },
 };
 
-/** Largura mínima de uma coluna de mês, para "JUL"/"25" nunca truncar. */
-const MIN_WIDTH_MES = 4.2;
+/** Largura estimada, em px, de um texto — por excesso (dígito de uma fonte larga ≈ 0.64 em). */
+function larguraTextoPx(texto: string, fontPx: number, negrito: boolean): number {
+  let em = 0;
+  for (const ch of texto) {
+    if (/[0-9€]/.test(ch)) em += 0.64;
+    else if (/[\s.,  ·–—'-]/.test(ch)) em += 0.34;
+    else if (/[A-Z]/.test(ch)) em += 0.72;
+    else em += 0.62;
+  }
+  return em * fontPx * (negrito ? 1.1 : 1);
+}
+
+/** Largura, em % da página, de uma coluna que tem de mostrar TODOS estes textos e este cabeçalho sem cortar. */
+function colunaPct(textos: string[], cabecalho: string, d: Densidade, extraPx = 0): number {
+  const m = METRICAS[d];
+  let max = 0;
+  // negrito por excesso: as linhas de subtotal/total partilham a coluna.
+  for (const t of textos) max = Math.max(max, larguraTextoPx(t, m.td, true));
+  max += extraPx;
+  for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, m.th, true));
+  const px = max + 2 * m.pad + 3; // padding + bordas
+  return (px / LARGURA_UTIL_PX) * 100 * 1.04;
+}
 
 /**
- * Densidade fina da tabela (report.meta.tableDensity) — só relevante
- * para relatórios com nº de colunas dinâmico (hoje, só Vendas). Mais
- * meses no mesmo relatório = fonte/padding ligeiramente menores, nunca
- * a ponto de cortar texto (ver report-html.ts, secção `.table-density-*`).
+ * Regra para períodos longos: até MAX_MESES_POR_BLOCO (13) meses, uma coluna por mês numa só tabela; acima, o período
+ * reparte-se em ceil(n / 13) blocos de tamanho o mais igual possível (14 → 7+7; 24 → 12+12; 26 → 9+9+8), cada um numa
+ * página nova com a identificação do artigo e os totais do PERÍODO COMPLETO repetidos. Nunca se corta nem se esconde um mês.
  */
-function tableDensityFor(numMeses: number): "cozy" | "tight" | "ultratight" {
-  if (numMeses <= 6) return "cozy";
-  if (numMeses <= 10) return "tight";
+export function repartirMeses(n: number): number[] {
+  if (n <= 0) return [];
+  const blocos = Math.ceil(n / MAX_MESES_POR_BLOCO);
+  const base = Math.floor(n / blocos);
+  const resto = n % blocos;
+  return Array.from({ length: blocos }, (_, i) => base + (i < resto ? 1 : 0));
+}
+
+function tableDensityFor(mesesPorBloco: number): Densidade {
+  if (mesesPorBloco <= 6) return "cozy";
+  if (mesesPorBloco <= 10) return "tight";
   return "ultratight";
 }
 
+/** Textos já formatados (como o HTML/PDF os vai desenhar) de cada coluna, para medir a largura. */
+export type TextosDasColunas = {
+  codigo: string[];
+  farmacia: string[];
+  pvp: string[];
+  custoUnitario: string[];
+  custoTotal: string[];
+  valor: string[];
+  totalUnid: string[];
+  stock: string[];
+  mes: string[];
+};
+
 function buildColumns(
   buckets: { ano: number; mes: number }[],
-): ReportColumn[] {
-  const numMeses = buckets.length;
-  const fixedTotal =
-    BASE_WIDTH_FIXED_COLS.codigo +
-    BASE_WIDTH_FIXED_COLS.descricao +
-    BASE_WIDTH_FIXED_COLS.farmacia +
-    BASE_WIDTH_FIXED_COLS.pvp +
-    BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
-    BASE_WIDTH_FIXED_COLS.custoEstimado +
-    BASE_WIDTH_FIXED_COLS.totalVendas +
-    BASE_WIDTH_FIXED_COLS.existencia +
-    BASE_WIDTH_FIXED_COLS.valorVendas;
-  const remaining = Math.max(0, 100 - fixedTotal);
-  const perMonthIdeal = numMeses > 0 ? remaining / numMeses : 0;
+  textos: TextosDasColunas,
+): { columns: ReportColumn[]; density: Densidade; descricaoPct: number } {
+  const mesesPorBloco = Math.max(0, ...repartirMeses(buckets.length));
+  const density = tableDensityFor(mesesPorBloco);
 
-  // Tecto duro: os meses, juntos, NUNCA ultrapassam 92% — mesmo num
-  // relatório com dezenas de meses, sobra sempre pelo menos 8% para os
-  // fixos escalarem. Sem este tecto, `Math.max(MIN_WIDTH_MES, ...)`
-  // sozinho podia, em relatórios muito longos, empurrar a soma para além
-  // de 100% de qualquer forma.
-  const MAX_TOTAL_MESES = 92;
-  const perMonth =
-    numMeses > 0
-      ? Math.min(Math.max(MIN_WIDTH_MES, perMonthIdeal), MAX_TOTAL_MESES / numMeses)
-      : 0;
-  const totalMeses = perMonth * numMeses;
+  const w = {
+    codigo: colunaPct(textos.codigo, "CNP", density),
+    farmacia: colunaPct([...textos.farmacia, "TOTAL ARTIGO"], "Farmácia", density),
+    pvp: colunaPct(textos.pvp, "PVP", density),
+    custoUnitario: colunaPct(textos.custoUnitario, "Custo\nunit. est.", density),
+    custoTotal: colunaPct(textos.custoTotal, "Custo total\nest.", density),
+    totalUnid: colunaPct(textos.totalUnid, "Total\nUnid.", density),
+    // +8 px: a caixa/inversão do indicador de stock (padding + moldura).
+    stock: colunaPct(textos.stock, "Stock", density, 8),
+    valor: colunaPct(textos.valor, "Valor Vendas\n(s/IVA)", density),
+  };
+  const fixos = w.codigo + w.farmacia + w.pvp + w.custoUnitario + w.custoTotal + w.totalUnid + w.stock + w.valor;
+  const mesMin = Math.max(MES_MINIMO_PCT, colunaPct(textos.mes, "Mmm\n00", density));
 
-  // Nunca menos que o mínimo de legibilidade dos meses — se isso não
-  // couber no orçamento (relatório com muitos meses), são os FIXOS que
-  // cedem, proporcionalmente entre si. Com o tecto acima, `100 -
-  // totalMeses` nunca é negativo, por isso `fixedScale` nunca precisa
-  // de ir abaixo de 0 — a soma final é SEMPRE exactamente 100 (dentro
-  // do arredondamento), nunca mais, para nenhum número de meses.
-  const excedente = fixedTotal + totalMeses - 100;
-  const fixedScale = excedente > 0 ? Math.max(0, (fixedTotal - excedente) / fixedTotal) : 1;
-
-  // SEM arredondamento — ver nota histórica no teste (test-vendas-pdf-layout.ts):
-  // arredondar cada largura individualmente acumula erro entre colunas.
-  const w = (base: number) => base * fixedScale;
+  // Meses: confortáveis se sobra espaço; senão encolhem até ao mínimo do CONTEÚDO — nunca abaixo (cortava o número).
+  const disponivel = 100 - fixos;
+  let perMonth = mesesPorBloco > 0 ? Math.max(mesMin, MES_CONFORTO_PCT) : 0;
+  if (mesesPorBloco > 0 && disponivel - perMonth * mesesPorBloco < DESCRICAO_PREFERIDA_PCT) {
+    perMonth = Math.max(mesMin, (disponivel - DESCRICAO_PREFERIDA_PCT) / mesesPorBloco);
+  }
+  const descricaoPct = Math.max(0, disponivel - perMonth * mesesPorBloco);
 
   const monthColumns: ReportColumn[] = buckets.map((b) => ({
     key: bucketColumnKey(b),
@@ -275,75 +321,50 @@ function buildColumns(
     format: "integer" as const,
     width: perMonth,
     showTotal: true,
-    // Meses sem venda leem melhor como "–" do que como uma parede de
-    // zeros — e um mês COM venda ganha um realce muito suave (ver
-    // .cell-tone-info em report-html.ts), para o olho encontrar
-    // rapidamente onde é que o artigo se moveu.
+    // Mês sem venda = «·» (um ponto médio discreto); negativos (devoluções) aparecem com o sinal.
     zeroAsDash: true,
-    toneWhenPositive: "info",
+    zeroText: "·",
+    // Fundo alternado muito discreto por mês (sem tom «info» nas células com venda).
+    monthAlt: true,
   }));
 
-  return [
+  const columns: ReportColumn[] = [
     {
-      key: "codigo", label: "CNP", format: "text",
-      width: w(BASE_WIDTH_FIXED_COLS.codigo),
+      key: "codigo", label: "CNP", format: "text", width: w.codigo,
       // Só desenha na 1ª linha de cada artigo — as sublinhas por
       // farmácia (e a linha TOTAL ARTIGO) ficam cobertas pelo rowspan.
       // Ver GROUP_KEY, atribuído por artigo em `buildVendasReport`.
       spanGroup: true,
     },
+    { key: "descricao", label: "Descrição", format: "text", width: descricaoPct, spanGroup: true },
     {
-      key: "descricao", label: "Descrição", format: "text",
-      width: w(BASE_WIDTH_FIXED_COLS.descricao),
-      spanGroup: true,
-    },
-    {
-      key: "farmacia", label: "Farmácia", format: "text",
-      width: w(BASE_WIDTH_FIXED_COLS.farmacia),
+      key: "farmacia", label: "Farmácia", format: "text", width: w.farmacia, noClip: true,
       // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação
       // (HTML/PDF/print). Excel continua a ler `farmacia` (nome
       // completo) directamente, porque não passa por `displayKey`.
       displayKey: "farmaciaCurta",
     },
-    // PVP e Custo unit. est. (correcção 2026-09) — colunas VISÍVEIS no
-    // HTML/PDF, não só no Excel: cada farmácia pode ter um PVP/custo
-    // diferente para o MESMO artigo, e nenhuma delas usa `spanGroup` —
-    // desenham em TODAS as sublinhas, cada uma com o valor da SUA
-    // própria farmácia (nunca uma média, nunca o valor de outra). Na
-    // linha TOTAL ARTIGO (soma de farmácias) ficam "—": não há um
-    // PVP/custo único para o artigo inteiro. Ver a nota grande no topo
-    // do ficheiro.
-    { key: "pvp", label: "PVP", format: "currency", width: w(BASE_WIDTH_FIXED_COLS.pvp) },
-    {
-      key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency",
-      width: w(BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado),
-    },
-    // Custo TOTAL estimado = custo unit. est. × quantidade líquida. Soma-se
-    // (subtotal por artigo e total geral); linhas sem custo ficam «—» e
-    // fora da soma — o relatório diz-o no resumo e no rodapé.
-    {
-      key: "custoEstimado", label: "Custo total\nest.", format: "currency",
-      width: w(BASE_WIDTH_FIXED_COLS.custoEstimado), showTotal: true,
-    },
+    // PVP e Custo unit. est.: por FARMÁCIA (cada uma tem o seu), nunca uma média; na linha TOTAL ARTIGO ficam «—».
+    { key: "pvp", label: "PVP", format: "currency", width: w.pvp, noClip: true },
+    { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", width: w.custoUnitario, noClip: true },
+    // Custo TOTAL estimado = custo unit. est. × quantidade líquida. Soma-se (subtotal por artigo e total geral); linhas
+    // sem custo ficam «—» e fora da soma — o relatório diz-o no rodapé.
+    { key: "custoEstimado", label: "Custo total\nest.", format: "currency", width: w.custoTotal, showTotal: true, noClip: true },
     ...monthColumns,
+    { key: "totalVendas", label: "Total\nUnid.", format: "integer", width: w.totalUnid, showTotal: true, noClip: true },
     {
-      key: "totalVendas", label: "Total\nUnid.", format: "integer",
-      width: w(BASE_WIDTH_FIXED_COLS.totalVendas), showTotal: true,
-    },
-    {
-      key: "existencia", label: "Stock", format: "integer",
-      width: w(BASE_WIDTH_FIXED_COLS.existencia),
-      // Stock a zero é um sinal operacional (ruptura); stock positivo é
-      // o estado normal — ambos com um destaque discreto, nunca um
-      // bloco grande. Ver .cell-tone-danger/.cell-tone-success.
+      key: "existencia", label: "Stock", format: "integer", width: w.stock, noClip: true,
+      // Com stock / sem stock (0) / negativo — legível a preto e branco (ver `stockIndicator`).
+      stockIndicator: true,
+      // Stock a zero é um sinal operacional (ruptura); positivo é o estado normal — tons suaves, só reforço da caixa/inversão.
       toneWhenZero: "danger",
       toneWhenPositive: "success",
     },
-    {
-      key: "valorBruto", label: "Valor Vendas\n(s/IVA)", format: "currency",
-      width: w(BASE_WIDTH_FIXED_COLS.valorVendas), showTotal: true,
-    },
+    { key: "valorBruto", label: "Valor Vendas\n(s/IVA)", format: "currency", width: w.valor, showTotal: true, noClip: true },
+    // Só no Excel: distingue linhas de detalhe de «Total artigo» para filtrar/somar sem contar duas vezes.
+    { key: "tipoLinha", label: "Tipo de linha", format: "text", excelOnly: true },
   ];
+  return { columns, density, descricaoPct };
 }
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
@@ -370,7 +391,7 @@ function buildFilters(
     out.push({ label: "Período", value: `${f.dataInicio} a ${f.dataFim}` });
   }
   if (f.ambito) {
-    out.push({ label: "Âmbito", value: f.ambito });
+    out.push({ label: "Âmbito", value: ROTULO_AMBITO[f.ambito] ?? f.ambito });
   }
   out.push({
     label: "Farmácias",
@@ -404,16 +425,40 @@ function buildFilters(
       value: joinList(f.categoriasSelecionadas, universe.categorias.length, "Todas"),
     });
   }
+  if (f.subcategoriasSelecionadas && f.subcategoriasSelecionadas.length > 0) {
+    out.push({ label: "Subcategorias", value: joinList(f.subcategoriasSelecionadas, 0, "Todas") });
+  }
+  if (f.utilizacoesSelecionadas && f.utilizacoesSelecionadas.length > 0) {
+    out.push({ label: "Utilizações", value: joinList(f.utilizacoesSelecionadas, 0, "Todas") });
+  }
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
   if (f.artigo && f.artigo.trim()) {
     out.push({ label: "Pesquisa", value: f.artigo.trim() });
   }
-  if (f.agruparPor) out.push({ label: "Agrupar por", value: f.agruparPor });
-  if (f.ordenarPor) out.push({ label: "Ordenar por", value: f.ordenarPor });
-  if (f.apenasComVendas) out.push({ label: "Apenas com vendas", value: "Sim" });
-  if (f.apenasComStock)  out.push({ label: "Incluir stock sem vendas", value: "Sim" });
+  if (f.agruparPor) out.push({ label: "Agrupar por", value: ROTULO_AGRUPAR[f.agruparPor] ?? f.agruparPor });
+  const ordem = f.ordenacaoTabelaDescricao ?? (f.ordenarPor ? ROTULO_ORDENAR[f.ordenarPor] ?? f.ordenarPor : undefined);
+  if (ordem) out.push({ label: "Ordenar por", value: ordem });
+  // Naturezas de venda: SEMPRE aplicadas (têm defaults), por isso sempre listadas.
+  out.push({ label: "Naturezas", value: `Normal; ${rotuloNaturezas(f)}` });
+  // Universo de artigos. Com «Incluir stock sem vendas» a regra é «vendas > 0 OU stock > 0» (passaTogglesRapidosVendas):
+  // ligar os dois interruptores NÃO é uma contradição nem um «E» — entram os artigos com vendas no período e, a mais,
+  // os sem vendas que têm stock. Diz-se numa frase só, sem listar dois filtros que parecem opostos.
+  if (f.apenasComStock) {
+    out.push({
+      label: "Artigos incluídos",
+      value: "com vendas no período + sem vendas mas com stock atual",
+    });
+  } else if (f.apenasComVendas) {
+    out.push({ label: "Artigos incluídos", value: "apenas com vendas no período" });
+  }
   if (f.incluirManutencao) out.push({ label: "Incluir manutenção de vendas", value: "Sim" });
+  if (f.selecaoArtigos && f.selecaoArtigos.selecionados < f.selecaoArtigos.total) {
+    out.push({
+      label: "Artigos",
+      value: `${f.selecaoArtigos.selecionados} de ${f.selecaoArtigos.total} selecionados`,
+    });
+  }
 
   return out;
 }
@@ -543,6 +588,7 @@ export function buildVendasReport(input: {
       // "Farmácia " — nomeFarmaciaCurto() não lhe mexe.
       farmacia: r.farmacia,
       farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
+      tipoLinha: kind === "subtotal" ? "Total artigo" : "Detalhe",
       [ROW_KIND_KEY]: kind,
     };
     if (grupoId !== undefined) base[GROUP_KEY] = grupoId;
@@ -590,7 +636,58 @@ export function buildVendasReport(input: {
       ? `Período ${input.filters.dataInicio} a ${input.filters.dataFim}`
       : undefined;
 
-  const numMeses = input.buckets.length;
+  // ── Larguras pelo conteúdo + blocos temporais ───────────────────────
+  const detalhe = rowsForReport.filter((r) => r[ROW_KIND_KEY] !== "subtotal");
+  const somaDe = (k: string) => detalhe.reduce((acc, r) => acc + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
+  const fmt = (v: unknown, f: "currency" | "integer") => formatCell(v as number | null, f);
+  const strs = (k: string, f: "currency" | "integer") => rowsForReport.map((r) => fmt(r[k], f));
+  const custoGeral = custoTotalDoRelatorio(input.rows);
+  const textos: TextosDasColunas = {
+    codigo: rowsForReport.map((r) => String(r.codigo ?? "")),
+    farmacia: rowsForReport.map((r) => String(r.farmaciaCurta ?? "")),
+    pvp: strs("pvp", "currency"),
+    custoUnitario: strs("custoUnitarioEstimado", "currency"),
+    custoTotal: [...strs("custoEstimado", "currency"), fmt(custoGeral.total, "currency")],
+    valor: [...strs("valorBruto", "currency"), fmt(somaDe("valorBruto"), "currency")],
+    totalUnid: [...strs("totalVendas", "integer"), fmt(somaDe("totalVendas"), "integer")],
+    stock: strs("existencia", "integer"),
+    mes: input.buckets.flatMap((b) => {
+      const k = bucketColumnKey(b);
+      return [...rowsForReport.map((r) => fmt(r[k], "integer")), fmt(somaDe(k), "integer")];
+    }),
+  };
+  const { columns, density } = buildColumns(input.buckets, textos);
+
+  // Períodos longos: blocos temporais (ver `repartirMeses`). Até 13 meses não há blocos.
+  const partes = repartirMeses(input.buckets.length);
+  let columnBlocks: { titulo: string; omitir: string[] }[] | undefined;
+  if (partes.length > 1) {
+    let inicio = 0;
+    columnBlocks = partes.map((n) => {
+      const doBloco = input.buckets.slice(inicio, inicio + n);
+      inicio += n;
+      const chaves = new Set(doBloco.map(bucketColumnKey));
+      const rotulo = (b: { ano: number; mes: number }) => `${MONTH_LABELS_PT[b.mes - 1]}/${String(b.ano).slice(-2)}`;
+      return {
+        titulo: `Meses ${rotulo(doBloco[0])} a ${rotulo(doBloco[doBloco.length - 1])} · Total Unid., custos e Valor Vendas são do período completo`,
+        omitir: input.buckets.map(bucketColumnKey).filter((k) => !chaves.has(k)),
+      };
+    });
+  }
+
+  const artigos = new Set(input.rows.map((r) => r.codigo)).size;
+  const semCusto = custoGeral.semCusto;
+  const nota = [
+    "Stock atual à data de geração do relatório (não histórico). Stock: número simples = com stock; número em caixa = 0; fundo escuro = negativo.",
+    "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA.",
+    "«·» = sem vendas no mês; valores negativos = devoluções/anulações acima das vendas.",
+    semCusto > 0
+      ? `Custo total PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
+      : "",
+    columnBlocks
+      ? `Período de ${input.buckets.length} meses repartido em ${columnBlocks.length} partes (máx. ${MAX_MESES_POR_BLOCO} meses por página); Total Unid., custos, stock e Valor Vendas repetem-se em cada parte e referem-se ao período completo; o TOTAL GERAL está no fim da última parte.`
+      : "",
+  ].filter(Boolean).join(" ");
 
   return {
     title: "Relatório de Vendas",
@@ -598,7 +695,7 @@ export function buildVendasReport(input: {
     generatedAt: new Date(),
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
-    columns: buildColumns(input.buckets),
+    columns,
     rows: rowsForReport,
     meta: {
       slug: "vendas",
@@ -611,15 +708,15 @@ export function buildVendasReport(input: {
       // Impressão/PDF: hierarquia que sobrevive a papel e a preto e branco
       // (borda forte por artigo, blocos alternados, TOTAL ARTIGO escuro).
       hierarchy: "strong",
-      tableDensity: tableDensityFor(numMeses),
+      tableDensity: density,
+      columnBlocks,
+      tableNote: `${artigos} artigo${artigos === 1 ? "" : "s"} · ${input.rows.length} linha${input.rows.length === 1 ? "" : "s"} de detalhe`,
+      totalLabel: "TOTAL GERAL",
+      excelFilterable: true,
       // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
       // um mês não tem como saber que a coluna de custo é um snapshot
       // de hoje. O rodapé é texto livre que quebra normalmente.
-      footer:
-        "Stock actual à data de geração do relatório. Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA." +
-        (custoTotalDoRelatorio(input.rows).semCusto > 0
-          ? ` Custo total PARCIAL: ${custoTotalDoRelatorio(input.rows).semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
-          : ""),
+      footer: nota,
     },
   };
 }

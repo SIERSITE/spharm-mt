@@ -44,7 +44,7 @@ import { renderReportHtml } from "../../lib/reporting/report-html";
 import { formatCurrency } from "../../lib/reporting/report-formatters";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import * as XLSX from "xlsx";
-import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
+import { buildVendasReport, repartirMeses, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
 import { readFileSync } from "node:fs";
 
 let pass = 0;
@@ -276,11 +276,17 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   // sempre presentes independentemente dos dados desta chamada.
   const bodyHtml = html.slice(html.indexOf("<body>"));
   const cols = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
-  const somaLarguras = cols.reduce((s, c) => s + (c.width ?? 0), 0);
+  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em BLOCOS (uma página cada) — a soma ≤ 100 vale
+  // por bloco (cada bloco é uma tabela completa), não para o conjunto de todas as colunas de todos os blocos.
+  const blocosCols = rel.meta?.columnBlocks
+    ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key)))
+    : [cols];
+  const somaLarguras = Math.max(...blocosCols.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0)));
 
-  ok(`${nf}f/${nm}m: soma das larguras visíveis ≤ 100 (${somaLarguras.toFixed(1)})`, somaLarguras <= 100.05);
+  ok(`${nf}f/${nm}m: soma das larguras visíveis ≤ 100 por página/bloco (${somaLarguras.toFixed(1)})`, somaLarguras <= 100.05);
   ok(`${nf}f/${nm}m: meta.density é "compact"`, rel.meta?.density === "compact");
-  const tableDensityEsperada = nm <= 6 ? "cozy" : nm <= 10 ? "tight" : "ultratight";
+  const mesesPorBloco = Math.max(...repartirMeses(nm));
+  const tableDensityEsperada = mesesPorBloco <= 6 ? "cozy" : mesesPorBloco <= 10 ? "tight" : "ultratight";
   eq(`${nf}f/${nm}m: tableDensity = "${tableDensityEsperada}"`, rel.meta?.tableDensity, tableDensityEsperada);
 
   if (nf > 1) {
@@ -341,7 +347,7 @@ console.log("\n=== G3. Produto só numa farmácia — sem TOTAL ARTIGO, sem rows
   ok("sem rowspan (grupo de tamanho 1)", !bodyHtml.includes("rowspan"));
 }
 
-console.log("\n=== G4. Produto com stock mas SEM vendas — meses a \"–\", tom de stock ===");
+console.log("\n=== G4. Produto com stock mas SEM vendas — meses a \"·\", tom de stock ===");
 {
   const buckets = meses(3);
   const rows = [
@@ -353,8 +359,8 @@ console.log("\n=== G4. Produto com stock mas SEM vendas — meses a \"–\", tom
     organization: "Grupo Teste",
   });
   const html = renderReportHtml(rel);
-  ok("os 3 meses aparecem como \"–\", nunca vendas inventadas", (html.match(/>–</g) ?? []).length >= 3);
-  ok("stock=7 (positivo) ganha cell-tone-success", html.includes('class="cell-tone-success">7<'));
+  ok("os 3 meses aparecem como \"·\" (Mapa de Vendas 2026-10: marca de «sem vendas»), nunca vendas inventadas", (html.match(/>·</g) ?? []).length >= 3);
+  ok("stock=7 (positivo) ganha cell-tone-success", /class="cell-tone-success[^"]*">7</.test(html));
 }
 
 console.log("\n=== G5. custoUnitarioEstimado e valorBruto — bug antigo corrigido ===");

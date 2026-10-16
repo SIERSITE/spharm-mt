@@ -66,7 +66,8 @@ function linha(overrides: Partial<SalesReportRow> = {}): SalesReportRow {
 }
 
 function buckets(n: number): { ano: number; mes: number }[] {
-  return Array.from({ length: n }, (_, i) => ({ ano: 2026, mes: (i % 12) + 1 }));
+  // Meses ÚNICOS (2026-01, 2026-02, … 2027-01…): chaves repetidas (o mesmo mês de 2026 a repetir-se) não existem em dados reais.
+  return Array.from({ length: n }, (_, i) => ({ ano: 2026 + Math.floor(i / 12), mes: (i % 12) + 1 }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -82,18 +83,26 @@ function buckets(n: number): { ano: number; mes: number }[] {
 const colunasVisiveis = (cols: ReturnType<typeof buildVendasReport>["columns"]) =>
   cols.filter((c) => !c.hidden && !c.excelOnly);
 
+/** Soma das larguras visíveis de cada página/bloco (um só quando o período cabe numa página). */
+function somasPorBloco(rel: ReturnType<typeof buildVendasReport>): number[] {
+  const cols = colunasVisiveis(rel.columns);
+  const blocos = rel.meta?.columnBlocks ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key))) : [cols];
+  return blocos.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0));
+}
+
 console.log("\n=== A. buildColumns: a tabela nunca \"esmaga\" — soma ≤ 100 sempre ===");
 for (const n of [0, 1, 3, 6, 9, 10, 12, 18, 24, 36]) {
   const rel = buildVendasReport({
-    rows: [linha({ meses: Array.from({ length: n }, (_, i) => ({ ano: 2026, mes: (i % 12) + 1, quantidade: 1 })) })],
+    rows: [linha({ meses: Array.from({ length: n }, (_, i) => ({ ano: 2026 + Math.floor(i / 12), mes: (i % 12) + 1, quantidade: 1 })) })],
     buckets: buckets(n),
     filters: {},
     universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
     organization: "Grupo",
   });
-  const somaLarguras = colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0);
+  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em blocos (uma página cada); a soma ≤ 100 vale por bloco.
+  const somaLarguras = Math.max(...somasPorBloco(rel));
   ok(
-    `${n} meses: soma das larguras visíveis ≤ 100 (obtido ${somaLarguras.toFixed(1)})`,
+    `${n} meses: soma das larguras visíveis ≤ 100 por página/bloco (obtido ${somaLarguras.toFixed(1)})`,
     somaLarguras <= 100 + 0.05, // folga de arredondamento
     `colunas: ${JSON.stringify(colunasVisiveis(rel.columns).map((c) => c.width))}`,
   );
@@ -131,8 +140,8 @@ console.log("\n=== C. As colunas fixas nunca desaparecem, mesmo em relatórios m
   });
   const fixas = colunasVisiveis(rel.columns).filter((c) => !c.key.startsWith("m_"));
   ok("mesmo com 36 meses, nenhuma coluna fixa fica com largura 0 ou negativa", fixas.every((c) => (c.width ?? 0) > 0));
-  const somaLarguras = colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0);
-  ok("…e a soma continua ≤ 100", somaLarguras <= 100.05, `${somaLarguras}`);
+  const somaLarguras = Math.max(...somasPorBloco(rel));
+  ok("…e a soma continua ≤ 100 em cada bloco/página", somaLarguras <= 100.05, `${somaLarguras}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

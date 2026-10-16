@@ -143,7 +143,7 @@ export async function POST(request: Request): Promise<Response> {
     (payload.message?.trim() ? payload.message.trim() + "\n\n" : "") +
     `Relatório: ${report.title}\n` +
     (report.subtitle ? `${report.subtitle}\n` : "") +
-    `Linhas: ${report.rows.length}\n` +
+    `${report.meta?.tableNote ? `Conteúdo: ${report.meta.tableNote}` : `Linhas: ${report.rows.length}`}\n` +
     `Gerado em: ${report.generatedAt.toISOString()}\n` +
     (attachments.length > 0
       ? `\nAnexos: ${attachments.map((a) => a.filename).join(", ")}\n`

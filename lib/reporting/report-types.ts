@@ -81,6 +81,24 @@ export type ReportColumn = {
    * zeros (ex.: meses sem venda).
    */
   zeroAsDash?: boolean;
+  /** Texto desenhado no lugar do 0 quando `zeroAsDash` está ligado (default "–"). Ex.: "·" nos meses sem venda. */
+  zeroText?: string;
+  /**
+   * O texto desta célula NUNCA é cortado: sem `overflow:hidden`/reticências em HTML/PDF/print.
+   * Para valores monetários — um custo de 10 000,00 € que aparece como «10 000,0» é um número errado.
+   * A largura da coluna tem de ser calculada pelo adapter para o caber (ver `larguraParaTexto`).
+   */
+  noClip?: boolean;
+  /**
+   * Indicador de stock (HTML/PDF/print): positivo = número simples; zero = número em CAIXA; negativo = número a
+   * branco sobre fundo escuro. Lê-se a preto e branco — a cor só reforça.
+   */
+  stockIndicator?: boolean;
+  /**
+   * Marca esta coluna como mensal (mesmo conjunto que `ReportMeta.columnBlocks` reparte) e dá-lhe um fundo
+   * alternado MUITO discreto (meses pares/ímpares) — só HTML/PDF/print.
+   */
+  monthAlt?: boolean;
   /** Tom da célula quando o valor numérico é exactamente 0. */
   toneWhenZero?: ReportCellTone;
   /** Tom da célula quando o valor numérico é > 0. */
@@ -251,6 +269,18 @@ export type ReportMeta = {
    *     monocromáticas (Vendas, 2026-10). Nunca afecta o Excel.
    */
   hierarchy?: "normal" | "strong";
+  /**
+   * Reparte as colunas em BLOCOS TEMPORAIS (páginas) quando há demasiadas para uma página A4 legível — HTML/PDF/print
+   * apenas (o Excel e o ecrã mostram sempre todas). Cada bloco omite as colunas listadas em `omitir` (as dos outros
+   * blocos); as restantes (identificação, totais…) repetem-se em todos. O TOTAL GERAL só aparece no ÚLTIMO bloco.
+   */
+  columnBlocks?: { titulo: string; omitir: string[] }[];
+  /** Texto sob a tabela em HTML/PDF/print (default «N linhas»). Ex.: «12 artigos · 31 linhas». */
+  tableNote?: string;
+  /** Rótulo da linha de totais no Excel (default «Total»). */
+  totalLabel?: string;
+  /** Excel: filtro automático no cabeçalho + painéis congelados (opt-in; os outros relatórios ficam como estavam). */
+  excelFilterable?: boolean;
 };
 
 /**

@@ -126,6 +126,7 @@ export function buildReportWorkbook(report: Report): XLSX.WorkBook {
   r++;
 
   // ─ Linhas de dados
+  const primeiraLinhaDados = r;
   for (const row of report.rows) {
     for (let c = 0; c < cols.length; c++) {
       setCell(r, c, toCellObject(cols[c], row[cols[c].key]));
@@ -133,10 +134,12 @@ export function buildReportWorkbook(report: Report): XLSX.WorkBook {
     r++;
   }
 
+  const ultimaLinhaDados = r - 1;
+
   // ─ Linha de totais
   const totalsCols = cols.filter((c) => c.showTotal);
   if (totalsCols.length > 0) {
-    setCell(r, 0, { t: "s", v: "Total" });
+    setCell(r, 0, { t: "s", v: report.meta?.totalLabel ?? "Total" });
     for (let c = 0; c < cols.length; c++) {
       const col = cols[c];
       if (!col.showTotal) continue;
@@ -156,6 +159,13 @@ export function buildReportWorkbook(report: Report): XLSX.WorkBook {
 
   // ─ Larguras de coluna
   ws["!cols"] = cols.map((c) => ({ wch: c.width && c.width > 100 ? c.width / 7 : Math.max(c.label.length + 2, 14) }));
+
+  // ─ Filtro automático (opt-in): só o cabeçalho + as linhas de dados — a linha de total fica fora do filtro.
+  if (report.meta?.excelFilterable && ultimaLinhaDados >= primeiraLinhaDados) {
+    ws["!autofilter"] = {
+      ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: ultimaLinhaDados, c: cols.length - 1 } }),
+    };
+  }
 
   // ─ Merges de cabeçalho
   if (merges.length > 0) ws["!merges"] = merges;
