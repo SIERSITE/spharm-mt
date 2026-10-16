@@ -136,7 +136,7 @@ Get-ScheduledTaskInfo -TaskName $nome | Format-List LastRunTime, LastTaskResult,
 ### O que é o `PT8H` (e o que não é)
 
 * **É só um teto de segurança**, não a duração normal: uma execução normal demora o mesmo que na rev97 (~3,5 min na Silveirense; a retoma só
-  espera quando há falha). O Agendador mata o processo se este teto for ultrapassado — o lock órfão recupera-se em ≤ 2 min (heartbeat) e o dia fica
+  espera quando há falha). O Agendador mata o processo se este teto for ultrapassado — o lock órfão (processo morto) recupera-se de imediato no arranque seguinte e o dia fica
   pendente para o catch-up.
 * **Porquê 8 h:** o pior caso teórico de UM dia (SaaS a esgotar todas as retentativas em todos os passos, 4 tentativas do pipeline) é ≈ 3 h 25 min,
   e um dia recuperado à última tentativa seguido de até 6 dias em atraso chega a ≈ 3 h 45 min. `PT4H` ficava apertado; `PT8H` dá folga sem
@@ -144,6 +144,9 @@ Get-ScheduledTaskInfo -TaskName $nome | Format-List LastRunTime, LastTaskResult,
 * **`MultipleInstances = IgnoreNew` continua adequado:** se a execução anterior ainda estiver viva (retoma a esperar), a nova ocorrência do
   Agendador é ignorada em vez de se acumular — e, mesmo sem isso, o lock com heartbeat recusa uma 2.ª execução.
 * **`RestartOnFailure` (3× / 15 min)** pode ficar: é proteção adicional; a recuperação principal é do agent.
+* **Computador suspenso a meio:** o lock identifica o processo (PID + instante de criação + executável + arranque do Windows). Ao acordar, um heartbeat atrasado NÃO deixa outra execução reclamar o lock
+  enquanto o processo proprietário estiver vivo: a 2.ª execução é recusada («processo proprietário vivo com heartbeat atrasado», `run\pipeline-lock-diagnostico.json`) e a 1.ª retoma o heartbeat.
+  Só um processo que morreu, um PID reutilizado ou um reinício do Windows libertam o lock automaticamente. Num processo bloqueado: terminá-lo no Gestor de Tarefas ou `--force` conscientemente.
 * **Durante uma execução longa** o log do dia (`logs\pipeline-<dia>.log`) é escrito linha a linha e o `run\pipeline.lock` renova o
   `heartbeatEm` a cada 10 s (visível com `Get-Content run\pipeline.lock`).
 * **Se a recuperação ficar definitivamente pendente** há alerta: `PipelineRun` ERROR/PARTIAL no SaaS (`/admin/pipeline`), evento no Registo de

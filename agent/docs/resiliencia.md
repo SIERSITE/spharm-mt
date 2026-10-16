@@ -95,25 +95,32 @@ no total (1 + 3 retomas), registando `tentativa k/4`:
 * o estado `pendente` é gravado **antes** de dormir: se o computador ou o processo reiniciar durante a espera, o dia é recuperado pelo catch-up na
   corrida seguinte (3).
 
-## 4b. Lock único com heartbeat (`lock-pipeline.ts`)
+## 4b. Lock único com heartbeat e identidade do proprietário (`lock-pipeline.ts`, `identidade-processo.ts`)
 
 O MESMO módulo e protocolo para `daily-pipeline`, `full-sync`, `sync-now` e os comandos de escrita avulsos (`products-upload`, `stock-upload`,
 `bootstrap-upload`, `fornecedores-upload`, `compras-upload`, `devolucoes-fornecedor-upload`, `stocksmov-upload`, `daily-sync`). **Sem lock:**
 `--plan`, `test-connection`, `*-dry-run`, previews e discovery. Os subcomandos lançados por `daily-pipeline`/`full-sync` herdam o lock do pai
 (`SPHARMMT_LOCK_RUN_ID`): não o renovam nem o libertam.
 
+**Regra de ouro: duas sincronizações nunca correm em simultâneo.** Um heartbeat expirado, por si só, NÃO permite reclamar o lock: um computador
+suspenso (sleep/hibernação), um processo bloqueado ou um worker atrasado deixam o heartbeat parado com o proprietário ainda vivo.
+
 * **Criação atómica e exclusiva** (`wx`): só um processo ganha, mesmo com vários a reclamar em simultâneo.
-* **Conteúdo** (JSON, sem segredos): `runId` (UUID da execução), `pid`, `host`, `imagem` (ex.: `node.exe`), `criadoEm`, `heartbeatEm`, `modo`, `dia`.
-* **Heartbeat** a cada 10 s, escrito (tmp + rename) por um **worker thread** — o agent tem chamadas bloqueantes (`spawnSync`, queries) e um timer
-  normal deixaria de disparar com o processo vivo.
-* **Só se reclama** um lock quando: o processo **já não existe**; ou o PID pertence a **outro programa** (Windows: `tasklist` devolve outra imagem —
-  PID reutilizado); ou o **heartbeat expirou** (120 s) — cobre reinícios do PC e PID reutilizado por outro `node.exe`; ou `--force`. Um lock com
-  heartbeat fresco e processo vivo nunca é reclamado, por mais horas que dure a execução. Locks rev97 (sem heartbeat): só se o processo morreu ou
-  passaram 6 h.
-* **A libertação compara o `runId`**, não o PID: uma execução nunca liberta (nem reescreve, nem renova) o lock de outra; se o perde, o heartbeat para
-  e a execução fica a sabê-lo.
-* Libertação também no fim normal do processo (handler de `exit`). Morte abrupta ⇒ lock órfão ⇒ reclamado no arranque seguinte em segundos
-  (processo morto) ou em ≤ 2 min (heartbeat expirado), **não** em 6 h.
+* **Identidade do proprietário** (JSON, sem segredos): `runId` (UUID da execução), `pid`, **`inicioProcessoMs`** (instante de CRIAÇÃO do processo, dado pelo
+  sistema — PowerShell `Get-Process` no Windows, `/proc` no Linux), `caminhoImagem`/`imagem` (executável), **`bootMs`** (arranque do sistema — `LastBootUpTime`),
+  `host`, `modo`, `dia`, `criadoEm`, `heartbeatEm`. «PID + node.exe» não chega (um PID reutilizado por outro `node.exe` passava), por isso compara-se o instante de criação.
+* **Heartbeat** a cada 10 s por um **worker thread** (as chamadas bloqueantes — `spawnSync`, queries — não o param). Serve de **diagnóstico**, não de autorização.
+* **Reclama-se automaticamente SÓ quando:** o PID já não existe · o PID é de **outro executável** · o **instante de criação não corresponde** (PID reutilizado, incluindo por
+  outro `node.exe`) · o **arranque do sistema mudou** (o computador reiniciou) · o registo é inválido, está parado e não há proprietário comprovável · `--force` (consciente).
+* **NÃO se reclama** por o heartbeat ter passado os 120 s, por suspensão, por atraso do worker/event loop, nem com o proprietário vivo e a mesma identidade. Nesse caso a
+  2.ª execução é **recusada** com «processo proprietário vivo com heartbeat atrasado», grava `run/pipeline-lock-diagnostico.json` e (no `daily-pipeline`) fica o
+  `PipelineRun` ABORTED + alerta. O operador termina o processo ou usa `--force`. Se a identidade do processo vivo **não se consegue provar**, recusa-se também (prudência).
+* **Perda de propriedade:** se uma execução deteta que o lock já não é seu (`--force`, apagado…), **aborta antes da próxima escrita** — o cliente HTTP verifica a propriedade
+  antes de CADA pedido de escrita e de cada retentativa (`ErroLockPerdido`, nunca transitório; leituras e o registo do `PipelineRun` ficam isentos); o pipeline e o `full-sync`
+  verificam-na entre fases; os subprocessos que controla são **terminados** (lançados de forma assíncrona e vigiados); nenhuma execução apaga o lock de outra (a libertação
+  compara o `runId`, não o PID) e o log diz «LOCK PERDIDO».
+* Libertação também no fim normal do processo (handler de `exit`). Morte abrupta ⇒ lock órfão ⇒ reclamado no arranque seguinte (processo inexistente ou arranque do sistema
+  diferente), em segundos — nunca em 6 h.
 * `--plan` mostra o estado do lock só em leitura (`livre` / `OCUPADO — …` / `órfão (reclamável) — …`).
 
 ## 4c. Falhas do SQL Server (`sql-erros.ts`, `withPool`)
@@ -183,5 +190,7 @@ esgotadas as retentativas (o `daily-pipeline` usa-o para esperar e repetir; mant
 * Se o SaaS estiver em baixo mais de ~45 min (4 tentativas), o dia fica para o catch-up da corrida seguinte — com o alerta aberto.
 * `aggregate-month` regista um `PipelineRun` por chamada (também nas repetições) — só ruído no histórico.
 * Um pedido SQL que expira repetidamente por ser genuinamente lento (e não por falha de rede) gasta as retentativas e a retoma antes de falhar; resolve-se afinando a query ou `sqlServer.requestTimeoutMs`, não esperando mais.
-* O heartbeat é um worker thread: se o computador **suspender** (sleep/hibernação) mais de 120 s, o lock pode ser reclamado por outra execução ao acordar; a primeira passa a saber que o perdeu (`perdido()`).
+* O lock distingue «suspenso/bloqueado» de «morto» pela identidade do processo: um proprietário vivo com heartbeat atrasado **não** é reclamado (a 2.ª execução é recusada até o operador agir). Num processo **verdadeiramente bloqueado** (hung) é preciso terminá-lo ou usar `--force`.
+* A identidade no Windows exige PowerShell (`Get-Process`, `Get-CimInstance`): se estiver bloqueado por política e a identidade não se provar, locks de processos vivos são recusados por prudência e só se reclamam com `--force` (processo morto/arranque novo continuam a ser detetados pelo sistema quando possível).
+* Subprocessos de comandos lançados fora do `daily-pipeline`/`full-sync` não são vigiados; protegem-se sozinhos (cada escrita confirma o `runId` herdado).
 * A tarefa agendada deve ter `ExecutionTimeLimit = PT8H` — **só um teto de segurança** (pior caso teórico de um dia ≈ 3 h 25 min); a execução normal demora o mesmo que na rev97 (~3,5 min).
