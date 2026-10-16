@@ -103,6 +103,19 @@ function buildDocumentoParaFornecedor(
  * Uma linha sem fornecedor decidido cai no grupo "Fornecedor não
  * definido" — nunca é omitida silenciosamente.
  */
+/**
+ * Os fornecedores de UMA encomenda, pela MESMA ordem dos documentos devolvidos por `buildEncomendaDocumentoReport`
+ * (`id: null` = «Fornecedor não definido») — liga a cada documento o seu Excel (`/api/encomendas/<id>/excel?fornecedor=`).
+ */
+export function fornecedoresDaEncomenda(detail: OrderDetail): Array<{ id: string | null; nome: string }> {
+  const porFornecedor = new Map<string, { id: string | null; nome: string }>();
+  for (const l of detail.linhas) {
+    const chave = l.fornecedorSugeridoId ?? SEM_FORNECEDOR_ID;
+    if (!porFornecedor.has(chave)) porFornecedor.set(chave, { id: l.fornecedorSugeridoId, nome: l.fornecedorSugeridoNome ?? SEM_FORNECEDOR_NOME });
+  }
+  return [...porFornecedor.values()];
+}
+
 export function buildEncomendaDocumentoReport(details: readonly OrderDetail[]): Report[] {
   const reports: Report[] = [];
   for (const d of details) {

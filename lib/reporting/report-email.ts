@@ -22,6 +22,8 @@ export type SendReportByEmailOptions = {
   message?: string;
   /** Formatos a incluir em anexo. Omitir / [] envia sem anexos. */
   attachFormats?: ReportAttachmentFormat[];
+  /** Report do anexo Excel, quando difere do relatório visual (ver `ReportActions.excelReport`). */
+  excelReport?: Report;
 };
 
 export type SendReportByEmailResult = {

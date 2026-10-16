@@ -28,6 +28,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { ReportActions } from "./report-actions";
+import { urlExcelEncomenda } from "@/lib/encomendas/excel-url";
 import {
   buildDocumentosFinalizacaoAction,
   type DocumentosFinalizacaoResultado,
@@ -167,7 +168,7 @@ export function DocumentosModal({
                         {e.reports.map((r, i) => (
                           <div key={i} className="flex items-center justify-between gap-2">
                             <span className="text-slate-500">{r.title.replace(/^Nota de Encomenda — /, "")}</span>
-                            <ReportActions report={r} hide={{ excel: true }} />
+                            <ReportActions report={r} excelHref={urlExcelEncomenda(e.listaEncomendaId, e.fornecedores[i], e.reports.length)} />
                           </div>
                         ))}
                       </div>

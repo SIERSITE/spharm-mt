@@ -248,11 +248,15 @@ function larguraTextoPx(texto: string, fontPx: number, negrito: boolean): number
 }
 
 /** Largura, em % da página, de uma coluna que tem de mostrar TODOS estes textos e este cabeçalho sem cortar. */
-function colunaPct(textos: string[], cabecalho: string, d: Densidade, extraPx = 0): number {
+/** Aumento dos NÚMEROS (valores, quantidades, stock, totais) face ao texto da tabela, em px — ver `.num` em report-html.ts. */
+export const AUMENTO_NUMEROS_PX = 1;
+
+function colunaPct(textos: string[], cabecalho: string, d: Densidade, extraPx = 0, numerico = true): number {
   const m = METRICAS[d];
   let max = 0;
+  const tdPx = m.td + (numerico ? AUMENTO_NUMEROS_PX : 0);
   // negrito por excesso: as linhas de subtotal/total partilham a coluna.
-  for (const t of textos) max = Math.max(max, larguraTextoPx(t, m.td, true));
+  for (const t of textos) max = Math.max(max, larguraTextoPx(t, tdPx, true));
   max += extraPx;
   for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, m.th, true));
   const px = max + 2 * m.pad + 3; // padding + bordas
@@ -296,6 +300,7 @@ export type TextosDasColunas = {
 function buildColumns(
   buckets: { ano: number; mes: number }[],
   textos: TextosDasColunas,
+  incluirPrecos: boolean,
 ): { columns: ReportColumn[]; density: Densidade; descricaoPct: number } {
   const plano = repartirMeses(buckets.length);
   const emBlocos = plano.length > 1;
@@ -303,16 +308,17 @@ function buildColumns(
   const density = tableDensityFor(mesesPorBloco);
 
   const w = {
-    codigo: colunaPct(textos.codigo, "CNP", density),
-    farmacia: colunaPct([...textos.farmacia, "TOTAL ARTIGO"], "Farmácia", density),
-    pvp: colunaPct(textos.pvp, "PVP", density),
-    custoUnitario: colunaPct(textos.custoUnitario, "Custo\nunit. est.", density),
-    custoTotal: colunaPct(textos.custoTotal, emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", density),
+    codigo: colunaPct(textos.codigo, "CNP", density, 0, false),
+    farmacia: colunaPct([...textos.farmacia, "TOTAL ARTIGO"], "Farmácia", density, 0, false),
+    // Colunas monetárias: só medidas (e só existem) com «Incluir preços».
+    pvp: incluirPrecos ? colunaPct(textos.pvp, "PVP", density) : 0,
+    custoUnitario: incluirPrecos ? colunaPct(textos.custoUnitario, "Custo\nunit. est.", density) : 0,
+    custoTotal: incluirPrecos ? colunaPct(textos.custoTotal, emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", density) : 0,
     totalUnid: colunaPct(textos.totalUnid, emBlocos ? "Período:\nTotal unid." : "Total\nUnid.", density),
     totalBloco: emBlocos ? colunaPct(textos.totalBloco, "Total unid.\ndo bloco", density) : 0,
     // +8 px: a caixa/inversão do indicador de stock (padding + moldura).
     stock: colunaPct(textos.stock, "Stock", density, 8),
-    valor: colunaPct(textos.valor, emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", density),
+    valor: incluirPrecos ? colunaPct(textos.valor, emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", density) : 0,
   };
   const fixos = w.codigo + w.farmacia + w.pvp + w.custoUnitario + w.custoTotal + w.totalUnid + w.stock + w.valor + w.totalBloco;
   const mesMin = Math.max(MES_MINIMO_PCT, colunaPct(textos.mes, "Mmm\n00", density));
@@ -369,16 +375,20 @@ function buildColumns(
   // Só no Excel: distingue linhas de detalhe de «Total artigo» para filtrar/somar sem contar duas vezes.
   const cTipo: ReportColumn = { key: "tipoLinha", label: "Tipo de linha", format: "text", excelOnly: true };
 
+  // «Incluir preços» desligado: SEM nenhuma coluna monetária (nem vazia, nem reservada) — a Descrição ganha o espaço.
+  const precosEsq = incluirPrecos ? [cPvp, cCustoUnit] : [];
   let columns: ReportColumn[];
   if (!emBlocos) {
-    columns = [cCodigo, cDescricao, cFarmacia, cPvp, cCustoUnit, cCustoTotal, ...monthColumns, cTotalUnid, cStock, cValor, cTipo];
+    columns = incluirPrecos
+      ? [cCodigo, cDescricao, cFarmacia, cPvp, cCustoUnit, cCustoTotal, ...monthColumns, cTotalUnid, cStock, cValor, cTipo]
+      : [cCodigo, cDescricao, cFarmacia, ...monthColumns, cTotalUnid, cStock, cTipo];
   } else {
     // Períodos longos: cada bloco mostra os SEUS meses e «Total unid. do bloco» (soma só desses meses). Os totais do
     // período completo (unidades, custo, valor) vivem em colunas «Período: …» que só existem no ÚLTIMO bloco.
     const totaisBloco: ReportColumn[] = plano.map((_, i) => ({
       key: chaveTotalBloco(i), label: "Total unid.\ndo bloco", format: "integer" as const, width: w.totalBloco, showTotal: true, noClip: true, htmlOnly: true,
     }));
-    columns = [cCodigo, cDescricao, cFarmacia, cPvp, cCustoUnit, ...monthColumns, ...totaisBloco, cStock, cTotalUnid, cCustoTotal, cValor, cTipo];
+    columns = [cCodigo, cDescricao, cFarmacia, ...precosEsq, ...monthColumns, ...totaisBloco, cStock, cTotalUnid, ...(incluirPrecos ? [cCustoTotal, cValor] : []), cTipo];
   }
   return { columns, density, descricaoPct };
 }
@@ -514,7 +524,7 @@ export function custoTotalDoRelatorio(rows: ReadonlyArray<Pick<VendasAdapterRow,
   return { total: Math.round(total * 100) / 100, semCusto };
 }
 
-function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
+function buildSummary(rows: VendasAdapterRow[], incluirPrecos: boolean): ReportSummaryItem[] {
   let totalUnidades = 0;
   let valorEstimadoPvp = 0;
   for (const r of rows) {
@@ -523,6 +533,13 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   }
   const referencias = contarReferenciasUnicas(rows);
   const custo = custoTotalDoRelatorio(rows);
+  if (!incluirPrecos) {
+    return [
+      { label: "Linhas",             value: rows.length,       format: "integer" },
+      { label: "Referências únicas", value: referencias,       format: "integer" },
+      { label: "Unidades vendidas",  value: totalUnidades,     format: "integer" },
+    ];
+  }
   return [
     { label: "Linhas",             value: rows.length,       format: "integer" },
     { label: "Referências únicas", value: referencias,       format: "integer" },
@@ -536,6 +553,11 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
 }
 
 export function buildVendasReport(input: {
+  /**
+   * `false` = nenhuma informação monetária no relatório (PVP, custos, valor de vendas, totais monetários, avisos de custo
+   * parcial). Por omissão `true` (comportamento de sempre). Os cálculos continuam a existir; só não se apresentam.
+   */
+  incluirPrecos?: boolean;
   rows: VendasAdapterRow[];
   /**
    * Mesma lista de buckets devolvida pelo loader em
@@ -684,7 +706,8 @@ export function buildVendasReport(input: {
       textos.totalBloco.push(...rowsForReport.map((r) => fmt(r[chaveTotalBloco(i)], "integer")), fmt(detalhe.reduce((acc, r) => acc + Number(r[chaveTotalBloco(i)] ?? 0), 0), "integer"));
     });
   }
-  const { columns, density } = buildColumns(input.buckets, textos);
+  const incluirPrecos = input.incluirPrecos !== false;
+  const { columns, density } = buildColumns(input.buckets, textos, incluirPrecos);
 
   // Períodos longos: blocos temporais (ver `repartirMeses`). Até 13 meses não há blocos.
   const partes = repartirMeses(input.buckets.length);
@@ -714,9 +737,11 @@ export function buildVendasReport(input: {
   const semCusto = custoGeral.semCusto;
   const nota = [
     "Stock atual à data de geração do relatório (não histórico). Stock: número simples = com stock; número em caixa = 0; fundo escuro = negativo.",
-    "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA.",
+    incluirPrecos
+      ? "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA."
+      : "",
     "«·» = sem vendas no mês; valores negativos = devoluções/anulações acima das vendas.",
-    semCusto > 0
+    incluirPrecos && semCusto > 0
       ? `Custo total PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
       : "",
     columnBlocks
@@ -729,7 +754,7 @@ export function buildVendasReport(input: {
     subtitle,
     generatedAt: new Date(),
     filtersApplied: buildFilters(input.filters, input.universe),
-    summary: buildSummary(input.rows),
+    summary: buildSummary(input.rows, incluirPrecos),
     columns,
     rows: rowsForReport,
     meta: {

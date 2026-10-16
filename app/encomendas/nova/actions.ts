@@ -28,7 +28,7 @@ import {
 } from "@/lib/encomendas/consolidacao-multi-fornecedor";
 import { loadOrderDetail } from "@/lib/encomendas/order-detail";
 import { loadTransferenciasDetail } from "@/lib/transferencias/transferencia-detail";
-import { buildEncomendaDocumentoReport } from "@/lib/reporting/adapters/encomenda-documento";
+import { buildEncomendaDocumentoReport, fornecedoresDaEncomenda } from "@/lib/reporting/adapters/encomenda-documento";
 import { buildEncomendaConsolidadaDocumentoReport } from "@/lib/reporting/adapters/encomenda-consolidada-documento";
 import { buildTransferenciaDocumentoReport } from "@/lib/reporting/adapters/transferencia-documento";
 import type { Report } from "@/lib/reporting/report-types";
@@ -1106,7 +1106,8 @@ export type DocumentosFinalizacaoResultado =
        * (ver `buildEncomendaDocumentoReport`). O caso comum (um único
        * fornecedor) tem sempre exactamente 1.
        */
-      encomendaIndividual: Array<{ listaEncomendaId: string; farmaciaNome: string; reports: Report[] }>;
+      /** `fornecedores[i]` é o fornecedor de `reports[i]` (liga cada documento ao seu Excel). */
+      encomendaIndividual: Array<{ listaEncomendaId: string; farmaciaNome: string; reports: Report[]; fornecedores: Array<{ id: string | null; nome: string }> }>;
       /** "Encomenda única do Grupo" — só quando pedido e há >1 encomenda. Uso interno (nunca vai ao fornecedor), por isso continua um único Report. */
       encomendaConsolidada?: Report;
       transferenciaIndividual: Array<{ transferenciaId: string; rota: string; report: Report }>;
@@ -1152,6 +1153,7 @@ export async function buildDocumentosFinalizacaoAction(
       listaEncomendaId: d.id,
       farmaciaNome: d.farmaciaNome,
       reports: buildEncomendaDocumentoReport([d]),
+      fornecedores: fornecedoresDaEncomenda(d),
     }));
     const encomendaConsolidada =
       input.incluirConsolidado && detalhesEncomendas.length > 1

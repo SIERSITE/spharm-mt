@@ -27,6 +27,16 @@ type Props = {
   className?: string;
   /** Esconde alguma ação específica se não fizer sentido para a página. */
   hide?: Partial<Record<"print" | "pdf" | "excel" | "email", boolean>>;
+  /**
+   * Excel gerado NO SERVIDOR a partir de dados persistidos (ex.: a encomenda finalizada): o botão «Excel» passa a ser uma
+   * ligação de download para este URL em vez de exportar o `Report` a partir do browser.
+   */
+  excelHref?: string;
+  /**
+   * Report DIFERENTE para o Excel (e para o anexo Excel do email), quando o relatório visual omite informação que a folha de
+   * cálculo deve manter (ex.: Vendas com «Incluir preços» desligado — o Excel de Vendas não muda com essa opção).
+   */
+  excelReport?: ReportSource;
 };
 
 function resolve(src: ReportSource): Report | null {
@@ -56,7 +66,7 @@ const btn =
   "rounded-md border border-gray-300 text-gray-700 bg-white " +
   "hover:bg-gray-50 hover:border-gray-400 transition-colors";
 
-export function ReportActions({ report, className, hide }: Props) {
+export function ReportActions({ report, className, hide, excelHref, excelReport }: Props) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -100,13 +110,19 @@ export function ReportActions({ report, className, hide }: Props) {
             {pdfBusy ? "A gerar…" : "PDF"}
           </button>
         )}
-        {!hide?.excel && (
+        {!hide?.excel && excelHref && (
+          <a href={excelHref} download className={btn} data-testid="excel-encomenda">
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Excel
+          </a>
+        )}
+        {!hide?.excel && !excelHref && (
           <button
             type="button"
             className={btn}
             onClick={() =>
               safeRun("excel", () => {
-                const r = resolve(report);
+                const r = resolve(excelReport ?? report);
                 if (r) exportExcel(r);
               })
             }
@@ -126,6 +142,7 @@ export function ReportActions({ report, className, hide }: Props) {
       {emailOpen && (
         <EmailDialog
           reportSource={report}
+          excelSource={excelReport}
           onClose={() => setEmailOpen(false)}
         />
       )}
@@ -137,10 +154,11 @@ export function ReportActions({ report, className, hide }: Props) {
 
 type DialogProps = {
   reportSource: ReportSource;
+  excelSource?: ReportSource;
   onClose: () => void;
 };
 
-function EmailDialog({ reportSource, onClose }: DialogProps) {
+function EmailDialog({ reportSource, excelSource, onClose }: DialogProps) {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -175,6 +193,7 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
           subject: subject.trim() || undefined,
           message: message.trim() || undefined,
           attachFormats: formats,
+          ...(excelSource && includeExcel ? { excelReport: resolve(excelSource) ?? undefined } : {}),
         });
         if (result.ok) {
           setFeedback({

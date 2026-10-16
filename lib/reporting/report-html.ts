@@ -335,6 +335,7 @@ function renderTable(report: Report): string {
     }
   }
   const semGrupos = grupos.every((g) => g.groupKey === undefined);
+  const limpo = report.meta?.hierarchy === "clean";
 
   const renderBloco = (colsB: ReportColumn[], ultimo: boolean, fator: number): string => {
     // <colgroup> com larguras explícitas — combinado com table-layout:fixed
@@ -381,6 +382,8 @@ function renderTable(report: Report): string {
           if (tone) classes.push(tone);
           if (c.noClip) classes.push("nc");
           if (c.spanGroup) classes.push("sg");
+          // Colunas numéricas (valores, quantidades, stock, totais): +1 px no relatório limpo (ver `.num`).
+          if (limpo && (c.format === "currency" || c.format === "integer" || c.format === "number" || c.format === "decimal1" || c.format === "percent")) classes.push("num");
           if (mesAlt.has(c.key)) classes.push("mes-alt");
           if (c.monthAlt) {
             // zero → «·» apagado; > 0 → semibold; < 0 (devoluções) → bold a vermelho-escuro (o sinal «-» mantém-se)
@@ -456,7 +459,8 @@ function renderTable(report: Report): string {
       for (let i = 0; i < colsB.length; i++) {
         const c = colsB[i];
         const style = alignStyle(defaultAlignFor(c));
-        const nc = c.noClip ? ` class="nc"` : "";
+        const ncClasses = [c.noClip ? "nc" : "", limpo && (c.format === "currency" || c.format === "integer" || c.format === "number") ? "num" : ""].filter(Boolean).join(" ");
+        const nc = ncClasses ? ` class="${ncClasses}"` : "";
         if (i === 0) {
           // "TOTAL GERAL", não "Total" — para nunca se confundir, à
           // primeira vista, com "TOTAL ARTIGO" (o subtotal por linha,
@@ -1074,6 +1078,11 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .nota-final .footer-note { max-width: 82%; }
   .page.density-compact.hierarchy-clean .nota-final .footer-brand { white-space: nowrap; }
   .page.density-compact.hierarchy-clean .report-footer.compact { color: #6b7280; font-size: 8px; margin-top: 8px; }
+
+  /* NÚMEROS +1 px (valores, quantidades, stock, preços, custos, totais) — a descrição, o cabeçalho e o resto do texto não mudam.
+     A largura das colunas é medida pelo adapter com este mesmo aumento (AUMENTO_NUMEROS_PX). */
+  .page.density-compact.hierarchy-clean tbody td.num { font-size: calc(1em + 1px); }
+  .page.density-compact.hierarchy-clean .totals-tbody td.num { font-size: calc(1em + 1px); }
 
   /* tipografia: maior e com mais respiração (o adapter mede as larguras com as mesmas métricas) */
   .page.density-compact.hierarchy-clean table { font-size: 10px; }

@@ -38,6 +38,8 @@ type EmailPayload = {
   subject?: string;
   message?: string;
   attachFormats?: Array<"pdf" | "excel">;
+  /** Report do anexo Excel quando difere do relatório visual (ex.: Vendas sem «Incluir preços»). */
+  excelReport?: Report;
 };
 
 function isValidEmail(e: string): boolean {
@@ -117,7 +119,12 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
     if (formats.includes("excel")) {
-      const xlsx = buildReportExcelBuffer(report);
+      const excelReport = payload.excelReport && Array.isArray(payload.excelReport.columns) && Array.isArray(payload.excelReport.rows) ? payload.excelReport : report;
+      if (typeof excelReport.generatedAt === "string") {
+        const d = new Date(excelReport.generatedAt);
+        excelReport.generatedAt = isNaN(d.getTime()) ? new Date() : d;
+      }
+      const xlsx = buildReportExcelBuffer(excelReport);
       jobs.push(
         Promise.resolve({
           filename: xlsx.filename,

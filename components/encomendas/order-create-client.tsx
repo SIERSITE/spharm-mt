@@ -1,6 +1,7 @@
 "use client";
 
 import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
+import { urlExcelEncomenda } from "@/lib/encomendas/excel-url";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -4531,7 +4532,7 @@ function PainelResultadoFinalizacao({
                   {e.reports.map((r, i) => (
                     <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
                       <span className="text-slate-500">{r.title.replace(/^Nota de Encomenda — /, "")}</span>
-                      <ReportActions report={r} hide={{ excel: true }} />
+                      <ReportActions report={r} excelHref={urlExcelEncomenda(e.listaEncomendaId, e.fornecedores[i], e.reports.length)} />
                     </div>
                   ))}
                 </div>

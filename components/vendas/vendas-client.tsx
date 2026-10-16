@@ -802,6 +802,9 @@ export function VendasClient({
   // seleção antiga deixa de valer). Na 1.ª escolha materializa-se o conjunto a
   // partir do que está visível, e a partir daí uma mudança de filtros NÃO
   // alarga a seleção (o que aparece de novo vem desmarcado).
+  // «Incluir preços» — decide se as saídas visuais (Relatório, impressão, PDF, email) levam informação monetária. Por separador
+  // (cada análise a sua), ligada por omissão; «Nova análise» nasce ligada.
+  const [incluirPrecos, setIncluirPrecos] = useEstadoSeparador("vendas:incluirPrecos", true);
   const [geracao, setGeracao] = useEstadoSeparador("vendas:geracao", 0);
   const [selecao, setSelecao] = useEstadoSeparador<{ geracao: number; codigos: Set<string> } | null>("vendas:selecao", null);
   const linhasImprimiveis = ambito === "comparativo" ? comparativoRows : rowsOrdenadas;
@@ -961,8 +964,9 @@ export function VendasClient({
   }
 
   /** O MESMO relatório para ecrã («Relatório»), PDF, impressão, Excel e email — só os artigos selecionados. */
-  const construirRelatorio = () =>
+  const construirRelatorio = (opcoes?: { precos?: boolean }) =>
     buildVendasReport({
+      incluirPrecos: opcoes?.precos ?? incluirPrecos,
       // Exactamente as linhas visíveis, na mesma sequência:
       // `rowsOrdenadas` é o que a tabela renderiza (filtros +
       // agrupamento + ordenação do selector + ordenação por
@@ -1008,7 +1012,7 @@ export function VendasClient({
   /* eslint-disable react-hooks/exhaustive-deps -- depende do estado inteiro do mapa; recalcula só com o separador ativo */
   const htmlPrevia = useMemo(
     () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
-    [modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
+    [incluirPrecos, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
       apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
       fornecedoresSelecionados, fabricantesSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
       artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
@@ -1235,9 +1239,25 @@ export function VendasClient({
                   Selecione pelo menos um artigo para imprimir ou gerar PDF.
                 </span>
               )}
+              {hasGenerated && (
+                <label
+                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600"
+                  title="Desligado, o Relatório, a impressão, o PDF e o email saem SEM preços, custos nem valores de vendas (o Excel mantém-se completo)."
+                >
+                  <input
+                    type="checkbox"
+                    data-testid="vendas-incluir-precos"
+                    checked={incluirPrecos}
+                    onChange={(e) => setIncluirPrecos(e.target.checked)}
+                  />
+                  Incluir preços
+                </label>
+              )}
               <ReportActions
                 hide={!hasGenerated || semArtigosParaImprimir ? { print: true, pdf: true, excel: true, email: true } : undefined}
-                report={construirRelatorio}
+                report={() => construirRelatorio()}
+                // O Excel de Vendas não muda com «Incluir preços»: leva sempre a folha completa.
+                excelReport={() => construirRelatorio({ precos: true })}
               />
               {hasGenerated && rows.length > 0 && (
                 <button
@@ -1549,31 +1569,31 @@ export function VendasClient({
                           <td className={`whitespace-nowrap px-2 py-1.5 align-top ${subtotal ? "font-bold uppercase tracking-wide text-slate-900" : ""}`}>
                             {subtotal ? "Total artigo" : row.farmacia}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums">
                             {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-600">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums text-slate-600">
                             {fmtCustoOuTraco(row.custoUnitarioEstimado)}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-800" data-col="custo-total">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums text-slate-800" data-col="custo-total">
                             {fmtCustoOuTraco(row.custoEstimado)}
                           </td>
                           {row.meses.map((m, i) => (
                             <td
                               key={`${key}-m-${i}`}
                               data-mes-alt={i % 2 === 1 ? "" : undefined}
-                              className="whitespace-nowrap px-1.5 py-1.5 text-center align-top tabular-nums"
+                              className="whitespace-nowrap px-1.5 py-1.5 text-center align-top text-[13.5px] tabular-nums"
                             >
                               <QuantidadeMes valor={m.quantidade} />
                             </td>
                           ))}
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top font-semibold tabular-nums text-slate-900">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] font-semibold tabular-nums text-slate-900">
                             {row.totalVendas}
                           </td>
-                          <td className="px-2 py-1.5 text-center align-top">
+                          <td className="px-2 py-1.5 text-center align-top text-[13.5px]">
                             {subtotal ? <span className="font-semibold tabular-nums">{row.existencia}</span> : <StockCelula valor={row.existencia} />}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-slate-800" data-col="valor-vendas">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums text-slate-800" data-col="valor-vendas">
                             {fmtCustoOuTraco(row.valorBruto)}
                           </td>
                         </tr>
@@ -2036,7 +2056,7 @@ function LinhaTotalVendas({
       <td colSpan={3} className="col-total-rotulo px-2 py-2">{rotulo}</td>
       <td colSpan={3} className="px-2 py-2" />
       <td
-        className="whitespace-nowrap px-2 py-2 text-right tabular-nums"
+        className="whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums"
         data-testid={testidCusto}
         title={custo.semCusto > 0 ? `PARCIAL: ${custo.semCusto} linha(s) sem custo conhecido ficam fora do total` : undefined}
       >
@@ -2044,13 +2064,13 @@ function LinhaTotalVendas({
         {custo.semCusto > 0 ? " *" : ""}
       </td>
       {Array.from({ length: nMeses }, (_, i) => (
-        <td key={`tot-mes-${i}`} data-mes-alt={i % 2 === 1 ? "" : undefined} className="whitespace-nowrap px-1.5 py-2 text-center tabular-nums">
+        <td key={`tot-mes-${i}`} data-mes-alt={i % 2 === 1 ? "" : undefined} className="whitespace-nowrap px-1.5 py-2 text-center text-[14px] tabular-nums">
           {sumBucket(linhas, i)}
         </td>
       ))}
-      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{sum(linhas.map((r) => r.totalVendas))}</td>
+      <td className="whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums">{sum(linhas.map((r) => r.totalVendas))}</td>
       <td className="px-2 py-2" />
-      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums" data-col="valor-vendas">
+      <td className="whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums" data-col="valor-vendas">
         {fmtCustoOuTraco(linhas.reduce((acc, r) => acc + r.valorBruto, 0))}
       </td>
     </tr>
