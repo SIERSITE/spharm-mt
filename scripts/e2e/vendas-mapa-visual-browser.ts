@@ -488,7 +488,7 @@ async function main() {
     const t27 = p27w.paginas.map(textoPag).join("\n");
     check(["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => t27.includes(t)), "PDF: as 3 partes identificadas");
     check(p27w.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1, "PDF: linha TOTAL GERAL uma única vez (fim do último bloco)");
-    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /repartido em 3 blocos/.test(t27), "PDF: nota explicativa da divisão em partes");
+    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /em 3 blocos de, no máximo, 13 meses/.test(t27), "PDF: nota explicativa da divisão em partes");
     check(p27w.paginas.every((pg) => textoPag(pg).includes("CNP")), "PDF: cabeçalho em todas as páginas de todas as partes");
     const n27 = nDetalhe(s27.relatorio);
     check(n27 > 0, `relatório de 27 meses com ${n27} linhas de detalhe`);

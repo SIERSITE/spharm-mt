@@ -420,7 +420,7 @@ async function main() {
     const fundos = [...clean.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
     ok(`único fundo escuro no relatório limpo: a pastilha do stock negativo (${fundos.join(",")})`, fundos.length === 1 && fundos[0] === "374151");
     ok("os meses não têm linhas verticais nem fundo forte (película ≤ 3 %)", /rgba\(15, 23, 42, 0\.028\)/.test(clean) && !/mes-alt[^{]*\{[^}]*border/.test(clean));
-    ok("nota/legenda final dentro da tabela (nunca órfã numa página sem cabeçalho)", /<tbody class="nota-tbody">/.test(html) && !/<footer class="report-footer/.test(html));
+    ok("nota/legenda final dentro da tabela (nunca órfã numa página sem cabeçalho)", /<tr class="nota-tr">/.test(html) && !/<footer class="report-footer/.test(html));
     ok("Margens (hierarchy-strong) mantém o seu desenho: regras strong intactas", /hierarchy-strong thead th \{[^}]*background: #1f2937/.test(css));
 
     // PDF real, a CINZENTOS: o cabeçalho e os totais têm fundo claro; só o stock negativo é escuro

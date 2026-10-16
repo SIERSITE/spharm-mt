@@ -427,7 +427,9 @@ function renderTable(report: Report): string {
             // Também é a fronteira de "não cortar entre páginas" (ver CSS
             // .row-group { break-inside: avoid }).
             const alt = compact && gi % 2 === 1 ? " row-group-alt" : "";
-            return `<tbody class="row-group${alt}">${linhasDoGrupo.join("")}</tbody>`;
+            // O último artigo fica com o TOTAL GERAL (nunca uma página só com os totais).
+            const ult = report.meta?.hierarchy === "clean" && gi === grupos.length - 1 ? " row-group-ultimo" : "";
+            return `<tbody class="row-group${alt}${ult}">${linhasDoGrupo.join("")}</tbody>`;
           })
           .join("");
 
@@ -469,7 +471,7 @@ function renderTable(report: Report): string {
           celulas.push(`<td></td>`);
         }
       }
-      totalsRow = `<tbody class="totals-tbody"><tr>${celulas.join("")}</tr></tbody>`;
+      totalsRow = `<tbody class="totals-tbody"><tr>${celulas.join("")}</tr>__NOTA__</tbody>`;
     }
 
     const tableDensity = report.meta?.tableDensity;
@@ -480,9 +482,9 @@ function renderTable(report: Report): string {
     // página seguinte repete o cabeçalho.
     const notaFinal =
       ultimo && report.meta?.hierarchy === "clean"
-        ? `<tbody class="nota-tbody"><tr><td colspan="${colsB.length}"><div class="nota-count">${escapeHtml(
+        ? `<tr class="nota-tr"><td colspan="${colsB.length}"><div class="nota-count">${escapeHtml(
             report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`,
-          )}</div><div class="nota-final"><span class="footer-note">${escapeHtml(report.meta?.footer ?? "SPharm.MT")}</span><span class="footer-brand">SPharm.MT · www.spharm.pt</span></div></td></tr></tbody>`
+          )}</div><div class="nota-final"><span class="footer-note">${escapeHtml(report.meta?.footer ?? "SPharm.MT")}</span><span class="footer-brand">SPharm.MT · www.spharm.pt</span></div></td></tr>`
         : "";
 
     return `
@@ -490,8 +492,7 @@ function renderTable(report: Report): string {
         <colgroup>${colgroup}</colgroup>
         <thead><tr>${headerCells}</tr></thead>
         ${tbodyHtml}
-        ${totalsRow}
-        ${notaFinal}
+        ${totalsRow.replace("__NOTA__", () => notaFinal) || (notaFinal ? `<tbody class="totals-tbody">${notaFinal}</tbody>` : "")}
       </table>`;
   };
 
@@ -1065,7 +1066,9 @@ const STYLES = `
   /* blocos temporais: legenda discreta */
   .page.density-compact.hierarchy-clean .bloco-titulo { background: #f8fafc; border-left: 3px solid #94a3b8; color: #374151; margin-top: 6px; }
   .page.density-compact.hierarchy-clean .row-count { color: #6b7280; }
-  .page.density-compact.hierarchy-clean tbody.nota-tbody td { border: 0 !important; background: #ffffff !important; padding: 8px 0 0 0; font-size: 8px; line-height: 1.35; color: #6b7280; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
+  .page.density-compact.hierarchy-clean .totals-tbody tr.nota-tr td { border: 0 !important; background: #ffffff !important; padding: 8px 0 0 0; font-size: 8px; line-height: 1.35; color: #6b7280; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
+  .page.density-compact.hierarchy-clean .totals-tbody { break-inside: avoid; page-break-inside: avoid; }
+  .page.density-compact.hierarchy-clean tbody.row-group-ultimo { break-after: avoid; page-break-after: avoid; }
   .page.density-compact.hierarchy-clean .nota-count { text-align: right; font-style: italic; margin-bottom: 4px; }
   .page.density-compact.hierarchy-clean .nota-final { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
   .page.density-compact.hierarchy-clean .nota-final .footer-note { max-width: 82%; }
