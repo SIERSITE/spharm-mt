@@ -1,5 +1,6 @@
 "use client";
 
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -145,12 +146,14 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   // que veio do URL/server. Se mudar (ex: back/forward), sincroniza o
   // input local de pesquisa sem useEffect (evita cascading renders).
   const [lastServerQ, setLastServerQ] = useState(serverQ);
-  const [searchInput, setSearchInput] = useState<string>(serverQ);
+  // Texto escrito e ainda não aplicado: sobrevive a mudar de separador (pesquisa aplicada/página/ordenação vivem no URL, que
+  // o separador guarda por inteiro — ver task-bar.tsx).
+  const [searchInput, setSearchInput] = useEstadoSeparador<string>("stock:searchInput", serverQ);
   if (lastServerQ !== serverQ) {
     setLastServerQ(serverQ);
     setSearchInput(serverQ);
   }
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useEstadoSeparador("stock:filtersOpen", false);
 
   const selectedPharmacies = data.params.pharmacies ?? [];
   const selectedCoverage = data.params.coverageBuckets ?? [];

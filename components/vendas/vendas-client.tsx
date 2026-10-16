@@ -36,6 +36,7 @@ import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/rep
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import { renderReportHtml } from "@/lib/reporting/report-html";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { BarraScrollHorizontalTopo } from "@/components/ui/barra-scroll-horizontal-topo";
 import {
   ordenarLinhas,
@@ -200,11 +201,14 @@ export function VendasClient({
   // `hasGenerated` controla o gate visual entre estado neutro e
   // tabela/relatório. `isPending` vem de useTransition para o spinner.
   // ─────────────────────────────────────────────────────────────────
-  const [rows, setRows] = useState<SalesReportRow[]>([]);
-  const [periodHeader, setPeriodHeader] = useState<SalesPeriodHeader | null>(null);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  //
+  // Estado POR SEPARADOR (lib/workspace/estado-separador.ts): resultado gerado, período, seleção e painéis sobrevivem a
+  // mudar de separador e voltar — sem repetir a consulta. Cada análise (`?workspace=`) tem o seu.
+  const [rows, setRows] = useEstadoSeparador<SalesReportRow[]>("vendas:rows", []);
+  const [periodHeader, setPeriodHeader] = useEstadoSeparador<SalesPeriodHeader | null>("vendas:periodHeader", null);
+  const [hasGenerated, setHasGenerated] = useEstadoSeparador("vendas:hasGenerated", false);
   const [isPending, startTransition] = useTransition();
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useEstadoSeparador<string | null>("vendas:generationError", null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -328,7 +332,7 @@ export function VendasClient({
   const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
   // UI puro (painel aberto/fechado) — não é critério de análise, não
   // precisa de sobreviver a trocar de workspace.
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useEstadoSeparador("vendas:filtrosAbertos", false);
   // Os defaults são os do relatório oficial do SPharm contra o qual
   // reconciliamos: "Incluir Vendas a Crédito = Sim", "Incluir Guias de
   // Transferência = Não".
@@ -602,24 +606,8 @@ export function VendasClient({
     setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
   }
 
-  // Trocar de workspace restaura os CRITÉRIOS (incluindo a ordenação,
-  // acima — via useWorkspaceState) mas NUNCA um resultado calculado com
-  // os critérios do workspace ANTERIOR: mostrar linhas de uma farmácia
-  // enquanto o painel já diz outra seria pior do que mostrar "por
-  // gerar". Mesmo princípio de `carregarRascunhoNovaEncomendaAction`:
-  // nunca finge um resultado que não foi recalculado com os critérios
-  // actuais.
-  useEffect(() => {
-    // Sincroniza o ecrã com uma IDENTIDADE externa que acabou de mudar
-    // (o workspace da URL) — não é derivação de props/state internos,
-    // é exactamente o caso que a regra documenta como legítimo (mesmo
-    // padrão da hidratação de `?rascunho=` em order-create-client.tsx).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHasGenerated(false);
-    setRows([]);
-    setPeriodHeader(null);
-    setGenerationError(null);
-  }, [workspaceId]);
+  // Trocar de separador/análise: critérios (useWorkspaceState) E resultado (useEstadoSeparador) são re-hidratados do
+  // separador de destino — nunca se mostra o resultado de outra análise, e o resultado da análise que se deixou fica guardado.
 
   // Título descritivo na barra de tarefas — sem isto, duas análises de
   // Vendas mostravam-se as duas como "Vendas", indistinguíveis (o
@@ -814,8 +802,8 @@ export function VendasClient({
   // seleção antiga deixa de valer). Na 1.ª escolha materializa-se o conjunto a
   // partir do que está visível, e a partir daí uma mudança de filtros NÃO
   // alarga a seleção (o que aparece de novo vem desmarcado).
-  const [geracao, setGeracao] = useState(0);
-  const [selecao, setSelecao] = useState<{ geracao: number; codigos: Set<string> } | null>(null);
+  const [geracao, setGeracao] = useEstadoSeparador("vendas:geracao", 0);
+  const [selecao, setSelecao] = useEstadoSeparador<{ geracao: number; codigos: Set<string> } | null>("vendas:selecao", null);
   const linhasImprimiveis = ambito === "comparativo" ? comparativoRows : rowsOrdenadas;
   const codigosVisiveis = useMemo(() => [...new Set(linhasImprimiveis.map((r) => r.codigo))], [linhasImprimiveis]);
   const selecionados = selecao && selecao.geracao === geracao ? selecao.codigos : null;
@@ -1457,7 +1445,7 @@ export function VendasClient({
             </div>
 
             <BarraScrollHorizontalTopo alvo={contentorTabelaRef} />
-            <div ref={contentorTabelaRef} className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto" data-testid="vendas-contentor-tabela">
+            <div ref={contentorTabelaRef} className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto" data-testid="vendas-contentor-tabela" data-scroll-key="vendas-tabela">
               {ambito !== "comparativo" ? (
                 <table className="tabela-vendas min-w-full text-left" data-testid="vendas-tabela">
                   <thead className="border-b border-slate-100 bg-slate-50 text-[10px] uppercase tracking-[0.06em] text-slate-500">

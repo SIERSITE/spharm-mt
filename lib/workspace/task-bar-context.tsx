@@ -25,7 +25,8 @@
  * server ou client), o `RootLayout` é partilhado por TODAS as rotas —
  * é o único sítio onde o estado sobrevive a uma navegação Next.js.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { estadoSeparadores } from "@/lib/workspace/armazem-separadores";
 
 export type Tarefa = {
   id: string;
@@ -42,6 +43,12 @@ export type Tarefa = {
    * `/encomendas/{id}` no `href/id`, não precisa disto).
    */
   workspaceId?: string;
+  /**
+   * Separador DE ONDE se chegou a este (navegação contextual: ficha aberta a partir de Vendas → «Voltar a Vendas»).
+   * Só se define em navegações feitas por links/botões da aplicação — nunca quando se clica no próprio separador.
+   * Se o separador de origem já foi fechado, a página usa o seu destino por omissão.
+   */
+  origemId?: string;
 };
 
 const MAX_TAREFAS = 14;
@@ -90,6 +97,12 @@ export function reduzirSujo(prev: EstadoPersistido, id: string, sujo: boolean): 
   return { ...prev, tarefas: prev.tarefas.map((x) => (x.id === id ? { ...x, sujo } : x)) };
 }
 
+export function reduzirHref(prev: EstadoPersistido, id: string, href: string): EstadoPersistido {
+  const t = prev.tarefas.find((x) => x.id === id);
+  if (!t || t.href === href) return prev;
+  return { ...prev, tarefas: prev.tarefas.map((x) => (x.id === id ? { ...x, href } : x)) };
+}
+
 export function reduzirTitulo(prev: EstadoPersistido, id: string, titulo: string): EstadoPersistido {
   const t = prev.tarefas.find((x) => x.id === id);
   if (!t || t.titulo === titulo) return prev;
@@ -106,6 +119,10 @@ type ContextoTaskBar = {
   fechar: (id: string) => void;
   marcarSujo: (id: string, sujo: boolean) => void;
   actualizarTitulo: (id: string, titulo: string) => void;
+  /** Localização completa a que o separador regressa (pathname + pesquisa/ordenação/página) — no-op se não mudou. */
+  actualizarHref: (id: string, href: string) => void;
+  /** `tenant:utilizador` — escopo do estado em memória dos separadores (ver estado-separador.ts); `null` sem sessão. */
+  escopo: string | null;
 };
 
 const Contexto = createContext<ContextoTaskBar | null>(null);
@@ -120,6 +137,7 @@ export function TaskBarProvider({
   children: ReactNode;
 }) {
   const chaveLS = tenant && userId ? chave(tenant, userId) : null;
+  const escopo = tenant && userId ? `${tenant}:${userId}` : null;
   // Um ÚNICO state para tarefas+activaId — nunca duas chamadas setState
   // seguidas dentro do mesmo efeito/callback (cascading renders), e a
   // persistência em localStorage fica sempre a escrever exactamente o
@@ -147,11 +165,29 @@ export function TaskBarProvider({
     escrever(chaveLS, estado);
   }, [chaveLS, estado]);
 
+  // Ciclo de vida do estado em memória dos separadores:
+  //   · terminar sessão / mudar de tenant ou utilizador → nada do escopo anterior fica na memória;
+  //   · fechar (ou evictar) um separador → o seu estado é libertado.
+  useEffect(() => {
+    estadoSeparadores.limparForaDoEscopo(escopo);
+  }, [escopo]);
+  const idsAnterioresRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!escopo) return;
+    const actuais = new Set(tarefas.map((t) => t.id));
+    for (const id of idsAnterioresRef.current) if (!actuais.has(id)) estadoSeparadores.limparSeparador(escopo, id);
+    idsAnterioresRef.current = actuais;
+  }, [escopo, tarefas]);
+
   const abrirOuActivar = useCallback((tarefa: Omit<Tarefa, "sujo">) => {
     setEstado((prev) => {
       const existente = prev.tarefas.find((t) => t.id === tarefa.id);
       const tarefas = existente
-        ? prev.tarefas.map((t) => (t.id === tarefa.id ? { ...t, titulo: tarefa.titulo, href: tarefa.href } : t))
+        ? prev.tarefas.map((t) =>
+            t.id === tarefa.id
+              ? { ...t, titulo: tarefa.titulo, href: tarefa.href, ...(tarefa.origemId !== undefined ? { origemId: tarefa.origemId } : {}) }
+              : t,
+          )
         : (() => {
             const nova: Tarefa = { ...tarefa, sujo: false };
             const seguintes = [...prev.tarefas, nova];
@@ -188,12 +224,21 @@ export function TaskBarProvider({
     setEstado((prev) => reduzirTitulo(prev, id, titulo));
   }, []);
 
+  const actualizarHref = useCallback((id: string, href: string) => {
+    setEstado((prev) => reduzirHref(prev, id, href));
+  }, []);
+
   const valor = useMemo<ContextoTaskBar>(
-    () => ({ tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo }),
-    [tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo]
+    () => ({ tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, escopo }),
+    [tarefas, activaId, abrirOuActivar, abrirNova, fechar, marcarSujo, actualizarTitulo, actualizarHref, escopo]
   );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
+}
+
+/** Escopo (`tenant:utilizador`) do estado dos separadores; `null` fora do provider ou sem sessão. */
+export function useEscopoSeparadores(): string | null {
+  return useContext(Contexto)?.escopo ?? null;
 }
 
 /** `null` fora do provider — o chamador decide o que fazer (tipicamente: não mostrar a barra). */

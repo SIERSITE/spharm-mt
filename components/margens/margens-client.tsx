@@ -25,6 +25,7 @@ import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
@@ -228,11 +229,13 @@ export function MargensClient({
   const estadoChip = criterios.estadoChip;
   const [, setEstadoChip] = campo("estadoChip");
 
-  const [result, setResult] = useState<MargensResult | null>(null);
+  // Estado POR SEPARADOR (lib/workspace/estado-separador.ts): o resultado gerado e a comparação CNPEM sobrevivem a
+  // mudar de separador e voltar, sem repetir nenhuma consulta.
+  const [result, setResult] = useEstadoSeparador<MargensResult | null>("margens:result", null);
   /** Os filtros EXATOS com que `result` foi calculado (a comparação usa os mesmos). */
-  const [filtrosResultado, setFiltrosResultado] = useState<SharedReportFilters>({});
-  const [hasGenerated, setHasGenerated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [filtrosResultado, setFiltrosResultado] = useEstadoSeparador<SharedReportFilters>("margens:filtrosResultado", {});
+  const [hasGenerated, setHasGenerated] = useEstadoSeparador("margens:hasGenerated", false);
+  const [error, setError] = useEstadoSeparador<string | null>("margens:error", null);
   const [isPending, startTransition] = useTransition();
 
   const handleGerar = () => {
@@ -289,6 +292,7 @@ export function MargensClient({
     return () => clearTimeout(t);
     // `filtrosSerial` é a única dependência que representa uma mudança
     // real de critérios; as restantes são estáveis.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosSerial, hasGenerated]);
 
   const rowsByEstadoProduto = useMemo(() => {
@@ -323,20 +327,10 @@ export function MargensClient({
   // `vendas-client.tsx` e de `carregarRascunhoNovaEncomendaAction`:
   // nunca finge um resultado que não foi recalculado com os critérios
   // actuais.
+  // O resultado/estado de cada análise vive no seu separador (useEstadoSeparador) e é re-hidratado ao mudar de
+  // workspace — não se apaga nada aqui. Só se repõe o marcador do debounce: ao entrar noutro separador com um resultado
+  // já gerado, a 1.ª passagem do efeito de «relançar ao mudar filtros» NÃO pode disparar uma consulta redundante.
   useEffect(() => {
-    // Sincroniza o ecrã com uma IDENTIDADE externa que acabou de mudar
-    // (o workspace da URL) — não é derivação de props/state internos,
-    // é exactamente o caso que a regra documenta como legítimo (mesmo
-    // padrão da hidratação de `?rascunho=` em order-create-client.tsx).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHasGenerated(false);
-    setResult(null);
-    setError(null);
-    // `primeiroEfeito` marca "ainda não passou pelo primeiro ciclo do
-    // debounce depois de gerar" — sem o repor aqui, o 1º "Gerar" de CADA
-    // NOVO workspace herdava o `current = false` deixado pela análise
-    // anterior e disparava uma segunda chamada redundante ao servidor
-    // 400 ms depois de `handleGerar` já ter o resultado.
     primeiroEfeito.current = true;
   }, [workspaceId]);
 
@@ -685,7 +679,7 @@ function TabelaProduto({
   /** Identidade do resultado: muda quando o relatório é recalculado. */
   resultadoId: unknown;
 }) {
-  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const [expandidas, setExpandidas] = useEstadoSeparador<Set<string>>("margens:expandidas", () => new Set());
   const filtrosSerial = JSON.stringify(filtros);
   // Identidade do cálculo a que as comparações pertencem: o resultado E os
   // filtros. Qualquer alteração do relatório (período, farmácias, …) muda-a,
@@ -693,16 +687,17 @@ function TabelaProduto({
   // a pedir os dados novos. Derivado no render (sem setState em efeitos).
   const chaveAtual = `${identidadeDe(resultadoId)}|${filtrosSerial}`;
   /** CNP dos artigos com «Mostrar todos os artigos do mesmo CNPEM» ligado (desligado por omissão). */
-  const [mostrarTodos, setMostrarTodos] = useState<Set<number>>(new Set());
-  const [cache, setCache] = useState<{ chave: string; mapa: Map<string, EstadoComparacao> }>({
+  const [mostrarTodos, setMostrarTodos] = useEstadoSeparador<Set<number>>("margens:mostrarTodos", () => new Set());
+  const [cache, setCache] = useEstadoSeparador<{ chave: string; mapa: Map<string, EstadoComparacao> }>("margens:cache", () => ({
     chave: chaveAtual,
     mapa: new Map(),
-  });
+  }));
   const comparacoes = cache.chave === chaveAtual ? cache.mapa : MAPA_VAZIO;
   const chaveRef = useRef(chaveAtual);
-  const pedidos = useRef(new Set<string>());
+  // Pedidos de comparação JÁ feitos neste separador (por cálculo+artigo): guardados com o separador — ao regressar não se repete nenhum.
+  const [pedidos] = useEstadoSeparador<Set<string>>("margens:pedidos", () => new Set());
   const contentorRef = useRef<HTMLDivElement>(null);
-  const [tentativa, setTentativa] = useState(0);
+  const [tentativa, setTentativa] = useEstadoSeparador("margens:tentativa", 0);
 
   const guardar = (chave: string, chaveCmp: string, est: EstadoComparacao | null) => {
     if (chaveRef.current !== chave) return; // resposta de um cálculo que já não é o atual
@@ -728,8 +723,8 @@ function TabelaProduto({
       const todos = mostrarTodos.has(cnp);
       const ck = chaveComparacao(cnp, todos);
       const pk = `${chaveAtual}|${ck}`;
-      if (pedidos.current.has(pk)) continue;
-      pedidos.current.add(pk);
+      if (pedidos.has(pk)) continue;
+      pedidos.add(pk);
       const chave = chaveAtual;
       const f = JSON.parse(filtrosSerial) as SharedReportFilters;
       runMargensComparacaoCnpem(f, cnp, todos).then(
@@ -738,6 +733,7 @@ function TabelaProduto({
       );
     }
     // `guardar` só usa refs e o setter — estável.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cnpsExpandidos, chaveAtual, filtrosSerial, tentativa, mostrarTodos]);
 
   function alternarLinha(r: MargemRow) {
@@ -751,7 +747,7 @@ function TabelaProduto({
   }
   function tentarOutraVez(cnp: number) {
     const ck = chaveComparacao(cnp, mostrarTodos.has(cnp));
-    pedidos.current.delete(`${chaveAtual}|${ck}`);
+    pedidos.delete(`${chaveAtual}|${ck}`);
     guardar(chaveAtual, ck, null);
     setTentativa((n) => n + 1);
   }
@@ -775,7 +771,7 @@ function TabelaProduto({
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
       <BarraScrollHorizontalTopo alvo={contentorRef} />
-      <div ref={contentorRef} className="tabela-fixa tabela-margens" data-testid="tabela-margens-produto">
+      <div ref={contentorRef} className="tabela-fixa tabela-margens" data-testid="tabela-margens-produto" data-scroll-key="margens-tabela">
         <table className="min-w-full text-left text-[12px]">
           <thead className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
             <tr>

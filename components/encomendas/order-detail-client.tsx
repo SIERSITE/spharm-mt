@@ -1,5 +1,6 @@
 "use client";
 
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
@@ -212,8 +213,10 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   }
 
   /** Bulk "Definir fornecedor nas linhas seleccionadas" — mesmo caminho de autosave, em loop. */
-  const [linhasSeleccionadas, setLinhasSeleccionadas] = useState<Set<string>>(new Set());
-  const [bulkFornecedorId, setBulkFornecedorId] = useState("");
+  // Seleção e fornecedor escolhido para edição em massa (ainda não aplicado): sobrevivem a mudar de separador. As linhas
+  // em si vivem no servidor (autosave) e não se restauram da memória.
+  const [linhasSeleccionadas, setLinhasSeleccionadas] = useEstadoSeparador<Set<string>>("detalhe:linhasSeleccionadas", () => new Set());
+  const [bulkFornecedorId, setBulkFornecedorId] = useEstadoSeparador("detalhe:bulkFornecedorId", "");
   function handleBulkFornecedorChange(fornecedorId: string) {
     const valor = fornecedorId === "" ? null : fornecedorId;
     const nome = valor ? fornecedores.find((f) => f.id === valor)?.nome ?? null : null;

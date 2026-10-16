@@ -4,6 +4,8 @@ import "./globals.css";
 import { getSession } from "@/lib/auth";
 import { SessionProvider } from "@/components/layout/session-provider";
 import { TaskBarProvider } from "@/lib/workspace/task-bar-context";
+import { ScrollSeparadores } from "@/components/layout/scroll-separadores";
+import { Suspense } from "react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -44,6 +46,10 @@ export default async function RootLayout({
         <SessionProvider utilizador={utilizador}>
           <TaskBarProvider tenant={sessao?.tenant ?? null} userId={sessao?.sub ?? null}>
             {children}
+            {/* Scroll por separador (janela + [data-scroll-key]); useSearchParams() exige Suspense. */}
+            <Suspense fallback={null}>
+              <ScrollSeparadores />
+            </Suspense>
           </TaskBarProvider>
         </SessionProvider>
       </body>

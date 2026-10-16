@@ -6,6 +6,7 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { janelaOperacionalPorOmissao } from "@/lib/operational/janela-meses";
 import { runTransferenciasReport } from "@/app/transferencias/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
@@ -130,9 +131,10 @@ export function TransferenciasClient({
   podeEliminarTransferencia: boolean;
 }) {
   // Lazy: nada de Transferências é carregado até clicar em "Gerar".
-  const [rows, setRows] = useState<TransferSuggestionRow[]>([]);
+  // Estado POR SEPARADOR (lib/workspace/estado-separador.ts): o resultado gerado sobrevive a mudar de separador e voltar.
+  const [rows, setRows] = useEstadoSeparador<TransferSuggestionRow[]>("transferencias:rows", []);
   const [isPending, startTransition] = useTransition();
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useEstadoSeparador<string | null>("transferencias:generationError", null);
   const initialRows = rows;
 
   /**
@@ -242,10 +244,10 @@ export function TransferenciasClient({
   const [quantidadeMinima, setQuantidadeMinima] = campo("quantidadeMinima");
   const [incluirTotais, setIncluirTotais] = campo("incluirTotais");
   const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useEstadoSeparador("transferencias:filtrosAbertos", false);
 
-  const [relatorioGerado, setRelatorioGerado] = useState(false);
-  const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
+  const [relatorioGerado, setRelatorioGerado] = useEstadoSeparador("transferencias:relatorioGerado", false);
+  const [snapshot, setSnapshot] = useEstadoSeparador<ReportSnapshot | null>("transferencias:snapshot", null);
 
   /** O segundo tempo de `handleGerar`, não uma acção do utilizador. */
   function fixarSnapshot() {
@@ -396,16 +398,7 @@ export function TransferenciasClient({
     setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
   }
 
-  // Trocar de workspace restaura os critérios mas NUNCA um resultado
-  // calculado com os critérios do workspace anterior.
-  useEffect(() => {
-    // Sincroniza com uma identidade externa (workspace da URL) — caso legítimo.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRows([]);
-    setRelatorioGerado(false);
-    setSnapshot(null);
-    setGenerationError(null);
-  }, [workspaceId]);
+  // Trocar de workspace: critérios e resultado são re-hidratados do separador de destino (ver estado-separador.ts).
 
   // Título descritivo na barra de tarefas (distingue duas análises).
   useEffect(() => {

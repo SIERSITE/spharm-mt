@@ -1,5 +1,6 @@
 "use client";
 
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -121,7 +122,9 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
   // Search local — só aplica no Enter / blur. Sincronizar com a URL externa
   // (back/forward, "Limpar filtros") via reset on prop change (sem useEffect).
   const urlSearch = filters.search ?? "";
-  const [searchInput, setSearchInput] = useState(urlSearch);
+  // Texto escrito e ainda não aplicado: sobrevive a mudar de separador (a pesquisa APLICADA, a página e a ordenação vivem no URL,
+  // que o separador guarda por inteiro — ver task-bar.tsx).
+  const [searchInput, setSearchInput] = useEstadoSeparador("catalogo:searchInput", urlSearch);
   const [searchBaseline, setSearchBaseline] = useState(urlSearch);
   if (searchBaseline !== urlSearch) {
     setSearchBaseline(urlSearch);

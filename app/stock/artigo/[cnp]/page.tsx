@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { VoltarOrigem } from "@/components/layout/voltar-origem";
 import { notFound } from "next/navigation";
 import { MainShell } from "@/components/layout/main-shell";
 import { ArtigoFicha } from "@/components/stock/artigo-ficha";
@@ -9,7 +9,6 @@ import {
   getDefaultMovimentosWindow,
   getMovimentosProduto,
 } from "@/lib/movimentos-data";
-import { ArrowLeft } from "lucide-react";
 
 type ArticlePageProps = {
   params: Promise<{ cnp: string }>;
@@ -51,13 +50,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <div className="space-y-5">
         <section className="flex items-center justify-between gap-4">
           <div>
-            <Link
-              href="/stock"
-              className="inline-flex items-center gap-2 text-[12px] font-medium text-slate-500 transition hover:text-slate-700"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar a Stock
-            </Link>
+            <VoltarOrigem destinoPorOmissao="/stock" rotuloPorOmissao="Voltar a Stock" />
 
             <h1 className="mt-3 text-[20px] font-semibold text-slate-900">{data.designacao}</h1>
             <p className="mt-1 text-[12px] text-slate-500">

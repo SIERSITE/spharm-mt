@@ -1,5 +1,6 @@
 "use client";
 
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -304,23 +305,27 @@ export function OrderCreateClient({
   }, [farmacias, canGroupMode, userFarmaciaId]);
 
   // ─── Modo ────────────────────────────────────────────────────────────────
-  const [mode, setMode] = useState<ProposalMode>("farmacia");
+  // ESTADO POR SEPARADOR (lib/workspace/estado-separador.ts): critérios, filtros da tabela, paginação e — em modo
+  // «farmácia» — a proposta gerada sobrevivem a mudar de separador e voltar. O rascunho (draftId/versões/autosave/
+  // consolidação) NÃO é restaurado da memória: vive no servidor e recupera-se por `?rascunho=` (o separador guarda o URL
+  // completo), sem arriscar versões/idempotência desactualizadas.
+  const [mode, setMode] = useEstadoSeparador<ProposalMode>("nova:mode", "farmacia");
 
   // ─── Critérios ───────────────────────────────────────────────────────────
   const period = useMemo(() => defaultPeriod(latestDataMonth), []);
-  const [farmaciaId, setFarmaciaId] = useState(farmaciasVisiveis[0]?.id ?? "");
-  const [startDate, setStartDate] = useState(period.start);
-  const [endDate, setEndDate] = useState(period.end);
-  const [considerStock, setConsiderStock] = useState(true);
-  const [baseRule, setBaseRule] = useState<ProposalBaseRule>("coverage");
-  const [coverageDays, setCoverageDays] = useState(15);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selFabricantes, setSelFabricantes] = useState<string[]>([]);
-  const [selFornecedores, setSelFornecedores] = useState<string[]>([]);
-  const [selCategorias, setSelCategorias] = useState<string[]>([]);
-  const [selSubcategorias, setSelSubcategorias] = useState<string[]>([]);
-  const [selUtilizacoes, setSelUtilizacoes] = useState<string[]>([]);
-  const [selProductTypes, setSelProductTypes] = useState<string[]>([]);
+  const [farmaciaId, setFarmaciaId] = useEstadoSeparador("nova:farmaciaId", farmaciasVisiveis[0]?.id ?? "");
+  const [startDate, setStartDate] = useEstadoSeparador("nova:startDate", period.start);
+  const [endDate, setEndDate] = useEstadoSeparador("nova:endDate", period.end);
+  const [considerStock, setConsiderStock] = useEstadoSeparador("nova:considerStock", true);
+  const [baseRule, setBaseRule] = useEstadoSeparador<ProposalBaseRule>("nova:baseRule", "coverage");
+  const [coverageDays, setCoverageDays] = useEstadoSeparador("nova:coverageDays", 15);
+  const [filtersOpen, setFiltersOpen] = useEstadoSeparador("nova:filtersOpen", false);
+  const [selFabricantes, setSelFabricantes] = useEstadoSeparador<string[]>("nova:selFabricantes", []);
+  const [selFornecedores, setSelFornecedores] = useEstadoSeparador<string[]>("nova:selFornecedores", []);
+  const [selCategorias, setSelCategorias] = useEstadoSeparador<string[]>("nova:selCategorias", []);
+  const [selSubcategorias, setSelSubcategorias] = useEstadoSeparador<string[]>("nova:selSubcategorias", []);
+  const [selUtilizacoes, setSelUtilizacoes] = useEstadoSeparador<string[]>("nova:selUtilizacoes", []);
+  const [selProductTypes, setSelProductTypes] = useEstadoSeparador<string[]>("nova:selProductTypes", []);
   /**
    * Lista de CNP importada por ficheiro.
    *
@@ -329,7 +334,7 @@ export function OrderCreateClient({
    * lógica de sempre. É o mesmo componente, o mesmo endpoint e o mesmo
    * campo (`cnps`) dos Relatórios.
    */
-  const [listaCodigos, setListaCodigos] = useState<ListaCodigosResolvida | null>(null);
+  const [listaCodigos, setListaCodigos] = useEstadoSeparador<ListaCodigosResolvida | null>("nova:listaCodigos", null);
 
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
@@ -343,13 +348,14 @@ export function OrderCreateClient({
   const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
 
   // ─── Linhas ──────────────────────────────────────────────────────────────
-  const [linhas, setLinhas] = useState<Line[]>([]);
+  // Só em modo «farmácia» (o rascunho dessa proposta recupera-se do servidor); nos modos grupo/consolidação não se restaura.
+  const [linhas, setLinhas] = useEstadoSeparador<Line[]>("nova:linhas", [], { ativo: mode === "farmacia" });
 
   const taskBar = useTaskBar();
   const pathname = usePathname();
 
-  const [hasProposal, setHasProposal] = useState(false);
-  const [proposalMeta, setProposalMeta] = useState<{
+  const [hasProposal, setHasProposal] = useEstadoSeparador("nova:hasProposal", false, { ativo: mode === "farmacia" });
+  const [proposalMeta, setProposalMeta] = useEstadoSeparador<{
     numDays: number;
     stats: ProposalStats;
     /** A proposta bateu no tecto de 500 linhas. Ver `ProposalResult.meta`. */
@@ -360,25 +366,25 @@ export function OrderCreateClient({
     comVendas: number;
     /** A contabilidade da lista importada. Ver `ResumoListaImportada`. */
     listaImportada?: ResumoListaImportada;
-  } | null>(null);
+  } | null>("nova:proposalMeta", null, { ativo: mode === "farmacia" });
 
   // ─── Filtros da tabela ────────────────────────────────────────────────────
-  const [tableSearch, setTableSearch] = useState("");
-  const [filterEstado, setFilterEstado] = useState<ProposalEstado | null>(null);
-  const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useState("");
-  const [filterRuturas, setFilterRuturas] = useState(false);
-  const [filterStockBaixo, setFilterStockBaixo] = useState(false);
+  const [tableSearch, setTableSearch] = useEstadoSeparador("nova:tableSearch", "");
+  const [filterEstado, setFilterEstado] = useEstadoSeparador<ProposalEstado | null>("nova:filterEstado", null);
+  const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useEstadoSeparador("nova:filterFarmaciaTabela", "");
+  const [filterRuturas, setFilterRuturas] = useEstadoSeparador("nova:filterRuturas", false);
+  const [filterStockBaixo, setFilterStockBaixo] = useEstadoSeparador("nova:filterStockBaixo", false);
   /** "Só linhas sem fornecedor" — ver painel de resumo de fornecedores, mais abaixo. */
-  const [filterSemFornecedor, setFilterSemFornecedor] = useState(false);
+  const [filterSemFornecedor, setFilterSemFornecedor] = useEstadoSeparador("nova:filterSemFornecedor", false);
   // ─── Selecção de linhas (bulk "Definir fornecedor") ────────────────────────
   //
   // Um `Set<Line["key"]>` — nunca produtoId, porque em modo grupo o mesmo
   // produtoId pode aparecer em várias sub-linhas (uma por farmácia); a
   // `key` é sempre única por linha renderizada.
-  const [linhasSeleccionadas, setLinhasSeleccionadas] = useState<Set<number>>(new Set());
+  const [linhasSeleccionadas, setLinhasSeleccionadas] = useEstadoSeparador<Set<number>>("nova:linhasSeleccionadas", () => new Set(), { ativo: mode === "farmacia" });
   /** Paginação da tabela (a selecção «página» e a atribuição em massa trabalham sobre ela). */
-  const [tamanhoPaginaTabela, setTamanhoPaginaTabela] = useState(50);
-  const [paginaTabela, setPaginaTabela] = useState(1);
+  const [tamanhoPaginaTabela, setTamanhoPaginaTabela] = useEstadoSeparador("nova:tamanhoPaginaTabela", 50);
+  const [paginaTabela, setPaginaTabela] = useEstadoSeparador("nova:paginaTabela", 1);
   // ── Ordenação ────────────────────────────────────────────────────
   //
   // Esta tabela era a ÚNICA da aplicação com ordenação por cabeçalho, e
@@ -389,13 +395,13 @@ export function OrderCreateClient({
   // O estado inicial preserva EXACTAMENTE o comportamento anterior:
   // vendas decrescentes. Arrancar sem ordenação mudaria a primeira
   // coisa que o utilizador vê ao gerar uma proposta.
-  const { ordenacao, alternar, setOrdenacao } = useOrdenacao<ColunaEncomenda>(null);
+  const { ordenacao, alternar, setOrdenacao } = useOrdenacao<ColunaEncomenda>(null, "nova:ordenacao");
 
   // ─── Picker manual ────────────────────────────────────────────────────────
   const [manualOpen, setManualOpen] = useState(false);
 
   // ─── Cabeçalho ────────────────────────────────────────────────────────────
-  const [nome, setNome] = useState("");
+  const [nome, setNome] = useEstadoSeparador("nova:nome", "");
 
   // ─── Rascunho eager (Bloqueador 1) ──────────────────────────────────────
   //

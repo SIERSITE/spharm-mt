@@ -23,6 +23,7 @@
  * exclui quem navega por tabulação. A seta sozinha também não chega: é
  * cor e forma, e o `aria-sort` é o que um leitor de ecrã lê.
  */
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
@@ -38,11 +39,18 @@ import {
  * para que o ciclo asc→desc seja o mesmo em todas — é uma decisão de
  * produto, não de cada cliente.
  */
-export function useOrdenacao<K extends string>(inicial: EstadoOrdenacao<K> = null) {
-  const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao<K>>(inicial);
+export function useOrdenacao<K extends string>(inicial: EstadoOrdenacao<K> = null, chaveSeparador?: string) {
+  // Com `chaveSeparador` a ordenação sobrevive a mudar de separador e voltar (lib/workspace/estado-separador.ts);
+  // sem ela comporta-se como sempre (estado local).
+  const [local, setLocal] = useState<EstadoOrdenacao<K>>(inicial);
+  const [preservada, setPreservada] = useEstadoSeparador<EstadoOrdenacao<K>>(chaveSeparador ?? "ordenacao:sem-chave", inicial, {
+    ativo: chaveSeparador !== undefined,
+  });
+  const ordenacao = chaveSeparador !== undefined ? preservada : local;
+  const setOrdenacao = chaveSeparador !== undefined ? setPreservada : setLocal;
   const alternar = useCallback((coluna: K) => {
     setOrdenacao((actual) => proximaOrdenacao(actual, coluna));
-  }, []);
+  }, [setOrdenacao]);
   return { ordenacao, alternar, setOrdenacao };
 }
 

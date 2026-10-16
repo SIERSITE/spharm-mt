@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { X, Circle, Plus } from "lucide-react";
 import { useTaskBar, gerarWorkspaceId, type Tarefa } from "@/lib/workspace/task-bar-context";
+import { resolverRota, hrefDoSeparador } from "@/lib/workspace/rotas";
 
 /**
  * components/layout/task-bar.tsx
@@ -15,39 +16,6 @@ import { useTaskBar, gerarWorkspaceId, type Tarefa } from "@/lib/workspace/task-
  * por isso hoje só uma tarefa por módulo se abre automaticamente; ver
  * nota no relatório final sobre "nova análise do mesmo módulo").
  */
-const ROTAS: Array<{ prefixo: string; tipo: string; titulo: string; workspace?: boolean }> = [
-  { prefixo: "/dashboard", tipo: "dashboard", titulo: "Dashboard" },
-  { prefixo: "/stock/artigo", tipo: "artigo", titulo: "Ficha de artigo" },
-  { prefixo: "/stock", tipo: "stock", titulo: "Stock" },
-  { prefixo: "/devolucoes", tipo: "devolucoes", titulo: "Devoluções" },
-  { prefixo: "/vendas/manutencao", tipo: "vendas-manutencao", titulo: "Manutenção de vendas" },
-  { prefixo: "/vendas", tipo: "vendas", titulo: "Vendas", workspace: true },
-  { prefixo: "/relatorios/inventario", tipo: "inventario", titulo: "Inventário", workspace: true },
-  { prefixo: "/relatorios/margens", tipo: "margens", titulo: "Margens", workspace: true },
-  { prefixo: "/encomendas/nova", tipo: "encomenda-nova", titulo: "Nova encomenda" },
-  { prefixo: "/encomendas", tipo: "encomenda", titulo: "Encomendas" },
-  { prefixo: "/transferencias", tipo: "transferencias", titulo: "Transferências", workspace: true },
-  { prefixo: "/excessos", tipo: "excessos", titulo: "Excessos", workspace: true },
-  { prefixo: "/catalogo/artigo", tipo: "artigo-catalogo", titulo: "Ficha de artigo (catálogo)" },
-  { prefixo: "/catalogo", tipo: "catalogo", titulo: "Catálogo" },
-];
-
-/**
- * `workspace: true` marca os módulos de relatório com sessões de
- * análise isoladas — ver `lib/workspace/use-workspace-state.ts`. Só
- * estes ganham um `?workspace=<id>` na URL e uma tarefa por análise em
- * vez de uma tarefa por módulo; os restantes continuam exactamente como
- * antes (uma tarefa por rota).
- */
-function resolverRota(pathname: string): { tipo: string; titulo: string; workspace: boolean } | null {
-  for (const r of ROTAS) {
-    if (pathname === r.prefixo || pathname.startsWith(`${r.prefixo}/`)) {
-      return { tipo: r.tipo, titulo: r.titulo, workspace: r.workspace ?? false };
-    }
-  }
-  return null;
-}
-
 export function TaskBar() {
   const taskBar = useTaskBar();
   const router = useRouter();
@@ -55,6 +23,8 @@ export function TaskBar() {
   const searchParams = useSearchParams();
   const workspaceParam = searchParams.get("workspace");
   const ultimaIdentidadeRef = useRef<string | null>(null);
+  // Navegação iniciada pelo clique no próprio separador: não define «origem» (só as navegações por links/botões da app definem).
+  const viaBarraRef = useRef(false);
 
   const rotaActual = pathname ? resolverRota(pathname) : null;
 
@@ -82,21 +52,37 @@ export function TaskBar() {
 
     const identidade = rotaActual.workspace ? `${pathname}?workspace=${workspaceParam}` : pathname;
     if (ultimaIdentidadeRef.current === identidade) return;
+    const anterior = ultimaIdentidadeRef.current;
     ultimaIdentidadeRef.current = identidade;
+    const origemId = !viaBarraRef.current && anterior && anterior !== identidade ? anterior : undefined;
+    viaBarraRef.current = false;
     taskBar.abrirOuActivar({
       id: identidade,
       titulo: rotaActual.titulo,
       tipo: rotaActual.tipo,
-      href: identidade,
+      // O separador regressa à localização COMPLETA (pesquisa, ordenação, página…), não só à rota.
+      href: hrefDoSeparador(pathname, searchParams),
       ...(rotaActual.workspace && workspaceParam ? { workspaceId: workspaceParam } : {}),
+      ...(origemId ? { origemId } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, workspaceParam, taskBar]);
 
+  // Dentro do mesmo separador (pesquisa, página, ordenação…) o URL muda sem trocar de identidade: guarda-se a localização
+  // completa para que voltar ao separador a restaure.
+  const hrefCompleto = pathname ? hrefDoSeparador(pathname, new URLSearchParams(searchParams.toString())) : null;
+  const identidadeParaHref = pathname && rotaActual ? (rotaActual.workspace ? (workspaceParam ? `${pathname}?workspace=${workspaceParam}` : null) : pathname) : null;
+  useEffect(() => {
+    if (taskBar && identidadeParaHref && hrefCompleto) taskBar.actualizarHref(identidadeParaHref, hrefCompleto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identidadeParaHref, hrefCompleto]);
+
   if (!taskBar || taskBar.tarefas.length === 0) return null;
 
   function irPara(t: Tarefa) {
-    router.push(t.href);
+    viaBarraRef.current = true;
+    // scroll:false — a posição de scroll do separador é restaurada por components/layout/scroll-separadores.tsx.
+    router.push(t.href, { scroll: false });
   }
 
   function novaAnalise() {

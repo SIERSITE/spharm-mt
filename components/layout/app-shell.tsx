@@ -164,8 +164,9 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   // handler próprio: se estiver marcada como suja (autosave/beforeunload
   // já a mantêm sincronizada), pede confirmação antes de terminar sessão.
   function handleLogoutSubmit(e: React.FormEvent<HTMLFormElement>) {
-    const activa = taskBar?.tarefas.find((t) => t.id === taskBar.activaId);
-    if (activa?.sujo && !confirm(`"${activa.titulo}" tem alterações por guardar. Terminar sessão mesmo assim?`)) {
+    // Qualquer separador com alterações por confirmar (não só o activo): terminar sessão liberta o estado de todos.
+    const suja = taskBar?.tarefas.find((t) => t.sujo);
+    if (suja && !confirm(`"${suja.titulo}" tem alterações por guardar. Terminar sessão mesmo assim?`)) {
       e.preventDefault();
     }
   }

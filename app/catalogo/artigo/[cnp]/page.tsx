@@ -1,3 +1,4 @@
+import { VoltarOrigem } from "@/components/layout/voltar-origem";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -171,12 +172,7 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
   return (
     <div className="space-y-4">
       <section className="flex flex-wrap items-center justify-between gap-2">
-        <Link
-          href="/catalogo"
-          className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          ← Voltar ao catálogo
-        </Link>
+        <VoltarOrigem destinoPorOmissao="/catalogo" rotuloPorOmissao="Voltar ao catálogo" variante="pilula" />
         <Link
           href={`/admin/catalogo/revisao/${article.id}`}
           className="inline-flex items-center rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 transition hover:border-cyan-400"

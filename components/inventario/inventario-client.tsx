@@ -20,7 +20,7 @@
  */
 
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useTransition } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ArtigoLink } from "@/components/stock/artigo-link";
@@ -28,6 +28,7 @@ import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
@@ -211,9 +212,10 @@ export function InventarioClient({
   const [, setEstadoChip] = campo("estadoChip");
 
   // Estado do dataset (lazy — só após "Gerar")
-  const [result, setResult] = useState<InventarioResult | null>(null);
-  const [hasGenerated, setHasGenerated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Estado POR SEPARADOR (lib/workspace/estado-separador.ts): o resultado gerado sobrevive a mudar de separador e voltar.
+  const [result, setResult] = useEstadoSeparador<InventarioResult | null>("inventario:result", null);
+  const [hasGenerated, setHasGenerated] = useEstadoSeparador("inventario:hasGenerated", false);
+  const [error, setError] = useEstadoSeparador<string | null>("inventario:error", null);
   const [isPending, startTransition] = useTransition();
 
   const handleGerar = () => {
@@ -249,15 +251,8 @@ export function InventarioClient({
     setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
   }
 
-  // Trocar de workspace restaura os critérios mas NUNCA um resultado
-  // calculado com os critérios do workspace anterior.
-  useEffect(() => {
-    // Sincroniza com uma identidade externa (workspace da URL) — caso legítimo.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHasGenerated(false);
-    setResult(null);
-    setError(null);
-  }, [workspaceId]);
+  // Trocar de workspace: critérios (useWorkspaceState) e resultado (useEstadoSeparador) são re-hidratados do separador
+  // de destino — o resultado de uma análise nunca aparece noutra, e o da que se deixou fica guardado.
 
   // Título descritivo na barra de tarefas (distingue duas análises).
   useEffect(() => {
