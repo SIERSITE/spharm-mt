@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Package, Tag, Building2, Image as ImageIcon, Pill, Stethoscope } from "lucide-react";
 import type { ArtigoFichaData } from "@/lib/stock/artigo-ficha-data";
+import { EditorFabricante } from "@/components/stock/editor-fabricante";
 
 /**
  * components/stock/artigo-ficha.tsx
@@ -166,7 +167,20 @@ function ArtigoIdentidade({ data }: { data: ArtigoFichaData }) {
 
       <div className="grid gap-3 md:grid-cols-5">
         <IdentityField icon={<Tag className="h-4 w-4" />} iconClass="text-emerald-600" label="Categoria" value={data.categoria} />
-        <IdentityField icon={<Building2 className="h-4 w-4" />} iconClass="text-cyan-600" label="Fabricante" value={data.fabricante} />
+        {data.podeEditarFabricante ? (
+          <EditorFabricante
+            cnp={data.cnp}
+            fabricanteId={data.fabricanteId}
+            fabricante={data.fabricante}
+            podeEditar
+            manual={data.fabricanteManual}
+            protegido={data.fabricanteProtegido}
+            fabricanteErp={data.fabricanteErp}
+            icone={<Building2 className="h-4 w-4" />}
+          />
+        ) : (
+          <IdentityField icon={<Building2 className="h-4 w-4" />} iconClass="text-cyan-600" label="Fabricante" value={data.fabricante} />
+        )}
         <IdentityField icon={<Pill className="h-4 w-4" />} iconClass="text-violet-600" label="Princípio ativo" value={data.principioAtivo} />
         <IdentityField icon={<Stethoscope className="h-4 w-4" />} iconClass="text-rose-600" label="ATC" value={data.atc} />
         <IdentityField icon={<Package className="h-4 w-4" />} iconClass="text-amber-600" label="Forma" value={data.forma} />

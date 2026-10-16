@@ -1,5 +1,7 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { can } from "@/lib/permissions-core";
 import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
 import { calcularPvpReferencia, descreverPvpReferencia, desvioFaceAReferencia } from "@/lib/pvp-referencia";
 import { calcularPrecoReferencia, descreverPrecoReferencia } from "@/lib/produtos/preco-referencia";
@@ -44,6 +46,16 @@ export type ArtigoFichaData = {
   designacao: string;
   imagemUrl: string | null;
   fabricante: string;
+  /** Fabricante atual (id) — `null` sem fabricante; serve a concorrência otimista da edição. */
+  fabricanteId: string | null;
+  /** O utilizador pode alterar o catálogo (`catalog.write`): só então a ficha mostra «Editar» no fabricante. */
+  podeEditarFabricante: boolean;
+  /** O fabricante foi definido à mão na ficha (marca `camposManuais ∋ "fabricante"`). */
+  fabricanteManual: boolean;
+  /** A ficha está protegida contra a sincronização automática (`validadoManualmente`). */
+  fabricanteProtegido: boolean;
+  /** Fabricante(s) atualmente reportado(s) pelo ERP das farmácias (snapshot informativo, canónico). */
+  fabricanteErp: string[];
   principioAtivo: string;
   atc: string;
   forma: string;
@@ -69,6 +81,7 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
   if (!Number.isFinite(cnp) || cnp <= 0) return null;
 
   const prisma = await getPrisma();
+  const sessao = await getSession();
   const produto = await prisma.produto.findUnique({
     where: { cnp },
     include: {
@@ -146,6 +159,11 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
     designacao: produto.designacao,
     imagemUrl: produto.imagemUrl,
     fabricante: fmt(produto.fabricante?.nomeNormalizado),
+    fabricanteId: produto.fabricanteId,
+    podeEditarFabricante: can(sessao, "catalog.write"),
+    fabricanteManual: produto.camposManuais.includes("fabricante"),
+    fabricanteProtegido: produto.validadoManualmente,
+    fabricanteErp: [...new Set(produto.produtosFarmacia.map((pf) => pf.fabricanteErpAtual).filter((v): v is string => !!v))],
     principioAtivo: fmt(produto.dci),
     atc: fmt(produto.codigoATC),
     forma: fmt(produto.formaFarmaceutica),
