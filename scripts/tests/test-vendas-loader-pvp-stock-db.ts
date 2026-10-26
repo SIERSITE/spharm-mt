@@ -81,6 +81,11 @@ async function main() {
     await pf(p5.id, alfa.id, { pvp: 3, stock: 5, forn: "Distribuidor X" });
     await venda(p5.id, alfa.id, 1, 1);
 
+    // P6: diferença inferior a um cêntimo (10,0000 vs 10,0004) · P7: meio cêntimo (10,0050 vs 10,0000) · P8: 10,0149 vs 10,0100
+    const p6 = await prod(9300006); await pf(p6.id, alfa.id, { pvp: 10, stock: 1 }); await pf(p6.id, beta.id, { pvp: 10.0004, stock: 1 }); await venda(p6.id, alfa.id, 1, 1);
+    const p7 = await prod(9300007); await pf(p7.id, alfa.id, { pvp: 10.005, stock: 1 }); await pf(p7.id, beta.id, { pvp: 10, stock: 1 }); await venda(p7.id, alfa.id, 1, 1);
+    const p8 = await prod(9300008); await pf(p8.id, alfa.id, { pvp: 10.0149, stock: 1 }); await pf(p8.id, beta.id, { pvp: 10.01, stock: 1 }); await venda(p8.id, alfa.id, 1, 1);
+
     secao("1 · Campos novos do carregador");
     const r = await getVendasData({ from: "2026-01-01", to: "2026-03-31" }, prisma);
     const linhaDe = (cnp: number, farm: string) => r.rows.find((x) => x.codigo === String(cnp) && x.farmacia === farm);
@@ -106,6 +111,9 @@ async function main() {
     check(cods.has("9300004"), "P4 entra (9,99 ≠ 10,00 — diferença de 1 cêntimo)");
     check(!cods.has("9300005"), "P5 fica fora (uma só farmácia associada)");
     check(codigosComPvpDiferente(r.rows, ["Farmácia Alfa"]).size === 0, "com uma só farmácia selecionada nenhum artigo entra");
+    check(!cods.has("9300006"), "P6 fica fora: 10,0000 vs 10,0004 (Decimal(12,4) da BD) são iguais ao cêntimo");
+    check(cods.has("9300007"), "P7 entra: 10,0050 arredonda para 10,01 e a outra é 10,00 (meio cêntimo para cima)");
+    check(!cods.has("9300008"), "P8 fica fora: 10,0149 e 10,0100 são ambos 10,01");
 
     secao("3 · Farmácias carregadas e distribuidor");
     const soAlfa = await getVendasData({ from: "2026-01-01", to: "2026-03-31", farmaciaNomes: ["Farmácia Alfa"] }, prisma);

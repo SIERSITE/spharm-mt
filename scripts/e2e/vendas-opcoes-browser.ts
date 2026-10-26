@@ -149,7 +149,7 @@ async function main() {
     const s2 = await novoProduto(7400002, "SENTINELA DOIS");
     await ficha(s2.id, beta, { pvp: 11111.11, pmc: 44444.44, stock: 4 }); await venda(s2.id, beta, 33333.33);
     // PVP diferente entre farmácias
-    const d1 = await novoProduto(7400011, "PVPDIF IGUAL");           await ficha(d1.id, alfa, { pvp: 20, stock: 1 }); await ficha(d1.id, beta, { pvp: 20, stock: 2 }); await venda(d1.id, alfa, 20); await venda(d1.id, beta, 20);
+    const d1 = await novoProduto(7400011, "PVPDIF IGUAL");           await ficha(d1.id, alfa, { pvp: 20, stock: 1 }); await ficha(d1.id, beta, { pvp: 20.004, stock: 2 }); await venda(d1.id, alfa, 20); await venda(d1.id, beta, 20);
     const d2 = await novoProduto(7400012, "PVPDIF CENTIMO");         await ficha(d2.id, alfa, { pvp: 20, stock: 3 }); await ficha(d2.id, beta, { pvp: 20.01, stock: 4 }); await venda(d2.id, alfa, 20); await venda(d2.id, beta, 20.01);
     const d3 = await novoProduto(7400013, "PVPDIF SO UMA VENDEU");   await ficha(d3.id, alfa, { pvp: 30, stock: 5 }); await ficha(d3.id, beta, { pvp: 35, stock: 6 }); await venda(d3.id, alfa, 30);
     const d4 = await novoProduto(7400014, "PVPDIF FALTA");           await ficha(d4.id, alfa, { pvp: 40, stock: 7 }); await ficha(d4.id, beta, { pvp: null, stock: 8 }); await venda(d4.id, alfa, 40); await venda(d4.id, beta, 1);

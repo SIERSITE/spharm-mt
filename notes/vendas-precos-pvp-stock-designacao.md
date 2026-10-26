@@ -31,9 +31,13 @@ Base: `feat/encomenda-excel-vendas-precos-fabricante` @ 85553f2b19c323bc58145a97
   `existenciaConhecida=false`: a célula mostra «—», o total é declarado **PARCIAL** e as linhas em falta são contadas à parte.
 
 ## 3. «Apenas artigos com PVP diferente entre farmácias»
-- Critério de `lib/reporting/vendas-pvp-diferente.ts`: ≥ 2 farmácias selecionadas associadas, ≥ 2 PVP conhecidos (nulo/≤ 0 não conta),
-  ≥ 2 valores diferentes. Compara o **PVP atual** (`ProdutoFarmacia.pvp`, sem a cascata para o PMC) à precisão da base (4 casas, em
-  inteiros). O carregador devolve `pvpPorFarmacia` — por isso um artigo que só uma farmácia vendeu é comparado com a outra.
+- Critério de `lib/reporting/vendas-pvp-diferente.ts`: ≥ 2 farmácias selecionadas associadas, ≥ 2 PVP conhecidos (nulo, inválido ou
+  ≤ 0 não conta), ≥ 2 valores distintos **ao cêntimo**. Compara o **PVP atual** (`ProdutoFarmacia.pvp`, sem a cascata para o PMC).
+  Comparação comercial: `centimosDoPvp` converte cada PVP para cêntimos inteiros — **meio cêntimo arredonda para cima**, sobre o
+  decimal exato (`Prisma.Decimal`/texto; um `number` reduz-se a 4 casas, a escala da base) — e só se comparam inteiros. Logo
+  10,0001 = 10,0000 · 10,0040 = 10,0000 · 10,0050 ≠ 10,0000 (10,01) · 10,0149 = 10,0100 · 10,0150 ≠ 10,0100 (10,02) · 9,99 ≠ 10,00.
+  É a regra com que o dinheiro se apresenta em pt-PT. O carregador devolve `pvpPorFarmacia` — por isso um artigo que só uma farmácia
+  vendeu é comparado com a outra.
 - Aplicado a montante de tudo (`linhasBase`): tabela, agrupamento, Grupo, Comparativo, seleção, totais, Relatório, PDF, Excel, email.
   (Vendas não tem paginação de tabela; a «paginação» é a do PDF/impressão, que parte destas linhas.)
 - Desligado por omissão; com uma só farmácia fica desativado e explica-se. Por análise (critério do workspace), retirado por

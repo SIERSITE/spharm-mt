@@ -28,9 +28,11 @@ import {
   artigoTemPvpDiferente,
   codigosComPvpDiferente,
   filtroPvpAplicavel,
+  centimosDoPvp,
   pvpEscalado,
   pvpsPorCodigo,
 } from "../../lib/reporting/vendas-pvp-diferente";
+import { Prisma } from "../../generated/prisma/client";
 import type { Report } from "../../lib/reporting/report-types";
 
 let pass = 0;
@@ -261,7 +263,7 @@ console.log("\n=== D. Filtro «PVP diferente entre farmácias» (regra pura) ===
   ok("vazio / vazio → NÃO", t({ [A]: null, [B]: null }) === false);
   ok("apenas uma farmácia associada → NÃO", t({ [A]: 10 }) === false);
   ok("PVP 0 ou negativo não é PVP conhecido", t({ [A]: 0, [B]: 12 }) === false && t({ [A]: -1, [B]: 12 }) === false && pvpEscalado(0) === null);
-  ok("compara à precisão da base (4 casas): 10,0000 vs 10,0001 → SIM; 10,00004 arredonda para igual → NÃO", t({ [A]: 10, [B]: 10.0001 }) === true && t({ [A]: 10, [B]: 10.00004 }) === false);
+  // (a regra a 4 casas foi substituída pela comparação ao cêntimo — ver o bloco «E» abaixo)
   ok("sem erros de vírgula flutuante: 0,1+0,2 vs 0,3 → iguais", t({ [A]: 0.1 + 0.2, [B]: 0.3 }) === false);
   ok("três farmácias: só A e B selecionadas — o preço de C não conta", t({ [A]: 10, [B]: 10, [C]: 20 }, [A, B]) === false && t({ [A]: 10, [B]: 10, [C]: 20 }, [A, B, C]) === true);
   ok("três farmácias, um PVP em falta: dois iguais + um vazio → NÃO; dois diferentes + um vazio → SIM", t({ [A]: 10, [B]: 10, [C]: null }, [A, B, C]) === false && t({ [A]: 10, [B]: 11, [C]: null }, [A, B, C]) === true);
@@ -289,6 +291,55 @@ console.log("\n=== D. Filtro «PVP diferente entre farmácias» (regra pura) ===
   ok("filtro inativo: a frase não aparece", !(relSem.filtersApplied ?? []).some((f) => f.label === ROTULO_FILTRO_PVP_DIFERENTE));
   const thsSem = [...corpoHtml(rel).matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1]);
   ok("filtro ativo + preços de venda desligados: continua sem coluna PVP (a frase é o único «PVP» do documento)", !thsSem.some((x) => /PVP/.test(x)));
+}
+
+console.log("\n=== E. PVP diferente ao CÊNTIMO (comparação comercial, meio cêntimo para cima) ===");
+{
+  const A = FARM[0], B = FARM[1], C = "Farmácia Terceira";
+  const dif = (x: unknown, y: unknown) => artigoTemPvpDiferente({ [A]: x, [B]: y }, [A, B]);
+  const D = (v: string) => new Prisma.Decimal(v);
+
+  // Conversão para cêntimos: regra explícita, determinística, sobre o decimal exato
+  const casos: Array<[string, number | null]> = [
+    ["10.0000", 1000], ["10.0001", 1000], ["10.0040", 1000], ["10.0049", 1000], ["10.0050", 1001], ["10.0051", 1001], ["10.0099", 1001],
+    ["10.0100", 1001], ["10.0149", 1001], ["10.0150", 1002], ["10.0151", 1002], ["9.99", 999], ["10.00", 1000], ["10.01", 1001],
+    ["0.0050", 1], ["0.0049", null], ["0.00", null], ["0", null], ["-1.00", null], ["abc", null], ["", null], ["1e3", null],
+  ];
+  ok("centimosDoPvp (texto decimal): " + casos.map(([t, c]) => `${t}→${c}`).join(" · "), casos.every(([t, c]) => centimosDoPvp(t) === c), JSON.stringify(casos.filter(([t, c]) => centimosDoPvp(t) !== c)));
+  ok("…o mesmo com `Prisma.Decimal` (o tipo que a Prisma devolve de Decimal(12,4)) — incluindo os meios cêntimos", casos.filter(([t]) => /^\d+(\.\d+)?$/.test(t)).every(([t, c]) => centimosDoPvp(D(t)) === c));
+  ok("…e com `number` já convertido pelo carregador, sem erros binários (10.005 → 1001, 10.015 → 1002, 1.005 → 101)", centimosDoPvp(10.005) === 1001 && centimosDoPvp(10.015) === 1002 && centimosDoPvp(1.005) === 101 && centimosDoPvp(0.1 + 0.2) === 30 && centimosDoPvp(Number(D("10.0050"))) === 1001);
+  ok("…e com bigint; nulo, indefinido, NaN, ±Infinity, objetos e booleanos são desconhecidos", centimosDoPvp(BigInt(7)) === 700 && [null, undefined, NaN, Infinity, -Infinity, {}, true, []].every((x) => centimosDoPvp(x) === null));
+  ok("a regra é a de `Intl.NumberFormat('pt-PT')` (como o dinheiro é apresentado): o que se vê é o que se compara", casos.filter(([t, c]) => /^\d/.test(t) && c !== null).every(([t, c]) => {
+    const visto = new Intl.NumberFormat("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(D(t))).replace(/[\s  ]/g, "").replace(",", ".");
+    return Math.round(Number(visto) * 100) === c;
+  }));
+
+  // Os casos pedidos
+  ok("10,0000 vs 10,0001 → iguais (NÃO entra)", dif(D("10.0000"), D("10.0001")) === false);
+  ok("10,0040 vs 10,0000 → iguais (NÃO entra)", dif(D("10.0040"), D("10.0000")) === false);
+  ok("10,0050 vs 10,0000 → DIFERENTES (meio cêntimo arredonda para cima: 10,01 ≠ 10,00)", dif(D("10.0050"), D("10.0000")) === true);
+  ok("9,99 vs 10,00 → diferentes (entra)", dif(D("9.99"), D("10.00")) === true);
+  ok("10,00 vs 10,01 → diferentes (entra)", dif(D("10.00"), D("10.01")) === true);
+  ok("10,0149 vs 10,0100 → iguais após arredondamento ao cêntimo (NÃO entra)", dif(D("10.0149"), D("10.0100")) === false);
+  ok("10,0150 vs 10,0100 → diferentes (10,02 ≠ 10,01) (entra)", dif(D("10.0150"), D("10.0100")) === true);
+  ok("simetria: a ordem das farmácias não muda o resultado", dif(D("10.0100"), D("10.0150")) === true && dif(D("10.0001"), D("10.0000")) === false);
+  ok("os mesmos casos com `number` (como chegam ao filtro no carregador)", dif(10.0, 10.0001) === false && dif(10.004, 10) === false && dif(10.005, 10) === true && dif(10.0149, 10.01) === false && dif(10.015, 10.01) === true && dif(9.99, 10) === true && dif(10, 10.01) === true);
+  ok("dois valores iguais apresentados com escalas diferentes (10, 10.0, 10.00, 10.0000, Decimal) → iguais", [10, "10", "10.0", "10.00", "10.0000", D("10"), D("10.0000"), D("10.00")].every((x) => dif(x, "10.00") === false && dif("10.0000", x) === false));
+  ok("PVP nulo → desconhecido, não entra", dif(null, D("10.00")) === false && dif(D("10.00"), undefined) === false && dif(null, null) === false);
+  ok("PVP zero → desconhecido (em qualquer escala), não entra", dif(0, D("10.00")) === false && dif(D("0.0000"), D("10.00")) === false && dif("0.00", 12) === false && centimosDoPvp(0.004) === null);
+  ok("PVP negativo → desconhecido, não entra", dif(-5, D("10.00")) === false && dif(D("-0.0100"), 12) === false && dif("-1", "2") === false);
+  ok("PVP inválido → desconhecido", dif("abc", 12) === false && dif(NaN, 12) === false);
+  ok("um PVP conhecido e outro desconhecido NÃO é diferença (nem com 3 farmácias, se só um for conhecido)", dif(D("10.00"), null) === false && artigoTemPvpDiferente({ [A]: D("10.00"), [B]: null, [C]: null }, [A, B, C]) === false);
+  ok("três farmácias, duas iguais e uma diferente ao cêntimo → entra", artigoTemPvpDiferente({ [A]: D("10.0000"), [B]: D("10.0040"), [C]: D("10.0100") }, [A, B, C]) === true && artigoTemPvpDiferente({ [A]: 10, [B]: 10, [C]: 10.01 }, [A, B, C]) === true);
+  ok("três farmácias com diferenças só inferiores a um cêntimo → NÃO entra", artigoTemPvpDiferente({ [A]: D("10.0000"), [B]: D("10.0020"), [C]: D("10.0049") }, [A, B, C]) === false && artigoTemPvpDiferente({ [A]: D("10.0100"), [B]: D("10.0149"), [C]: D("10.0051") }, [A, B, C]) === false);
+  ok("o preço da farmácia não selecionada continua a não contar (A e B iguais, C diferente → só entra com C selecionada)", artigoTemPvpDiferente({ [A]: 10, [B]: 10.0001, [C]: 20 }, [A, B]) === false && artigoTemPvpDiferente({ [A]: 10, [B]: 10.0001, [C]: 20 }, [A, B, C]) === true);
+  ok("mantém-se: pelo menos duas farmácias associadas e pelo menos dois PVP conhecidos", artigoTemPvpDiferente({ [A]: 10 }, [A, B]) === false && filtroPvpAplicavel(1) === false && filtroPvpAplicavel(2) === true);
+  ok("sobre linhas: 10,0001 vs 10,0000 não entra; 9,99 vs 10,00 e 10,0150 vs 10,0100 entram", (() => {
+    const bks1 = buckets(1);
+    const lin = (codigo: string, farmacia: string, v: number) => ({ ...linha({ codigo, farmacia, qtd: [1] }, bks1), pvpConhecido: v });
+    const cods = codigosComPvpDiferente([lin("1", A, 10), lin("1", B, 10.0001), lin("2", A, 9.99), lin("2", B, 10), lin("3", A, 10.015), lin("3", B, 10.01)], [A, B]);
+    return !cods.has("1") && cods.has("2") && cods.has("3");
+  })());
 }
 
 console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

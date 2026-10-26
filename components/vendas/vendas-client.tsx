@@ -2189,11 +2189,11 @@ function LinhaTotalVendas({
   );
 }
 
-/** Tooltip da indicação «≠»: o PVP de cada farmácia selecionada (4 casas, a precisão da base). */
+/** Tooltip da indicação «≠»: o PVP de cada farmácia selecionada, ao cêntimo (a mesma precisão com que se compara). */
 function descreverPvps(pvps: Record<string, number | null>, selecionadas: readonly string[]): string {
   const partes = selecionadas
     .filter((f) => f in pvps)
-    .map((f) => `${f}: ${pvps[f] === null ? "sem PVP" : `${(pvps[f] as number).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €`}`);
+    .map((f) => `${f}: ${pvps[f] === null ? "sem PVP" : `${(pvps[f] as number).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}`);
   return `PVP diferente entre farmácias — ${partes.join(" · ")}`;
 }
 
