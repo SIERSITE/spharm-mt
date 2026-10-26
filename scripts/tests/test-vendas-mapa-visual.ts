@@ -412,7 +412,9 @@ async function main() {
     ok("cabeçalho da tabela: fundo quase branco, texto escuro, SEM faixa azul-escura", /hierarchy-clean thead th \{[^}]*background: #f8fafc[^}]*color: #1f2937/.test(clean) && !/hierarchy-clean thead th \{[^}]*background: #(0|1)/.test(clean));
     ok("cabeçalho da tabela: uma única linha inferior de 1.5px, sem contornos nas células", /hierarchy-clean thead th \{[^}]*border: 0; border-bottom: 1\.5px solid/.test(clean));
     ok("corpo: sem caixa por célula (border:0) e só filete horizontal fino (1px)", /hierarchy-clean tbody td \{\s*border: 0; border-bottom: 1px solid #eef0f3/.test(clean));
-    ok("nenhuma linha vertical (border-left/right) no corpo clean", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(clean));
+    // Única exceção, deliberada: a coluna «Total unid.» (`.tint-total`) leva dois filetes laterais finos que a delimitam em cinzentos.
+    const cleanSemTint = clean.replace(/[^{}]*tint-total[^{}]*\{[^}]*\}/g, "");
+    ok("nenhuma linha vertical (border-left/right) no corpo clean (exceto a coluna «Total unid.»)", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(cleanSemTint));
     const espessuras = [...clean.matchAll(/border(?:-top|-bottom)?:\s*([0-9.]+)px/g)].map((m) => Number(m[1]));
     ok(`todas as linhas do relatório limpo têm ≤ 1.5px (máx. ${Math.max(...espessuras)}px)`, espessuras.length > 0 && Math.max(...espessuras) <= 1.5);
     ok("«Total artigo»: fundo cinzento muito claro (#f1f3f6), semibold, sem molduras", /tr\.subtotal-row td,[^{]*\{\s*background: #f1f3f6 !important;[^}]*font-weight: 600;\s*border: 0;/.test(clean));
@@ -454,7 +456,7 @@ async function main() {
         const sel = { selecionados: 5, total: 8 }; // seleção parcial
         const base = { agruparPor: "artigo", selecaoArtigos: sel };
         const com = gerar(rows, bks, base);
-        const sem = buildVendasReport({ rows, buckets: bks, filters: base, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste", incluirPrecos: false });
+        const sem = buildVendasReport({ rows, buckets: bks, filters: base, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste", incluirPrecosVenda: false, incluirPrecosCompra: false });
         const tag = `${nMeses} meses · ${farms} farmácia(s)`;
         const chavesSem = sem.columns.map((c) => c.key);
         ok(`${tag}: com preços mantém as colunas monetárias de sempre`, MONETARIAS.every((k) => com.columns.some((c) => c.key === k)));
@@ -462,7 +464,7 @@ async function main() {
         const html = renderReportHtml(sem);
         const corpo = html.slice(html.indexOf("<body>"));
         ok(`${tag}: sem preços o HTML (relatório/impressão/PDF/email) não tem «€», PVP, Custo, Valor, PARCIAL, s/IVA`, semDinheiro(corpo.replace(/<style>[\s\S]*?<\/style>/g, "")), corpo.match(/.{30}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
-        ok(`${tag}: sem preços o resumo não tem valores monetários`, (sem.summary ?? []).every((s) => s.format !== "currency") && (sem.summary ?? []).length === 3);
+        ok(`${tag}: sem preços o resumo não tem valores monetários`, (sem.summary ?? []).every((s) => s.format !== "currency") && (sem.summary ?? []).map((s) => s.label).join("|") === "Linhas|Referências únicas|Unidades vendidas|Stock total");
         ok(`${tag}: o rodapé não fala de custos; fala de stock e de «·»`, !/Custo|PMC|PARCIAL|IVA/.test(sem.meta?.footer ?? "") && /Stock atual/.test(sem.meta?.footer ?? ""));
         ok(`${tag}: mantém CNP, Descrição, Farmácia, meses, unidades e stock`, ["codigo", "descricao", "farmacia", "totalVendas", "existencia"].every((k) => chavesSem.includes(k)) && chavesSem.filter((k) => k.startsWith("m_")).length === nMeses);
         const ths = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
@@ -482,20 +484,27 @@ async function main() {
         }
       }
     }
-    // O Excel não muda com a opção: o report «completo» continua com tudo (ReportActions.excelReport)
-    const bks = buckets(3);
-    const r = [linha({ codigo: "1" }, bks)];
-    const cheio = buildReportWorkbook(buildVendasReport({ rows: r, buckets: bks, filters: { agruparPor: "artigo" }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "G", incluirPrecos: true }));
-    const cab = (XLSX.utils.sheet_to_json<unknown[]>(cheio.Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][]).find((x) => x[0] === "CNP") as string[];
-    ok("Excel de Vendas continua completo (PVP, custos e valor de vendas)", cab.some((h) => /PVP/.test(h)) && cab.some((h) => /Custo total/.test(h)) && cab.some((h) => /Valor Vendas/.test(h)));
-    ok("o relatório SEM preços não é usado no Excel: os botões usam `excelReport` (relatório completo)", /excelReport=\{\(\) => construirRelatorio\(\{ precos: true \}\)\}/.test(readFileSync("components/vendas/vendas-client.tsx", "utf8")));
+    // O Excel segue as MESMAS opções que o PDF (regra de 2026-10): sem preços não há PVP, custos nem valor de vendas na folha.
+    {
+      const bks = buckets(3);
+      const r = [linha({ codigo: "1" }, bks)];
+      const universo = { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] };
+      const cabecalhos = (v: boolean, c: boolean) => {
+        const wb = buildReportWorkbook(buildVendasReport({ rows: r, buckets: bks, filters: { agruparPor: "artigo" }, universe: universo, organization: "G", incluirPrecosVenda: v, incluirPrecosCompra: c }));
+        return ((XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][]).find((x) => x[0] === "CNP") as string[]).map(String);
+      };
+      const tudo = cabecalhos(true, true);
+      ok("Excel completo (venda+compra): PVP, custos e valor de vendas", tudo.some((h) => /PVP/.test(h)) && tudo.some((h) => /Custo total/.test(h)) && tudo.some((h) => /Valor Vendas/.test(h)));
+      const nada = cabecalhos(false, false);
+      ok("Excel sem preços: nenhuma coluna de PVP, custo ou valor de vendas", !nada.some((h) => /PVP|Custo|Valor/.test(h)));
+    }
 
     // PDF REAL sem preços: 13 meses, seleção parcial, valores enormes e negativos nos DADOS (não podem aparecer)
     {
       const b13 = buckets(13);
       const rows: VendasAdapterRow[] = [];
       for (let i = 0; i < 40; i++) for (const f of i % 3 === 0 ? [FARM[1]] : FARM) rows.push(linha({ codigo: String(5100000 + i), descricao: `Artigo sem preços ${i}`, farmacia: f, qtd: b13.map((_, k) => ((i + k) % 4) - (k === 2 && i % 5 === 0 ? 3 : 0)), custoUnit: i % 7 === 0 ? null : 999999.99, pvp: 99999.99, valor: 999999.99, stock: i % 6 === 0 ? 0 : i % 11 === 0 ? -2 : 8 }, b13));
-      const relSem = buildVendasReport({ rows, buckets: b13, filters: { agruparPor: "artigo", selecaoArtigos: { selecionados: 30, total: 40 } }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo", incluirPrecos: false });
+      const relSem = buildVendasReport({ rows, buckets: b13, filters: { agruparPor: "artigo", selecaoArtigos: { selecionados: 30, total: 40 } }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo", incluirPrecosVenda: false, incluirPrecosCompra: false });
       const p = palavras(await pdfDe(relSem, "sem-precos-13"));
       const txt = textoTodo(p);
       ok("PDF real sem preços: nenhum «€», PVP, Custo, Valor, PARCIAL, s/IVA", semDinheiro(txt), txt.match(/.{20}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);

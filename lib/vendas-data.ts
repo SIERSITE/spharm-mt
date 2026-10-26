@@ -144,6 +144,21 @@ export type SalesReportRow = {
   valorBrutoManutencao: number;
   existencia: number;
   /**
+   * `false` = o stock desta linha é DESCONHECIDO (a farmácia não tem ficha para o produto ou `stockAtual` é nulo): `existencia`
+   * vale 0 só como valor de ordenação, nunca como «zero unidades em stock». Ausente/`true` = conhecido.
+   */
+  existenciaConhecida?: boolean;
+  /**
+   * PVP REAL desta farmácia (`ProdutoFarmacia.pvp`), sem a cascata para o PMC que alimenta `pvp`. `null` = não há PVP conhecido
+   * (nulo ou ≤ 0). É o que o filtro «PVP diferente entre farmácias» compara — nunca o PVP histórico das vendas.
+   */
+  pvpConhecido?: number | null;
+  /**
+   * PVP real de cada farmácia do âmbito carregado, por NOME de farmácia (`null` = sem PVP conhecido). Serve a comparação entre
+   * farmácias MESMO quando só uma delas vendeu o artigo (e por isso só uma tem linha). Inclui todas as farmácias carregadas.
+   */
+  pvpPorFarmacia?: Record<string, number | null>;
+  /**
    * Custo unitário ESTIMADO, sem IVA. `null` quando desconhecido.
    *
    * ── Porque «estimado», e porque o nome tem de o dizer ──────────────
@@ -228,6 +243,13 @@ export type SalesReportResult = {
   period: SalesPeriodHeader;
   rows: SalesReportRow[];
 };
+
+/** PVP real de uma ficha de farmácia: `null` quando nulo ou ≤ 0 (sem preço de venda conhecido). */
+export function pvpReal(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 function toF(v: unknown): number {
   const n = Number(v);
@@ -562,6 +584,8 @@ export async function getVendasData(
 
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
+    const existenciaConhecida = pf?.stockAtual != null;
+    const pvpConhecido = pvpReal(pf?.pvp);
 
     // Custo ESTIMADO — ver `SalesReportRow.custoUnitarioEstimado`.
     const custoUnitarioEstimado = custoDaFarmacia(
@@ -593,6 +617,8 @@ export async function getVendasData(
       quantidadeManutencao,
       valorBrutoManutencao,
       existencia,
+      existenciaConhecida,
+      pvpConhecido,
       custoUnitarioEstimado,
       custoEstimado,
       unidadesVendidas: totalVendas,
@@ -678,6 +704,8 @@ export async function getVendasData(
 
         const pvp = toF(pf.pvp ?? pf.pmc ?? 0);
         const existencia = Math.round(toF(pf.stockAtual ?? 0));
+        const existenciaConhecida = pf.stockAtual != null;
+        const pvpConhecido = pvpReal(pf.pvp);
         const custoUnitarioEstimado = custoDaFarmacia(
           pf.pmc != null ? Number(pf.pmc) : null,
           pf.puc != null ? Number(pf.puc) : null,
@@ -709,6 +737,8 @@ export async function getVendasData(
           quantidadeManutencao: 0,
           valorBrutoManutencao: 0,
           existencia,
+          existenciaConhecida,
+          pvpConhecido,
           custoUnitarioEstimado,
           custoEstimado,
           unidadesVendidas: totalVendas,
@@ -726,5 +756,31 @@ export async function getVendasData(
 
   // Ordenação default: designação A–Z (CNP e farmácia a desempatar). A UI pode reordenar
   // (incluindo «mais vendidos», que passou a ser uma escolha explícita).
+  // PVP real de TODAS as farmácias carregadas, por produto — para comparar preços entre farmácias mesmo quando só uma delas tem
+  // linha (ex.: o artigo só vendeu numa). Uma só consulta, sem o filtro de distribuidor (o preço é do artigo, não do distribuidor).
+  if (rows.length > 0) {
+    const cnpParaProdutoId = new Map<string, string>();
+    for (const p of produtoById.values()) cnpParaProdutoId.set(String(p.cnp), p.id);
+    const idsFinais = [...new Set(rows.map((r) => cnpParaProdutoId.get(r.codigo)).filter((v): v is string => !!v))];
+    const pvps = idsFinais.length
+      ? await prisma.produtoFarmacia.findMany({
+          where: { produtoId: { in: idsFinais }, farmaciaId: { in: farmaciaIds } },
+          select: { produtoId: true, farmaciaId: true, pvp: true },
+        })
+      : [];
+    const porProduto = new Map<string, Record<string, number | null>>();
+    for (const r of pvps) {
+      const nome = farmaciaNameById.get(r.farmaciaId);
+      if (!nome) continue;
+      const mapa = porProduto.get(r.produtoId) ?? {};
+      mapa[nome] = pvpReal(r.pvp);
+      porProduto.set(r.produtoId, mapa);
+    }
+    for (const r of rows) {
+      const id = cnpParaProdutoId.get(r.codigo);
+      if (id) r.pvpPorFarmacia = porProduto.get(id) ?? {};
+    }
+  }
+
   return { period, rows: ordenarArtigos(rows, (r) => ({ designacao: r.descricao, cnp: r.codigo, farmacia: r.farmacia })) };
 }

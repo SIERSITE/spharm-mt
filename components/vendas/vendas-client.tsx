@@ -30,7 +30,8 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
-import { buildVendasReport, custoTotalDoRelatorio } from "@/lib/reporting/adapters/vendas";
+import { buildVendasReport, custoTotalDoRelatorio, stockTotalDoRelatorio, ROTULO_FILTRO_PVP_DIFERENTE } from "@/lib/reporting/adapters/vendas";
+import { artigoTemPvpDiferente, codigosComPvpDiferente, filtroPvpAplicavel, pvpsPorCodigo } from "@/lib/reporting/vendas-pvp-diferente";
 import { compararArtigos } from "@/lib/ordenacao-artigos";
 import { CompactDate, CompactInput, VendasFiltrosPainel } from "@/components/reporting/vendas-filtros";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
@@ -109,6 +110,8 @@ type VendasCriterios = {
   modoVisualizacao: ModoVisualizacao;
   incluirCredito: boolean;
   incluirTransferencias: boolean;
+  /** «Apenas artigos com PVP diferente entre farmácias» (só se aplica com ≥ 2 farmácias). Retirado por «Limpar filtros». */
+  pvpDiferente: boolean;
   /** Ordenação por coluna clicável da tabela (ver useOrdenacao mais abaixo). */
   ordenacaoTabela: EstadoOrdenacao<ColunaVendas>;
 };
@@ -283,6 +286,7 @@ export function VendasClient({
       modoVisualizacao: "tabela",
       incluirCredito: DEFAULT_INCLUIR_CREDITO,
       incluirTransferencias: DEFAULT_INCLUIR_TRANSFERENCIAS,
+      pvpDiferente: false,
       ordenacaoTabela: null,
     },
   });
@@ -338,6 +342,7 @@ export function VendasClient({
   // Transferência = Não".
   const [incluirCredito, setIncluirCredito] = campo("incluirCredito");
   const [incluirTransferencias, setIncluirTransferencias] = campo("incluirTransferencias");
+  const [pvpDiferenteCriterio, setPvpDiferente] = campo("pvpDiferente");
 
   // Buckets de meses para render — só existe depois de gerar.
   //
@@ -360,8 +365,37 @@ export function VendasClient({
   ).map((s) => s.nome);
   const utilizacoesOpcoes = filterOptions.utilizacoes;
 
+  // ── Filtro «PVP diferente entre farmácias» ──────────────────────────────────────────────────────────────────────────────
+  // Aplicado ANTES de tudo o resto (tabela, agrupamento, comparativo, distribuição, seleção, totais, relatório, PDF, Excel, email):
+  // todos os cálculos a jusante partem de `linhasBase`. A comparação usa o PVP ATUAL de cada farmácia selecionada (ver
+  // lib/reporting/vendas-pvp-diferente.ts) e corre sobre as linhas cruas, antes de qualquer outro filtro ou toggle.
+  const farmaciasEfetivas = farmaciasSelecionadas.length > 0 ? farmaciasSelecionadas : farmacias;
+  const chaveFarmaciasEfetivas = [...new Set(farmaciasEfetivas)].sort().join("|");
+  const pvpFiltroAplicavel = filtroPvpAplicavel(new Set(farmaciasEfetivas).size);
+  const pvpDiferente = pvpDiferenteCriterio === true;
+  const pvpDiferenteAtivo = pvpDiferente && pvpFiltroAplicavel;
+  /* eslint-disable react-hooks/exhaustive-deps -- `chaveFarmaciasEfetivas` representa `farmaciasEfetivas` */
+  const codigosPvpDif = useMemo(
+    () => (pvpDiferenteAtivo ? codigosComPvpDiferente(initialRows, chaveFarmaciasEfetivas.split("|")) : null),
+    [pvpDiferenteAtivo, initialRows, chaveFarmaciasEfetivas],
+  );
+  /* eslint-enable react-hooks/exhaustive-deps */
+  const linhasBase = useMemo(
+    () => (codigosPvpDif ? initialRows.filter((r) => codigosPvpDif.has(r.codigo)) : initialRows),
+    [initialRows, codigosPvpDif],
+  );
+
+  // Só para a indicação «≠» ao lado do PVP quando o filtro está ativo: CNP → PVP por farmácia (dos artigos que passam).
+  const pvpsDivergentes = useMemo(() => {
+    const m = new Map<string, Record<string, number | null>>();
+    if (!pvpDiferenteAtivo) return m;
+    for (const [codigo, pvps] of pvpsPorCodigo(linhasBase)) if (artigoTemPvpDiferente(pvps, chaveFarmaciasEfetivas.split("|"))) m.set(codigo, pvps);
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvpDiferenteAtivo, linhasBase, chaveFarmaciasEfetivas]);
+
   const baseFiltered = useMemo(() => {
-    return initialRows.filter((row) => {
+    return linhasBase.filter((row) => {
       if (
         fornecedoresSelecionados.length > 0 &&
         !fornecedoresSelecionados.includes(row.fornecedor)
@@ -409,13 +443,13 @@ export function VendasClient({
     farmaciasSelecionadas,
     apenasComVendas,
     apenasComStock,
-    initialRows,
+    linhasBase,
   ]);
 
   const groupRows = useMemo<AggregatedRow[]>(() => {
     const grouped = new Map<string, SalesReportRow[]>();
 
-    for (const row of initialRows) {
+    for (const row of linhasBase) {
       if (
         fornecedoresSelecionados.length > 0 &&
         !fornecedoresSelecionados.includes(row.fornecedor)
@@ -502,6 +536,8 @@ export function VendasClient({
           quantidadeManutencao: groupedRows.reduce((s, r) => s + r.quantidadeManutencao, 0),
           valorBrutoManutencao: groupedRows.reduce((s, r) => s + r.valorBrutoManutencao, 0),
           existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
+          // Desconhecido só se NENHUMA das linhas agregadas tem stock conhecido.
+          existenciaConhecida: groupedRows.some((r) => r.existenciaConhecida !== false),
           unidadesVendidas: totalVendas,
           // Custo agregado: soma dos custos das linhas, e o unitario
           // derivado DESSA soma. Uma media simples dos unitarios daria
@@ -541,7 +577,7 @@ export function VendasClient({
     farmaciasSelecionadas,
     apenasComVendas,
     apenasComStock,
-    initialRows,
+    linhasBase,
     periodHeader,
   ]);
 
@@ -663,6 +699,7 @@ export function VendasClient({
         unidadesVendidas: g.total.unidadesVendidas,
         valorBruto: g.total.valorBruto,
         existencia: g.total.existencia,
+        existenciaConhecida: !g.detalhes.every((d) => d.existenciaConhecida === false),
         // Custo: o TOTAL soma os custos das farmácias com custo conhecido
         // (`agregarCusto`); um custo unitário único para o artigo inteiro não
         // tem resposta (cada farmácia tem o seu) — fica «—».
@@ -729,8 +766,12 @@ export function VendasClient({
     // Custo total estimado do resultado atual: Σ (custo unit. × quantidade líquida) das
     // linhas COM custo; as sem custo ficam de fora e contam-se (nunca se inventa).
     const custo = custoTotalDoRelatorio(orderedRows);
+    // Stock TOTAL: stock atual de cada combinação produto/farmácia contado uma vez; desconhecido fora da soma e contado à parte.
+    const stock = stockTotalDoRelatorio(orderedRows);
 
     return {
+      stockTotal: stock.total,
+      stockDesconhecido: stock.desconhecidas,
       totalVendido,
       totalUnidades,
       referencias,
@@ -741,7 +782,7 @@ export function VendasClient({
   }, [orderedRows, periodHeader, dataInicio, dataFim]);
 
   const comparativoRows = useMemo(() => {
-    return initialRows
+    return linhasBase
       .filter((row) => {
         if (
           fornecedoresSelecionados.length > 0 &&
@@ -791,7 +832,7 @@ export function VendasClient({
     farmaciasSelecionadas,
     apenasComVendas,
     apenasComStock,
-    initialRows,
+    linhasBase,
   ]);
 
   // ── Seleção de artigos para impressão/PDF ───────────────────────────
@@ -802,9 +843,11 @@ export function VendasClient({
   // seleção antiga deixa de valer). Na 1.ª escolha materializa-se o conjunto a
   // partir do que está visível, e a partir daí uma mudança de filtros NÃO
   // alarga a seleção (o que aparece de novo vem desmarcado).
-  // «Incluir preços» — decide se as saídas visuais (Relatório, impressão, PDF, email) levam informação monetária. Por separador
-  // (cada análise a sua), ligada por omissão; «Nova análise» nasce ligada.
-  const [incluirPrecos, setIncluirPrecos] = useEstadoSeparador("vendas:incluirPrecos", true);
+  // «Incluir preços de venda» / «Incluir preços de compra» — duas opções INDEPENDENTES que decidem se as saídas (Relatório,
+  // impressão, PDF, Excel, email) levam PVP e valores de venda / custos. Por separador (cada análise a sua), ambas ligadas por
+  // omissão; «Nova análise» nasce com ambas ligadas. A tabela do ecrã (uso interno) mostra sempre tudo.
+  const [incluirPrecosVenda, setIncluirPrecosVenda] = useEstadoSeparador("vendas:incluirPrecosVenda", true);
+  const [incluirPrecosCompra, setIncluirPrecosCompra] = useEstadoSeparador("vendas:incluirPrecosCompra", true);
   const [geracao, setGeracao] = useEstadoSeparador("vendas:geracao", 0);
   const [selecao, setSelecao] = useEstadoSeparador<{ geracao: number; codigos: Set<string> } | null>("vendas:selecao", null);
   const linhasImprimiveis = ambito === "comparativo" ? comparativoRows : rowsOrdenadas;
@@ -830,7 +873,7 @@ export function VendasClient({
   const reportByFarmacia = useMemo(() => {
     const grouped = new Map<string, SalesReportRow[]>();
 
-    for (const row of initialRows) {
+    for (const row of linhasBase) {
       if (
         fornecedoresSelecionados.length > 0 &&
         !fornecedoresSelecionados.includes(row.fornecedor)
@@ -902,7 +945,7 @@ export function VendasClient({
     farmaciasSelecionadas,
     apenasComVendas,
     apenasComStock,
-    initialRows,
+    linhasBase,
     periodHeader,
   ]);
 
@@ -958,15 +1001,17 @@ export function VendasClient({
     setIncluirTotais(true);
     setIncluirCredito(DEFAULT_INCLUIR_CREDITO);
     setIncluirTransferencias(DEFAULT_INCLUIR_TRANSFERENCIAS);
+    setPvpDiferente(false);
     // A ordem alfabética é o estado inicial E o resultado de «Limpar filtros».
     setOrdenarPor("descricao");
     setOrdenacaoTabela(null);
   }
 
   /** O MESMO relatório para ecrã («Relatório»), PDF, impressão, Excel e email — só os artigos selecionados. */
-  const construirRelatorio = (opcoes?: { precos?: boolean }) =>
+  const construirRelatorio = () =>
     buildVendasReport({
-      incluirPrecos: opcoes?.precos ?? incluirPrecos,
+      incluirPrecosVenda,
+      incluirPrecosCompra,
       // Exactamente as linhas visíveis, na mesma sequência:
       // `rowsOrdenadas` é o que a tabela renderiza (filtros +
       // agrupamento + ordenação do selector + ordenação por
@@ -997,6 +1042,7 @@ export function VendasClient({
         utilizacoesSelecionadas,
         incluirCredito,
         incluirTransferencias,
+        pvpDiferente: pvpDiferenteAtivo,
         ordenacaoTabelaDescricao: descreverOrdenacaoTabela(ordenacao, buckets),
         selecaoArtigos: selecaoAplicavel ? { selecionados: nSelecionados, total: codigosVisiveis.length } : undefined,
       },
@@ -1012,7 +1058,7 @@ export function VendasClient({
   /* eslint-disable react-hooks/exhaustive-deps -- depende do estado inteiro do mapa; recalcula só com o separador ativo */
   const htmlPrevia = useMemo(
     () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
-    [incluirPrecos, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
+    [incluirPrecosVenda, incluirPrecosCompra, pvpDiferenteAtivo, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
       apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
       fornecedoresSelecionados, fabricantesSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
       artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
@@ -1240,24 +1286,31 @@ export function VendasClient({
                 </span>
               )}
               {hasGenerated && (
-                <label
-                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600"
-                  title="Desligado, o Relatório, a impressão, o PDF e o email saem SEM preços, custos nem valores de vendas (o Excel mantém-se completo)."
-                >
-                  <input
-                    type="checkbox"
-                    data-testid="vendas-incluir-precos"
-                    checked={incluirPrecos}
-                    onChange={(e) => setIncluirPrecos(e.target.checked)}
-                  />
-                  Incluir preços
-                </label>
+                <div className="inline-flex h-9 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600" data-testid="vendas-opcoes-precos">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5" title="Desligado, o Relatório, a impressão, o PDF, o Excel e o email saem SEM PVP nem valores de vendas.">
+                    <input
+                      type="checkbox"
+                      data-testid="vendas-incluir-precos-venda"
+                      checked={incluirPrecosVenda}
+                      onChange={(e) => setIncluirPrecosVenda(e.target.checked)}
+                    />
+                    Incluir preços de venda
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5" title="Desligado, o Relatório, a impressão, o PDF, o Excel e o email saem SEM custos nem avisos de custo.">
+                    <input
+                      type="checkbox"
+                      data-testid="vendas-incluir-precos-compra"
+                      checked={incluirPrecosCompra}
+                      onChange={(e) => setIncluirPrecosCompra(e.target.checked)}
+                    />
+                    Incluir preços de compra
+                  </label>
+                </div>
               )}
               <ReportActions
                 hide={!hasGenerated || semArtigosParaImprimir ? { print: true, pdf: true, excel: true, email: true } : undefined}
+                // O MESMO relatório (e as mesmas opções de preços) para Relatório, impressão, PDF, Excel e email.
                 report={() => construirRelatorio()}
-                // O Excel de Vendas não muda com «Incluir preços»: leva sempre a folha completa.
-                excelReport={() => construirRelatorio({ precos: true })}
               />
               {hasGenerated && rows.length > 0 && (
                 <button
@@ -1278,6 +1331,20 @@ export function VendasClient({
               )}
             </div>
           </div>
+
+          {hasGenerated && (!incluirPrecosVenda || !incluirPrecosCompra) && (
+            <p role="status" data-testid="vendas-aviso-precos" className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] text-sky-900">
+              Relatório, impressão, PDF, Excel e email saem{" "}
+              <strong>
+                {!incluirPrecosVenda && !incluirPrecosCompra
+                  ? "sem preços de venda nem preços de compra"
+                  : !incluirPrecosVenda
+                    ? "sem preços de venda (PVP e valores de vendas)"
+                    : "sem preços de compra (custos)"}
+              </strong>
+              . A tabela abaixo (uso interno) continua a mostrar todos os valores.
+            </p>
+          )}
 
           {filtrosAbertos && (
             <VendasFiltrosPainel
@@ -1348,6 +1415,22 @@ export function VendasClient({
               onChange={setIncluirTotais}
               compact
             />
+            <ToggleRow
+              label={ROTULO_FILTRO_PVP_DIFERENTE}
+              checked={pvpDiferenteAtivo}
+              onChange={setPvpDiferente}
+              disabled={!pvpFiltroAplicavel}
+              testId="vendas-filtro-pvp-diferente"
+              compact
+              title={
+                pvpFiltroAplicavel
+                  ? "Só artigos com pelo menos dois PVP conhecidos e diferentes entre as farmácias selecionadas (PVP atual de cada farmácia)."
+                  : "Selecione pelo menos duas farmácias para comparar os PVP."
+              }
+            />
+            {!pvpFiltroAplicavel && (
+              <span className="text-[11px] text-slate-500" data-testid="vendas-pvp-sem-comparacao">Selecione pelo menos duas farmácias para comparar PVP.</span>
+            )}
 
             <div className="ml-auto flex flex-wrap items-center gap-3 text-[13px] text-slate-600">
               <span>
@@ -1370,6 +1453,14 @@ export function VendasClient({
                   })}{" "}
                   €
                 </span>
+              </span>
+              <span
+                data-testid="vendas-resumo-stock"
+                title={resumo.stockDesconhecido > 0 ? `Stock total PARCIAL: ${resumo.stockDesconhecido} linha(s) sem stock conhecido ficam fora do total` : "Stock atual somado por artigo/farmácia (não é vendas)"}
+              >
+                stock total{" "}
+                <span className="font-semibold text-slate-900">{resumo.stockTotal.toLocaleString("pt-PT")}</span>
+                {resumo.stockDesconhecido > 0 && <span className="ml-1 text-amber-700">(parcial · {resumo.stockDesconhecido} sem stock)</span>}
               </span>
               <span title={resumo.linhasSemCusto > 0 ? `Custo total estimado PARCIAL: ${resumo.linhasSemCusto} linha(s) sem custo conhecido ficam fora do total` : "Custo unit. est. × quantidade líquida"} data-testid="vendas-resumo-custo">
                 custo est.{" "}
@@ -1510,7 +1601,7 @@ export function VendasClient({
                           {bucketLabel(b)}
                         </CabecalhoOrdenavel>
                       ))}
-                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="totalVendas" align="right" className="px-2 py-2.5 font-semibold">
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="totalVendas" align="right" className="col-total-unid px-2 py-2.5 font-semibold">
                         Total Unid.
                       </CabecalhoOrdenavel>
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="existencia" align="center" className="px-2 py-2.5 font-semibold" title="Stock atual (à data de geração), não histórico">
@@ -1571,6 +1662,16 @@ export function VendasClient({
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums">
                             {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
+                            {!subtotal && pvpDiferenteAtivo && pvpsDivergentes.has(row.codigo) && (
+                              <span
+                                data-testid="pvp-divergente"
+                                className="ml-1 cursor-help text-[11px] font-semibold text-amber-600"
+                                title={descreverPvps(pvpsDivergentes.get(row.codigo) ?? {}, farmaciasEfetivas)}
+                                aria-label="PVP diferente entre farmácias"
+                              >
+                                ≠
+                              </span>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums text-slate-600">
                             {fmtCustoOuTraco(row.custoUnitarioEstimado)}
@@ -1587,11 +1688,17 @@ export function VendasClient({
                               <QuantidadeMes valor={m.quantidade} />
                             </td>
                           ))}
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] font-semibold tabular-nums text-slate-900">
+                          <td className="col-total-unid whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] font-semibold tabular-nums text-slate-900" data-col="total-unid">
                             {row.totalVendas}
                           </td>
-                          <td className="px-2 py-1.5 text-center align-top text-[13.5px]">
-                            {subtotal ? <span className="font-semibold tabular-nums">{row.existencia}</span> : <StockCelula valor={row.existencia} />}
+                          <td className="px-2 py-1.5 text-center align-top text-[13.5px]" data-col="stock">
+                            {row.existenciaConhecida === false ? (
+                              <span className="text-slate-400" title="Stock desconhecido (sem ficha de stock desta farmácia)">—</span>
+                            ) : subtotal ? (
+                              <span className="font-semibold tabular-nums">{row.existencia}</span>
+                            ) : (
+                              <StockCelula valor={row.existencia} />
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right align-top text-[13.5px] tabular-nums text-slate-800" data-col="valor-vendas">
                             {fmtCustoOuTraco(row.valorBruto)}
@@ -1725,7 +1832,7 @@ export function VendasClient({
                             ))}
                             <th className="px-3 py-2 text-center font-semibold">Total Unid.</th>
                             <th className="px-3 py-2 text-center font-semibold">Stock</th>
-                            <th className="px-3 py-2 text-center font-semibold">Vendas s/IVA (€)</th>
+                            {incluirPrecosVenda && <th className="px-3 py-2 text-center font-semibold">Vendas s/IVA (€)</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
@@ -1744,13 +1851,15 @@ export function VendasClient({
                               ))}
                               <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
                               <td className="px-3 py-1.5 text-center">{row.existencia}</td>
-                              <td className="px-3 py-1.5 text-center">
-                                {row.totalValor.toLocaleString("pt-PT", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                €
-                              </td>
+                              {incluirPrecosVenda && (
+                                <td className="px-3 py-1.5 text-center">
+                                  {row.totalValor.toLocaleString("pt-PT", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  €
+                                </td>
+                              )}
                             </tr>
                           ))}
 
@@ -1771,15 +1880,17 @@ export function VendasClient({
                               <td className="px-3 py-2 text-center">
                                 {sum(reportByFarmacia.map((r) => r.existencia))}
                               </td>
-                              <td className="px-3 py-2 text-center">
-                                {reportByFarmacia
-                                  .reduce((acc, r) => acc + r.totalValor, 0)
-                                  .toLocaleString("pt-PT", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                €
-                              </td>
+                              {incluirPrecosVenda && (
+                                <td className="px-3 py-2 text-center">
+                                  {reportByFarmacia
+                                    .reduce((acc, r) => acc + r.totalValor, 0)
+                                    .toLocaleString("pt-PT", {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}{" "}
+                                  €
+                                </td>
+                              )}
                             </tr>
                           )}
                         </tbody>
@@ -2051,6 +2162,7 @@ function LinhaTotalVendas({
   nMeses: number;
 }) {
   const custo = custoTotalDoRelatorio(linhas);
+  const stock = stockTotalDoRelatorio(linhas);
   return (
     <tr data-vd-linha="total-geral" className="font-bold text-slate-900">
       <td colSpan={3} className="col-total-rotulo px-2 py-2">{rotulo}</td>
@@ -2068,13 +2180,24 @@ function LinhaTotalVendas({
           {sumBucket(linhas, i)}
         </td>
       ))}
-      <td className="whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums">{sum(linhas.map((r) => r.totalVendas))}</td>
-      <td className="px-2 py-2" />
+      <td className="col-total-unid whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums" data-col="total-unid">{sum(linhas.map((r) => r.totalVendas))}</td>
+      <td className="px-2 py-2 text-center text-[14px] tabular-nums" data-col="stock-total" title={stock.desconhecidas > 0 ? `PARCIAL: ${stock.desconhecidas} linha(s) sem stock conhecido ficam fora do total` : "Stock atual somado (artigo/farmácia)"}>
+        {stock.total}
+        {stock.desconhecidas > 0 ? " *" : ""}
+      </td>
       <td className="whitespace-nowrap px-2 py-2 text-right text-[14px] tabular-nums" data-col="valor-vendas">
         {fmtCustoOuTraco(linhas.reduce((acc, r) => acc + r.valorBruto, 0))}
       </td>
     </tr>
   );
+}
+
+/** Tooltip da indicação «≠»: o PVP de cada farmácia selecionada (4 casas, a precisão da base). */
+function descreverPvps(pvps: Record<string, number | null>, selecionadas: readonly string[]): string {
+  const partes = selecionadas
+    .filter((f) => f in pvps)
+    .map((f) => `${f}: ${pvps[f] === null ? "sem PVP" : `${(pvps[f] as number).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €`}`);
+  return `PVP diferente entre farmácias — ${partes.join(" · ")}`;
 }
 
 /** Texto da ordenação por cabeçalho (sobrepõe-se ao selector «Ordenar por»); `undefined` se ninguém clicou num cabeçalho. */

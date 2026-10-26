@@ -128,6 +128,8 @@ export function ToggleRow({
   onChange,
   compact = false,
   title,
+  disabled = false,
+  testId,
 }: {
   label: string;
   checked: boolean;
@@ -135,6 +137,9 @@ export function ToggleRow({
   compact?: boolean;
   /** Tooltip nativo — usado quando o toggle só faz efeito ao clicar "Gerar". */
   title?: string;
+  /** Sem efeito possível (ex.: filtro entre farmácias com uma só farmácia): o interruptor não responde e aparece esbatido. */
+  disabled?: boolean;
+  testId?: string;
 }) {
   return (
     <label
@@ -147,10 +152,14 @@ export function ToggleRow({
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        aria-disabled={disabled || undefined}
+        disabled={disabled}
+        data-testid={testId}
         onClick={() => onChange(!checked)}
         className={[
           "relative h-5 w-10 rounded-full transition",
           checked ? "bg-emerald-500" : "bg-slate-200",
+          disabled ? "cursor-not-allowed opacity-50" : "",
         ].join(" ")}
       >
         <span

@@ -404,3 +404,13 @@ body {
   .tabela-fixa thead th { position: static; box-shadow: none; border-bottom: 2px solid #000; }
   .tabela-fixa tbody > tr { break-inside: avoid; border-bottom: 1px solid #000; }
 }
+
+/* Mapa de Vendas — coluna «Total Unid.» (meses → total do período → stock atual): fundo azul-acinzentado próprio e filetes laterais,
+   distintos dos meses, do stock, dos subtotais e do TOTAL GERAL; lê-se também em escala de cinzentos. Só o ecrã; o relatório
+   (PDF/impressão) tem o equivalente em lib/reporting/report-html.ts. */
+.tabela-vendas thead th.col-total-unid { background-color: #d9e6f5; box-shadow: inset 0 -2px 0 #64748b, inset 1px 0 0 #8396ad, inset -1px 0 0 #8396ad; }
+.tabela-vendas tbody td.col-total-unid { background-color: #e9f1fa; box-shadow: inset 1px 0 0 #b4c3d6, inset -1px 0 0 #b4c3d6; }
+.tabela-vendas tbody tr[data-vd-alt="true"] > td.col-total-unid { background-color: #dce8f6; }
+.tabela-vendas tbody tr:hover > td.col-total-unid { background-color: #cfe3f7; }
+.tabela-vendas tbody tr[data-vd-linha="total-artigo"] > td.col-total-unid { background-color: #b9cee7; }
+.tabela-vendas tbody tr[data-vd-linha="total-geral"] > td.col-total-unid { background-color: #8aa5c6; }

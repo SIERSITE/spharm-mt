@@ -12,13 +12,14 @@
  * cliente, não o snapshot do primeiro render.
  */
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { FileSpreadsheet, FileText, Mail, Printer, X } from "lucide-react";
 import type { Report } from "@/lib/reporting/report-types";
 import { printReport } from "@/lib/reporting/report-print";
 import { exportPdf } from "@/lib/reporting/report-pdf";
 import { exportExcel } from "@/lib/reporting/report-excel";
 import { sendReportByEmail } from "@/lib/reporting/report-email";
+import { descreverPrivacidade } from "@/lib/reporting/privacidade";
 
 type ReportSource = Report | (() => Report);
 
@@ -32,11 +33,6 @@ type Props = {
    * ligação de download para este URL em vez de exportar o `Report` a partir do browser.
    */
   excelHref?: string;
-  /**
-   * Report DIFERENTE para o Excel (e para o anexo Excel do email), quando o relatório visual omite informação que a folha de
-   * cálculo deve manter (ex.: Vendas com «Incluir preços» desligado — o Excel de Vendas não muda com essa opção).
-   */
-  excelReport?: ReportSource;
 };
 
 function resolve(src: ReportSource): Report | null {
@@ -66,7 +62,7 @@ const btn =
   "rounded-md border border-gray-300 text-gray-700 bg-white " +
   "hover:bg-gray-50 hover:border-gray-400 transition-colors";
 
-export function ReportActions({ report, className, hide, excelHref, excelReport }: Props) {
+export function ReportActions({ report, className, hide, excelHref }: Props) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -122,7 +118,7 @@ export function ReportActions({ report, className, hide, excelHref, excelReport 
             className={btn}
             onClick={() =>
               safeRun("excel", () => {
-                const r = resolve(excelReport ?? report);
+                const r = resolve(report);
                 if (r) exportExcel(r);
               })
             }
@@ -140,11 +136,7 @@ export function ReportActions({ report, className, hide, excelHref, excelReport 
       </div>
 
       {emailOpen && (
-        <EmailDialog
-          reportSource={report}
-          excelSource={excelReport}
-          onClose={() => setEmailOpen(false)}
-        />
+        <EmailDialog reportSource={report} onClose={() => setEmailOpen(false)} />
       )}
     </>
   );
@@ -154,11 +146,15 @@ export function ReportActions({ report, className, hide, excelHref, excelReport 
 
 type DialogProps = {
   reportSource: ReportSource;
-  excelSource?: ReportSource;
   onClose: () => void;
 };
 
-function EmailDialog({ reportSource, excelSource, onClose }: DialogProps) {
+function EmailDialog({ reportSource, onClose }: DialogProps) {
+  // Que informação comercial os anexos (PDF e Excel) vão levar — o mesmo relatório e as mesmas opções para os dois.
+  const privacidade = useMemo(() => {
+    const r = resolve(reportSource);
+    return r ? descreverPrivacidade(r) : null;
+  }, [reportSource]);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -193,7 +189,6 @@ function EmailDialog({ reportSource, excelSource, onClose }: DialogProps) {
           subject: subject.trim() || undefined,
           message: message.trim() || undefined,
           attachFormats: formats,
-          ...(excelSource && includeExcel ? { excelReport: resolve(excelSource) ?? undefined } : {}),
         });
         if (result.ok) {
           setFeedback({
@@ -289,6 +284,17 @@ function EmailDialog({ reportSource, excelSource, onClose }: DialogProps) {
               Anexar Excel
             </label>
           </div>
+
+          {privacidade && (
+            <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="email-aviso-privacidade">
+              <div className="font-semibold">Informação incluída nos anexos (PDF e Excel):</div>
+              <ul className="mt-0.5 list-disc pl-4">
+                {privacidade.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {feedback && (
             <div

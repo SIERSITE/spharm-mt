@@ -12,6 +12,7 @@
  */
 
 import { buildReportPdfBuffer } from "@/lib/reporting/report-pdf-server";
+import { aplicarPrivacidade } from "@/lib/reporting/privacidade";
 import type { Report } from "@/lib/reporting/report-types";
 
 // Forçar Node runtime — puppeteer não corre em Edge.
@@ -40,7 +41,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const { buffer, filename, mime } = await buildReportPdfBuffer(report);
+    // Privacidade validada NO SERVIDOR (preços de venda/compra que o utilizador não quis partilhar) — ver privacidade.ts.
+    const { buffer, filename, mime } = await buildReportPdfBuffer(aplicarPrivacidade(report));
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {

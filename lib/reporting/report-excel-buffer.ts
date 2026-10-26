@@ -18,6 +18,7 @@ import type { Report, ReportCell, ReportColumn } from "./report-types";
 import { linhasDeDetalhe } from "./report-types";
 import { excelNumberFormat, formatCell, formatDateTime } from "./report-formatters";
 import { makeReportFilename } from "./report-filename";
+import { aplicarPrivacidade } from "./privacidade";
 
 type AnyCell = XLSX.CellObject;
 
@@ -65,7 +66,9 @@ function computeTotal(col: ReportColumn, rows: Report["rows"]): number {
  * serializado via `XLSX.write(wb, {type: "buffer" | "array"})`.
  * Esta função é pura e segura em qualquer runtime (Node ou browser).
  */
-export function buildReportWorkbook(report: Report): XLSX.WorkBook {
+export function buildReportWorkbook(entrada: Report): XLSX.WorkBook {
+  // Mesma regra do HTML/PDF: o Excel nunca leva a informação comercial que o utilizador não quis partilhar.
+  const report = aplicarPrivacidade(entrada);
   const cols = report.columns.filter((c) => !c.hidden && !c.htmlOnly);
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};

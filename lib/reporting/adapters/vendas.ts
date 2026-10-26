@@ -91,6 +91,7 @@ import { filtroListaImportada } from "../filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { formatCell } from "../report-formatters";
+import { aplicarPrivacidade } from "../privacidade";
 import { rotuloNaturezas } from "../natureza-venda";
 import {
   agruparPorArtigo,
@@ -151,6 +152,12 @@ export type VendasAdapterRow = {
   /** Valor bruto assinado da janela — ver SalesReportRow.valorBruto. */
   valorBruto?: number;
   existencia: number;
+  /**
+   * `false` = o stock desta linha é DESCONHECIDO (sem ficha de stock da farmácia ou `stockAtual` nulo) e `existencia` (0) é só um
+   * valor de ordenação: nunca se apresenta como zero nem entra no «Stock total», que o assinala como parcial.
+   * Ausente/`true` = conhecido.
+   */
+  existenciaConhecida?: boolean;
   /** Alias legado — pode estar ausente, recomputamos a partir de `totalVendas`. */
   unidadesVendidas?: number;
   fornecedor: string;
@@ -188,9 +195,18 @@ export type VendasAdapterFilters = {
    * «Ordenar por»). Omitido ⇒ vale `ordenarPor`.
    */
   ordenacaoTabelaDescricao?: string;
+  /** «Apenas artigos com PVP diferente entre farmácias» ativo (e aplicável: ≥ 2 farmácias). */
+  pvpDiferente?: boolean;
   /** Artigos selecionados para impressão / artigos do resultado. Só se mostra quando é uma seleção PARCIAL. */
   selecaoArtigos?: { selecionados: number; total: number };
 };
+
+/** Campos das linhas que são informação de venda / de compra (retirados do `Report` quando a respetiva classe está desligada). */
+const CHAVES_VENDA = ["pvp", "valorBruto"];
+const CHAVES_COMPRA = ["custoUnitarioEstimado", "custoEstimado"];
+
+/** Texto do filtro «PVP diferente entre farmácias» — um sítio só (ecrã, relatório, filtros das saídas). */
+export const ROTULO_FILTRO_PVP_DIFERENTE = "Apenas artigos com PVP diferente entre farmácias";
 
 const ROTULO_AMBITO: Record<string, string> = { farmacia: "Farmácia", grupo: "Grupo", comparativo: "Comparativo" };
 const ROTULO_AGRUPAR: Record<string, string> = {
@@ -297,10 +313,15 @@ export type TextosDasColunas = {
   totalBloco: string[];
 };
 
+/** Mais 2 px (as duas bordas finas) na coluna «Total unid.», que tem fundo e filetes próprios. */
+const EXTRA_COLUNA_DESTACADA_PX = 2;
+
 function buildColumns(
   buckets: { ano: number; mes: number }[],
   textos: TextosDasColunas,
-  incluirPrecos: boolean,
+  /** Preços de venda (PVP, valor de vendas) e de compra (custos): colunas que não existem quando a classe está desligada. */
+  incluirVenda: boolean,
+  incluirCompra: boolean,
 ): { columns: ReportColumn[]; density: Densidade; descricaoPct: number } {
   const plano = repartirMeses(buckets.length);
   const emBlocos = plano.length > 1;
@@ -310,15 +331,15 @@ function buildColumns(
   const w = {
     codigo: colunaPct(textos.codigo, "CNP", density, 0, false),
     farmacia: colunaPct([...textos.farmacia, "TOTAL ARTIGO"], "Farmácia", density, 0, false),
-    // Colunas monetárias: só medidas (e só existem) com «Incluir preços».
-    pvp: incluirPrecos ? colunaPct(textos.pvp, "PVP", density) : 0,
-    custoUnitario: incluirPrecos ? colunaPct(textos.custoUnitario, "Custo\nunit. est.", density) : 0,
-    custoTotal: incluirPrecos ? colunaPct(textos.custoTotal, emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", density) : 0,
-    totalUnid: colunaPct(textos.totalUnid, emBlocos ? "Período:\nTotal unid." : "Total\nUnid.", density),
-    totalBloco: emBlocos ? colunaPct(textos.totalBloco, "Total unid.\ndo bloco", density) : 0,
+    // Colunas monetárias: só medidas (e só existem) quando a respetiva classe de preços está incluída.
+    pvp: incluirVenda ? colunaPct(textos.pvp, "PVP", density) : 0,
+    custoUnitario: incluirCompra ? colunaPct(textos.custoUnitario, "Custo\nunit. est.", density) : 0,
+    custoTotal: incluirCompra ? colunaPct(textos.custoTotal, emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", density) : 0,
+    totalUnid: colunaPct(textos.totalUnid, emBlocos ? "Período:\nTotal unid." : "Total\nUnid.", density, EXTRA_COLUNA_DESTACADA_PX),
+    totalBloco: emBlocos ? colunaPct(textos.totalBloco, "Total unid.\ndo bloco", density, EXTRA_COLUNA_DESTACADA_PX) : 0,
     // +8 px: a caixa/inversão do indicador de stock (padding + moldura).
     stock: colunaPct(textos.stock, "Stock", density, 8),
-    valor: incluirPrecos ? colunaPct(textos.valor, emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", density) : 0,
+    valor: incluirVenda ? colunaPct(textos.valor, emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", density) : 0,
   };
   const fixos = w.codigo + w.farmacia + w.pvp + w.custoUnitario + w.custoTotal + w.totalUnid + w.stock + w.valor + w.totalBloco;
   const mesMin = Math.max(MES_MINIMO_PCT, colunaPct(textos.mes, "Mmm\n00", density));
@@ -358,37 +379,42 @@ function buildColumns(
     displayKey: "farmaciaCurta",
   };
   // PVP e Custo unit. est.: por FARMÁCIA (cada uma tem o seu), nunca uma média; na linha TOTAL ARTIGO ficam «—».
-  const cPvp: ReportColumn = { key: "pvp", label: "PVP", format: "currency", width: w.pvp, noClip: true };
-  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", width: w.custoUnitario, noClip: true };
+  const cPvp: ReportColumn = { key: "pvp", label: "PVP", format: "currency", width: w.pvp, noClip: true, sensivel: "venda" };
+  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", width: w.custoUnitario, noClip: true, sensivel: "compra" };
   // Custo TOTAL estimado = custo unit. est. × quantidade líquida. Soma-se; linhas sem custo ficam «—» e fora da soma.
-  const cCustoTotal: ReportColumn = { key: "custoEstimado", label: emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", format: "currency", width: w.custoTotal, showTotal: true, noClip: true };
-  const cTotalUnid: ReportColumn = { key: "totalVendas", label: emBlocos ? "Período:\nTotal unid." : "Total\nUnid.", format: "integer", width: w.totalUnid, showTotal: true, noClip: true };
+  const cCustoTotal: ReportColumn = { key: "custoEstimado", label: emBlocos ? "Período: custo\ntotal est." : "Custo total\nest.", format: "currency", width: w.custoTotal, showTotal: true, noClip: true, sensivel: "compra" };
+  // «Total unid.» = unidades VENDIDAS no período: fundo próprio (`tint`), entre os meses e o stock atual.
+  const cTotalUnid: ReportColumn = { key: "totalVendas", label: emBlocos ? "Período:\nTotal unid." : "Total\nUnid.", format: "integer", width: w.totalUnid, showTotal: true, noClip: true, tint: "total" };
   const cStock: ReportColumn = {
     key: "existencia", label: "Stock", format: "integer", width: w.stock, noClip: true,
+    // «Stock total» no TOTAL GERAL: soma do stock ATUAL das combinações produto/farmácia (nunca somado por mês).
+    showTotal: true,
     // Com stock / sem stock (0) / negativo — legível a preto e branco (ver `stockIndicator`).
     stockIndicator: true,
     // Stock a zero é um sinal operacional (ruptura); positivo é o estado normal — tons suaves, só reforço da caixa/inversão.
     toneWhenZero: "danger",
     toneWhenPositive: "success",
   };
-  const cValor: ReportColumn = { key: "valorBruto", label: emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", format: "currency", width: w.valor, showTotal: true, noClip: true };
+  const cValor: ReportColumn = { key: "valorBruto", label: emBlocos ? "Período: valor\nvendas (s/IVA)" : "Valor Vendas\n(s/IVA)", format: "currency", width: w.valor, showTotal: true, noClip: true, sensivel: "venda" };
   // Só no Excel: distingue linhas de detalhe de «Total artigo» para filtrar/somar sem contar duas vezes.
   const cTipo: ReportColumn = { key: "tipoLinha", label: "Tipo de linha", format: "text", excelOnly: true };
 
-  // «Incluir preços» desligado: SEM nenhuma coluna monetária (nem vazia, nem reservada) — a Descrição ganha o espaço.
-  const precosEsq = incluirPrecos ? [cPvp, cCustoUnit] : [];
+  // Classe de preços desligada: SEM nenhuma coluna dessa classe (nem vazia, nem reservada) — a Descrição ganha o espaço.
+  const precosEsq = [...(incluirVenda ? [cPvp] : []), ...(incluirCompra ? [cCustoUnit] : [])];
   let columns: ReportColumn[];
   if (!emBlocos) {
-    columns = incluirPrecos
-      ? [cCodigo, cDescricao, cFarmacia, cPvp, cCustoUnit, cCustoTotal, ...monthColumns, cTotalUnid, cStock, cValor, cTipo]
-      : [cCodigo, cDescricao, cFarmacia, ...monthColumns, cTotalUnid, cStock, cTipo];
+    columns = [
+      cCodigo, cDescricao, cFarmacia, ...precosEsq, ...(incluirCompra ? [cCustoTotal] : []),
+      ...monthColumns, cTotalUnid, cStock, ...(incluirVenda ? [cValor] : []), cTipo,
+    ];
   } else {
     // Períodos longos: cada bloco mostra os SEUS meses e «Total unid. do bloco» (soma só desses meses). Os totais do
     // período completo (unidades, custo, valor) vivem em colunas «Período: …» que só existem no ÚLTIMO bloco.
     const totaisBloco: ReportColumn[] = plano.map((_, i) => ({
-      key: chaveTotalBloco(i), label: "Total unid.\ndo bloco", format: "integer" as const, width: w.totalBloco, showTotal: true, noClip: true, htmlOnly: true,
+      key: chaveTotalBloco(i), label: "Total unid.\ndo bloco", format: "integer" as const, width: w.totalBloco, showTotal: true, noClip: true, htmlOnly: true, tint: "total" as const,
     }));
-    columns = [cCodigo, cDescricao, cFarmacia, ...precosEsq, ...monthColumns, ...totaisBloco, cStock, cTotalUnid, ...(incluirPrecos ? [cCustoTotal, cValor] : []), cTipo];
+    // meses → total do bloco → total do período → stock atual (a mesma sequência do mapa sem blocos).
+    columns = [cCodigo, cDescricao, cFarmacia, ...precosEsq, ...monthColumns, ...totaisBloco, cTotalUnid, cStock, ...(incluirCompra ? [cCustoTotal] : []), ...(incluirVenda ? [cValor] : []), cTipo];
   }
   return { columns, density, descricaoPct };
 }
@@ -479,6 +505,8 @@ function buildFilters(
     out.push({ label: "Artigos incluídos", value: "apenas com vendas no período" });
   }
   if (f.incluirManutencao) out.push({ label: "Incluir manutenção de vendas", value: "Sim" });
+  // Diz-se SEMPRE que o filtro está ativo, mesmo sem preços de venda no documento (os PVP não aparecem; a frase sim).
+  if (f.pvpDiferente) out.push({ label: ROTULO_FILTRO_PVP_DIFERENTE, value: "Sim" });
   if (f.selecaoArtigos && f.selecaoArtigos.selecionados < f.selecaoArtigos.total) {
     out.push({
       label: "Artigos",
@@ -524,7 +552,25 @@ export function custoTotalDoRelatorio(rows: ReadonlyArray<Pick<VendasAdapterRow,
   return { total: Math.round(total * 100) / 100, semCusto };
 }
 
-function buildSummary(rows: VendasAdapterRow[], incluirPrecos: boolean): ReportSummaryItem[] {
+/**
+ * «Stock total» = soma do stock ATUAL das combinações produto/farmácia incluídas, cada uma contada UMA vez (nunca por mês).
+ * O stock desconhecido (`existenciaConhecida === false`) não é convertido em zero: fica fora da soma e conta-se à parte.
+ * Negativo entra com sinal; zero entra como zero.
+ */
+export function stockTotalDoRelatorio(rows: ReadonlyArray<Pick<VendasAdapterRow, "existencia" | "existenciaConhecida">>): { total: number; desconhecidas: number } {
+  let total = 0;
+  let desconhecidas = 0;
+  for (const r of rows) {
+    if (r.existenciaConhecida === false) {
+      desconhecidas += 1;
+      continue;
+    }
+    total += r.existencia ?? 0;
+  }
+  return { total, desconhecidas };
+}
+
+function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   let totalUnidades = 0;
   let valorEstimadoPvp = 0;
   for (const r of rows) {
@@ -533,31 +579,35 @@ function buildSummary(rows: VendasAdapterRow[], incluirPrecos: boolean): ReportS
   }
   const referencias = contarReferenciasUnicas(rows);
   const custo = custoTotalDoRelatorio(rows);
-  if (!incluirPrecos) {
-    return [
-      { label: "Linhas",             value: rows.length,       format: "integer" },
-      { label: "Referências únicas", value: referencias,       format: "integer" },
-      { label: "Unidades vendidas",  value: totalUnidades,     format: "integer" },
-    ];
-  }
+  const stock = stockTotalDoRelatorio(rows);
+  // Os itens monetários levam `sensivel`: `aplicarPrivacidade` retira-os quando a respetiva classe de preços está desligada.
   return [
     { label: "Linhas",             value: rows.length,       format: "integer" },
     { label: "Referências únicas", value: referencias,       format: "integer" },
     { label: "Unidades vendidas",  value: totalUnidades,     format: "integer" },
-    { label: "Valor PVP estimado", value: valorEstimadoPvp,  format: "currency" },
-    { label: "Custo total estimado", value: custo.total,     format: "currency" },
+    { label: "Stock total",        value: stock.total,       format: "integer" },
+    ...(stock.desconhecidas > 0
+      ? [{ label: "Linhas sem stock conhecido (fora do stock total)", value: stock.desconhecidas, format: "integer" as const }]
+      : []),
+    { label: "Valor PVP estimado", value: valorEstimadoPvp,  format: "currency", sensivel: "venda" },
+    { label: "Custo total estimado", value: custo.total,     format: "currency", sensivel: "compra" },
     ...(custo.semCusto > 0
-      ? [{ label: "Linhas sem custo (fora do custo total)", value: custo.semCusto, format: "integer" as const }]
+      ? [{ label: "Linhas sem custo (fora do custo total)", value: custo.semCusto, format: "integer" as const, sensivel: "compra" as const }]
       : []),
   ];
 }
 
 export function buildVendasReport(input: {
   /**
-   * `false` = nenhuma informação monetária no relatório (PVP, custos, valor de vendas, totais monetários, avisos de custo
-   * parcial). Por omissão `true` (comportamento de sempre). Os cálculos continuam a existir; só não se apresentam.
+   * «Incluir preços de venda»: `false` ⇒ o relatório não leva PVP, valor de vendas (s/IVA) nem totais/avisos de venda.
+   * Por omissão `true`. Os cálculos continuam a existir; só não se apresentam (nem viajam no `Report`).
    */
-  incluirPrecos?: boolean;
+  incluirPrecosVenda?: boolean;
+  /**
+   * «Incluir preços de compra»: `false` ⇒ o relatório não leva custo unitário/total estimado, subtotais/totais de custo,
+   * «PARCIAL» nem avisos de custo em falta. Por omissão `true`.
+   */
+  incluirPrecosCompra?: boolean;
   rows: VendasAdapterRow[];
   /**
    * Mesma lista de buckets devolvida pelo loader em
@@ -596,6 +646,8 @@ export function buildVendasReport(input: {
       /** Correcção 2026-09: não existia coluna nenhuma para isto. */
       valorBruto?: number;
       existencia: number;
+      /** `false` = stock desconhecido: a célula fica «—» (nunca 0). */
+      existenciaConhecida?: boolean;
       farmacia: string;
       meses: { ano: number; mes: number; quantidade: number }[];
     },
@@ -619,7 +671,7 @@ export function buildVendasReport(input: {
       custoEstimado: r.custoEstimado ?? null,
       totalVendas: r.totalVendas,
       valorBruto: r.valorBruto ?? 0,
-      existencia: r.existencia,
+      existencia: r.existenciaConhecida === false ? null : r.existencia,
       // `farmacia` é o nome REAL, intocado — usado por Excel, ordenação,
       // agrupamento. `farmaciaCurta` é só a apresentação HTML/PDF (ver
       // `displayKey` em buildColumns). "TOTAL ARTIGO" não tem o prefixo
@@ -665,7 +717,9 @@ export function buildVendasReport(input: {
         // Um artigo numa farmácia só não leva linha de total: seria uma
         // cópia da linha acima.
         if (!grupoPrecisaDeTotal(g)) return detalhes;
-        return [...detalhes, paraReportRow(g.total, "subtotal", g.codigo)];
+        // TOTAL ARTIGO: soma do stock CONHECIDO das farmácias do artigo; «—» só se nenhuma o conhece.
+        const todasDesconhecidas = g.detalhes.every((d) => d.existenciaConhecida === false);
+        return [...detalhes, paraReportRow({ ...g.total, existenciaConhecida: todasDesconhecidas ? false : true }, "subtotal", g.codigo)];
       })
     : input.rows.map((r) => paraReportRow(r, "detalhe", undefined));
 
@@ -688,7 +742,7 @@ export function buildVendasReport(input: {
     custoTotal: [...strs("custoEstimado", "currency"), fmt(custoGeral.total, "currency")],
     valor: [...strs("valorBruto", "currency"), fmt(somaDe("valorBruto"), "currency")],
     totalUnid: [...strs("totalVendas", "integer"), fmt(somaDe("totalVendas"), "integer")],
-    stock: strs("existencia", "integer"),
+    stock: [...strs("existencia", "integer"), fmt(stockTotalDoRelatorio(input.rows).total, "integer")],
     mes: input.buckets.flatMap((b) => {
       const k = bucketColumnKey(b);
       return [...rowsForReport.map((r) => fmt(r[k], "integer")), fmt(somaDe(k), "integer")];
@@ -706,8 +760,9 @@ export function buildVendasReport(input: {
       textos.totalBloco.push(...rowsForReport.map((r) => fmt(r[chaveTotalBloco(i)], "integer")), fmt(detalhe.reduce((acc, r) => acc + Number(r[chaveTotalBloco(i)] ?? 0), 0), "integer"));
     });
   }
-  const incluirPrecos = input.incluirPrecos !== false;
-  const { columns, density } = buildColumns(input.buckets, textos, incluirPrecos);
+  const incluirVenda = input.incluirPrecosVenda !== false;
+  const incluirCompra = input.incluirPrecosCompra !== false;
+  const { columns, density } = buildColumns(input.buckets, textos, incluirVenda, incluirCompra);
 
   // Períodos longos: blocos temporais (ver `repartirMeses`). Até 13 meses não há blocos.
   const partes = repartirMeses(input.buckets.length);
@@ -735,13 +790,18 @@ export function buildVendasReport(input: {
 
   const artigos = new Set(input.rows.map((r) => r.codigo)).size;
   const semCusto = custoGeral.semCusto;
+  const stockGeral = stockTotalDoRelatorio(input.rows);
   const nota = [
-    "Stock atual à data de geração do relatório (não histórico). Stock: número simples = com stock; número em caixa = 0; fundo escuro = negativo.",
-    incluirPrecos
-      ? "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida. Valor de vendas sem IVA."
+    "Stock atual à data de geração do relatório (não histórico); o Stock total soma o stock atual de cada artigo/farmácia (não se soma por mês). Stock: número simples = com stock; número em caixa = 0; fundo escuro = negativo.",
+    stockGeral.desconhecidas > 0
+      ? `Stock total PARCIAL: ${stockGeral.desconhecidas} linha(s) sem stock conhecido ficam fora do total (aparecem «—»).`
       : "",
+    incluirCompra
+      ? "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida."
+      : "",
+    incluirVenda ? "Valor de vendas sem IVA." : "",
     "«·» = sem vendas no mês; valores negativos = devoluções/anulações acima das vendas.",
-    incluirPrecos && semCusto > 0
+    incluirCompra && semCusto > 0
       ? `Custo total PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
       : "",
     columnBlocks
@@ -749,12 +809,12 @@ export function buildVendasReport(input: {
       : "",
   ].filter(Boolean).join(" ");
 
-  return {
+  const relatorio: Report = {
     title: "Relatório de Vendas",
     subtitle,
     generatedAt: new Date(),
     filtersApplied: buildFilters(input.filters, input.universe),
-    summary: buildSummary(input.rows, incluirPrecos),
+    summary: buildSummary(input.rows),
     columns,
     rows: rowsForReport,
     meta: {
@@ -773,10 +833,17 @@ export function buildVendasReport(input: {
       tableNote: `${artigos} artigo${artigos === 1 ? "" : "s"} · ${input.rows.length} linha${input.rows.length === 1 ? "" : "s"} de detalhe`,
       totalLabel: "TOTAL GERAL",
       excelFilterable: true,
+      // Que informação comercial o relatório pode levar. Os geradores de saída (HTML/PDF/Excel/email) reaplicam
+      // `aplicarPrivacidade` com isto, por isso nada sensível sai mesmo que o `Report` seja reencaminhado ou adulterado.
+      privacidade: { precosVenda: incluirVenda, precosCompra: incluirCompra, chavesVenda: CHAVES_VENDA, chavesCompra: CHAVES_COMPRA },
+      // Faixa de uma linha sob os filtros (HTML/PDF/impressão): unidades vendidas e stock atual, lado a lado — não se confundem.
+      resumoFaixa: ["Unidades vendidas", "Stock total", "Linhas sem stock conhecido (fora do stock total)"],
       // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
       // um mês não tem como saber que a coluna de custo é um snapshot
       // de hoje. O rodapé é texto livre que quebra normalmente.
       footer: nota,
     },
   };
+  // Sem preços de venda/compra o `Report` que viaja (JSON do PDF/email) já não contém os valores retirados.
+  return aplicarPrivacidade(relatorio);
 }

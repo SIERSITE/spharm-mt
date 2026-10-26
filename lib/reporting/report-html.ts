@@ -44,6 +44,7 @@
 import type { Report, ReportAlign, ReportCell, ReportColumn, ReportRow } from "./report-types";
 import { agruparPorGroupKey, ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
 import { formatCell, formatDate, formatDateTime } from "./report-formatters";
+import { aplicarPrivacidade } from "./privacidade";
 
 function escapeHtml(s: string): string {
   return s
@@ -195,9 +196,20 @@ function renderFilters(report: Report): string {
     .join("");
   return `
     <section class="filters compact">
-      <div class="filter-line">${items}</div>
+      <div class="filter-line">${items}</div>${renderResumoFaixa(report)}
     </section>
   `;
+}
+
+/** Faixa de uma linha com os itens do resumo pedidos em `meta.resumoFaixa` (ex.: Unidades vendidas · Stock total). */
+function renderResumoFaixa(report: Report): string {
+  const rotulos = report.meta?.resumoFaixa;
+  if (!rotulos || rotulos.length === 0 || !report.summary) return "";
+  const itens = rotulos
+    .map((r) => report.summary!.find((s) => s.label === r))
+    .filter((s): s is NonNullable<typeof s> => !!s)
+    .map((s) => `<span class="resumo-item"><span>${escapeHtml(s.label)}:</span> <strong>${escapeHtml(formatCell(s.value, s.format))}</strong></span>`);
+  return itens.length > 0 ? `<div class="resumo-faixa" data-testid="resumo-faixa">${itens.join("")}</div>` : "";
 }
 
 function renderSummary(report: Report): string {
@@ -359,7 +371,7 @@ function renderTable(report: Report): string {
         // curta de dar mais largura de leitura a cada linha sem estreitar
         // a coluna nem cortar texto.
         const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
-        const cls = [c.noClip ? "nc" : "", mesAlt.has(c.key) ? "mes-alt" : ""].filter(Boolean).join(" ");
+        const cls = [c.noClip ? "nc" : "", mesAlt.has(c.key) ? "mes-alt" : "", c.tint === "total" ? "tint-total" : ""].filter(Boolean).join(" ");
         return `<th style="${style}"${cls ? ` class="${cls}"` : ""}>${label}</th>`;
       })
       .join("");
@@ -385,6 +397,7 @@ function renderTable(report: Report): string {
           // Colunas numéricas (valores, quantidades, stock, totais): +1 px no relatório limpo (ver `.num`).
           if (limpo && (c.format === "currency" || c.format === "integer" || c.format === "number" || c.format === "decimal1" || c.format === "percent")) classes.push("num");
           if (mesAlt.has(c.key)) classes.push("mes-alt");
+          if (c.tint === "total") classes.push("tint-total");
           if (c.monthAlt) {
             // zero → «·» apagado; > 0 → semibold; < 0 (devoluções) → bold a vermelho-escuro (o sinal «-» mantém-se)
             const nv = numericValue(valor);
@@ -459,7 +472,7 @@ function renderTable(report: Report): string {
       for (let i = 0; i < colsB.length; i++) {
         const c = colsB[i];
         const style = alignStyle(defaultAlignFor(c));
-        const ncClasses = [c.noClip ? "nc" : "", limpo && (c.format === "currency" || c.format === "integer" || c.format === "number") ? "num" : ""].filter(Boolean).join(" ");
+        const ncClasses = [c.noClip ? "nc" : "", limpo && (c.format === "currency" || c.format === "integer" || c.format === "number") ? "num" : "", c.tint === "total" ? "tint-total" : ""].filter(Boolean).join(" ");
         const nc = ncClasses ? ` class="${ncClasses}"` : "";
         if (i === 0) {
           // "TOTAL GERAL", não "Total" — para nunca se confundir, à
@@ -472,7 +485,7 @@ function renderTable(report: Report): string {
         if (c.showTotal) {
           celulas.push(`<td style="${style}"${nc}><strong>${escapeHtml(formatCell(totals[c.key], c.format))}</strong></td>`);
         } else {
-          celulas.push(`<td></td>`);
+          celulas.push(c.tint === "total" ? `<td class="tint-total"></td>` : `<td></td>`);
         }
       }
       totalsRow = `<tbody class="totals-tbody"><tr>${celulas.join("")}</tr>__NOTA__</tbody>`;
@@ -1079,6 +1092,18 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .nota-final .footer-brand { white-space: nowrap; }
   .page.density-compact.hierarchy-clean .report-footer.compact { color: #6b7280; font-size: 8px; margin-top: 8px; }
 
+  /* COLUNA «TOTAL UNID.» (meses → total do período → stock atual): fundo azul-acinzentado próprio e dois filetes laterais, que
+     a distinguem dos meses (brancos), do stock (verde/vermelho muito leves), dos subtotais (cinzento) e do TOTAL GERAL — e que
+     se lêem em cinzentos mesmo sem cor. Cabeçalho, células, subtotais e total geral seguem a mesma lógica. */
+  .page.density-compact.hierarchy-clean thead th.tint-total { background: #d9e6f5 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
+  .page.density-compact.hierarchy-clean tbody td.tint-total { background: #e9f1fa !important; border-left: 1px solid #b4c3d6; border-right: 1px solid #b4c3d6; }
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.tint-total { background: #dce8f5 !important; }
+  .page.density-compact.hierarchy-clean .totals-tbody td.tint-total { background: #d0e0f2 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
+
+  /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
+  .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .page.density-compact.hierarchy-clean .resumo-faixa strong { color: #111827; font-weight: 700; }
+
   /* NÚMEROS +1 px (valores, quantidades, stock, preços, custos, totais) — a descrição, o cabeçalho e o resto do texto não mudam.
      A largura das colunas é medida pelo adapter com este mesmo aumento (AUMENTO_NUMEROS_PX). */
   .page.density-compact.hierarchy-clean tbody td.num { font-size: calc(1em + 1px); }
@@ -1119,7 +1144,9 @@ const STYLES = `
  * Gera o HTML completo do relatório (doctype + head + body).
  * Pronto para ser escrito num iframe e impresso.
  */
-export function renderReportHtml(report: Report): string {
+export function renderReportHtml(entrada: Report): string {
+  // Informação comercial que o utilizador não quis partilhar: retirada AQUI (e não só no browser/CSS) — ver privacidade.ts.
+  const report = aplicarPrivacidade(entrada);
   const orientation = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
   const styles = STYLES.replace("__ORIENTATION__", orientation);
   const pageClass = isCompact(report)

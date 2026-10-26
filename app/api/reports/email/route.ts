@@ -25,6 +25,7 @@ import { buildReportPdfBuffer } from "@/lib/reporting/report-pdf-server";
 import { buildReportExcelBuffer } from "@/lib/reporting/report-excel-buffer";
 import { getMailerForFarmacia } from "@/lib/reporting/report-email-transport";
 import { getSession } from "@/lib/auth";
+import { aplicarPrivacidade } from "@/lib/reporting/privacidade";
 import type { Report } from "@/lib/reporting/report-types";
 
 export const runtime = "nodejs";
@@ -38,8 +39,6 @@ type EmailPayload = {
   subject?: string;
   message?: string;
   attachFormats?: Array<"pdf" | "excel">;
-  /** Report do anexo Excel quando difere do relatório visual (ex.: Vendas sem «Incluir preços»). */
-  excelReport?: Report;
 };
 
 function isValidEmail(e: string): boolean {
@@ -78,17 +77,20 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // ─── Validação do Report ──────────────────────────────────────────────────
-  const report = payload.report;
-  if (!report || !report.title || !Array.isArray(report.columns) || !Array.isArray(report.rows)) {
+  const recebido = payload.report;
+  if (!recebido || !recebido.title || !Array.isArray(recebido.columns) || !Array.isArray(recebido.rows)) {
     return Response.json({ ok: false, error: "Report mal formado" }, { status: 400 });
   }
-  if (typeof report.generatedAt === "string") {
-    const d = new Date(report.generatedAt);
-    if (!isNaN(d.getTime())) report.generatedAt = d;
+  if (typeof recebido.generatedAt === "string") {
+    const d = new Date(recebido.generatedAt);
+    if (!isNaN(d.getTime())) recebido.generatedAt = d;
   }
-  if (!(report.generatedAt instanceof Date)) {
-    report.generatedAt = new Date();
+  if (!(recebido.generatedAt instanceof Date)) {
+    recebido.generatedAt = new Date();
   }
+  // Privacidade validada NO SERVIDOR: preços de venda/compra que o utilizador não quis partilhar são retirados do relatório antes
+  // de gerar o PDF E o Excel anexos (os dois saem do mesmo relatório, já sem essa informação) — ver lib/reporting/privacidade.ts.
+  const report = aplicarPrivacidade(recebido);
 
   const formats = (payload.attachFormats ?? []).filter(
     (f): f is "pdf" | "excel" => f === "pdf" || f === "excel"
@@ -119,12 +121,7 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
     if (formats.includes("excel")) {
-      const excelReport = payload.excelReport && Array.isArray(payload.excelReport.columns) && Array.isArray(payload.excelReport.rows) ? payload.excelReport : report;
-      if (typeof excelReport.generatedAt === "string") {
-        const d = new Date(excelReport.generatedAt);
-        excelReport.generatedAt = isNaN(d.getTime()) ? new Date() : d;
-      }
-      const xlsx = buildReportExcelBuffer(excelReport);
+      const xlsx = buildReportExcelBuffer(report);
       jobs.push(
         Promise.resolve({
           filename: xlsx.filename,

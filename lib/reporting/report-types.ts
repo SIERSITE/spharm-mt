@@ -114,6 +114,17 @@ export type ReportColumn = {
    * `GROUP_KEY`.
    */
   spanGroup?: boolean;
+  /**
+   * Informação comercial sensível desta coluna: `"venda"` = preço/valor de venda (PVP, valor de vendas), `"compra"` = custo de
+   * aquisição. Quando `ReportMeta.privacidade` desliga essa classe, `aplicarPrivacidade` (privacidade.ts) retira a coluna, os
+   * valores das linhas e os itens de resumo marcados — em TODAS as saídas (Relatório, impressão, PDF, Excel, email).
+   */
+  sensivel?: "venda" | "compra";
+  /**
+   * Fundo próprio da coluna (HTML/PDF/impressão): `"total"` = coluna de TOTAL do período (ex.: «Total unid.»), distinta dos
+   * meses, do stock, dos subtotais e do TOTAL GERAL. O Excel (sem estilos) não a usa.
+   */
+  tint?: "total";
 };
 
 export type ReportCell = string | number | null | undefined | Date | boolean;
@@ -199,6 +210,8 @@ export type ReportSummaryItem = {
   label: string;
   value: ReportCell;
   format?: ReportFormat;
+  /** Ver `ReportColumn.sensivel` — o item sai do resumo quando essa classe de informação está desligada. */
+  sensivel?: "venda" | "compra";
 };
 
 export type ReportFilter = {
@@ -285,6 +298,20 @@ export type ReportMeta = {
   totalLabel?: string;
   /** Excel: filtro automático no cabeçalho + painéis congelados (opt-in; os outros relatórios ficam como estavam). */
   excelFilterable?: boolean;
+  /**
+   * Que classes de informação comercial sensível o relatório pode conter (ver `ReportColumn.sensivel`). Presente ⇒ cada gerador
+   * de saída (HTML/PDF/impressão/Excel/email) aplica `aplicarPrivacidade` ANTES de produzir o ficheiro; uma classe que não esteja
+   * estritamente a `true` é retirada (falha-seguro). Ausente ⇒ nada a retirar (relatórios sem informação sensível).
+   */
+  privacidade?: {
+    precosVenda: boolean;
+    precosCompra: boolean;
+    /** Campos das LINHAS que são informação de venda/compra, mesmo sem coluna correspondente (retirados quando a classe está desligada). */
+    chavesVenda?: string[];
+    chavesCompra?: string[];
+  };
+  /** Rótulos de itens do `summary` a mostrar numa faixa de uma linha no HTML/PDF/impressão compactos (sem cartões). */
+  resumoFaixa?: string[];
 };
 
 /**
