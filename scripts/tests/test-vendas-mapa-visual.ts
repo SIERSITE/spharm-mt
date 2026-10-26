@@ -419,7 +419,7 @@ async function main() {
     ok(`todas as linhas do relatório limpo têm ≤ 1.5px (máx. ${Math.max(...espessuras)}px)`, espessuras.length > 0 && Math.max(...espessuras) <= 1.5);
     ok("«Total artigo»: fundo cinzento muito claro (#f1f3f6), semibold, sem molduras", /tr\.subtotal-row td,[^{]*\{\s*background: #f1f3f6 !important;[^}]*font-weight: 600;\s*border: 0;/.test(clean));
     ok("«TOTAL GERAL»: nível acima do subtotal (bold, fundo #e5e8ed), sem bloco escuro", /\.totals-tbody td \{\s*background: #e5e8ed !important;[^}]*font-weight: 700/.test(clean));
-    const fundos = [...clean.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
+    const fundos = [...cleanSemTint.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
     ok(`único fundo escuro no relatório limpo: a pastilha do stock negativo (${fundos.join(",")})`, fundos.length === 1 && fundos[0] === "374151");
     ok("os meses não têm linhas verticais nem fundo forte (película ≤ 3 %)", /rgba\(15, 23, 42, 0\.028\)/.test(clean) && !/mes-alt[^{]*\{[^}]*border/.test(clean));
     ok("nota/legenda final dentro da tabela (nunca órfã numa página sem cabeçalho)", /<tr class="nota-tr">/.test(html) && !/<footer class="report-footer/.test(html));
@@ -531,6 +531,96 @@ async function main() {
       ok("só há 4 fontes de números sem aumento no relatório não-limpo (Margens/outros intactos)", !renderReportHtml({ ...rel, meta: { ...rel.meta!, hierarchy: "strong" } }).includes('class="num"'));
     }
   }
+
+  // ═══ L. Preços de venda / compra independentes (PDF REAL), Total unid. destacado, Stock total ═══
+  console.log("\n=== L. Quatro combinações de preços no PDF real; coluna «Total unid.» e stock total ===");
+  {
+    // Sentinelas únicos por classe (ver test-vendas-precos-pvp-stock.ts).
+    const VENDA_FMT = ["11 111,11", "22 222,22", "33 333,33", "66 666,66"];
+    const COMPRA_FMT = ["44 444,44", "88 888,88"];
+    const tem = (t: string, l: string[]) => l.some((s) => t.includes(s));
+    const lum = (rgb: string) => { const m = rgb.match(/\d+(\.\d+)?/g)!.map(Number); return 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]; };
+
+    for (const nMeses of [3, 27]) {
+      const bks = buckets(nMeses);
+      const q = bks.map((_, i) => (i === 0 ? 1 : 0));
+      const rows = [
+        linha({ codigo: "7000001", descricao: "Produto Sentinela A", qtd: q, pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, stock: 3 }, bks),
+        linha({ codigo: "7000002", descricao: "Produto Sentinela B", qtd: q, pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, stock: 4 }, bks),
+      ];
+      for (const [venda, compra] of [[true, true], [true, false], [false, true], [false, false]] as const) {
+        const tag = `${nMeses} meses · venda=${venda ? "sim" : "não"} · compra=${compra ? "sim" : "não"}`;
+        const rel = buildVendasReport({ rows, buckets: bks, filters: { agruparPor: "artigo" }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste", incluirPrecosVenda: venda, incluirPrecosCompra: compra });
+        const p = palavras(await pdfDe(rel, `precos-${nMeses}-${venda ? 1 : 0}${compra ? 1 : 0}`));
+        const txt = textoTodo(p);
+        ok(`PDF real ${tag}: valores de venda ${venda ? "presentes" : "AUSENTES"}, de compra ${compra ? "presentes" : "AUSENTES"}`, tem(txt, VENDA_FMT) === venda && tem(txt, COMPRA_FMT) === compra, txt.match(/.{15}(11 111|22 222|33 333|44 444|66 666|88 888).{10}/)?.[0]);
+        ok(`PDF real ${tag}: «€» ${venda || compra ? "presente" : "AUSENTE"}; cabeçalhos PVP/Valor Vendas ↔ venda, Custo ↔ compra`,
+          txt.includes("€") === (venda || compra) && /PVP/.test(txt) === venda && /Valor Vendas|Período: valor/.test(txt) === venda && /Custo/.test(txt) === compra);
+        ok(`PDF real ${tag}: identificação, meses, total de unidades e stock sempre presentes`, /7000001/.test(txt) && /Produto Sentinela A/.test(txt) && /Stock/.test(txt) && /unid\./i.test(txt));
+        ok(`PDF real ${tag}: A4 horizontal e nada cortado à direita`, p.paginas.every((pg) => pg.w > pg.h && pg.palavras.every((w) => w[2] <= pg.w - 8)));
+        const tg = p.paginas.flatMap(linhasDe).filter((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
+        ok(`PDF real ${tag}: TOTAL GERAL uma vez, com total de unidades (2) e Stock total (7) lado a lado`, tg.length === 1 && /\b2 7\b/.test(tg[0]), tg.join(" | "));
+        if (nMeses === 27) ok(`PDF real ${tag}: 27 meses em 3 blocos (A4 horizontal), sem perder a estrutura`, (rel.meta?.columnBlocks?.length ?? 0) === 3 && p.paginas.length >= 3);
+      }
+    }
+
+    // Stock negativo / zero / desconhecido / soma por artigo no PDF real
+    {
+      const b = buckets(3);
+      const rows = [
+        linha({ codigo: "8000001", farmacia: FARM[0], qtd: [3, 0, 1], stock: 4 }, b),
+        linha({ codigo: "8000001", farmacia: FARM[1], qtd: [1, 1, 1], stock: 7 }, b),
+        linha({ codigo: "8000002", farmacia: FARM[1], qtd: [2, 0, 0], stock: -3 }, b),
+        { ...linha({ codigo: "8000004", farmacia: FARM[1], qtd: [1, 0, 0], stock: 0 }, b), existenciaConhecida: false },
+      ];
+      const rel = gerar(rows, b);
+      const p = palavras(await pdfDe(rel, "stock-total"));
+      const linhasPdf = p.paginas.flatMap(linhasDe);
+      const totalArtigo = linhasPdf.find((l) => /TOTAL ARTIGO/.test(l));
+      ok("PDF real: TOTAL ARTIGO mostra a soma do stock das farmácias (4 + 7 = 11)", !!totalArtigo && /\b11\b/.test(totalArtigo), totalArtigo);
+      const tgl = linhasPdf.find((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
+      ok("PDF real: TOTAL GERAL — Stock total = 4 + 7 − 3 = 8 (o desconhecido fica de fora)", !!tgl && /\b10 8\b/.test(tgl), tgl);
+      const t = textoTodo(p);
+      ok("PDF real: stock negativo com sinal; desconhecido como «—»; o total parcial é declarado", /-3/.test(t) && /Stock total PARCIAL: 1 linha/.test(t.replace(/\n/g, " ")) && linhasPdf.some((l) => /8000004/.test(l) && /—/.test(l)));
+      ok("PDF real: faixa «Unidades vendidas · Stock total» sob os filtros", /Unidades vendidas:\s*10/.test(t.replace(/\n/g, " ")) && /Stock total:\s*8/.test(t.replace(/\n/g, " ")));
+    }
+
+    // Cores da coluna «Total unid.» (Chromium real): distinta dos meses, do stock, dos subtotais e do TOTAL GERAL; lê-se em cinzentos
+    {
+      const b = buckets(3);
+      const rows = [
+        linha({ codigo: "8300001", farmacia: FARM[0], qtd: [1, 2, 3], stock: 4 }, b),
+        linha({ codigo: "8300001", farmacia: FARM[1], qtd: [1, 2, 3], stock: 7 }, b),
+      ];
+      const html = renderReportHtml(gerar(rows, b));
+      const page = await browser.newPage();
+      try {
+        await page.emulateMediaType("print");
+        await page.setContent(html, { waitUntil: "networkidle0" });
+        await page.evaluate("window.__name = (f) => f;");
+        const cores = await page.evaluate(() => {
+          const bg = (el: Element | null) => (el ? getComputedStyle(el).backgroundColor : "");
+          const corpo = document.querySelector("tbody.row-group");
+          const sub = corpo?.querySelector("tr.subtotal-row") ?? null;
+          const tg = document.querySelector(".totals-tbody tr");
+          const thMes = [...document.querySelectorAll("thead th")].find((t) => /^[A-Z][a-z]{2}\d\d$/.test((t.textContent ?? "").replace(/\s+/g, ""))) ?? null;
+          return {
+            thTotal: bg(document.querySelector("thead th.tint-total")), thMes: bg(thMes), thStock: bg([...document.querySelectorAll("thead th")].find((t) => t.textContent === "Stock") ?? null),
+            tdTotal: bg(corpo?.querySelector("tr:not(.subtotal-row) td.tint-total") ?? null), tdMes: bg(corpo?.querySelector("tr:not(.subtotal-row) td.mq") ?? null), tdStock: bg(corpo?.querySelector("tr:not(.subtotal-row) td.stk-pos") ?? null),
+            subTotal: bg(sub?.querySelector("td.tint-total") ?? null), subMes: bg(sub?.querySelector("td.mes-v, td.mq, td.num:not(.tint-total)") ?? null),
+            tgTotal: bg(tg?.querySelector("td.tint-total") ?? null), tgMes: bg(tg?.querySelector("td.num:not(.tint-total)") ?? null),
+            classeTotal: document.querySelector("thead th.tint-total")?.className ?? "",
+          };
+        });
+        ok("coluna «Total Unid.» tem a classe de destaque e fundo próprio no cabeçalho, nas células, no subtotal e no TOTAL GERAL", /tint-total/.test(cores.classeTotal) && cores.tdTotal !== cores.tdMes && cores.tdTotal !== cores.tdStock && cores.thTotal !== cores.thMes && cores.subTotal !== cores.subMes && cores.tgTotal !== cores.tgMes, JSON.stringify(cores));
+        ok("…distinta dos meses (≥ 15 níveis de cinzento) e do stock (≥ 8)", Math.abs(lum(cores.tdTotal) - lum(cores.tdMes)) >= 15 && Math.abs(lum(cores.tdTotal) - lum(cores.tdStock)) >= 8, `${lum(cores.tdTotal).toFixed(1)} / ${lum(cores.tdMes).toFixed(1)} / ${lum(cores.tdStock).toFixed(1)}`);
+        ok("…e distinta, em escala de cinzentos, do subtotal e do TOTAL GERAL das outras colunas (≥ 8 níveis)", Math.abs(lum(cores.subTotal) - lum(cores.subMes)) >= 8 && Math.abs(lum(cores.tgTotal) - lum(cores.tgMes)) >= 8, `${lum(cores.subTotal).toFixed(1)}/${lum(cores.subMes).toFixed(1)} · ${lum(cores.tgTotal).toFixed(1)}/${lum(cores.tgMes).toFixed(1)}`);
+        ok("…hierarquia preservada: corpo mais claro que o subtotal, e este mais claro que o TOTAL GERAL (na própria coluna)", lum(cores.tdTotal) > lum(cores.subTotal) && lum(cores.subTotal) > lum(cores.tgTotal));
+        ok("…cabeçalho destacado mais escuro que o cabeçalho dos meses (coerência cabeçalho/células)", lum(cores.thTotal) < lum(cores.thMes), `${lum(cores.thTotal).toFixed(1)} vs ${lum(cores.thMes).toFixed(1)}`);
+      } finally { await page.close(); }
+    }
+  }
+
 
   await browser.close();
   console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

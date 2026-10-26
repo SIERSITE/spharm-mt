@@ -1096,9 +1096,9 @@ const STYLES = `
      a distinguem dos meses (brancos), do stock (verde/vermelho muito leves), dos subtotais (cinzento) e do TOTAL GERAL — e que
      se lêem em cinzentos mesmo sem cor. Cabeçalho, células, subtotais e total geral seguem a mesma lógica. */
   .page.density-compact.hierarchy-clean thead th.tint-total { background: #d9e6f5 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
-  .page.density-compact.hierarchy-clean tbody td.tint-total { background: #e9f1fa !important; border-left: 1px solid #b4c3d6; border-right: 1px solid #b4c3d6; }
-  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.tint-total { background: #dce8f5 !important; }
-  .page.density-compact.hierarchy-clean .totals-tbody td.tint-total { background: #d0e0f2 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
+  .page.density-compact.hierarchy-clean tbody td.tint-total { background: #e1ecf8 !important; border-left: 1px solid #b4c3d6; border-right: 1px solid #b4c3d6; }
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.tint-total { background: #d4e3f4 !important; }
+  .page.density-compact.hierarchy-clean .totals-tbody td.tint-total { background: #c8daf0 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
 
   /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
   .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
