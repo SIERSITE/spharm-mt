@@ -118,7 +118,7 @@ async function pedirPdf(page: Page, ctx: BrowserContext, nome: string) {
   return { ficheiro: f, json: corpo.toString("utf8") };
 }
 async function descarregarExcel(page: Page, nome: string) {
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
+  const [dl] = await Promise.all([page.waitForEvent("download", { predicate: (d) => d.suggestedFilename().endsWith(".xlsx") }), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
   const f = path.join(EVID, nome);
   await dl.saveAs(f);
   return f;
@@ -441,6 +441,18 @@ async function main() {
     await page.locator("div", { has: page.getByText("Farmácia", { exact: true }) }).locator("button", { hasText: "Farmacia Gama" }).first().click();
     await page.waitForTimeout(400);
     check((await toggle.getAttribute("aria-checked")) === "true" && JSON.stringify(await codigos()) === JSON.stringify(["7400012", "7400013", "7400016"]), "voltando a 3 farmácias, o filtro (que o utilizador deixou ligado) volta a aplicar-se");
+
+    // Grupo e Comparativo
+    const ambito = page.getByLabel("Âmbito da análise");
+    await ambito.selectOption("grupo");
+    await page.waitForTimeout(500);
+    check(JSON.stringify(await codigos()) === JSON.stringify(["7400012", "7400013", "7400016"]), "âmbito Grupo: o filtro aplica-se (os mesmos 3 artigos)");
+    await ambito.selectOption("comparativo");
+    await page.waitForTimeout(500);
+    const txtComp = norm(await page.locator('[data-testid="vendas-contentor-tabela"]').innerText());
+    check(["7400012", "7400013", "7400016"].every((c) => txtComp.includes(c)) && !["7400011", "7400014", "7400015"].some((c) => txtComp.includes(c)), "âmbito Comparativo: o filtro aplica-se (só os 3 artigos)");
+    await ambito.selectOption("farmacia");
+    await page.waitForTimeout(300);
 
     // workspace: persiste ao mudar de separador; independente; Limpar filtros
     const wsD = wsAtual(page);

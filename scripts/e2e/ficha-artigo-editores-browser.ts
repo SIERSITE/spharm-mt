@@ -75,7 +75,7 @@ async function main() {
     page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
     await page.setViewportSize({ width: 1920, height: 1080 });
     const jwt = (perfil: string) => new SignJWT({ sub: seed.userId, email: "op@spharm.test", nome: "Op", perfil, farmaciaId: seed.farmacias.alfa, tenant: "silveira" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(SECRET));
-    const fechar = (p: Page, titulo = "Ficha de artigo") => p.getByRole("button", { name: `Fechar ${titulo}`, exact: true });
+    const fechar = (p: Page, cnp = CNPD) => p.locator(`[data-navegacao-href^="/stock/artigo/${cnp}"] [aria-label^="Fechar"]`).first();
 
     // ═══ sem permissão ═══════════════════════════════════════════════════════════════════════════════════════════════
     secao("Sem permissão: só leitura");
@@ -136,7 +136,7 @@ async function main() {
     console.log("  [dbg] storage:", await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).concat(Object.keys(sessionStorage)).map((k) => [k, (localStorage.getItem(k) ?? sessionStorage.getItem(k) ?? "").slice(0, 700)])))));
     console.log("  [dbg] indicador pendente no separador ativo:", await page.locator(`[data-navegacao-href^="/stock/artigo/${CNPD}"]`).locator("[class*='fill-amber']").count());
     page.once("dialog", async (d) => { dialogos++; await d.dismiss(); });
-    await fechar(page).click();
+    await fechar(page).click({ force: true });
     await page.waitForTimeout(500);
     check(dialogos === 1 && (await page.locator(`[data-navegacao-href^="/stock/artigo/${CNPD}"]`).count()) === 1, "fechar o separador com a edição por confirmar pede confirmação (recusar mantém o separador)", `dialogos=${dialogos} abas=${await page.locator(`[data-navegacao-href^="/stock/artigo/${CNPD}"]`).count()} url=${page.url()}`);
     // aplicar
@@ -150,7 +150,7 @@ async function main() {
     check(!!aud && aud.actorId === seed.userId && am.origem === "FICHA_ARTIGO" && am.tenant === "silveira" && am.cnp === CNPD && am.designacaoAnterior === prodD0.designacao && am.designacaoNova === dB.designacao && am.protecaoDesignacao.antes === false && am.protecaoDesignacao.depois === true, "auditoria: utilizador, tenant, produto, CNP, anterior, nova, proteção antes/depois, origem", JSON.stringify(am));
     await page.screenshot({ path: path.join(EVID, "designacao-aplicada.png") });
     // fechar e reabrir: começa limpo
-    await fechar(page).click();
+    await fechar(page).click({ force: true });
     await page.goto(baseFor("silveira") + `/stock/artigo/${CNPD}`, { waitUntil: "networkidle" });
     check((await page.locator('[data-testid="designacao-editor"]').count()) === 0, "fechar e reabrir a ficha começa sem o formulário antigo");
 
@@ -190,7 +190,7 @@ async function main() {
     const pdf = await postBinario(new URL(req.url()), req.postDataBuffer()!, (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join("; "));
     fs.writeFileSync(path.join(EVID, "vendas-designacao.pdf"), pdf);
     check(textoPdf(path.join(EVID, "vendas-designacao.pdf")).includes("Artigo Designação Final E2E"), "Vendas: o PDF real mostra o nome novo");
-    const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
+    const [dl] = await Promise.all([page.waitForEvent("download", { predicate: (d) => d.suggestedFilename().endsWith(".xlsx") }), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
     await dl.saveAs(path.join(EVID, "vendas-designacao.xlsx"));
     check(JSON.stringify(XLSX.utils.sheet_to_json(XLSX.readFile(path.join(EVID, "vendas-designacao.xlsx")).Sheets["Relatório"], { header: 1 })).includes("Artigo Designação Final E2E"), "Vendas: o Excel real mostra o nome novo");
     await page.getByRole("button", { name: /^Tabela$/ }).click();
@@ -241,7 +241,7 @@ async function main() {
     check(((await page.locator('[data-testid="fabricante-escolhido"]').innerText()) || "").includes("BAYER E2E PORTUGAL"), "regressar à ficha: a edição ainda não confirmada foi preservada");
     let dlg = 0;
     page.once("dialog", async (d) => { dlg++; await d.dismiss(); });
-    await fechar(page).click();
+    await fechar(page, CNPF).click({ force: true });
     await page.waitForTimeout(500);
     check(dlg === 1, "fechar o separador durante a edição pede confirmação");
     await page.locator('[data-testid="fabricante-continuar"]').click();
