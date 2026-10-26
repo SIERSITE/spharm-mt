@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { FileSpreadsheet, FileText, Mail, Printer, X } from "lucide-react";
 import type { Report } from "@/lib/reporting/report-types";
 import { printReport } from "@/lib/reporting/report-print";
@@ -210,7 +211,9 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
     });
   };
 
-  return (
+  // Em portal no <body>: os cartões do ecrã usam `backdrop-filter`, que passa a ser o bloco contentor de `position: fixed` e
+  // deixava o diálogo preso (e parcialmente coberto) dentro do cartão em vez de cobrir a janela.
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
       onClick={(e) => {
@@ -328,6 +331,7 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

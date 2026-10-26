@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { estadoSeparadores } from "../../lib/workspace/armazem-separadores";
+import { declararPendente } from "../../lib/workspace/pendentes";
 import { identidadeDoSeparador, hrefDoSeparador, resolverRota, ROTAS } from "../../lib/workspace/rotas";
 import { reduzirHref, reduzirSujo, reduzirTitulo, type EstadoPersistido } from "../../lib/workspace/task-bar-context";
 
@@ -96,6 +97,22 @@ console.log("\n=== E. Garantias estruturais: nada de resultados em storage do br
   ok("nenhum módulo repõe o resultado ao mudar de workspace (o separador re-hidrata o seu)", !/setHasGenerated\(false\);\s*\n\s*setRows\(\[\]\)/.test(ler("components/vendas/vendas-client.tsx")));
   ok("as fichas usam a navegação contextual (VoltarOrigem), não um «Voltar a Stock» fixo", /VoltarOrigem/.test(ler("app/stock/artigo/[cnp]/page.tsx")) && !/Voltar a Stock\s*\n\s*<\/Link>/.test(ler("app/stock/artigo/[cnp]/page.tsx")) && /VoltarOrigem/.test(ler("app/catalogo/artigo/[cnp]/page.tsx")));
   ok("terminar sessão avisa se QUALQUER separador tem alterações por confirmar", /tarefas\.find\(\(t\) => t\.sujo\)/.test(ler("components/layout/app-shell.tsx")));
+}
+
+console.log("\n=== P. Várias fontes de «alterações por confirmar» no mesmo separador (fabricante + designação) ===");
+{
+  estadoSeparadores.limparTudo();
+  const E = "t1:u1", S = "/stock/artigo/7100002";
+  ok("uma fonte pendente → o separador está sujo", declararPendente(E, S, "designacao", true) === true);
+  ok("outra fonte declara «sem pendentes» e NÃO apaga a pendente da primeira", declararPendente(E, S, "fabricante", false) === true);
+  ok("a fonte pendente resolve-se → deixa de estar sujo", declararPendente(E, S, "designacao", false) === false);
+  ok("as duas pendentes → sujo; resolve uma → continua sujo; resolve a outra → limpo", declararPendente(E, S, "fabricante", true) === true && declararPendente(E, S, "designacao", true) === true && declararPendente(E, S, "fabricante", false) === true && declararPendente(E, S, "designacao", false) === false);
+  ok("outro separador não é afetado", declararPendente(E, "/stock/artigo/9", "designacao", false) === false);
+  estadoSeparadores.limparSeparador(E, S);
+  ok("fechar o separador liberta as declarações (um separador reaberto não nasce sujo)", declararPendente(E, S, "fabricante", false) === false);
+  const ler = (f: string) => readFileSync(f, "utf8");
+  const hook = ler("lib/workspace/estado-separador.ts");
+  ok("o hook passa a fonte (omisso: «pagina») e os dois editores da ficha declaram fontes distintas", /useAlteracoesPendentes\(pendentes: boolean, fonte: string = FONTE_PAGINA\)/.test(hook) && /useAlteracoesPendentes\(pendente, "designacao"\)/.test(ler("components/stock/editor-designacao.tsx")) && /useAlteracoesPendentes\(pendente, "fabricante"\)/.test(ler("components/stock/editor-fabricante.tsx")));
 }
 
 console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

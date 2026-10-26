@@ -66,7 +66,7 @@ export function EditorFabricante({
 
   const atual = aplicado ?? { id: fabricanteId, nome: fabricante, manual, protegido };
   const pendente = form.aberto && (form.escolhido !== null || form.novoNome.trim() !== "" || form.passo !== "editar");
-  useAlteracoesPendentes(pendente);
+  useAlteracoesPendentes(pendente, "fabricante");
 
   // Autocomplete (debounce)
   useEffect(() => {

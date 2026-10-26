@@ -374,12 +374,10 @@ export function VendasClient({
   const pvpFiltroAplicavel = filtroPvpAplicavel(new Set(farmaciasEfetivas).size);
   const pvpDiferente = pvpDiferenteCriterio === true;
   const pvpDiferenteAtivo = pvpDiferente && pvpFiltroAplicavel;
-  /* eslint-disable react-hooks/exhaustive-deps -- `chaveFarmaciasEfetivas` representa `farmaciasEfetivas` */
   const codigosPvpDif = useMemo(
     () => (pvpDiferenteAtivo ? codigosComPvpDiferente(initialRows, chaveFarmaciasEfetivas.split("|")) : null),
     [pvpDiferenteAtivo, initialRows, chaveFarmaciasEfetivas],
   );
-  /* eslint-enable react-hooks/exhaustive-deps */
   const linhasBase = useMemo(
     () => (codigosPvpDif ? initialRows.filter((r) => codigosPvpDif.has(r.codigo)) : initialRows),
     [initialRows, codigosPvpDif],
@@ -391,7 +389,6 @@ export function VendasClient({
     if (!pvpDiferenteAtivo) return m;
     for (const [codigo, pvps] of pvpsPorCodigo(linhasBase)) if (artigoTemPvpDiferente(pvps, chaveFarmaciasEfetivas.split("|"))) m.set(codigo, pvps);
     return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pvpDiferenteAtivo, linhasBase, chaveFarmaciasEfetivas]);
 
   const baseFiltered = useMemo(() => {

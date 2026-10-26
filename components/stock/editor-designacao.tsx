@@ -59,7 +59,7 @@ export function EditorDesignacao({
   const tituloClasse = nivel === "h1" ? "text-[26px] font-semibold tracking-tight text-slate-900" : "mt-1 text-[18px] font-semibold text-slate-900";
   // Pendente: formulário aberto com texto diferente do atual, ou já num passo de confirmação.
   const pendente = form.aberto && (form.passo !== "editar" || form.texto !== atual.designacao);
-  useAlteracoesPendentes(pendente);
+  useAlteracoesPendentes(pendente, "designacao");
 
   const cancelar = () => {
     setForm(VAZIO);

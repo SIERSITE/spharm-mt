@@ -42,6 +42,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { identidadeDoSeparador } from "@/lib/workspace/rotas";
 import { useEscopoSeparadores, useTaskBar } from "@/lib/workspace/task-bar-context";
 import { estadoSeparadores } from "@/lib/workspace/armazem-separadores";
+import { declararPendente, FONTE_PAGINA } from "@/lib/workspace/pendentes";
 
 export { estadoSeparadores };
 
@@ -145,17 +146,22 @@ export function useEstadoSeparador<T>(
 }
 
 /**
+ * `fonte` identifica quem declara (omisso: a própria página). Páginas com mais de um editor independente passam fontes distintas.
+ *
  * Declara que o separador activo tem alterações por confirmar (rascunho, decisões, edições). A barra de separadores
  * mostra o indicador, pede confirmação ao FECHAR esse separador e a AppShell ao TERMINAR SESSÃO. Páginas só de leitura
  * não chamam isto (nem recebem confirmações). O valor persiste enquanto o separador existir — ao regressar a página
  * volta a declará-lo a partir do estado restaurado.
  */
-export function useAlteracoesPendentes(pendentes: boolean): void {
+export function useAlteracoesPendentes(pendentes: boolean, fonte: string = FONTE_PAGINA): void {
   const taskBar = useTaskBar();
   const id = useIdSeparador();
+  const escopo = useEscopoSeparadores();
   const marcarSujo = taskBar?.marcarSujo;
   const registado = !!id && !!taskBar?.tarefas.some((t) => t.id === id);
   useEffect(() => {
-    if (marcarSujo && id && registado) marcarSujo(id, pendentes);
-  }, [marcarSujo, id, registado, pendentes]);
+    if (!marcarSujo || !id || !registado) return;
+    // Várias fontes no mesmo separador (ex.: editor do fabricante + editor da designação): sujo se QUALQUER tiver pendentes.
+    marcarSujo(id, escopo ? declararPendente(escopo, id, fonte, pendentes) : pendentes);
+  }, [marcarSujo, id, registado, pendentes, escopo, fonte]);
 }
