@@ -491,7 +491,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             // produto existente a designação nunca é tocada.
             designacao:
               modoDesignacao === "SO_CRIACAO" ||
-              (modoDesignacao !== "AUTORITATIVA" && manual.has("designacao")) ||
+              manual.has("designacao") ||
               designacaoNova === ""
                 ? undefined
                 : a.designacao,

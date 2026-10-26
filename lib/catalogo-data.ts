@@ -411,6 +411,8 @@ export type CatalogoArticle = {
   id: string;
   cnp: number;
   designacao: string;
+  /** A designação foi corrigida à mão na ficha (`camposManuais ∋ "designacao"`): a sincronização do ERP não a substitui. */
+  designacaoManual: boolean;
   productType: string | null;
   productTypeConfidence: number | null;
   verificationStatus: VerificationStatus;
@@ -526,6 +528,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     id: p.id,
     cnp: p.cnp,
     designacao: p.designacao,
+    designacaoManual: p.camposManuais.includes("designacao"),
     productType: p.productType,
     productTypeConfidence: p.productTypeConfidence,
     verificationStatus: p.verificationStatus,

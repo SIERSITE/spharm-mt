@@ -44,6 +44,10 @@ export type ArtigoFichaStockRow = {
 export type ArtigoFichaData = {
   cnp: number;
   designacao: string;
+  /** O utilizador pode alterar o catálogo (`catalog.write`): só então a ficha mostra «Editar designação». */
+  podeEditarDesignacao: boolean;
+  /** A designação foi corrigida à mão na ficha: a sincronização automática não a substitui. */
+  designacaoManual: boolean;
   imagemUrl: string | null;
   fabricante: string;
   /** Fabricante atual (id) — `null` sem fabricante; serve a concorrência otimista da edição. */
@@ -157,6 +161,8 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
   return {
     cnp: produto.cnp,
     designacao: produto.designacao,
+    podeEditarDesignacao: can(sessao, "catalog.write"),
+    designacaoManual: produto.camposManuais.includes("designacao"),
     imagemUrl: produto.imagemUrl,
     fabricante: fmt(produto.fabricante?.nomeNormalizado),
     fabricanteId: produto.fabricanteId,

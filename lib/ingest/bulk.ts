@@ -186,12 +186,10 @@ export async function bulkUpsertProdutosByCnp(
   opcoes: {
     /**
      * Quem manda na designação de um produto que JÁ existe — ver
-     * `lib/ingest/designacao-silveira.ts`.      * `LEGACY` (omisso): a designação recebida, não vazia e não manual,
-     * substitui a existente. `AUTORITATIVA` (Silveirense, tenant silveira): a
-     * designação não vazia substitui MESMO que esteja em `camposManuais` — a
-     * única excepção a essa protecção. O valor já vem normalizado do chamador. `SO_CRIACAO`: o valor
-     * recebido só é usado no INSERT — num produto existente a designação
-     * fica exactamente como está.
+     * `lib/ingest/designacao-silveira.ts`. `LEGACY` (omisso) e `AUTORITATIVA` (Silveirense, tenant silveira): a
+     * designação recebida, não vazia, substitui a existente — EXCETO se estiver em `camposManuais` (corrigida à mão na ficha
+     * do artigo), que nenhuma sincronização substitui. O valor já vem normalizado do chamador no modo AUTORITATIVA.
+     * `SO_CRIACAO`: o valor recebido só é usado no INSERT — num produto existente a designação fica exactamente como está.
      */
     designacao?: ModoDesignacao;
   } = {}
@@ -199,9 +197,7 @@ export async function bulkUpsertProdutosByCnp(
   const designacaoNoConflito =
     opcoes.designacao === "SO_CRIACAO"
       ? Prisma.sql`"Produto"."designacao"`
-      : opcoes.designacao === "AUTORITATIVA"
-        ? Prisma.sql`COALESCE(NULLIF(btrim(EXCLUDED."designacao"), ''), "Produto"."designacao")`
-        : Prisma.sql`CASE
+      : Prisma.sql`CASE
         WHEN 'designacao' = ANY("Produto"."camposManuais") THEN "Produto"."designacao"
         ELSE COALESCE(NULLIF(btrim(EXCLUDED."designacao"), ''), "Produto"."designacao")
       END`;

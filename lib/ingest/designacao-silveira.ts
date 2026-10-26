@@ -33,13 +33,12 @@
  * de espaço técnicas (NBSP, tabs, quebras) normalizados — capitalização e
  * pontuação preservadas.
  *
- * `camposManuais`: a designação é a ÚNICA excepção. O CNP identifica um
- * produto comum a todas as farmácias e a designação é única no catálogo
- * partilhado; por isso a designação válida da Silveirense substitui a actual
- * MESMO que `"designacao"` esteja em `camposManuais`. Todos os outros campos
- * em `camposManuais` (flagGenerico, flagMnsrmNCompart, …) continuam
- * protegidos — esta regra nem lhes toca. As outras farmácias nunca alteram a
- * designação de um produto existente, manual ou não.
+ * `camposManuais` (2026-10): uma designação CORRIGIDA À MÃO na ficha do artigo (`"designacao"` em `camposManuais`) é protegida
+ * contra TODAS as sincronizações — também contra a da Silveirense. A correção manual feita no SPharm.MT prevalece sobre o ERP,
+ * na Silveirense como nos restantes tenants; só «Voltar a permitir atualização automática» (ficha do artigo) retira essa
+ * proteção. Antes desta data a designação era a única exceção (a Silveirense substituía-a mesmo marcada como manual); isso foi
+ * revertido deliberadamente. Esta regra só diz respeito à designação: nem toca nos restantes campos nem nas suas proteções. As
+ * outras farmácias continuam a nunca alterar a designação de um produto existente.
  *
  * ── Que farmácia é a Silveirense ─────────────────────────────────────
  *
@@ -106,9 +105,8 @@ export function decidirDesignacao(input: {
   if (input.modo === "SO_CRIACAO") {
     return nova === input.existente.designacao ? "IGUAL" : "IGNORADA_ORIGEM";
   }
-  // LEGACY (outros tenants): a protecção de `camposManuais` mantém-se. AUTORITATIVA
-  // (Silveirense, tenant silveira): a designação ignora `camposManuais`.
-  if (input.modo === "LEGACY" && input.existente.camposManuais.includes("designacao")) return "IGNORADA_MANUAL";
+  // Designação corrigida à mão (`camposManuais ∋ "designacao"`): protegida em LEGACY E na Silveirense (AUTORITATIVA).
+  if (input.existente.camposManuais.includes("designacao")) return "IGNORADA_MANUAL";
   return nova === input.existente.designacao ? "IGUAL" : "ALTERAR";
 }
 
@@ -125,7 +123,7 @@ export type EstatisticasDesignacao = {
   ignoradasOrigemNaoAutoritativa: number;
   /** Recebida vazia/só espaços — ignorada. */
   ignoradasVazias: number;
-  /** Protegida por `camposManuais` — só modo LEGACY; na Silveirense é sempre 0 (a designação ignora `camposManuais`). */
+  /** Protegida por `camposManuais` (correção manual na ficha) — em qualquer modo, Silveirense incluída. */
   ignoradasManual: number;
   /** Erros ao aplicar (itens que falharam no caminho de recurso). */
   erros: number;
@@ -315,6 +313,7 @@ export async function aplicarDesignacoesAutoritativas(
       FROM (VALUES ${Prisma.join(valores)}) AS v(cnp, d)
       WHERE p."cnp" = v.cnp
         AND p."designacao" IS DISTINCT FROM v.d
+        AND NOT ('designacao' = ANY(p."camposManuais"))
       RETURNING p."cnp"
     `);
     // O nº REAL de escritas manda (uma alteração concorrente entre a leitura

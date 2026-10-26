@@ -1,4 +1,7 @@
 import { VoltarOrigem } from "@/components/layout/voltar-origem";
+import { EditorDesignacao } from "@/components/stock/editor-designacao";
+import { getSession } from "@/lib/auth";
+import { can } from "@/lib/permissions-core";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -87,10 +90,12 @@ export default async function CatalogArticlePage({ params }: ArticlePageProps) {
 
   const article = await loadCatalogoArticle(cnpNum);
   if (!article) notFound();
+  // «Editar designação» só para quem pode alterar o catálogo (a ação revalida no servidor).
+  const podeEditarDesignacao = can(await getSession(), "catalog.write");
 
   return (
     <MainShell>
-      <ArticleView article={article} />
+      <ArticleView article={article} podeEditarDesignacao={podeEditarDesignacao} />
     </MainShell>
   );
 }
@@ -161,7 +166,7 @@ function RegulamentarSection({ article }: { article: CatalogoArticle }) {
   );
 }
 
-function ArticleView({ article }: { article: CatalogoArticle }) {
+function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArticle; podeEditarDesignacao: boolean }) {
   const tipo = rotuloProductType(article.productType);
 
   const minPvp = article.presencas
@@ -202,9 +207,13 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
                 Ficha mestre do artigo
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-                  {article.designacao}
-                </h1>
+                {podeEditarDesignacao ? (
+                  <EditorDesignacao cnp={article.cnp} designacao={article.designacao} manual={article.designacaoManual} podeEditar nivel="h1" />
+                ) : (
+                  <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
+                    {article.designacao}
+                  </h1>
+                )}
                 {article.retiradoStatus === "all" ? (
                   <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700">
                     Retirado

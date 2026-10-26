@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Package, Tag, Building2, Image as ImageIcon, Pill, Stethoscope } from "lucide-react";
 import type { ArtigoFichaData } from "@/lib/stock/artigo-ficha-data";
 import { EditorFabricante } from "@/components/stock/editor-fabricante";
+import { EditorDesignacao } from "@/components/stock/editor-designacao";
 
 /**
  * components/stock/artigo-ficha.tsx
@@ -156,7 +157,11 @@ function ArtigoIdentidade({ data }: { data: ArtigoFichaData }) {
     <div className="space-y-4">
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Identificação</div>
-        <h2 className="mt-1 text-[18px] font-semibold text-slate-900">{data.designacao}</h2>
+        {data.podeEditarDesignacao ? (
+          <EditorDesignacao cnp={data.cnp} designacao={data.designacao} manual={data.designacaoManual} podeEditar />
+        ) : (
+          <h2 className="mt-1 text-[18px] font-semibold text-slate-900">{data.designacao}</h2>
+        )}
         {(data.categoria || data.grupo) && (
           <p className="mt-1 text-[12px] text-slate-500">
             {data.categoria}
