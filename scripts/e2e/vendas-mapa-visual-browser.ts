@@ -334,7 +334,7 @@ async function main() {
     const custoTotalPdf = (sTodos.relatorio.summary ?? []).find((s) => /Custo total estimado/.test(s.label))?.value as number;
     check(totalGeralLinha.includes(eur(custoTotalPdf)), `PDF: TOTAL GERAL do custo (${eur(custoTotalPdf)}) completo — «${totalGeralLinha.slice(0, 90)}»`);
     check((todoT.match(/TOTAL GERAL(?! está no fim)/g) ?? []).length === 1 && textoPag(pT.paginas[pT.paginas.length - 1]).includes("TOTAL GERAL"), "TOTAL GERAL uma vez, na última página");
-    check(/Custo total PARCIAL: 1 linha/.test(todoT), "PDF: custo total PARCIAL assinalado (1 linha sem custo)");
+    check(/Custo\s+total\s+PARCIAL:\s+1\s+linha/.test(todoT), "PDF: custo total PARCIAL assinalado (1 linha sem custo)");
     check(!/[☐□▢]/.test(todoT) && !/checkbox/i.test(todoT), "PDF: sem checkboxes/caixas vazias");
     check(pT.paginas.every((pg) => pg.palavras.every((w) => w[2] <= pg.w - 8)), "PDF: nada ultrapassa a margem direita");
     // artigo + total na mesma página
