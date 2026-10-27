@@ -1020,7 +1020,10 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .table-wrap { margin-top: 8px; }
 
   /* tabela: sem grelha */
-  .page.density-compact.hierarchy-clean table { border-collapse: collapse; }
+  /* Bordas SEPARADAS (não colapsadas): cada filete pertence à sua célula. Com bordas colapsadas, o filete partilhado entre dois
+     artigos é pintado no TOPO da página seguinte quando a tabela quebra — um filete isolado por cima do 1.º artigo, colado ao
+     sublinhado do cabeçalho repetido. Assim o filete que fecha um artigo fica sempre com ele. */
+  .page.density-compact.hierarchy-clean table { border-collapse: separate; border-spacing: 0; }
   .page.density-compact.hierarchy-clean thead th {
     background: #f8fafc !important; color: #1f2937 !important; font-weight: 600;
     border: 0; border-bottom: 1.5px solid #334155; padding-top: 5px; padding-bottom: 5px;
@@ -1034,10 +1037,16 @@ const STYLES = `
   .page.density-compact.hierarchy-clean tbody.row-group-alt td,
   .page.density-compact.hierarchy-clean tbody tr:hover td { background: #ffffff !important; }
 
-  /* artigo: espaço + uma linha fina a separá-lo do anterior */
-  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { border-top: 1px solid #6b7280; padding-top: 5px; }
-  .page.density-compact.hierarchy-clean tbody.row-group:first-of-type > tr:first-child > td { border-top: 0; }
+  /* SEPARADOR ENTRE ARTIGOS (2026-10): um filete contínuo (2px, cinzento azulado médio — o Chromium arredonda as bordas a píxeis inteiros: 1.75px sairia a 1px no PDF) em toda a largura entre um artigo e o
+     seguinte — inclusive os artigos de uma só farmácia, que não têm «TOTAL ARTIGO». É a borda INFERIOR da última linha do artigo
+     (não a superior da primeira do seguinte), por três razões de paginação: um artigo que começa numa página nova não é precedido
+     de nenhum filete (não se confunde com o sublinhado do cabeçalho repetido, que é uma borda colapsada com a 1.ª linha); a 1.ª linha
+     de cada página fica limpa; e o último artigo não leva filete (o TOTAL GERAL tem o seu). As células agrupadas na vertical (CNP/Descrição)
+     fecham a sua própria borda inferior. Entre farmácias do mesmo artigo e antes do «TOTAL ARTIGO» ficam só os filetes leves. */
+  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { border-top: 0; padding-top: 8px; }
   .page.density-compact.hierarchy-clean tbody.row-group > tr:last-child > td { border-bottom: 0; }
+  .page.density-compact.hierarchy-clean tbody.row-group:not(.row-group-ultimo) > tr:last-child > td,
+  .page.density-compact.hierarchy-clean tbody.row-group:not(.row-group-ultimo) > tr > td[rowSpan] { border-bottom: 2px solid #8493a6; }
   .page.density-compact.hierarchy-clean tbody td.sg { color: #111827; vertical-align: middle; }
   .page.density-compact.hierarchy-clean tbody td.sg + td.sg { font-weight: 600; }
   .page.density-compact.hierarchy-clean tbody td.sg:first-child { color: #374151; font-weight: 500; }
@@ -1119,7 +1128,7 @@ const STYLES = `
   .page.density-compact.hierarchy-clean table.table-density-ultratight { font-size: 8.5px; }
   .page.density-compact.hierarchy-clean table.table-density-ultratight thead th { font-size: 7.5px; padding-left: 3px; padding-right: 3px; }
   .page.density-compact.hierarchy-clean table.table-density-ultratight tbody td { padding: 2.5px 3px; }
-  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { padding-top: 5px; }
+  .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { padding-top: 8px; }
 
   @media print {
     html, body { width: 100%; }

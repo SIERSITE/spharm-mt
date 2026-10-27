@@ -416,7 +416,10 @@ async function main() {
     const cleanSemTint = clean.replace(/[^{}]*tint-total[^{}]*\{[^}]*\}/g, "");
     ok("nenhuma linha vertical (border-left/right) no corpo clean (exceto a coluna «Total unid.»)", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(cleanSemTint));
     const espessuras = [...clean.matchAll(/border(?:-top|-bottom)?:\s*([0-9.]+)px/g)].map((m) => Number(m[1]));
-    ok(`todas as linhas do relatório limpo têm ≤ 1.5px (máx. ${Math.max(...espessuras)}px)`, espessuras.length > 0 && Math.max(...espessuras) <= 1.5);
+    // O separador entre artigos é, deliberadamente, o filete mais forte (2px); todos os outros mantêm-se ≤ 1.5px.
+    const semSeparador = clean.replace(/[^{}]*row-group:not\(\.row-group-ultimo\)[^{}]*\{[^}]*\}/g, "");
+    const espessurasSemSep = [...semSeparador.matchAll(/border(?:-top|-bottom)?:\s*([0-9.]+)px/g)].map((m) => Number(m[1]));
+    ok(`todas as linhas do relatório limpo têm ≤ 1.5px, exceto o separador entre artigos de 2px (máx. ${Math.max(...espessurasSemSep)}px)`, espessurasSemSep.length > 0 && Math.max(...espessurasSemSep) <= 1.5 && espessuras.includes(2) && Math.max(...espessuras) <= 2);
     ok("«Total artigo»: fundo cinzento muito claro (#f1f3f6), semibold, sem molduras", /tr\.subtotal-row td,[^{]*\{\s*background: #f1f3f6 !important;[^}]*font-weight: 600;\s*border: 0;/.test(clean));
     ok("«TOTAL GERAL»: nível acima do subtotal (bold, fundo #e5e8ed), sem bloco escuro", /\.totals-tbody td \{\s*background: #e5e8ed !important;[^}]*font-weight: 700/.test(clean));
     const fundos = [...cleanSemTint.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
@@ -618,6 +621,150 @@ async function main() {
         ok("…hierarquia preservada: corpo mais claro que o subtotal, e este mais claro que o TOTAL GERAL (na própria coluna)", lum(cores.tdTotal) > lum(cores.subTotal) && lum(cores.subTotal) > lum(cores.tgTotal));
         ok("…cabeçalho destacado mais escuro que o cabeçalho dos meses (coerência cabeçalho/células)", lum(cores.thTotal) < lum(cores.thMes), `${lum(cores.thTotal).toFixed(1)} vs ${lum(cores.thMes).toFixed(1)}`);
       } finally { await page.close(); }
+    }
+  }
+
+
+  // ═══ M. Separador entre artigos (PDF REAL — pixéis medidos —, CSS calculado no Chromium) ═══
+  console.log("\n=== M. Separador entre artigos: início de cada artigo, sem filete entre farmácias nem antes do TOTAL ARTIGO ===");
+  {
+    type SepPdf = { y0: number; y1: number; espessura: number; cinzento: number; fundoAcima: number; fundoAbaixo: number };
+    type PagPdf = { largura: number; altura: number; separadores: SepPdf[]; cabecalho: { y0: number; y1: number; espessura: number }[]; cnps: { y0: number; y1: number; texto: string }[]; totais: { y0: number; y1: number; texto: string }[]; maxX1: number };
+    const analisar = (f: string): PagPdf[] => {
+      const r = spawnSync("python", [path.resolve("scripts/e2e/_separadores_pdf.py"), f], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+      if (r.status !== 0) throw new Error(`python: ${r.stderr}`);
+      return JSON.parse(r.stdout.trim().split("\n").pop() ?? "[]") as PagPdf[];
+    };
+    const F2 = FARM[1], F1 = FARM[0];
+    // 1 única farmácia · outra única · duas farmácias (TOTAL ARTIGO) · única · designação longa · PVP divergente · última única
+    function demo(bks: { ano: number; mes: number }[]): VendasAdapterRow[] {
+      const q = (k: number) => bks.map((_, i) => (i + k) % 4);
+      return [
+        linha({ codigo: "5000001", descricao: "Artigo numa só farmácia UM", farmacia: F2, qtd: q(1), stock: 5 }, bks),
+        linha({ codigo: "5000002", descricao: "Artigo numa só farmácia DOIS", farmacia: F2, qtd: q(2), stock: 0 }, bks),
+        linha({ codigo: "5000003", descricao: "Artigo em duas farmácias", farmacia: F1, qtd: q(1), stock: 3 }, bks),
+        linha({ codigo: "5000003", descricao: "Artigo em duas farmácias", farmacia: F2, qtd: q(2), stock: 7 }, bks),
+        linha({ codigo: "5000004", descricao: "Artigo numa só farmácia QUATRO", farmacia: F1, qtd: q(3), stock: -2 }, bks),
+        linha({ codigo: "5000005", descricao: "Artigo com designação muito longa que ocupa duas ou três linhas na coluna da descrição do mapa de vendas SPharm", farmacia: F2, qtd: q(0), stock: 4 }, bks),
+        linha({ codigo: "5000006", descricao: "Artigo com PVP divergente", farmacia: F1, qtd: q(1), stock: 2, pvp: 9.99 }, bks),
+        linha({ codigo: "5000006", descricao: "Artigo com PVP divergente", farmacia: F2, qtd: q(2), stock: 1, pvp: 10.5 }, bks),
+        { ...linha({ codigo: "5000007", descricao: "Último artigo, stock desconhecido", farmacia: F2, qtd: q(3), stock: 0 }, bks), existenciaConhecida: false },
+      ];
+    }
+    /** Muitos artigos (várias páginas): 1 farmácia, 2 farmácias, 1 farmácia… */
+    function longo(bks: { ano: number; mes: number }[]): VendasAdapterRow[] {
+      const out: VendasAdapterRow[] = [];
+      for (let i = 0; i < 48; i++) {
+        const cod = String(5100001 + i);
+        out.push(linha({ codigo: cod, descricao: `Artigo comprido número ${i + 1}`, farmacia: i % 3 === 1 ? F1 : F2, qtd: bks.map((_, k) => (i + k) % 5), stock: (i % 7) - 1 }, bks));
+        if (i % 3 === 1) out.push(linha({ codigo: cod, descricao: `Artigo comprido número ${i + 1}`, farmacia: F2, qtd: bks.map((_, k) => (i + k + 1) % 4), stock: i % 5 }, bks));
+      }
+      return out;
+    }
+
+    /** O que tem de ser verdade em CADA página de um PDF do mapa. `ultimaDeCadaPagina`: relatórios em blocos (cada bloco acaba na sua página). */
+    function verificar(tag: string, paginas: PagPdf[], opc: { ultimaDeCadaPagina?: boolean; minPaginas?: number } = {}) {
+      const nCnps = paginas.reduce((a, p) => a + p.cnps.length, 0);
+      ok(`${tag}: A4 horizontal, nada cortado à direita, ${nCnps} artigos em ${paginas.length} página(s)`, paginas.every((p) => p.largura > p.altura && p.maxX1 <= p.largura - 8) && nCnps > 0 && paginas.length >= (opc.minPaginas ?? 1));
+      let todosOk = true; const falhas: string[] = [];
+      paginas.forEach((p, pi) => {
+        if (p.cnps.length === 0) return;
+        const ultima = opc.ultimaDeCadaPagina ? true : pi === paginas.length - 1;
+        // o «TOTAL GERAL» da tabela é o que vem DEPOIS do último artigo (o texto «TOTAL GERAL» da legenda dos blocos fica por cima)
+        const tgY = p.totais.filter((t) => t.texto === "GERAL" && t.y0 > p.cnps[p.cnps.length - 1].y0).map((t) => t.y0).sort((a, b) => a - b)[0] ?? Infinity;
+        // só os filetes espessos (≥ 0.9pt) e da cor do separador, entre o cabeçalho e o TOTAL GERAL
+        const cabY1 = Math.max(...p.cabecalho.filter((c) => c.y1 <= p.cnps[0].y0).map((c) => c.y1), 0);
+        const seps = p.separadores.filter((s) => s.espessura >= 0.9 && s.cinzento >= 110 && s.cinzento <= 180 && s.y0 > cabY1 - 1 && s.y1 < tgY + 0.5);
+        const esperados = p.cnps.length - (ultima ? 1 : 0);
+        if (seps.length !== esperados) { todosOk = false; falhas.push(`pág ${pi + 1}: ${seps.length} filetes, esperados ${esperados} (${p.cnps.length} artigos)`); }
+        // nenhum filete entre o sublinhado do cabeçalho e o 1.º artigo da página (nem «isolado» no topo)
+        if (seps.some((s) => s.y0 < p.cnps[0].y0)) { todosOk = false; falhas.push(`pág ${pi + 1}: filete acima do 1.º artigo`); }
+        for (let i = 0; i + 1 < p.cnps.length; i++) {
+          const a = p.cnps[i], b = p.cnps[i + 1];
+          const entre = seps.filter((s) => s.y0 > a.y0 && s.y0 < b.y0);
+          if (entre.length !== 1) { todosOk = false; falhas.push(`pág ${pi + 1}: ${entre.length} filetes entre ${a.texto} e ${b.texto}`); continue; }
+          // o único filete está DEPOIS de qualquer «TOTAL ARTIGO» do artigo e depois da sua última linha (nunca antes dele nem entre farmácias)
+          const totaisDoArtigo = p.totais.filter((t) => t.texto === "ARTIGO" && t.y0 > a.y0 && t.y0 < b.y0);
+          if (totaisDoArtigo.some((t) => t.y1 > entre[0].y0)) { todosOk = false; falhas.push(`pág ${pi + 1}: filete antes do TOTAL ARTIGO de ${a.texto}`); }
+        }
+      });
+      ok(`${tag}: UM filete entre cada par de artigos consecutivos (inclusive de uma só farmácia), nenhum entre farmácias do mesmo artigo, nenhum antes do TOTAL ARTIGO, nenhum acima do 1.º artigo de cada página`, todosOk, falhas.slice(0, 4).join(" | "));
+      const todos = paginas.flatMap((p) => p.separadores.filter((s) => s.espessura >= 0.9 && s.cinzento >= 110 && s.cinzento <= 180));
+      ok(`${tag}: o filete é leve (≤ 2.4pt), cinzento azulado médio, e destaca-se do fundo ≥ 60 níveis em escala de cinzentos`, todos.length > 0 && todos.every((s) => s.espessura <= 2.4 && s.cinzento <= 175 && s.fundoAcima - s.cinzento >= 60 && s.fundoAbaixo - s.cinzento >= 60), JSON.stringify(todos.slice(0, 2)));
+      ok(`${tag}: o sublinhado do cabeçalho continua escuro e distinto do separador (1 por página)`, paginas.every((p) => p.cabecalho.length >= 1));
+    }
+
+    // ── CSS calculado no Chromium: larguras reais das bordas ─────────────────────────────────────────────────────────────────
+    {
+      const b = buckets(3);
+      const html = renderReportHtml(gerar(demo(b), b));
+      const page = await browser.newPage();
+      try {
+        await page.emulateMediaType("print");
+        await page.setContent(html, { waitUntil: "networkidle0" });
+        await page.evaluate("window.__name = (f) => f;");
+        const r = await page.evaluate(() => {
+          const w = (el: Element | null, lado: "Top" | "Bottom") => (el ? parseFloat(getComputedStyle(el)[`border${lado}Width` as "borderTopWidth"]) : -1);
+          const grupos = [...document.querySelectorAll("tbody.row-group")];
+          const rel = grupos.map((g, gi) => {
+            const trs = [...g.querySelectorAll(":scope > tr")];
+            const ultimaLinha = trs[trs.length - 1];
+            const tdsUlt = [...ultimaLinha.querySelectorAll("td")];
+            const spans = [...g.querySelectorAll("td[rowSpan]")];
+            const internas = trs.slice(0, -1);
+            return {
+              gi, ultimo: g.classList.contains("row-group-ultimo"), nLinhas: trs.length,
+              baixoUltima: Math.min(...tdsUlt.map((t) => w(t, "Bottom"))),
+              baixoSpans: spans.length ? Math.min(...spans.map((t) => w(t, "Bottom"))) : null,
+              topoPrimeira: Math.max(...[...trs[0].querySelectorAll("td")].map((t) => w(t, "Top"))),
+              baixoInternas: internas.length ? Math.max(...internas.flatMap((tr) => [...tr.querySelectorAll("td")].filter((t) => !t.hasAttribute("rowspan")).map((t) => w(t, "Bottom")))) : 0,
+              topoTotalArtigo: g.querySelector("tr.subtotal-row") ? Math.max(...[...g.querySelectorAll("tr.subtotal-row td")].map((t) => w(t, "Top"))) : null,
+              paddingTopPrimeira: parseFloat(getComputedStyle(trs[0].querySelector("td")!).paddingTop),
+            };
+          });
+          const th = document.querySelector("thead th");
+          return { rel, thBaixo: w(th, "Bottom") };
+        });
+        const nao_ultimos = r.rel.filter((g) => !g.ultimo);
+        ok(`CSS calculado (${r.rel.length} artigos): a última linha de TODOS os artigos exceto o último fecha com 2px; o último artigo com 0 (o TOTAL GERAL tem o seu)`, nao_ultimos.length === r.rel.length - 1 && nao_ultimos.every((g) => g.baixoUltima === 2) && r.rel.filter((g) => g.ultimo).every((g) => g.baixoUltima === 0), JSON.stringify(r.rel.map((g) => [g.gi, g.baixoUltima])));
+        ok("CSS calculado: as células com rowspan (CNP/Descrição) dos artigos com várias farmácias também fecham com 2px", r.rel.filter((g) => g.baixoSpans !== null && !g.ultimo).every((g) => g.baixoSpans === 2) && r.rel.some((g) => g.baixoSpans !== null));
+        ok("CSS calculado: entre farmácias do mesmo artigo e antes do TOTAL ARTIGO só há filetes leves (≤ 1px)", r.rel.every((g) => g.baixoInternas <= 1) && r.rel.filter((g) => g.topoTotalArtigo !== null).every((g) => (g.topoTotalArtigo ?? 0) <= 1));
+        ok("CSS calculado: a 1.ª linha de cada artigo não tem borda superior (nada decorativo acima do 1.º artigo da página, nada que colapse com o sublinhado do cabeçalho)", r.rel.every((g) => g.topoPrimeira === 0) && r.thBaixo >= 1);
+        ok("CSS calculado: pequeno espaço antes do 1.º registo de cada artigo (padding-top 8px, sem linha vazia)", r.rel.every((g) => g.paddingTopPrimeira === 8) && !/<tr[^>]*>\s*<td[^>]*>\s*<\/td>\s*<\/tr>/.test(html));
+      } finally { await page.close(); }
+      const cssHtml = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+      ok("CSS: sem zebra por artigo no relatório limpo (as colunas já têm fundos próprios)", !/hierarchy-clean[^{]*tbody\.row-group-alt[^{]*\{[^}]*background: #(?!fff)/i.test(cssHtml.slice(cssHtml.indexOf("HIERARQUIA LIMPA"))) && !/row-group-alt/.test(html.slice(html.indexOf("<body"))) || /hierarchy-clean tbody\.row-group-alt td/.test(cssHtml));
+    }
+
+    // ── PDF real: 3, 13, 14 e 27 meses, com e sem preços; documentos de várias páginas ───────────────────────────────────────────
+    const colunas = [
+      { n: 3, v: true, c: true }, { n: 13, v: true, c: true }, { n: 3, v: false, c: true }, { n: 3, v: true, c: false }, { n: 3, v: false, c: false }, { n: 13, v: false, c: false },
+      { n: 14, v: true, c: true, blocos: true }, { n: 27, v: true, c: true, blocos: true },
+    ];
+    for (const k of colunas) {
+      const b = buckets(k.n);
+      const rows = demo(b);
+      const rel = buildVendasReport({ rows, buckets: b, filters: { agruparPor: "artigo" }, universe: { farmacias: FARM, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste", incluirPrecosVenda: k.v, incluirPrecosCompra: k.c });
+      const f = await pdfDe(rel, `sep-${k.n}-${k.v ? 1 : 0}${k.c ? 1 : 0}`);
+      const tag = `PDF real ${k.n} meses · venda=${k.v ? "sim" : "não"} · compra=${k.c ? "sim" : "não"}`;
+      const pags = analisar(f);
+      verificar(tag, pags, { ultimaDeCadaPagina: !!k.blocos });
+      // cálculos e totais não mudaram: o TOTAL GERAL do PDF é a soma dos dados
+      const unidades = rows.reduce((a, r) => a + r.totalVendas, 0);
+      const stock = rows.filter((r) => r.existenciaConhecida !== false).reduce((a, r) => a + r.existencia, 0);
+      const linhasPdf = palavras(f).paginas.flatMap(linhasDe);
+      const tg = linhasPdf.filter((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
+      ok(`${tag}: TOTAL GERAL inalterado (unidades ${unidades}, stock total ${stock})`, tg.length >= 1 && tg.some((l) => new RegExp(`\\b${unidades}\\b`).test(l) && new RegExp(`\\b${stock}\\b`).test(l)), tg.join(" | "));
+    }
+    for (const n of [3, 13]) {
+      const b = buckets(n);
+      const rows = longo(b);
+      const rel = gerar(rows, b);
+      const f = await pdfDe(rel, `sep-longo-${n}`);
+      const pags = analisar(f);
+      verificar(`PDF real multipágina ${n} meses (48 artigos, ${rows.length} linhas)`, pags, { minPaginas: 2 });
+      const artigosEmPdf = new Set(pags.flatMap((p) => p.cnps.map((c) => c.texto))).size;
+      ok(`PDF real multipágina ${n} meses: nenhum artigo perdido nem repetido (${artigosEmPdf} de 48) e nenhum artigo dividido por duas páginas`, artigosEmPdf === 48 && pags.reduce((a, p) => a + p.cnps.length, 0) === 48);
     }
   }
 
