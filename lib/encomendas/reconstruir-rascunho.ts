@@ -22,7 +22,7 @@
  * que na prática usava `fundirComProposta` e arriscava sobrescrever
  * quantidades editadas em linhas ainda PROPOSTA).
  */
-import type { ExcessoInfo, ProposalEstado, ProposalRow } from "./proposal";
+import type { ExcessoInfo, PendenteInfo, ProposalEstado, ProposalRow } from "./proposal";
 
 /** Os campos informativos que este módulo actualiza — e nada mais. */
 export type LinhaEnriquecivel = {
@@ -31,7 +31,9 @@ export type LinhaEnriquecivel = {
   avgDailySales: number | null;
   currentStock: number | null;
   coberturaAtualDias: number | null;
+  /** INFORMATIVO — nunca entra em cálculos (ver ProposalRow.pendingQty). */
   pendingQty: number | null;
+  pendentes?: PendenteInfo[];
   estado: ProposalEstado | null;
   motivo: string | null;
   excessoFonte: ExcessoInfo[];
@@ -78,6 +80,7 @@ export function enriquecerLinhasRascunho<T extends LinhaEnriquecivel>(
       currentStock: fresca.currentStock,
       coberturaAtualDias: fresca.coberturaAtualDias,
       pendingQty: fresca.pendingQty,
+      pendentes: fresca.pendentes,
       estado: fresca.estado,
       motivo: fresca.motivo,
       excessoFonte: fresca.excessoFonte,

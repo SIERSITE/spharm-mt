@@ -38,7 +38,7 @@ function rowFresca(overrides: Partial<ProposalRow>): ProposalRow {
     farmaciaId: "f1", farmaciaNome: "F1", produtoId: "p1", cnp: 111,
     designacao: "X", fabricante: null, fornecedor: null, fornecedorSugeridoId: null, categoria: "", productType: null,
     salesQty: 99, avgDailySales: 3.3, currentStock: 42, coberturaAtualDias: 12.7,
-    pendingQty: 2, targetQty: 10, suggestedQty: 8, transferirQty: 0,
+    pendingQty: 2, pendentes: [], targetQty: 10, suggestedQty: 8, transferirQty: 0,
     estado: "COMPRAR", motivo: "novo motivo", excessoFonte: [], semVendasNoPeriodo: false,
     ...overrides,
   };
@@ -56,7 +56,7 @@ console.log("A · quantidade final/notas/origem NUNCA são tocadas");
 
 console.log("\nB · campos informativos são actualizados a partir do recálculo fresco");
 {
-  const persistida = linhaBase({ currentStock: 1, coberturaAtualDias: 0.5, estado: "AGUARDAR", motivo: "velho" });
+  const persistida = linhaBase({ currentStock: 1, coberturaAtualDias: 0.5, estado: "ADEQUADO", motivo: "velho" });
   const [r] = enriquecerLinhasRascunho([persistida], [rowFresca({ currentStock: 42, coberturaAtualDias: 12.7, estado: "COMPRAR", motivo: "novo motivo" })]);
   eq(r.currentStock, 42, "B1: stock actualizado");
   eq(r.coberturaAtualDias, 12.7, "B2: cobertura actualizada");

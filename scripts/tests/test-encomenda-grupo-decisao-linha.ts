@@ -134,13 +134,9 @@ check(!ehAcaoLinhaGrupo(null), "null não é acção");
   eq(d.acao, "ENCOMENDAR", "COMPRAR com transferência parcial ainda sugere ENCOMENDAR (simplificação deliberada)");
 }
 {
-  const dAguardar = sugerirDecisao({
-    farmaciaId: "f1", estado: "AGUARDAR", suggestedQty: 0, transferirQty: 0, excessoFonte: [],
-  });
   const dAdequado = sugerirDecisao({
     farmaciaId: "f1", estado: "ADEQUADO", suggestedQty: 0, transferirQty: 0, excessoFonte: [],
   });
-  eq(dAguardar.acao, "NAO_FAZER", "AGUARDAR ⇒ NÃO FAZER");
   eq(dAdequado.acao, "NAO_FAZER", "ADEQUADO ⇒ NÃO FAZER");
 }
 {

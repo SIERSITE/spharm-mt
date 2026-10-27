@@ -104,6 +104,7 @@ import type {
   ProposalRow,
   ProposalBaseRule,
   ProposalEstado,
+  PendenteInfo,
   ProposalStats,
   ExcessoInfo,
 } from "@/lib/encomendas/proposal";
@@ -142,7 +143,9 @@ type Line = {
   avgDailySales: number | null;
   currentStock: number | null;
   coberturaAtualDias: number | null;
+  /** INFORMATIVO: outras encomendas já existentes. Não entra em nenhum cálculo (ver lib/encomendas/proposal.ts). */
   pendingQty: number | null;
+  pendentes?: PendenteInfo[];
   suggestedQty: number | null;
   transferirQty: number;
   finalQty: string;
@@ -220,6 +223,52 @@ const CAN_GROUP_PERFIS = new Set(["ADMINISTRADOR", "GESTOR_GRUPO"]);
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
+/** Texto do tooltip da coluna «Pendente» — sempre o mesmo, e a dizer que é só informação. */
+export function textoTooltipPendente(qty: number): string {
+  return `Informativo: existem ${qty} unidades noutras encomendas. Este valor não interfere na sugestão atual.`;
+}
+
+/**
+ * «Pendente» é INFORMATIVO (2026-10): mostra que já existem outras encomendas (finalizadas, ainda por exportar) para o artigo, e
+ * quais. Não participa em nenhum cálculo, não altera a sugestão, o estado nem os totais. Expansível: lista as encomendas que o
+ * compõem (a soma coincide com o valor da coluna, por construção) com ligação para abrir cada uma.
+ */
+function PendenteInformativo({ qty, pendentes }: { qty: number | null; pendentes?: PendenteInfo[] }) {
+  if (qty == null || qty <= 0) return <span>{qty == null ? "—" : Math.round(qty)}</span>;
+  const titulo = textoTooltipPendente(Math.round(qty));
+  const lista = pendentes ?? [];
+  return (
+    <details className="relative inline-block text-right" data-testid="pendente-info">
+      <summary
+        title={titulo}
+        data-testid="pendente-valor"
+        className="cursor-pointer list-none italic text-slate-400 underline decoration-dotted underline-offset-2"
+      >
+        {Math.round(qty)}
+      </summary>
+      <div role="note" data-testid="pendente-detalhe" className="absolute right-0 z-30 mt-1 w-80 rounded-lg border border-slate-200 bg-white p-2.5 text-left text-[11px] font-normal not-italic text-slate-600 shadow-lg">
+        <p className="mb-1.5 font-medium text-slate-700">{titulo}</p>
+        {lista.length > 0 ? (
+          <ul className="space-y-1">
+            {lista.map((p) => (
+              <li key={p.listaId} className="flex items-baseline justify-between gap-2" data-testid="pendente-encomenda">
+                <span>
+                  <a href={`/encomendas/${p.listaId}`} target="_blank" rel="noopener" className="font-medium text-cyan-700 hover:underline">{p.numero ?? p.nome}</a>
+                  {" · "}{p.fornecedor ?? "sem fornecedor"}{" · "}{p.estadoExport === "EM_EXPORTACAO" ? "em exportação" : "por exportar"}{" · "}{p.data ? new Date(p.data).toLocaleDateString("pt-PT") : ""}
+                </span>
+                <span className="tabular-nums font-semibold">{Math.round(p.quantidade)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-slate-400">Sem detalhe disponível.</p>
+        )}
+        <p className="mt-1.5 border-t border-slate-100 pt-1 text-right tabular-nums">Total: <strong>{Math.round(lista.reduce((s, p) => s + p.quantidade, 0) || qty)}</strong></p>
+      </div>
+    </details>
+  );
+}
+
 function fmtNum(v: number | null | undefined, digits = 0): string {
   if (v == null) return "—";
   if (digits === 0) return String(Math.round(v));
@@ -246,7 +295,6 @@ function estadoLabel(e: ProposalEstado): string {
   switch (e) {
     case "TRANSFERÊNCIA": return "Transferência";
     case "COMPRAR": return "Comprar";
-    case "AGUARDAR": return "Aguardar";
     case "ADEQUADO": return "Adequado";
   }
 }
@@ -255,7 +303,6 @@ function estadoColors(e: ProposalEstado): string {
   switch (e) {
     case "TRANSFERÊNCIA": return "bg-blue-50 text-blue-700 border-blue-200";
     case "COMPRAR": return "bg-rose-50 text-rose-700 border-rose-200";
-    case "AGUARDAR": return "bg-amber-50 text-amber-700 border-amber-200";
     case "ADEQUADO": return "bg-emerald-50 text-emerald-700 border-emerald-200";
   }
 }
@@ -265,7 +312,6 @@ function rowBg(e: ProposalEstado | null): string {
   switch (e) {
     case "TRANSFERÊNCIA": return "bg-blue-50/30";
     case "COMPRAR": return "";
-    case "AGUARDAR": return "bg-amber-50/20";
     case "ADEQUADO": return "bg-emerald-50/20";
   }
 }
@@ -1612,7 +1658,7 @@ export function OrderCreateClient({
       }
     >();
     const priority: Record<ProposalEstado, number> = {
-      COMPRAR: 4, TRANSFERÊNCIA: 3, AGUARDAR: 2, ADEQUADO: 1,
+      COMPRAR: 4, TRANSFERÊNCIA: 3, ADEQUADO: 1,
     };
     for (const l of linhas) {
       const k = l.produtoId;
@@ -1898,7 +1944,7 @@ export function OrderCreateClient({
       farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
       salesQty: r.salesQty, avgDailySales: r.avgDailySales,
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
-      pendingQty: r.pendingQty, suggestedQty: r.suggestedQty,
+      pendingQty: r.pendingQty, pendentes: r.pendentes, suggestedQty: r.suggestedQty,
       transferirQty: r.transferirQty,
       finalQty: String(finalQtyPadrao),
       notas: "", origem: "PROPOSTA",
@@ -2289,7 +2335,6 @@ export function OrderCreateClient({
       }
       if (stats.comprar > 0) parts.push(`${stats.comprar} a comprar`);
       if (stats.transferencia > 0) parts.push(`${stats.transferencia} transferências`);
-      if (stats.aguardar > 0) parts.push(`${stats.aguardar} aguardar`);
       setFlash({
         type: "info",
         msg: `${fusao.linhas.length} linhas · ${result.data.meta.numDays} dias${parts.length ? " · " + parts.join(" · ") : ""}`,
@@ -2833,7 +2878,7 @@ export function OrderCreateClient({
         <td className={`px-2 py-1.5 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
           {l.coberturaAtualDias != null ? `${l.coberturaAtualDias.toFixed(1)}d` : "—"}
         </td>
-        <td className="px-2 py-1.5 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
+        <td className="px-2 py-1.5 text-right tabular-nums text-slate-400" data-testid="celula-pendente"><PendenteInformativo qty={l.pendingQty} pendentes={l.pendentes} /></td>
         <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
         <td className="min-w-[150px] px-2 py-1.5">
           {l.motivo ? (
@@ -3194,12 +3239,11 @@ export function OrderCreateClient({
 
       {/* PAINEL DE RESUMO */}
       {proposalMeta && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {(
             [
               { estado: "COMPRAR" as ProposalEstado, count: proposalMeta.stats.comprar, label: "A comprar", bg: "bg-rose-50 border-rose-200", text: "text-rose-700", dot: "bg-rose-500" },
               { estado: "TRANSFERÊNCIA" as ProposalEstado, count: proposalMeta.stats.transferencia, label: "Transferência", bg: "bg-blue-50 border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
-              { estado: "AGUARDAR" as ProposalEstado, count: proposalMeta.stats.aguardar, label: "Aguardar", bg: "bg-amber-50 border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
               { estado: "ADEQUADO" as ProposalEstado, count: proposalMeta.stats.adequado, label: "Adequado", bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
             ] as const
           ).map(({ estado, count, label, bg, text, dot }) => (
@@ -3341,7 +3385,7 @@ export function OrderCreateClient({
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="avgDailySales" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Média/d</CabecalhoOrdenavel>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="currentStock" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Stock</CabecalhoOrdenavel>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="coberturaAtualDias" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Cobert.</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" title="Informativo: unidades que já constam de outras encomendas. Não interfere na sugestão atual." className="w-14 px-2 py-1.5 text-[10px] font-medium italic uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
                     <th className="min-w-[150px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
                     <th className="min-w-[160px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Fornecedor</th>

@@ -78,7 +78,12 @@ export type GroupProposalInput = {
 
 // ─── Estado e Motivo ─────────────────────────────────────────────────────────
 
-export type ProposalEstado = "TRANSFERÊNCIA" | "COMPRAR" | "AGUARDAR" | "ADEQUADO";
+/**
+ * Estado de uma linha da proposta. SÓ existem estes quatro, e todos derivam de vendas, stock, cobertura e stock de OUTRAS
+ * farmácias (transferência). Já não existe «AGUARDAR» (2026-10): era a única classificação que dependia de encomendas anteriores
+ * (`pendingQty`), e a decisão funcional é que outras encomendas nunca reduzem, anulam nem classificam a sugestão.
+ */
+export type ProposalEstado = "TRANSFERÊNCIA" | "COMPRAR" | "ADEQUADO";
 
 export type ExcessoInfo = {
   farmaciaId: string;
@@ -90,8 +95,20 @@ export type ProposalStats = {
   total: number;
   transferencia: number;
   comprar: number;
-  aguardar: number;
   adequado: number;
+};
+
+/** Uma encomenda que compõe o «Pendente» informativo de uma linha (só para apresentação — nunca entra em cálculos). */
+export type PendenteInfo = {
+  listaId: string;
+  numero: string | null;
+  nome: string;
+  fornecedor: string | null;
+  /** Estado de exportação da encomenda (PENDENTE | EM_EXPORTACAO). */
+  estadoExport: string;
+  quantidade: number;
+  /** ISO — criação da encomenda. */
+  data: string;
 };
 
 export type ProposalRow = {
@@ -127,7 +144,14 @@ export type ProposalRow = {
   avgDailySales: number;
   currentStock: number | null;
   coberturaAtualDias: number | null;
+  /**
+   * INFORMATIVO (2026-10). Unidades que constam de OUTRAS encomendas finalizadas ainda por exportar (a mesma consulta de sempre,
+   * por farmácia). NÃO participa em NENHUM cálculo: não entra em `suggestedQty`, nem no `estado`, nem nos totais, nem na decisão
+   * do grupo. Existe só para o utilizador saber que há outras encomendas. Ver `PENDENTE_INFORMATIVO` e `calcularQuantidadeSugerida`.
+   */
   pendingQty: number;
+  /** As encomendas que compõem `pendingQty` (a soma coincide por construção: vêm da MESMA agregação). Só apresentação. */
+  pendentes: PendenteInfo[];
   targetQty: number;
   suggestedQty: number;
   transferirQty: number;
@@ -197,30 +221,71 @@ function diffDaysInclusive(start: Date, end: Date): number {
   return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
 }
 
+/** O detalhe do pendente (JSON da agregação SQL) → `PendenteInfo[]`. Tolerante: um JSON inesperado dá lista vazia, nunca rebenta. */
+export function lerPendentes(json: string | null | undefined): PendenteInfo[] {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json) as Array<Record<string, unknown>>;
+    return arr.map((x) => ({
+      listaId: String(x.listaId),
+      numero: x.numero == null ? null : String(x.numero),
+      nome: String(x.nome ?? ""),
+      fornecedor: x.fornecedor == null ? null : String(x.fornecedor),
+      estadoExport: String(x.estadoExport ?? ""),
+      quantidade: Number(x.quantidade) || 0,
+      data: x.data == null ? "" : new Date(String(x.data)).toISOString(),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function toF(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
 function computeStats(rows: ProposalRow[]): ProposalStats {
-  const s: ProposalStats = { total: rows.length, transferencia: 0, comprar: 0, aguardar: 0, adequado: 0 };
+  const s: ProposalStats = { total: rows.length, transferencia: 0, comprar: 0, adequado: 0 };
   for (const r of rows) {
     if (r.estado === "TRANSFERÊNCIA") s.transferencia++;
     else if (r.estado === "COMPRAR") s.comprar++;
-    else if (r.estado === "AGUARDAR") s.aguardar++;
     else s.adequado++;
   }
   return s;
 }
 
-function computeEstado(suggestedQty: number, pendingQty: number, considerStock: boolean): ProposalEstado {
-  if (!considerStock) return suggestedQty > 0 ? "COMPRAR" : "ADEQUADO";
-  if (suggestedQty <= 0 && pendingQty > 0) return "AGUARDAR";
-  if (suggestedQty <= 0) return "ADEQUADO";
-  return "COMPRAR";
+/**
+ * A quantidade sugerida de compra de UMA farmácia, só por vendas e stock (2026-10).
+ *
+ *   ANTES:  max(0, ceil(alvo − stock − PENDENTE))   — outras encomendas deduziam-se e podiam pôr a sugestão a zero
+ *   AGORA:  max(0, ceil(alvo − stock))              — o PENDENTE já não entra na fórmula
+ *
+ * Sem «considerar stock», a sugestão é o próprio alvo. O alvo é `salesQty` (regra «total») ou média diária × cobertura.
+ * Função pura e exportada: é o único sítio onde a quantidade sugerida se calcula, e não tem parâmetro de pendente.
+ */
+export function calcularQuantidadeSugerida(input: { target: number; stock: number | null; considerStock: boolean }): number {
+  const bruto = input.considerStock ? input.target - (input.stock ?? 0) : input.target;
+  return Math.max(0, Math.ceil(bruto));
 }
 
-function buildMotivo(
+/** O estado só depende da quantidade sugerida (e de se o stock conta). Sem «AGUARDAR»: outras encomendas não classificam a linha. */
+export function computeEstado(suggestedQty: number): ProposalEstado {
+  return suggestedQty > 0 ? "COMPRAR" : "ADEQUADO";
+}
+
+/** Texto informativo sobre outras encomendas — NÃO sugere espera e nunca altera o estado nem a quantidade. */
+export function textoPendenteInformativo(pendingQty: number): string {
+  return `Informativo: ${pendingQty} unidades já constam de outras encomendas; não foram consideradas no cálculo desta proposta.`;
+}
+
+/** O motivo da linha + (se houver) a nota INFORMATIVA sobre outras encomendas. A nota é só texto: não depende do estado. */
+function buildMotivo(estado: ProposalEstado, p: Parameters<typeof motivoBase>[1]): string {
+  const base = motivoBase(estado, p);
+  return p.pendingQty > 0 ? `${base} · ${textoPendenteInformativo(p.pendingQty)}` : base;
+}
+
+function motivoBase(
   estado: ProposalEstado,
   p: {
     currentStock: number | null;
@@ -238,9 +303,6 @@ function buildMotivo(
   switch (estado) {
     case "ADEQUADO":
       return `Stock: ${stock} und (${cobStr}) · acima do alvo de ${p.targetCoverageDays}d`;
-
-    case "AGUARDAR":
-      return `Encomenda pendente: ${p.pendingQty} und · cobre a necessidade`;
 
     case "COMPRAR": {
       const base = `Stock: ${stock} und (${cobStr}) · alvo ${p.targetCoverageDays}d`;
@@ -285,7 +347,7 @@ function emptyProposal(
       targetCoverageDays: input.targetCoverageDays,
       filtered: 0,
       totalProductsWithSales: 0,
-      stats: { total: 0, transferencia: 0, comprar: 0, aguardar: 0, adequado: 0 },
+      stats: { total: 0, transferencia: 0, comprar: 0, adequado: 0 },
       truncated: false,
       ...(cnpsNaLista !== undefined ? { cnpsNaLista } : {}),
     },
@@ -310,7 +372,9 @@ type RawRow = {
   canonN1: string | null;
   canonN2: string | null;
   salesQty: number;
+  /** INFORMATIVO — ver `ProposalRow.pendingQty`. */
   pendingQty: number;
+  pendentesJson: string | null;
 };
 
 // ─── Proposta por farmácia ────────────────────────────────────────────────────
@@ -381,16 +445,25 @@ export async function generateOrderProposal(
       GROUP BY vm."produtoId"
     ),
     pending AS (
-      -- Compromisso REAL por exportar: só encomendas FINALIZADAS (com outbox)
-      -- cuja exportação ainda não terminou. Um RASCUNHO nunca conta — nem o
-      -- de outra análise/consolidação, nem o rascunho-pai já dividido por
-      -- fornecedor (os seus documentos filhos FINALIZADA já contam) — e
-      -- ANULADA/ELIMINADA também não. estadoExport sozinho não chegava:
-      -- nasce PENDENTE por omissão em TODOS os estados (ver schema).
+      -- INFORMATIVO (2026-10) — NÃO entra em nenhum cálculo da proposta (ver calcularQuantidadeSugerida). Serve só para a
+      -- coluna «Pendente» mostrar que já existem outras encomendas: as FINALIZADAS desta farmácia cuja exportação ainda não
+      -- terminou (um RASCUNHO, a ANULADA/ELIMINADA e o rascunho-pai dividido nunca contam; estadoExport sozinho não chegava:
+      -- nasce PENDENTE por omissão em TODOS os estados). UMA só agregação por produto (sem N+1): a soma e o detalhe saem
+      -- das MESMAS linhas, por isso coincidem sempre.
       SELECT le."produtoId",
-             SUM(COALESCE(le."quantidadeAjustada", le."quantidadeSugerida", 0)) AS qty
+             SUM(COALESCE(le."quantidadeAjustada", le."quantidadeSugerida", 0)) AS qty,
+             jsonb_agg(jsonb_build_object(
+               'listaId', l.id,
+               'numero', l.numero,
+               'nome', l.nome,
+               'fornecedor', COALESCE(fpe.nome, fpe."nomeNormalizado"),
+               'estadoExport', l."estadoExport"::text,
+               'quantidade', COALESCE(le."quantidadeAjustada", le."quantidadeSugerida", 0),
+               'data', l."dataCriacao"
+             ) ORDER BY l."dataCriacao") AS detalhe
       FROM "LinhaEncomenda" le
       JOIN "ListaEncomenda" l ON l.id = le."listaEncomendaId"
+      LEFT JOIN "Fornecedor" fpe ON fpe.id = le."fornecedorSugeridoId"
       WHERE l."farmaciaId" = ${input.farmaciaId}
         AND l.estado = 'FINALIZADA'
         AND l."estadoExport" IN ('PENDENTE', 'EM_EXPORTACAO')
@@ -410,6 +483,7 @@ export async function generateOrderProposal(
       c1.nome                                     AS "canonN1",
       c2.nome                                     AS "canonN2",
       COALESCE(pending.qty::float, 0)             AS "pendingQty",
+      pending.detalhe::text                       AS "pendentesJson",
       COALESCE(fo.nome, fo."nomeNormalizado")      AS "fornecedorHabitualNome",
       fo.estado::text                             AS "fornecedorHabitualEstado"`;
 
@@ -489,10 +563,11 @@ export async function generateOrderProposal(
         : avgDailySales * Math.max(1, input.targetCoverageDays);
 
     const stock = r.stockAtual == null ? null : toF(r.stockAtual);
+    // INFORMATIVO: só vai para a coluna «Pendente» e para o texto. Não entra na quantidade, no estado nem nos totais.
     const pending = toF(r.pendingQty);
+    const pendentes = lerPendentes(r.pendentesJson);
 
-    const suggestedRaw = input.considerStock ? target - (stock ?? 0) - pending : target;
-    const suggestedQty = Math.max(0, Math.ceil(suggestedRaw));
+    const suggestedQty = calcularQuantidadeSugerida({ target, stock, considerStock: input.considerStock });
 
     const coberturaAtualDias =
       stock != null && avgDailySales > 0
@@ -506,7 +581,7 @@ export async function generateOrderProposal(
       subcategoriaOrigem: r.subcategoriaOrigem,
     });
 
-    const estado = computeEstado(suggestedQty, pending, input.considerStock);
+    const estado = computeEstado(suggestedQty);
     const excessoFonte: ExcessoInfo[] = [];
     // Só pode ser verdade quando há lista: sem lista a consulta exige
     // `qty > 0` e uma linha com zero vendas nunca chega aqui.
@@ -531,6 +606,7 @@ export async function generateOrderProposal(
       currentStock: stock,
       coberturaAtualDias,
       pendingQty: pending,
+      pendentes,
       targetQty: Math.round(target * 100) / 100,
       suggestedQty,
       transferirQty: 0,
@@ -613,7 +689,7 @@ export async function generateGroupProposal(
   const perFarmaciaTruncado = perFarmacia.some((r) => r.meta.truncated);
 
   if (allRows.length === 0) {
-    const emptyStats: ProposalStats = { total: 0, transferencia: 0, comprar: 0, aguardar: 0, adequado: 0 };
+    const emptyStats: ProposalStats = { total: 0, transferencia: 0, comprar: 0, adequado: 0 };
     return {
       rows: [],
       meta: {
