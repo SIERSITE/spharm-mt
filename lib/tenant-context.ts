@@ -23,7 +23,14 @@
  * As constantes de tenant vivem em `lib/tenant-constants.ts` (módulo simples, importável
  * por componentes client). Re-exportadas aqui para os imports existentes.
  */
-export { TENANT_SYNC_BLOQUEADO, TENANT_GRUPOS_LABORATORIAIS, TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
+export {
+  TENANT_SYNC_BLOQUEADO,
+  TENANT_GRUPOS_LABORATORIAIS,
+  TENANT_CATALOGO_MASSA,
+  TENANTS_CATALOGO_MANUTENCAO,
+  catalogoManutencaoAtiva,
+  gruposLaboratoriaisAtivos,
+} from "@/lib/tenant-constants";
 
 export async function resolveCurrentTenantSlug(): Promise<string | null> {
   try {

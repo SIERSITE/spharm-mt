@@ -3,10 +3,10 @@
 /**
  * app/catalogo/manutencao/actions.ts
  *
- * Server actions da manutenção em massa do catálogo — EXCLUSIVAS do
- * tenant silveira. Todas seguem a mesma ordem de guardas, antes de
+ * Server actions da manutenção em massa do catálogo — restritas aos
+ * tenants de `catalogoManutencaoAtiva` (silveira e garantia). Todas seguem a mesma ordem de guardas, antes de
  * qualquer chamada à BD:
- *   1. `resolveCurrentTenantSlug() === TENANT_CATALOGO_MASSA` — se não,
+ *   1. `catalogoManutencaoAtiva(resolveCurrentTenantSlug())` — se não,
  *      rejeita de forma limpa (nunca um throw não tratado).
  *   2. Sessão + `can(session, "catalog.write")`.
  *   3. Validação do payload contra os dados REAIS do tenant (cada farmácia tem
@@ -21,7 +21,7 @@ import { getSession } from "@/lib/auth";
 import { can, canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { logAudit } from "@/lib/audit";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
-import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
+import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import {
   aplicarManutencaoMassa,
   listarProdutosPagina,
@@ -40,7 +40,7 @@ import {
  */
 async function guardaBase() {
   const tenantSlug = await resolveCurrentTenantSlug();
-  if (tenantSlug !== TENANT_CATALOGO_MASSA) {
+  if (!catalogoManutencaoAtiva(tenantSlug)) {
     return { ok: false as const, error: "Funcionalidade não disponível para este tenant." };
   }
   const session = await getSession();

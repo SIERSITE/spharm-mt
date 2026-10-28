@@ -1,8 +1,8 @@
 /**
  * lib/catalogo/manutencao-massa.ts
  *
- * Manutenção em massa do catálogo — EXCLUSIVO do tenant silveira (gate no
- * caller, ver `TENANT_CATALOGO_MASSA` em `lib/tenant-constants.ts`; este módulo
+ * Manutenção em massa do catálogo — Tenants silveira e garantia (gate no
+ * caller, ver `catalogoManutencaoAtiva` em `lib/tenant-constants.ts`; este módulo
  * não lê o tenant sozinho, confia em quem o chama).
  *
  * Dois tipos de operação:

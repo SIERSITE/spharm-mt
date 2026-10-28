@@ -2,14 +2,14 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ManutencaoMassaClient } from "@/components/catalogo/manutencao-massa-client";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
-import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-constants";
+import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import { getPrisma } from "@/lib/prisma";
 import { getReportingFilterOptions } from "@/lib/reporting-filter-options";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Ecrã exclusivo do tenant silveira (ver `TENANT_CATALOGO_MASSA`,
+ * Ecrã dos tenants silveira e garantia (ver `catalogoManutencaoAtiva`,
  * lib/tenant-constants.ts). Noutros tenants a rota nem existe — `notFound()`
  * ANTES de qualquer query. A entrada de menu é só apresentação; a guarda REAL
  * (tenant + permissão + revalidação server-side de cada filtro) vive aqui e em
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ManutencaoMassaPage() {
   const tenantSlug = await resolveCurrentTenantSlug();
-  if (tenantSlug !== TENANT_CATALOGO_MASSA) {
+  if (!catalogoManutencaoAtiva(tenantSlug)) {
     notFound();
   }
 

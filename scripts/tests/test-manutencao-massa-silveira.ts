@@ -110,10 +110,10 @@ async function main() {
   check(!/next\/headers|server-only|@\/lib\/prisma|node:/.test(consts.replace(/\/\*[\s\S]*?\*\//g, "")), "…sem next/headers, server-only, Prisma ou Node");
   check(/export \{[^}]*TENANT_CATALOGO_MASSA[^}]*\} from "@\/lib\/tenant-constants"/.test(src("lib/tenant-context.ts")), "tenant-context re-exporta (imports antigos continuam a funcionar)");
   const shell = src("components/layout/app-shell.tsx");
-  check(shell.includes('from "@/lib/tenant-constants"') && shell.includes("soTenant: TENANT_CATALOGO_MASSA"), "o AppShell usa a constante (não repete a string)");
+  check(shell.includes('from "@/lib/tenant-constants"') && shell.includes("soTenantFn: catalogoManutencaoAtiva"), "o AppShell usa o gate central (não repete a string)");
   check(!/["']silveira["']/.test(shell.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")), "o AppShell não contém a string \"silveira\"");
   check(/label: "Catálogo", href: "\/catalogo"[\s\S]{0,400}label: "Manutenção do catálogo", href: "\/catalogo\/manutencao"/.test(shell), "«Manutenção do catálogo» aparece imediatamente abaixo de «Catálogo»");
-  check(/\(!i\.soTenant \|\| utilizador\?\.tenant === i\.soTenant\)/.test(shell), "o item só aparece quando utilizador.tenant === constante");
+  check(/(!i.soTenantFn || i.soTenantFn(utilizador?.tenant))/.test(shell), "o item só aparece quando o gate central aceita utilizador.tenant");
   const acoes = src("app/catalogo/manutencao/actions.ts");
   const corpos = acoes.split(/^export async function /m).slice(1);
   const guardada = corpos.filter((c) => c.includes("await guardaBase()") || /(previewAction|aplicarAction)\(/.test(c));
