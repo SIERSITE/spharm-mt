@@ -885,6 +885,17 @@ export type BootstrapBatchResponse = {
     preservados: Record<string, number>;
   };
   /**
+   * rev97 — classificação ERP (Ético/NETT/Serviço/Genérico). Opcional: só
+   * vem de servidores com a migração aplicada e quando o lote trouxe campos.
+   */
+  classificacaoErp?: {
+    candidatos: number;
+    alterados: number;
+    valoresDesconhecidos: number;
+    conflitos: number;
+    erro?: string;
+  };
+  /**
    * Designações de produto (SÓ tenant silveira — ver lib/ingest/
    * designacao-silveira.ts no SaaS). Ausente nos outros tenants.
    */

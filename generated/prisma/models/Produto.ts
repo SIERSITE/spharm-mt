@@ -59,6 +59,13 @@ export type ProdutoMinAggregateOutputType = {
   flagMSRM: boolean | null
   flagMNSRM: boolean | null
   flagMnsrmNCompart: boolean | null
+  erpEtico: boolean | null
+  erpNett: boolean | null
+  erpServico: boolean | null
+  genericoErp: boolean | null
+  classificacaoErpConflito: boolean | null
+  classificacaoErpEm: Date | null
+  classificacaoErpOrigem: string | null
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado | null
   origemDados: $Enums.ProdutoOrigemDados | null
@@ -103,6 +110,13 @@ export type ProdutoMaxAggregateOutputType = {
   flagMSRM: boolean | null
   flagMNSRM: boolean | null
   flagMnsrmNCompart: boolean | null
+  erpEtico: boolean | null
+  erpNett: boolean | null
+  erpServico: boolean | null
+  genericoErp: boolean | null
+  classificacaoErpConflito: boolean | null
+  classificacaoErpEm: Date | null
+  classificacaoErpOrigem: string | null
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado | null
   origemDados: $Enums.ProdutoOrigemDados | null
@@ -147,6 +161,13 @@ export type ProdutoCountAggregateOutputType = {
   flagMSRM: number
   flagMNSRM: number
   flagMnsrmNCompart: number
+  erpEtico: number
+  erpNett: number
+  erpServico: number
+  genericoErp: number
+  classificacaoErpConflito: number
+  classificacaoErpEm: number
+  classificacaoErpOrigem: number
   grupoHomogeneo: number
   estado: number
   origemDados: number
@@ -208,6 +229,13 @@ export type ProdutoMinAggregateInputType = {
   flagMSRM?: true
   flagMNSRM?: true
   flagMnsrmNCompart?: true
+  erpEtico?: true
+  erpNett?: true
+  erpServico?: true
+  genericoErp?: true
+  classificacaoErpConflito?: true
+  classificacaoErpEm?: true
+  classificacaoErpOrigem?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -252,6 +280,13 @@ export type ProdutoMaxAggregateInputType = {
   flagMSRM?: true
   flagMNSRM?: true
   flagMnsrmNCompart?: true
+  erpEtico?: true
+  erpNett?: true
+  erpServico?: true
+  genericoErp?: true
+  classificacaoErpConflito?: true
+  classificacaoErpEm?: true
+  classificacaoErpOrigem?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -296,6 +331,13 @@ export type ProdutoCountAggregateInputType = {
   flagMSRM?: true
   flagMNSRM?: true
   flagMnsrmNCompart?: true
+  erpEtico?: true
+  erpNett?: true
+  erpServico?: true
+  genericoErp?: true
+  classificacaoErpConflito?: true
+  classificacaoErpEm?: true
+  classificacaoErpOrigem?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -428,6 +470,13 @@ export type ProdutoGroupByOutputType = {
   flagMSRM: boolean
   flagMNSRM: boolean
   flagMnsrmNCompart: boolean
+  erpEtico: boolean | null
+  erpNett: boolean | null
+  erpServico: boolean | null
+  genericoErp: boolean | null
+  classificacaoErpConflito: boolean
+  classificacaoErpEm: Date | null
+  classificacaoErpOrigem: string | null
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado
   origemDados: $Enums.ProdutoOrigemDados
@@ -496,6 +545,13 @@ export type ProdutoWhereInput = {
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
+  erpEtico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpNett?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpServico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  genericoErp?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFilter<"Produto"> | boolean
+  classificacaoErpEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
+  classificacaoErpOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -566,6 +622,13 @@ export type ProdutoOrderByWithRelationInput = {
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
   flagMnsrmNCompart?: Prisma.SortOrder
+  erpEtico?: Prisma.SortOrderInput | Prisma.SortOrder
+  erpNett?: Prisma.SortOrderInput | Prisma.SortOrder
+  erpServico?: Prisma.SortOrderInput | Prisma.SortOrder
+  genericoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoErpConflito?: Prisma.SortOrder
+  classificacaoErpEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoErpOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -639,6 +702,13 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
+  erpEtico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpNett?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpServico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  genericoErp?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFilter<"Produto"> | boolean
+  classificacaoErpEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
+  classificacaoErpOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -709,6 +779,13 @@ export type ProdutoOrderByWithAggregationInput = {
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
   flagMnsrmNCompart?: Prisma.SortOrder
+  erpEtico?: Prisma.SortOrderInput | Prisma.SortOrder
+  erpNett?: Prisma.SortOrderInput | Prisma.SortOrder
+  erpServico?: Prisma.SortOrderInput | Prisma.SortOrder
+  genericoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoErpConflito?: Prisma.SortOrder
+  classificacaoErpEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoErpOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -762,6 +839,13 @@ export type ProdutoScalarWhereWithAggregatesInput = {
   flagMSRM?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
   flagMnsrmNCompart?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
+  erpEtico?: Prisma.BoolNullableWithAggregatesFilter<"Produto"> | boolean | null
+  erpNett?: Prisma.BoolNullableWithAggregatesFilter<"Produto"> | boolean | null
+  erpServico?: Prisma.BoolNullableWithAggregatesFilter<"Produto"> | boolean | null
+  genericoErp?: Prisma.BoolNullableWithAggregatesFilter<"Produto"> | boolean | null
+  classificacaoErpConflito?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
+  classificacaoErpEm?: Prisma.DateTimeNullableWithAggregatesFilter<"Produto"> | Date | string | null
+  classificacaoErpOrigem?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   grupoHomogeneo?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoWithAggregatesFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosWithAggregatesFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -804,6 +888,13 @@ export type ProdutoCreateInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -874,6 +965,13 @@ export type ProdutoUncheckedCreateInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -938,6 +1036,13 @@ export type ProdutoUpdateInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -1008,6 +1113,13 @@ export type ProdutoUncheckedUpdateInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -1075,6 +1187,13 @@ export type ProdutoCreateManyInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1117,6 +1236,13 @@ export type ProdutoUpdateManyMutationInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -1162,6 +1288,13 @@ export type ProdutoUncheckedUpdateManyInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -1215,6 +1348,13 @@ export type ProdutoCountOrderByAggregateInput = {
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
   flagMnsrmNCompart?: Prisma.SortOrder
+  erpEtico?: Prisma.SortOrder
+  erpNett?: Prisma.SortOrder
+  erpServico?: Prisma.SortOrder
+  genericoErp?: Prisma.SortOrder
+  classificacaoErpConflito?: Prisma.SortOrder
+  classificacaoErpEm?: Prisma.SortOrder
+  classificacaoErpOrigem?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -1267,6 +1407,13 @@ export type ProdutoMaxOrderByAggregateInput = {
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
   flagMnsrmNCompart?: Prisma.SortOrder
+  erpEtico?: Prisma.SortOrder
+  erpNett?: Prisma.SortOrder
+  erpServico?: Prisma.SortOrder
+  genericoErp?: Prisma.SortOrder
+  classificacaoErpConflito?: Prisma.SortOrder
+  classificacaoErpEm?: Prisma.SortOrder
+  classificacaoErpOrigem?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -1311,6 +1458,13 @@ export type ProdutoMinOrderByAggregateInput = {
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
   flagMnsrmNCompart?: Prisma.SortOrder
+  erpEtico?: Prisma.SortOrder
+  erpNett?: Prisma.SortOrder
+  erpServico?: Prisma.SortOrder
+  genericoErp?: Prisma.SortOrder
+  classificacaoErpConflito?: Prisma.SortOrder
+  classificacaoErpEm?: Prisma.SortOrder
+  classificacaoErpOrigem?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -1395,6 +1549,14 @@ export type BoolFieldUpdateOperationsInput = {
   set?: boolean
 }
 
+export type NullableBoolFieldUpdateOperationsInput = {
+  set?: boolean | null
+}
+
+export type NullableDateTimeFieldUpdateOperationsInput = {
+  set?: Date | string | null
+}
+
 export type EnumProdutoEstadoFieldUpdateOperationsInput = {
   set?: $Enums.ProdutoEstado
 }
@@ -1417,10 +1579,6 @@ export type EnumClassificacaoEstadoFieldUpdateOperationsInput = {
 
 export type EnumVerificationStatusFieldUpdateOperationsInput = {
   set?: $Enums.VerificationStatus
-}
-
-export type NullableDateTimeFieldUpdateOperationsInput = {
-  set?: Date | string | null
 }
 
 export type DateTimeFieldUpdateOperationsInput = {
@@ -1890,6 +2048,13 @@ export type ProdutoCreateWithoutFabricanteInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1958,6 +2123,13 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2054,6 +2226,13 @@ export type ProdutoScalarWhereInput = {
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
+  erpEtico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpNett?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  erpServico?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  genericoErp?: Prisma.BoolNullableFilter<"Produto"> | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFilter<"Produto"> | boolean
+  classificacaoErpEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
+  classificacaoErpOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -2096,6 +2275,13 @@ export type ProdutoCreateWithoutGrupoLaboratorialInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2165,6 +2351,13 @@ export type ProdutoUncheckedCreateWithoutGrupoLaboratorialInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2244,6 +2437,13 @@ export type ProdutoUpdateWithoutGrupoLaboratorialInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2313,6 +2513,13 @@ export type ProdutoUncheckedUpdateWithoutGrupoLaboratorialInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2376,6 +2583,13 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2444,6 +2658,13 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2518,6 +2739,13 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2586,6 +2814,13 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2692,6 +2927,13 @@ export type ProdutoCreateWithoutUtilizacoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2761,6 +3003,13 @@ export type ProdutoUncheckedCreateWithoutUtilizacoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2840,6 +3089,13 @@ export type ProdutoUpdateWithoutUtilizacoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2909,6 +3165,13 @@ export type ProdutoUncheckedUpdateWithoutUtilizacoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2972,6 +3235,13 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3041,6 +3311,13 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3120,6 +3397,13 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3189,6 +3473,13 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3252,6 +3543,13 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3321,6 +3619,13 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3400,6 +3705,13 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3469,6 +3781,13 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3532,6 +3851,13 @@ export type ProdutoCreateWithoutManutencaoMassaItensInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3601,6 +3927,13 @@ export type ProdutoUncheckedCreateWithoutManutencaoMassaItensInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3680,6 +4013,13 @@ export type ProdutoUpdateWithoutManutencaoMassaItensInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3749,6 +4089,13 @@ export type ProdutoUncheckedUpdateWithoutManutencaoMassaItensInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3812,6 +4159,13 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3881,6 +4235,13 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3960,6 +4321,13 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4029,6 +4397,13 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4092,6 +4467,13 @@ export type ProdutoCreateWithoutVendasInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4161,6 +4543,13 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4240,6 +4629,13 @@ export type ProdutoUpdateWithoutVendasInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4309,6 +4705,13 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4372,6 +4775,13 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4441,6 +4851,13 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4520,6 +4937,13 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4589,6 +5013,13 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4652,6 +5083,13 @@ export type ProdutoCreateWithoutVendaManutencoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4721,6 +5159,13 @@ export type ProdutoUncheckedCreateWithoutVendaManutencoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4800,6 +5245,13 @@ export type ProdutoUpdateWithoutVendaManutencoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4869,6 +5321,13 @@ export type ProdutoUncheckedUpdateWithoutVendaManutencoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4932,6 +5391,13 @@ export type ProdutoCreateWithoutComprasInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5001,6 +5467,13 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5080,6 +5553,13 @@ export type ProdutoUpdateWithoutComprasInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5149,6 +5629,13 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5212,6 +5699,13 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5281,6 +5775,13 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5360,6 +5861,13 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5429,6 +5937,13 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5492,6 +6007,13 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5561,6 +6083,13 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5640,6 +6169,13 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5709,6 +6245,13 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5772,6 +6315,13 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5841,6 +6391,13 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -5920,6 +6477,13 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5989,6 +6553,13 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6052,6 +6623,13 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6121,6 +6699,13 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6200,6 +6785,13 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6269,6 +6861,13 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6332,6 +6931,13 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6401,6 +7007,13 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6480,6 +7093,13 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6549,6 +7169,13 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6612,6 +7239,13 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6681,6 +7315,13 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6760,6 +7401,13 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6829,6 +7477,13 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -6892,6 +7547,13 @@ export type ProdutoCreateWithoutLinhasTransferenciaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -6961,6 +7623,13 @@ export type ProdutoUncheckedCreateWithoutLinhasTransferenciaInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7040,6 +7709,13 @@ export type ProdutoUpdateWithoutLinhasTransferenciaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7109,6 +7785,13 @@ export type ProdutoUncheckedUpdateWithoutLinhasTransferenciaInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7172,6 +7855,13 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7241,6 +7931,13 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7320,6 +8017,13 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7389,6 +8093,13 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7452,6 +8163,13 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7521,6 +8239,13 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7600,6 +8325,13 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7669,6 +8401,13 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7732,6 +8471,13 @@ export type ProdutoCreateWithoutIngestVendasLinhasRawInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7801,6 +8547,13 @@ export type ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -7880,6 +8633,13 @@ export type ProdutoUpdateWithoutIngestVendasLinhasRawInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -7949,6 +8709,13 @@ export type ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8012,6 +8779,13 @@ export type ProdutoCreateWithoutMovimentosInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8081,6 +8855,13 @@ export type ProdutoUncheckedCreateWithoutMovimentosInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8160,6 +8941,13 @@ export type ProdutoUpdateWithoutMovimentosInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8229,6 +9017,13 @@ export type ProdutoUncheckedUpdateWithoutMovimentosInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8292,6 +9087,13 @@ export type ProdutoCreateWithoutRegulamentarInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8361,6 +9163,13 @@ export type ProdutoUncheckedCreateWithoutRegulamentarInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8440,6 +9249,13 @@ export type ProdutoUpdateWithoutRegulamentarInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8509,6 +9325,13 @@ export type ProdutoUncheckedUpdateWithoutRegulamentarInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8574,6 +9397,13 @@ export type ProdutoCreateManyFabricanteInput = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8616,6 +9446,13 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8684,6 +9521,13 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8750,6 +9594,13 @@ export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8794,6 +9645,13 @@ export type ProdutoCreateManyClassificacaoNivel1Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8838,6 +9696,13 @@ export type ProdutoCreateManyClassificacaoNivel2Input = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean | null
+  erpNett?: boolean | null
+  erpServico?: boolean | null
+  genericoErp?: boolean | null
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: Date | string | null
+  classificacaoErpOrigem?: string | null
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -8880,6 +9745,13 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -8948,6 +9820,13 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -9014,6 +9893,13 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -9056,6 +9942,13 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -9124,6 +10017,13 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -9190,6 +10090,13 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  erpEtico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpNett?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  erpServico?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  genericoErp?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  classificacaoErpConflito?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  classificacaoErpEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  classificacaoErpOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -9446,6 +10353,13 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean
+  erpNett?: boolean
+  erpServico?: boolean
+  genericoErp?: boolean
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: boolean
+  classificacaoErpOrigem?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -9517,6 +10431,13 @@ export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean
+  erpNett?: boolean
+  erpServico?: boolean
+  genericoErp?: boolean
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: boolean
+  classificacaoErpOrigem?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -9565,6 +10486,13 @@ export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean
+  erpNett?: boolean
+  erpServico?: boolean
+  genericoErp?: boolean
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: boolean
+  classificacaoErpOrigem?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -9613,6 +10541,13 @@ export type ProdutoSelectScalar = {
   flagMSRM?: boolean
   flagMNSRM?: boolean
   flagMnsrmNCompart?: boolean
+  erpEtico?: boolean
+  erpNett?: boolean
+  erpServico?: boolean
+  genericoErp?: boolean
+  classificacaoErpConflito?: boolean
+  classificacaoErpEm?: boolean
+  classificacaoErpOrigem?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -9639,7 +10574,7 @@ export type ProdutoSelectScalar = {
   primeiraFarmaciaEm?: boolean
 }
 
-export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "classificacaoEstado" | "classificacaoOrigem" | "classificacaoConfianca" | "classificacaoVersao" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao" | "camposManuais" | "criadoPorId" | "contextoCriacao" | "primeiraFarmaciaEm", ExtArgs["result"]["produto"]>
+export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "erpEtico" | "erpNett" | "erpServico" | "genericoErp" | "classificacaoErpConflito" | "classificacaoErpEm" | "classificacaoErpOrigem" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "classificacaoEstado" | "classificacaoOrigem" | "classificacaoConfianca" | "classificacaoVersao" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao" | "camposManuais" | "criadoPorId" | "contextoCriacao" | "primeiraFarmaciaEm", ExtArgs["result"]["produto"]>
 export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
@@ -9748,6 +10683,23 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
      * de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
      */
     flagMnsrmNCompart: boolean
+    erpEtico: boolean | null
+    erpNett: boolean | null
+    erpServico: boolean | null
+    /**
+     * Genérico tri-estado (false = "não genérico" conhecido; null = desconhecido).
+     * `flagGenerico` mantém a semântica anterior (NOT NULL, default false).
+     */
+    genericoErp: boolean | null
+    /**
+     * Serviço combinado com Ético/NETT: guardado tal como veio, apenas sinalizado.
+     */
+    classificacaoErpConflito: boolean
+    classificacaoErpEm: Date | null
+    /**
+     * "spharm_erp:etico=Stocks.[X];nett=…" — proveniência do último valor.
+     */
+    classificacaoErpOrigem: string | null
     grupoHomogeneo: string | null
     estado: $Enums.ProdutoEstado
     origemDados: $Enums.ProdutoOrigemDados
@@ -10275,6 +11227,13 @@ export interface ProdutoFieldRefs {
   readonly flagMSRM: Prisma.FieldRef<"Produto", 'Boolean'>
   readonly flagMNSRM: Prisma.FieldRef<"Produto", 'Boolean'>
   readonly flagMnsrmNCompart: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly erpEtico: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly erpNett: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly erpServico: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly genericoErp: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly classificacaoErpConflito: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly classificacaoErpEm: Prisma.FieldRef<"Produto", 'DateTime'>
+  readonly classificacaoErpOrigem: Prisma.FieldRef<"Produto", 'String'>
   readonly grupoHomogeneo: Prisma.FieldRef<"Produto", 'String'>
   readonly estado: Prisma.FieldRef<"Produto", 'ProdutoEstado'>
   readonly origemDados: Prisma.FieldRef<"Produto", 'ProdutoOrigemDados'>

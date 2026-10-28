@@ -22,12 +22,18 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { badgesClassificacaoErp, FILTROS_CLASSIFICACAO_ERP } from "@/lib/catalogo/classificacao-erp";
 
 type Props = {
   data: CatalogoListData;
   filters: CatalogoListFilters;
   filterOptions: CatalogoFilterOptions;
 };
+
+const CLASSIFICACAO_ERP_OPTIONS = [
+  { value: "", label: "Classificação ERP (todas)" },
+  ...FILTROS_CLASSIFICACAO_ERP.map((f) => ({ value: f.value as string, label: f.label as string })),
+];
 
 const PRODUCT_TYPE_OPTIONS = [
   { value: "", label: "Tipo (todos)" },
@@ -163,6 +169,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.search ||
     !!filters.laboratorio ||
     !!filters.productType ||
+    !!filters.classificacaoErp ||
     !!filters.classificacaoN1Id ||
     !!filters.verificationStatus ||
     !!filters.estado ||
@@ -256,7 +263,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
           />
         </div>
 
-        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_1fr_auto]">
+        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
           <SelectFilter
             label="Verificação"
             value={filters.verificationStatus ?? ""}
@@ -274,6 +281,12 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             value={filters.origem ?? ""}
             onChange={(v) => navigate({ origem: v || undefined })}
             options={ORIGEM_OPTIONS}
+          />
+          <SelectFilter
+            label="Classificação ERP"
+            value={filters.classificacaoErp ?? ""}
+            onChange={(v) => navigate({ cls: v || undefined })}
+            options={CLASSIFICACAO_ERP_OPTIONS}
           />
           {hasActiveFilters && (
             <div className="flex items-end">
@@ -408,6 +421,19 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
                   Retirado parcial
                 </span>
               ) : null}
+              {badgesClassificacaoErp(row.classificacaoErp).map((b) => (
+                <span
+                  key={b.chave}
+                  title="Classificação vinda do ERP"
+                  className={
+                    b.tom === "amber"
+                      ? "inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+                      : "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600"
+                  }
+                >
+                  {b.label}
+                </span>
+              ))}
               {/* A canónica não leva badge: seria ruído em 22 mil linhas.
                   O que precisa de sinal é a excepção. */}
               {row.origemClassificacao === "PROVISORIA" && (

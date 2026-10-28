@@ -61,6 +61,13 @@ import {
   type ProdutoFarmaciaProductRow,
 } from "@/lib/ingest/bulk";
 import { normalizeIva } from "@/lib/iva";
+import {
+  aplicarClassificacaoErp,
+  lerClassificacaoErpDoPayload,
+  type ClassificacaoErpItem,
+  type ClassificacaoErpLinha,
+  type ResumoClassificacaoErp,
+} from "@/lib/ingest/classificacao-erp";
 import { applyErpCatalogFields } from "@/lib/ingest/catalog-from-erp";
 import { applyFornecedorPreferencialSilveira } from "@/lib/ingest/fornecedor-preferencial-silveira";
 import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-context";
@@ -108,6 +115,16 @@ type ProductPayload = {
   codigoATC: unknown;
   grupoHomogeneo: unknown;
   fabricante: unknown;
+  /**
+   * Classificação ERP (Ético / NETT / Serviço / Genérico tri-estado). Todos
+   * OPCIONAIS e lidos de `raw` por lerClassificacaoErpDoPayload: ausente ≠
+   * false (agent antigo não apaga nada). Ver lib/ingest/classificacao-erp.ts.
+   */
+  etico?: unknown;
+  nett?: unknown;
+  servico?: unknown;
+  genericoErp?: unknown;
+  classificacaoErpOrigem?: unknown;
 };
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -202,6 +219,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     codigoATC: string | null;
     grupoHomogeneo: string | null;
     fabricante: string | null;
+    classificacao: ClassificacaoErpItem;
   };
 
   // Contagens do enriquecimento a partir do ERP, declaradas aqui para
@@ -218,6 +236,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     preservados: Record<string, number>;
   } | null = null;
   let reconciliacaoGlobal: ResumoReconciliacao | null = null;
+  let classificacaoErp: ResumoClassificacaoErp | null = null;
   // Grupo laboratorial pesquisável — exclusivo do tenant garantia (as
   // tabelas nem existem fisicamente nos outros tenants). Nunca escreve
   // Produto/Fabricante, nunca falha o ingest — ver lib/catalog/
@@ -268,6 +287,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       codigoATC: asStringOrNull(raw.codigoATC),
       grupoHomogeneo: asStringOrNull(raw.grupoHomogeneo),
       fabricante: asStringOrNull(raw.fabricante),
+      classificacao: lerClassificacaoErpDoPayload(raw as Record<string, unknown>),
     });
   }
 
@@ -341,6 +361,18 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         err instanceof Error ? err.message : err,
       );
     }
+
+    // Classificação ERP (Ético / NETT / Serviço / Genérico). Um único UPDATE
+    // idempotente (IS DISTINCT FROM) SÓ com os campos que o agent enviou;
+    // não toca designação nem fabricante. Uma falha aqui não derruba o lote
+    // (o reenvio refaz-a, é idempotente) e fica explícita na resposta.
+    classificacaoErp = await aplicarClassificacaoSegura(
+      ctx.prisma,
+      dedup.flatMap((a) => {
+        const produtoId = cnpToId.get(a.cnp);
+        return produtoId ? [{ produtoId, item: a.classificacao }] : [];
+      }),
+    );
 
     // Fornecedor preferencial (ProdutoFarmacia.fornecedorHabitualId) —
     // EXCLUSIVO do tenant silveira. O gate é validado ANTES de qualquer
@@ -457,6 +489,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     );
     upserted = 0;
     const produtoIdsFallback: string[] = [];
+    const classificacaoFallback: ClassificacaoErpLinha[] = [];
     for (const a of dedup) {
       try {
         // O caminho de recurso tem de aplicar as MESMAS proteccoes do
@@ -549,6 +582,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         });
         upserted++;
         produtoIdsFallback.push(produto.id);
+        classificacaoFallback.push({ produtoId: produto.id, item: a.classificacao });
       } catch (err) {
         if (estatDesignacao) estatDesignacao.erros++;
         errors.push({
@@ -559,6 +593,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         });
       }
     }
+
+    // Classificação ERP no caminho de recurso: mesmo UPDATE idempotente.
+    classificacaoErp = await aplicarClassificacaoSegura(ctx.prisma, classificacaoFallback);
 
     // Mesmo passo do caminho bulk (ver acima) — o caminho de recurso
     // também escreve Produto/ProdutoFarmacia e merece a mesma manutenção.
@@ -637,7 +674,34 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     produtosAtualizados,
     ...(designacoes ? { designacoes } : {}),
     ...(catalogoErp ? { catalogoErp } : {}),
+    ...(classificacaoErp && (classificacaoErp.candidatos > 0 || classificacaoErp.erro) ? { classificacaoErp } : {}),
     ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
     ...(gruposLaboratoriais ? { gruposLaboratoriais } : {}),
   });
 });
+/** Nunca lança: a classificação é enriquecimento por cima do contrato do endpoint. */
+async function aplicarClassificacaoSegura(
+  prisma: Parameters<typeof aplicarClassificacaoErp>[0],
+  linhas: ClassificacaoErpLinha[],
+): Promise<ResumoClassificacaoErp> {
+  try {
+    const r = await aplicarClassificacaoErp(prisma, linhas);
+    if (r.candidatos > 0) {
+      console.log(
+        `[bootstrap/products] classificação ERP: ${r.candidatos} candidatos, ${r.alterados} alterados, ` +
+          `${r.valoresDesconhecidos} valores desconhecidos, ${r.conflitos} em conflito`,
+      );
+    }
+    return r;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[bootstrap/products] classificação ERP falhou (ingestão continua):", msg);
+    return {
+      candidatos: linhas.filter((l) => Object.keys(l.item.campos).length > 0).length,
+      alterados: 0,
+      valoresDesconhecidos: 0,
+      conflitos: 0,
+      erro: msg.slice(0, 300),
+    };
+  }
+}

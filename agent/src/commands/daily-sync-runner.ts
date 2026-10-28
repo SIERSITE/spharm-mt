@@ -41,6 +41,16 @@ import {
   type CatalogPlan,
 } from "../catalog-discovery.js";
 
+import {
+  linhaRespostaClassificacao,
+  loadClassificacaoErpConfig,
+  resolverPlanoClassificacao,
+  buildClassificacaoSqlFragments,
+  classificacaoParaPayload,
+  EMPTY_CLASSIFICACAO_PLAN,
+  type ClassificacaoPlan,
+} from "../classificacao-erp.js";
+
 type SchemaProbeAPI = {
   tableExists: (
     pool: SqlPool,
@@ -203,6 +213,12 @@ export type SchemaCapabilities = {
    * (`EMPTY_CATALOG_PLAN`) — nenhuma query se parte por faltar.
    */
   catalogPlan?: CatalogPlan;
+  /**
+   * Mapeamento OPCIONAL de Ético/NETT/Serviço (agent.config.json →
+   * `classificacaoErp`), já validado contra o schema. Ausente/vazio → a
+   * query e o payload ficam como estavam (ver `classificacao-erp.ts`).
+   */
+  classificacaoPlan?: ClassificacaoPlan;
 };
 
 async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promise<SchemaCapabilities> {
@@ -217,7 +233,8 @@ async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promis
   const stocksCols = await probes.listColumns(pool, { schema: "dbo", table: "Stocks" });
   const hasDataActualiz = stocksCols.some((c) => c.name === "Data_Actualiz");
   const catalogPlan = await discoverCatalogPlan(pool);
-  return { hasStocksMov, stocksMovDateCol, hasDataActualiz, catalogPlan };
+  const classificacaoPlan = await resolverPlanoClassificacaoSeguro(pool);
+  return { hasStocksMov, stocksMovDateCol, hasDataActualiz, catalogPlan, classificacaoPlan };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -333,6 +350,7 @@ export function buildProductsSql(caps: SchemaCapabilities, scope: "date" | "full
   // detectada — os quatro campos vão NULL, a query não se parte.
   const { dciSelect, atcSelect, ghSelect, ghJoin, fabricanteSelect, fabricanteJoin } =
     buildCatalogSqlFragments(caps.catalogPlan ?? EMPTY_CATALOG_PLAN);
+  const cls = buildClassificacaoSqlFragments(caps.classificacaoPlan ?? EMPTY_CLASSIFICACAO_PLAN);
   return `
     SELECT TOP (@n)
       s.CodigoID                   AS externalProductId,
@@ -351,7 +369,7 @@ export function buildProductsSql(caps: SchemaCapabilities, scope: "date" | "full
       ${dciSelect}                 AS dci,
       ${atcSelect}                 AS codigoATC,
       ${ghSelect}                  AS grupoHomogeneo,
-      ${fabricanteSelect}          AS fabricante
+      ${fabricanteSelect}          AS fabricante${cls.select}
     FROM [dbo].[Stocks] s
     OUTER APPLY (
       SELECT TOP 1 [Fornecedor Habitual]
@@ -362,6 +380,7 @@ export function buildProductsSql(caps: SchemaCapabilities, scope: "date" | "full
     LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
     ${fabricanteJoin}
     ${ghJoin}
+    ${cls.join}
     WHERE s.[Processa_Stocks] <> 0
       AND s.CodigoID > @lastId
       AND (
@@ -458,7 +477,10 @@ export type ProductRow = {
 
 /** Exportada para `test-agent-fabricante-daily-sync.ts` — confirma que o
  * payload do sync diário passou a incluir o catálogo regulamentar. */
-export function rowToProductPayload(r: ProductRow): Record<string, unknown> {
+export function rowToProductPayload(
+  r: ProductRow,
+  classificacaoPlan: ClassificacaoPlan = EMPTY_CLASSIFICACAO_PLAN,
+): Record<string, unknown> {
   return {
     externalProductId: numOrNull(r.externalProductId),
     cnp: numOrNull(r.cnp),
@@ -474,7 +496,23 @@ export function rowToProductPayload(r: ProductRow): Record<string, unknown> {
     fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
     fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
     ...catalogFieldsToPayload(r),
+    ...classificacaoParaPayload(classificacaoPlan, r as unknown as Record<string, unknown>),
   };
+}
+
+/** Resolve o mapeamento de classificação; nunca derruba o pipeline (sem mapeamento = comportamento anterior). */
+async function resolverPlanoClassificacaoSeguro(pool: SqlPool): Promise<ClassificacaoPlan> {
+  try {
+    const { config, erros } = loadClassificacaoErpConfig();
+    if (erros.length > 0) for (const e of erros) console.warn(`[classificacaoErp] CONFIG INVÁLIDA: ${e}`);
+    if (Object.keys(config).length === 0) return EMPTY_CLASSIFICACAO_PLAN;
+    const plano = await resolverPlanoClassificacao(pool, config);
+    for (const a of plano.avisos) console.warn(`[classificacaoErp] AVISO: ${a}`);
+    return plano;
+  } catch (err) {
+    console.warn(`[classificacaoErp] mapeamento ignorado: ${err instanceof Error ? err.message : err}`);
+    return EMPTY_CLASSIFICACAO_PLAN;
+  }
 }
 
 async function pipelineProducts(
@@ -509,7 +547,7 @@ async function pipelineProducts(
 
     if (rs.recordset.length === 0) break;
     counts.productsRead += rs.recordset.length;
-    const items = rs.recordset.map(rowToProductPayload);
+    const items = rs.recordset.map((r) => rowToProductPayload(r, caps.classificacaoPlan));
     batches++;
     if (envio.dryRun || !client) {
       guardarAmostra(envio.amostras?.produtos, items);
@@ -536,6 +574,7 @@ async function pipelineProducts(
       logger.log(
         `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length} (${response.durationMs}ms)`
       );
+      { const l = linhaRespostaClassificacao(response); if (l) logger.log(l); }
     }
     const last = rs.recordset[rs.recordset.length - 1];
     if (last && typeof last.externalProductId === "number") lastId = last.externalProductId;

@@ -13,6 +13,7 @@ import {
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ROTULO_ORIGEM } from "@/lib/categoria-resolver";
+import { rotuloClassificacaoFicha, rotuloTri } from "@/lib/catalogo/classificacao-erp";
 
 export const dynamic = "force-dynamic";
 
@@ -257,7 +258,11 @@ function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArtic
             />
             {article.flagMSRM && <Badge tone="sky" label="Receita médica" />}
             {article.flagMNSRM && <Badge tone="slate" label="Sem receita" />}
-            {article.flagGenerico && <Badge tone="emerald" label="Genérico" />}
+            {article.classificacaoErp.generico === true && <Badge tone="emerald" label="Genérico" />}
+            {article.classificacaoErp.etico === true && <Badge tone="slate" label="Ético" />}
+            {article.classificacaoErp.nett === true && <Badge tone="slate" label="NETT" />}
+            {article.classificacaoErp.servico === true && <Badge tone="slate" label="Serviço" />}
+            {article.classificacaoErp.conflito && <Badge tone="amber" label="Conflito de classificação" />}
             {article.validadoManualmente && (
               <Badge tone="emerald" label="Validado manualmente" />
             )}
@@ -333,7 +338,10 @@ function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArtic
                   ? article.utilizacoes.map((u) => u.nome).join(" · ")
                   : "—",
             },
-            { label: "Genérico", value: article.flagGenerico ? "Sim" : "Não" },
+            { label: "Genérico", value: rotuloTri(article.classificacaoErp.generico) },
+            { label: "Ético (ERP)", value: rotuloClassificacaoFicha("etico", article.classificacaoErp) },
+            { label: "NETT (ERP)", value: rotuloClassificacaoFicha("nett", article.classificacaoErp) },
+            { label: "Serviço (ERP)", value: rotuloClassificacaoFicha("servico", article.classificacaoErp) },
           ]}
         />
 

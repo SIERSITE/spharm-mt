@@ -55,6 +55,17 @@ import {
   catalogFieldsToPayload,
   logCatalogPlan,
 } from "../catalog-discovery.js";
+import {
+  linhaRespostaClassificacao,
+  loadClassificacaoErpConfig,
+  resolverPlanoClassificacao,
+  buildClassificacaoSqlFragments,
+  classificacaoParaPayload,
+  novaEstatisticaClassificacao,
+  resumoEstatisticaClassificacao,
+  logPlanoClassificacao,
+  EMPTY_CLASSIFICACAO_PLAN,
+} from "../classificacao-erp.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -152,6 +163,17 @@ type ProductPayload = {
   codigoATC: string | null;
   grupoHomogeneo: string | null;
   fabricante: string | null;
+  /**
+   * rev97 — classificação ERP, TODOS opcionais (ausentes sem mapeamento):
+   * `genericoErp` tri-estado de Stocks.[Generico]; `etico`/`nett`/`servico`
+   * só com `classificacaoErp` em agent.config.json; `classificacaoErpOrigem`
+   * diz de que colunas vieram. null = desconhecido (≠ false).
+   */
+  genericoErp?: boolean | null;
+  etico?: boolean | null;
+  nett?: boolean | null;
+  servico?: boolean | null;
+  classificacaoErpOrigem?: string;
 };
 
 type StockPayload = {
@@ -668,6 +690,19 @@ export async function runProductsPipeline(
   const { dciSelect, atcSelect, ghSelect, ghJoin, fabricanteSelect, fabricanteJoin } =
     buildCatalogSqlFragments(catalogPlan);
 
+  // rev97 — classificação ERP (Ético/NETT/Serviço) por mapeamento explícito
+  // em agent.config.json; sem a secção, nada muda na query nem no payload.
+  const clsCfg = loadClassificacaoErpConfig();
+  let clsPlan = EMPTY_CLASSIFICACAO_PLAN;
+  try {
+    if (Object.keys(clsCfg.config).length > 0) clsPlan = await resolverPlanoClassificacao(pool, clsCfg.config);
+  } catch (err) {
+    console.warn(`  [classificacaoErp] mapeamento ignorado: ${err instanceof Error ? err.message : err}`);
+  }
+  logPlanoClassificacao(clsPlan, clsCfg.erros);
+  const clsFragmentos = buildClassificacaoSqlFragments(clsPlan);
+  const clsStats = novaEstatisticaClassificacao();
+
   const ivaJoinClause =
     ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
       ? `LEFT JOIN [dbo].[${ivaPlan.masterTable}] iva_master
@@ -764,7 +799,7 @@ export async function runProductsPipeline(
           ${dciSelect}                 AS dci,
           ${atcSelect}                 AS codigoATC,
           ${ghSelect}                  AS grupoHomogeneo,
-          ${fabricanteSelect}          AS fabricante
+          ${fabricanteSelect}          AS fabricante${clsFragmentos.select}
         FROM [dbo].[Stocks] s
         OUTER APPLY (
           SELECT TOP 1 [Fornecedor Habitual]
@@ -776,6 +811,7 @@ export async function runProductsPipeline(
         ${ivaJoinClause}
         ${fabricanteJoin}
         ${ghJoin}
+        ${clsFragmentos.join}
         WHERE ${whereAmbito}
           AND s.CodigoID > @lastId
         ORDER BY s.CodigoID
@@ -807,6 +843,7 @@ export async function runProductsPipeline(
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
       taxaIva: numOrNull(r.taxaIva),
       ...catalogFieldsToPayload(r),
+      ...classificacaoParaPayload(clsPlan, r as unknown as Record<string, unknown>, clsStats),
     }));
 
     if (dryRun) {
@@ -820,6 +857,7 @@ export async function runProductsPipeline(
       console.log(
         `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length}`
       );
+      { const l = linhaRespostaClassificacao(response); if (l) console.log(l); }
       if (response.errors.length > 0) {
         for (const e of response.errors.slice(0, 3)) {
           console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
@@ -873,6 +911,7 @@ export async function runProductsPipeline(
       console.log(
         `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${attemptResponse.accepted} upserted=${attemptResponse.upserted} skipped=${attemptResponse.skipped.length} errors=${attemptResponse.errors.length}`
       );
+      { const l = linhaRespostaClassificacao(attemptResponse); if (l) console.log(l); }
       if (attemptResponse.errors.length > 0) {
         for (const e of attemptResponse.errors.slice(0, 3)) {
           console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
@@ -887,6 +926,7 @@ export async function runProductsPipeline(
     }
     if (rs.recordset.length < currentBatchSize) break;
   }
+  for (const linha of resumoEstatisticaClassificacao(clsPlan, clsStats)) console.log(linha);
   if (jh) {
     console.log("");
     console.log(`  Catalogo activo hoje          : ${recuperados.activos}`);

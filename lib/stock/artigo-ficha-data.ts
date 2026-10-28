@@ -7,6 +7,7 @@ import { calcularPvpReferencia, descreverPvpReferencia, desvioFaceAReferencia } 
 import { calcularPrecoReferencia, descreverPrecoReferencia } from "@/lib/produtos/preco-referencia";
 import { custoDaFarmacia } from "@/lib/produtos/custo-farmacia";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
+import { valoresClassificacaoErp, type ClassificacaoErpValores } from "@/lib/catalogo/classificacao-erp";
 
 /**
  * lib/stock/artigo-ficha-data.ts
@@ -71,6 +72,8 @@ export type ArtigoFichaData = {
   tipoProduto: string;
   utilizacoes: string;
   flagGenerico: boolean | null;
+  /** Classificação ERP (Ético/NETT/Serviço/Genérico efetivo), tri-estado. */
+  classificacaoErp: ClassificacaoErpValores;
   pvpReferencia: number | null;
   pvpReferenciaDescricao: string;
   custoReferencia: number | null;
@@ -181,6 +184,7 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
     tipoProduto: rotuloProductType(produto.productType, PLACEHOLDER),
     utilizacoes,
     flagGenerico: produto.flagGenerico,
+    classificacaoErp: valoresClassificacaoErp(produto),
     pvpReferencia: referencia.valor,
     pvpReferenciaDescricao: descreverPvpReferencia(referencia),
     custoReferencia: custoReferencia.valor,
