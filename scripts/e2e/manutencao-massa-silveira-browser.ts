@@ -502,14 +502,17 @@ async function passo3(page: Page, seedData: SeedResult) {
   await blocoMulti(page, "Tipo de artigo").locator("button", { hasText: "PARAFARMACIA" }).first().click(); // clicar na opção marcada (✓) retira-a
   await page.waitForTimeout(300);
   check((await esperarTotal(page, medEsc)) === medEsc, `Passo 3g: retirar um dos tipos volta a ${medEsc}`);
+  // A pesquisa é por TERMOS (AND, sem caixa; lib/reporting/pesquisa-produto.ts, desde 2026-10-12): «Produto 0» = «produto» E «0»
+  // na designação (um número curto junto de palavras é designação, não CNP) — também casa «Produto 100»..«Produto 150».
+  const casaPesquisaProduto0 = (d: string) => d.toLowerCase().includes("produto") && d.includes("0");
   await page.getByPlaceholder("Pesquisar por CNP ou descrição...").fill("Produto 0");
-  const pesq = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA") && m.designacao.includes("Produto 0")).length;
+  const pesq = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && m.temNivel2 && (m.fabricante === "ALFA" || m.fabricante === "BETA") && casaPesquisaProduto0(m.designacao)).length;
   check((await esperarTotal(page, pesq)) === pesq, `Passo 3h: … ∧ pesquisa «Produto 0» = ${pesq} (todos os filtros em simultâneo)`);
 
   // limpar UM filtro (chip) e TODOS
   await page.locator("span.rounded-full", { hasText: "MM E2E Escovas" }).locator("button").click();
   await page.waitForTimeout(500);
-  const semEsc = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && (m.fabricante === "ALFA" || m.fabricante === "BETA") && m.designacao.includes("Produto 0")).length;
+  const semEsc = META.filter((m) => m.tipoArtigo === "MEDICAMENTO" && m.classificacaoNivel1 === "HIGIENE" && (m.fabricante === "ALFA" || m.fabricante === "BETA") && casaPesquisaProduto0(m.designacao)).length;
   check((await esperarTotal(page, semEsc)) === semEsc, `Passo 3i: remover só o chip da subcategoria alarga o resultado (${semEsc})`);
   await limparFiltros(page);
   check((await esperarTotal(page, todos)) === todos, "Passo 3j: «Limpar filtros» repõe todo o catálogo");
@@ -742,7 +745,9 @@ async function passo8(page: Page, seedData: SeedResult) {
 // ─── Passo 13 — bloqueio de renderização fora de silveira ──────────────────
 async function passo13(browser: import("playwright").Browser, seedData: SeedResult) {
   console.log("\nPasso 13 · /catalogo/manutencao NÃO renderiza fora de silveira");
-  for (const tenant of ["garantia", "sier"]) {
+  // `garantia` passou a TER a manutenção (gate central `catalogoManutencaoAtiva`): a recusa prova-se aqui com `sier`;
+  // o comportamento em `garantia` está em tenants-catalogo-browser.ts.
+  for (const tenant of ["sier"]) {
     const ctx = await contextoParaTenant(browser, tenant, `e2e-${tenant}-admin`, `e2e-${tenant}@spharm.test`);
     const page = await ctx.newPage();
     const resp = await page.goto(`${baseFor(tenant)}/catalogo/manutencao`, { waitUntil: "networkidle" });
@@ -766,16 +771,16 @@ async function passo14(seedData: SeedResult) {
   try {
     // Sanity check do próprio mecanismo de shim — se isto falhar, o resto
     // do passo 14 não provaria nada (ver a nota do topo do ficheiro).
-    g.__E2E_TENANT_SLUG__ = "garantia";
+    g.__E2E_TENANT_SLUG__ = "sier";
     const { resolveCurrentTenantSlug } = await import("../../lib/tenant-context");
     const slugResolvido = await resolveCurrentTenantSlug();
-    check(slugResolvido === "garantia", "Passo 14 (sanity do shim): resolveCurrentTenantSlug() real devolve exactamente o slug fake pedido — o mock funciona antes de confiar nele", `obtido=${slugResolvido}`);
+    check(slugResolvido === "sier", "Passo 14 (sanity do shim): resolveCurrentTenantSlug() real devolve exactamente o slug fake pedido — o mock funciona antes de confiar nele", `obtido=${slugResolvido}`);
 
     const { listarProdutosManutencaoMassaAction, aplicarManutencaoFabricanteAction } = await import(
       "../../app/catalogo/manutencao/actions"
     );
 
-    for (const tenant of ["garantia", "sier"]) {
+    for (const tenant of ["sier", "farmacia-sem-manutencao"]) {
       g.__E2E_TENANT_SLUG__ = tenant;
 
       const nOperacoesAntes = await prisma.catalogoManutencaoOperacao.count();

@@ -60,11 +60,15 @@ export type Ambiente = {
   agente: (method: "GET" | "POST", caminho: string, corpo?: unknown) => Promise<{ status: number; json: any }>;
   /** Sessão forjada para o tenant (cookie `session`). */
   tokenSessao: (sub: string, email: string) => Promise<string>;
+  /** Slug do tenant deste ambiente. */
+  slug: string;
   logs: () => string;
   parar: () => Promise<void>;
 };
 
 export async function criarAmbiente(nome: string, envExtra: Record<string, string> = {}): Promise<Ambiente> {
+  // Tenant do ambiente: por omissão `silveira` (todos os E2E antigos); `E2E_TENANT_SLUG` permite arrancar como `garantia`/`sier`.
+  const slugTenant = envExtra.E2E_TENANT_SLUG ?? "silveira";
   const sufixo = Date.now().toString(36);
   const dbTenant = `spharm_e2e_${nome}_t_${sufixo}`;
   const dbControl = `spharm_e2e_${nome}_c_${sufixo}`;
@@ -90,8 +94,8 @@ export async function criarAmbiente(nome: string, envExtra: Record<string, strin
   const dbUrl = new URL(tenantUrl);
   await control.tenant.create({
     data: {
-      slug: "silveira",
-      nome: "Silveira (E2E)",
+      slug: slugTenant,
+      nome: `${slugTenant} (E2E)`,
       estado: "ACTIVE",
       dbHost: dbUrl.hostname,
       dbPort: Number(dbUrl.port),
@@ -149,9 +153,9 @@ export async function criarAmbiente(nome: string, envExtra: Record<string, strin
       method,
       headers: {
         authorization: `Bearer ${INGEST_KEY}`,
-        "x-tenant-slug": "silveira",
+        "x-tenant-slug": slugTenant,
         "content-type": "application/json",
-        host: `silveira.localhost:${PORT}`,
+        host: `${slugTenant}.localhost:${PORT}`,
       },
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
     });
@@ -162,9 +166,9 @@ export async function criarAmbiente(nome: string, envExtra: Record<string, strin
   };
 
   return {
-    tenantUrl, controlUrl, prisma, agente,
+    tenantUrl, controlUrl, prisma, agente, slug: slugTenant,
     tokenSessao: (sub, email) =>
-      new SignJWT({ sub, email, nome: "E2E Admin", perfil: "ADMINISTRADOR", farmaciaId: null, tenant: "silveira" })
+      new SignJWT({ sub, email, nome: "E2E Admin", perfil: "ADMINISTRADOR", farmaciaId: null, tenant: slugTenant })
         .setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("8h").sign(new TextEncoder().encode(SECRET)),
     logs: () => saida,
     parar: async () => {

@@ -134,6 +134,12 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
   ]));
   const ap = await aplicarVersaoInfarmed(prisma, ficheiro, { origem: "CARGA_INICIAL", apply: true });
   if (ap.resultado !== "APLICADA") throw new Error(`INFARMED não aplicado: ${ap.resultado} ${ap.motivo ?? ""}`);
+  // A reconciliação INFARMED reescreve `formaFarmaceutica` de TODOS os artigos do ficheiro com «Comprimido» (coluna
+  // do ficheiro sintético). Repõe as formas pretendidas: A «Comprimido», B « comprimido » (mesma forma, outra
+  // escrita), C e E «Comprimido revestido» (forma DIFERENTE), D e F sem forma.
+  for (const [produto, forma] of [[A, "Comprimido"], [B, " comprimido "], [C, "Comprimido revestido"], [D, null], [E, "Comprimido revestido"], [F, null]] as const) {
+    await prisma.produto.update({ where: { id: produto.id }, data: { formaFarmaceutica: forma } });
+  }
 
   // ── Encomendas: 30 (8 anuladas, 1 eliminada) ─────────────────────
   const base = Date.now() - 40 * 86_400_000;

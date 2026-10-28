@@ -85,10 +85,15 @@ async function main() {
     const geracao = net.desde(i0);
     check(geracao.length === 1, `«Gerar» → ${geracao.length} pedido`);
     const ID_GERAR = geracao[0]?.id ?? "?";
-    check((await gerar.innerText()).trim() === "Atualizar", "depois da geração o botão diz «Atualizar»");
+    // O botão diz «A gerar…» até a transição terminar (a tabela pode aparecer um instante antes): espera pelo texto final.
+    const botaoDiz = (t: string) => page.waitForFunction((x) => document.querySelector('[data-testid="margens-gerar"]')?.textContent?.trim() === x, t, { timeout: 15000 }).then(() => true, () => false);
+    check(await botaoDiz("Atualizar"), "depois da geração o botão diz «Atualizar»");
     check((await page.locator(AVISO).count()) === 0, "sem alterações: nenhuma indicação «por aplicar»");
+    // O 1.º `section.grid` pode ser o painel de filtros (aberto): identifica-se a barra de totais pelo seu texto.
+    const kpiTexto = () => page.locator("section.grid", { hasText: "Vendas € (c/ IVA)" }).first().innerText();
     const geracoes = () => net.todos().filter((p) => p.id === ID_GERAR).length;
     const todosCnps = await cnpsMapa(page);
+    await page.screenshot({ path: path.join(EVID, "gerado.png") });
     check(todosCnps.length > 100, `mapa gerado (${todosCnps.length} artigos)`);
 
     // ═══ 1 · nome ═══
@@ -98,6 +103,7 @@ async function main() {
     check((await quieto(page, net, 1500)) === 0 && geracoes() === g1, "escrever «ibuprofeno» (e esperar > debounce antigo de 400 ms): 0 pedidos");
     check((await page.locator(AVISO).count()) === 1 && /alterações por aplicar/i.test(await page.locator(AVISO).innerText()), "aparece «Existem alterações por aplicar»");
     check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify(todosCnps), "o relatório visível NÃO mudou (mesmos artigos)");
+    await page.screenshot({ path: path.join(EVID, "alterado-aviso-por-aplicar.png") }); // relatório anterior + «Existem alterações por aplicar»
     await page.locator(PESQUISA).press("Enter");
     check((await quieto(page, net, 1000)) === 0, "Enter no campo: 0 pedidos (a geração é só pelo botão, como em Vendas)");
     await page.locator(PESQUISA).fill("");
@@ -153,6 +159,7 @@ async function main() {
 
     // ═══ 6a · Atualizar aplica a pesquisa (preparar o resto) ═══
     secao("6 · «Atualizar»: exatamente 1 pedido, aplica TODOS os filtros do draft de uma vez");
+    const kpiAntes = await kpiTexto();
     await page.locator(PESQUISA).fill(String(CNP.A));
     await page.locator('input[aria-label="Até"]').fill(new Date().toISOString().slice(0, 10)); // mesmo valor: sem diferença
     check((await quieto(page, net, 1200)) === 0, "preencher o CNP no draft: 0 pedidos");
@@ -164,8 +171,9 @@ async function main() {
     check(p6.length === 1, `«Atualizar» (duplo clique) → ${p6.length} pedido de geração`);
     check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify([String(CNP.A)]), "a tabela passou a mostrar só o artigo pesquisado");
     check((await page.locator(AVISO).count()) === 0, "…e a indicação «por aplicar» desapareceu");
-    const kpi = await page.locator("section.grid").first().innerText();
-    check(/Vendas/.test(kpi), "os totais (KPI) foram recalculados com o resultado novo");
+    const kpi = await kpiTexto();
+    const plano = (t: string) => t.split(String.fromCharCode(10)).join(" | ");
+    check(/vendas/i.test(kpi) && kpi !== kpiAntes, "os totais (KPI) foram recalculados com o resultado novo", `antes: ${plano(kpiAntes)} -- depois: ${plano(kpi)}`);
     await page.screenshot({ path: path.join(EVID, "atualizado-cnp-a.png") });
 
     // ═══ 4 · Limpar filtros ═══
@@ -262,7 +270,8 @@ async function main() {
     check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify([String(CNP.D)]), "B gerou só o artigo D");
     const nAntesVoltar = net.n();
     await page.locator(`[data-navegacao-href^="/relatorios/margens?workspace=${wsA}"]`).click();
-    await page.locator(SEL).waitFor({ timeout: 20000 });
+    // espera pela análise A (o mapa de B ainda pode estar no ecrã um instante): o artigo B tem de aparecer.
+    await page.locator(`${SEL} tbody > tr[data-cnp="${CNP.B}"]`).first().waitFor({ timeout: 20000 }).catch(() => undefined);
     check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify([String(CNP.B)]) && (await page.locator(PESQUISA).inputValue()) === String(CNP.B), "A mantém o seu resultado (B) e o seu critério — nada de B");
     check((await quieto(page, net, 1200)) === 0 && net.n() === nAntesVoltar, "alternar entre análises: 0 pedidos");
     await page.reload({ waitUntil: "networkidle" });

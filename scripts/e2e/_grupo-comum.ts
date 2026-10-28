@@ -57,7 +57,7 @@ export async function semear(amb: Ambiente, opcoes: { multiFornecedor?: boolean 
 
 export async function abrirContexto(amb: Ambiente, browser: import("playwright").Browser, seed: SeedResult): Promise<BrowserContext> {
   const ctx = await browser.newContext();
-  await ctx.addCookies([{ name: "session", value: await amb.tokenSessao(seed.userId, "e2e@spharm.test"), url: baseFor("silveira") }]);
+  await ctx.addCookies([{ name: "session", value: await amb.tokenSessao(seed.userId, "e2e@spharm.test"), url: baseFor(amb.slug) }]);
   return ctx;
 }
 

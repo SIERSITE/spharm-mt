@@ -34,6 +34,8 @@ import { chromium, type Page } from "playwright";
 import { baseFor, criarAmbiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
 import { CNP, semearMargens } from "./_margens-comum";
+import { iniciarSmtpSink } from "./_smtp-sink";
+import { INIT_CAPTURA_IMPRESSAO, emailReal, excelReal, imprimir, pdfReal, renderizarPdf } from "./_saidas-reais";
 
 let ok = 0;
 let falhas = 0;
@@ -76,9 +78,12 @@ async function main() {
   fs.mkdirSync(EVID, { recursive: true });
   const amb = await criarAmbiente("forma");
   const browser = await chromium.launch();
+  const smtp = await iniciarSmtpSink();
   try {
     const seed = await semearMargens(amb);
+    await amb.prisma.emailConfig.create({ data: { smtpHost: "127.0.0.1", smtpPort: smtp.port, smtpSecure: false, fromEmail: "spharm@exemplo.invalid", isActive: true } });
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
+    await ctx.addInitScript(INIT_CAPTURA_IMPRESSAO); // captura da impressão (iframe) e window.__name
     const page = await ctx.newPage();
     page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
     await page.setViewportSize({ width: 1600, height: 900 });
@@ -180,6 +185,22 @@ async function main() {
       page.getByRole("button", { name: /^PDF$/ }).first().click(),
     ]);
     check(/Forma farmacêutica/.test(reqPdf1.postDataBuffer()!.toString("utf8")), "depois de aplicada, o PDF traz «Forma farmacêutica: Comprimido»");
+    // ── saídas REAIS com a forma nos filtros aplicados (impressão, PDF, Excel e email) ──
+    secao("2b · Margens: impressão, PDF real, Excel real e email com «Forma farmacêutica: Comprimido» nos filtros aplicados");
+    const RE_FILTRO_FORMA = /Forma farmacêutica\W{0,6}Comprimido/;
+    const tImp = await imprimir(page);
+    check(RE_FILTRO_FORMA.test(tImp), "impressão: os filtros aplicados trazem «Forma farmacêutica: Comprimido»");
+    check(tImp.includes(String(CNP.A)) && !tImp.includes(String(CNP.C)), "impressão: só os artigos da forma (A), nunca os revestidos (C)");
+    const pdfR = await pdfReal(page, ctx, EVID, "margens-forma.pdf");
+    check(RE_FILTRO_FORMA.test(pdfR.texto), "PDF real: os filtros aplicados trazem «Forma farmacêutica: Comprimido»");
+    check(pdfR.texto.includes(String(CNP.A)) && !pdfR.texto.includes(String(CNP.C)), "PDF real: só os artigos da forma");
+    renderizarPdf(pdfR.ficheiro, EVID, "margens-forma-pdf", 1);
+    const xlR = await excelReal(page, EVID, "margens-forma.xlsx");
+    const csvPlano = xlR.csv.split(String.fromCharCode(10)).join(" ").split(",").join(" ");
+    check(RE_FILTRO_FORMA.test(csvPlano) && xlR.csv.includes(String(CNP.A)) && !xlR.csv.includes(String(CNP.C)), "Excel real: filtros com a forma e só os artigos da forma");
+    const emR = await emailReal(page, smtp, EVID, "margens-forma");
+    check(emR.enviado && !!emR.pdf && !!emR.xlsx, `email real recebido com PDF e Excel (${emR.anexos.join(", ")})`, emR.feedback.slice(-200));
+    check(!!emR.pdf && RE_FILTRO_FORMA.test(emR.pdf) && !!emR.xlsx && /Forma farmacêutica/.test(emR.xlsx), "email: PDF e Excel RECEBIDOS trazem a forma nos filtros aplicados");
     const m2 = net.n();
     await page.getByRole("button", { name: "Limpar filtros" }).click();
     check((await quieto(page, net, 1500)) === 0 && net.n() === m2, "Margens: «Limpar filtros» = 0 pedidos");
@@ -202,6 +223,7 @@ async function main() {
     await page.waitForTimeout(800);
     let ti = await textoPagina(page);
     check(temCnp(ti, A) && temCnp(ti, B) && !temCnp(ti, C) && !temCnp(ti, D), "Inventário só mostra A e B depois de «Atualizar»");
+    await page.screenshot({ path: path.join(EVID, "inventario.png") });
     await page.getByRole("button", { name: "Limpar filtros" }).click();
     check((await quieto(page, net, 1200)) === 0, "Inventário: «Limpar filtros» = 0 pedidos");
     ti = await textoPagina(page);
@@ -227,6 +249,7 @@ async function main() {
     await page.goto(base + "/stock?forma=comprimido", { waitUntil: "networkidle" });
     let ts = await textoPagina(page);
     check(temCnp(ts, A) && temCnp(ts, B) && !temCnp(ts, C), "Stock (deep link ?forma=comprimido): só A e B, tabela carregada");
+    await page.screenshot({ path: path.join(EVID, "stock.png") });
     check((await chip(page, "Forma: Comprimido").count()) >= 1 || (await page.getByRole("button", { name: /Forma: Comprimido/ }).count()) >= 1, "…com o chip da forma");
     await page.goto(base + "/stock?forma=comprimido&forma=comprimido%20revestido", { waitUntil: "networkidle" });
     ts = await textoPagina(page);
@@ -252,6 +275,7 @@ async function main() {
     let tc = await textoPagina(page);
     check(temCnp(tc, A) && temCnp(tc, B) && !temCnp(tc, C), "Catálogo (deep link): só A e B");
     check(/\b2\b[\s\S]{0,12}produtos/.test(tc), "…o total do servidor reflete o filtro (2 produtos)");
+    await page.screenshot({ path: path.join(EVID, "catalogo.png") });
     await page.goto(base + "/catalogo", { waitUntil: "networkidle" });
     await opcao(page, RE_SEM).click();
     await page.waitForURL(/forma=__sem_forma__/);
@@ -273,6 +297,7 @@ async function main() {
       await page.waitForTimeout(3500);
       const tp = await textoPagina(page);
       check(!temCnp(tp, C) && !temCnp(tp, E) && !temCnp(tp, D), "a proposta com «Comprimido» não traz revestidos nem sem forma (filtro no SQL)");
+    await page.screenshot({ path: path.join(EVID, "encomenda-nova.png") });
     }
 
     // ═══ 9 · Workspace: duas análises independentes ═══
@@ -318,6 +343,7 @@ async function main() {
     console.log(["--- logs do servidor ---", amb.logs().slice(-3000)].join("\n"));
     throw e;
   } finally {
+    smtp.fechar();
     await browser.close();
     await amb.parar();
   }

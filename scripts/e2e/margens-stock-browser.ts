@@ -20,6 +20,8 @@ import { chromium, type Page } from "playwright";
 import { baseFor, criarAmbiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
 import { alinhamentoColunas, atualizarMargens, CNP, estadoCabecalho, semearMargens } from "./_margens-comum";
+import { iniciarSmtpSink } from "./_smtp-sink";
+import { INIT_CAPTURA_IMPRESSAO, emailReal, imprimir, pdfReal, renderizarPdf } from "./_saidas-reais";
 
 let ok = 0;
 let falhas = 0;
@@ -53,6 +55,7 @@ async function main() {
   fs.mkdirSync(EVID, { recursive: true });
   const amb = await criarAmbiente("mstk");
   const browser = await chromium.launch();
+  const smtp = await iniciarSmtpSink();
   try {
     const seed = await semearMargens(amb);
     // Casos de stock: zero, negativo e desconhecido (os restantes ficam positivos).
@@ -63,6 +66,8 @@ async function main() {
     await prisma.produtoFarmacia.updateMany({ where: { produtoId: await produto(CNP.SEM_CUSTO) }, data: { stockAtual: null } });
 
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
+    await ctx.addInitScript(INIT_CAPTURA_IMPRESSAO); // window.__name (tsx/esbuild injeta __name nas funções de page.evaluate) + captura da impressão
+    await prisma.emailConfig.create({ data: { smtpHost: "127.0.0.1", smtpPort: smtp.port, smtpSecure: false, fromEmail: "spharm@exemplo.invalid", isActive: true } });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
 
@@ -165,10 +170,23 @@ async function main() {
     const valoresA = dadosA.map((l) => l[col]).filter((v) => typeof v === "number");
     check(valoresA.filter((v) => v === 40).length === 2, `Excel: artigo A com 40 em cada farmácia (${valoresA.join(", ")})`);
     fs.rmSync(xp);
+
+    // ═══ saídas REAIS: impressão, PDF real e email — com a expansão CNPEM ABERTA no ecrã ═══
+    secao("impressão, PDF real e email: coluna e total de Stock presentes; expansão CNPEM ausente");
+    const temStock = (t: string) => /Stock/.test(t) && /Stock total/.test(t) && !/IBUPROFENO B 400|Mesmo CNPEM|Produto analisado/.test(t);
+    const tImp = await imprimir(page);
+    check(temStock(tImp), "impressão: coluna «Stock» e «Stock total», sem a expansão CNPEM");
+    const pdfR = await pdfReal(page, ctx, EVID, "margens-stock.pdf");
+    check(temStock(pdfR.texto), "PDF real: coluna «Stock» e «Stock total», sem a expansão CNPEM");
+    renderizarPdf(pdfR.ficheiro, EVID, "margens-stock-pdf", 1);
+    const emR = await emailReal(page, smtp, EVID, "margens-stock");
+    check(emR.enviado && !!emR.pdf && !!emR.xlsx, `email real recebido com PDF e Excel (${emR.anexos.join(", ")})`, emR.feedback.slice(-200));
+    check(!!emR.pdf && temStock(emR.pdf) && !!emR.xlsx && /Stock/.test(emR.xlsx) && !/IBUPROFENO B 400/.test(emR.xlsx), "email: PDF e Excel RECEBIDOS trazem o Stock e não a expansão CNPEM");
   } catch (e) {
     console.log(["--- logs do servidor ---", amb.logs().slice(-3000)].join("\n"));
     throw e;
   } finally {
+    smtp.fechar();
     await browser.close();
     await amb.parar();
   }
