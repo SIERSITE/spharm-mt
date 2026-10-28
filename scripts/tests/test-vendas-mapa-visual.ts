@@ -413,8 +413,10 @@ async function main() {
     ok("cabeçalho da tabela: uma única linha inferior de 1.5px, sem contornos nas células", /hierarchy-clean thead th \{[^}]*border: 0; border-bottom: 1\.5px solid/.test(clean));
     ok("corpo: sem caixa por célula (border:0) e só filete horizontal fino (1px)", /hierarchy-clean tbody td \{\s*border: 0; border-bottom: 1px solid #eef0f3/.test(clean));
     // Única exceção, deliberada: a coluna «Total unid.» (`.tint-total`) leva dois filetes laterais finos que a delimitam em cinzentos.
-    const cleanSemTint = clean.replace(/[^{}]*tint-total[^{}]*\{[^}]*\}/g, "");
-    ok("nenhuma linha vertical (border-left/right) no corpo clean (exceto a coluna «Total unid.»)", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(cleanSemTint));
+    // E, desde 2026-10, os separadores verticais finos dos MESES (`.mes`, `.mes-ini`, `.mes-fim`, `.apos-mes`): pedido do cliente para ler o
+    // mapa em papel. Verificados a fundo em test-vendas-separadores-meses; aqui só se garante que não há mais nenhuma linha vertical.
+    const cleanSemTint = clean.replace(/[^{}]*tint-total[^{}]*\{[^}]*\}/g, "").replace(/[^{}]*\.(?:mes|apos-mes)(?![\w-])[^{}]*\{[^}]*\}/g, "").replace(/[^{}]*\.(?:mes-ini|mes-fim)(?![\w-])[^{}]*\{[^}]*\}/g, "");
+    ok("nenhuma linha vertical (border-left/right) no corpo clean (exceto «Total unid.» e os separadores de meses)", !/hierarchy-clean tbody td[^{]*\{[^}]*border-(left|right):\s*[1-9]/.test(cleanSemTint));
     const espessuras = [...clean.matchAll(/border(?:-top|-bottom)?:\s*([0-9.]+)px/g)].map((m) => Number(m[1]));
     // O separador entre artigos é, deliberadamente, o filete mais forte (2px); todos os outros mantêm-se ≤ 1.5px.
     const semSeparador = clean.replace(/[^{}]*row-group:not\(\.row-group-ultimo\)[^{}]*\{[^}]*\}/g, "");

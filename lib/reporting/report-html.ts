@@ -363,15 +363,38 @@ function renderTable(report: Report): string {
     const mesAlt = new Set<string>();
     colsB.filter((c) => c.monthAlt).forEach((c, i) => { if (i % 2 === 1) mesAlt.add(c.key); });
 
+    // SEPARADORES VERTICAIS DOS MESES (só no relatório limpo): cada mês leva uma borda esquerda muito fina; o 1.º mês do bloco e o
+    // último levam o limite do bloco. São BORDAS (imprimem-se mesmo com «gráficos de fundo» desligado) e vêm das mesmas classes no
+    // cabeçalho, no corpo, no «TOTAL ARTIGO» e no «TOTAL GERAL» — por isso coincidem e são contínuas de cima a baixo. Se a coluna a
+    // seguir ao último mês é de totais (`tint`), o limite desenha-o essa coluna (um só filete, nunca dois lado a lado).
+    const colunasMes = colsB.filter((c) => c.monthAlt);
+    const primeiraMes = colunasMes[0]?.key;
+    const ultimaMes = colunasMes[colunasMes.length - 1]?.key;
+    const classesMes = (c: ReportColumn, i: number): string[] => {
+      if (!limpo) return [];
+      const out: string[] = [];
+      if (c.monthAlt) {
+        out.push("mes");
+        if (c.key === primeiraMes) out.push("mes-ini");
+        if (c.key === ultimaMes) {
+          out.push("mes-fim");
+          if (colsB[i + 1]?.tint === "total") out.push("mes-fim-tint");
+        }
+      } else if (c.tint === "total" && i > 0 && colsB[i - 1].key === ultimaMes) {
+        out.push("apos-mes");
+      }
+      return out;
+    };
+
     const headerCells = colsB
-      .map((c) => {
+      .map((c, ci) => {
         const style = alignStyle(defaultAlignFor(c));
         // Um rótulo pode trazer "\n" para pedir cabeçalho em duas linhas
         // (ex.: meses "JAN\n26", ou "Custo unit.\nest.") — a forma mais
         // curta de dar mais largura de leitura a cada linha sem estreitar
         // a coluna nem cortar texto.
         const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
-        const cls = [c.noClip ? "nc" : "", mesAlt.has(c.key) ? "mes-alt" : "", c.tint === "total" ? "tint-total" : ""].filter(Boolean).join(" ");
+        const cls = [c.noClip ? "nc" : "", mesAlt.has(c.key) ? "mes-alt" : "", c.tint === "total" ? "tint-total" : "", ...classesMes(c, ci)].filter(Boolean).join(" ");
         return `<th style="${style}"${cls ? ` class="${cls}"` : ""}>${label}</th>`;
       })
       .join("");
@@ -381,7 +404,7 @@ function renderTable(report: Report): string {
       const grupo = grupoDoIndice.get(idx) ?? { length: 1, isFirst: true };
       const usaSpan = grupo.length > 1 && grupo.length <= MAX_LINHAS_COM_ROWSPAN;
       const tds = colsB
-        .map((c) => {
+        .map((c, ci) => {
           if (c.spanGroup && usaSpan && !grupo.isFirst) {
             // Coberta pelo rowspan emitido na 1ª linha do grupo — uma
             // tabela HTML válida não pode repetir esta célula.
@@ -398,6 +421,7 @@ function renderTable(report: Report): string {
           if (limpo && (c.format === "currency" || c.format === "integer" || c.format === "number" || c.format === "decimal1" || c.format === "percent")) classes.push("num");
           if (mesAlt.has(c.key)) classes.push("mes-alt");
           if (c.tint === "total") classes.push("tint-total");
+          classes.push(...classesMes(c, ci));
           if (c.monthAlt) {
             // zero → «·» apagado; > 0 → semibold; < 0 (devoluções) → bold a vermelho-escuro (o sinal «-» mantém-se)
             const nv = numericValue(valor);
@@ -472,7 +496,7 @@ function renderTable(report: Report): string {
       for (let i = 0; i < colsB.length; i++) {
         const c = colsB[i];
         const style = alignStyle(defaultAlignFor(c));
-        const ncClasses = [c.noClip ? "nc" : "", limpo && (c.format === "currency" || c.format === "integer" || c.format === "number") ? "num" : "", c.tint === "total" ? "tint-total" : ""].filter(Boolean).join(" ");
+        const ncClasses = [c.noClip ? "nc" : "", limpo && (c.format === "currency" || c.format === "integer" || c.format === "number") ? "num" : "", c.tint === "total" ? "tint-total" : "", ...classesMes(c, i)].filter(Boolean).join(" ");
         const nc = ncClasses ? ` class="${ncClasses}"` : "";
         if (i === 0) {
           // "TOTAL GERAL", não "Total" — para nunca se confundir, à
@@ -485,7 +509,8 @@ function renderTable(report: Report): string {
         if (c.showTotal) {
           celulas.push(`<td style="${style}"${nc}><strong>${escapeHtml(formatCell(totals[c.key], c.format))}</strong></td>`);
         } else {
-          celulas.push(c.tint === "total" ? `<td class="tint-total"></td>` : `<td></td>`);
+          const cl = [c.tint === "total" ? "tint-total" : "", ...classesMes(c, i)].filter(Boolean).join(" ");
+          celulas.push(cl ? `<td class="${cl}"></td>` : `<td></td>`);
         }
       }
       totalsRow = `<tbody class="totals-tbody"><tr>${celulas.join("")}</tr>__NOTA__</tbody>`;
@@ -1108,6 +1133,31 @@ const STYLES = `
   .page.density-compact.hierarchy-clean tbody td.tint-total { background: #e1ecf8 !important; border-left: 1px solid #b4c3d6; border-right: 1px solid #b4c3d6; }
   .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.tint-total { background: #d4e3f4 !important; }
   .page.density-compact.hierarchy-clean .totals-tbody td.tint-total { background: #c8daf0 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
+
+  /* SEPARADORES VERTICAIS DOS MESES — para ler em papel (a preto e branco, com «gráficos de fundo» desligado) a que mês pertence cada
+     valor. Só nas colunas mensais: 1px (0,75pt) cinzento claro entre meses; 1px um pouco mais escuro nos limites do bloco (antes do
+     1.º mês e depois do último). Mais leves do que o separador entre artigos (2px). São bordas das células: contínuas do cabeçalho ao
+     TOTAL GERAL, sem fundos, sem grelha nas outras colunas. Os seletores têm especificidade acima das regras de «TOTAL ARTIGO»
+     (border:0) e do TOTAL GERAL para não serem anulados. */
+  .page.density-compact.hierarchy-clean thead th.mes,
+  .page.density-compact.hierarchy-clean tbody td.mes,
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.mes,
+  .page.density-compact.hierarchy-clean .totals-tbody td.mes { border-left: 1px solid #b4bac4; }
+  .page.density-compact.hierarchy-clean thead th.mes-ini,
+  .page.density-compact.hierarchy-clean tbody td.mes-ini,
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.mes-ini,
+  .page.density-compact.hierarchy-clean .totals-tbody td.mes-ini { border-left: 1px solid #9aa4b2; }
+  .page.density-compact.hierarchy-clean thead th.mes-fim:not(.mes-fim-tint),
+  .page.density-compact.hierarchy-clean tbody td.mes-fim:not(.mes-fim-tint),
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.mes-fim:not(.mes-fim-tint),
+  .page.density-compact.hierarchy-clean .totals-tbody td.mes-fim:not(.mes-fim-tint) { border-right: 1px solid #9aa4b2; }
+  /* limite depois do último mês, quando a coluna seguinte é de totais: é o filete dessa coluna (um só, mesmo tom do limite) */
+  .page.density-compact.hierarchy-clean thead th.apos-mes,
+  .page.density-compact.hierarchy-clean tbody td.apos-mes,
+  .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.apos-mes,
+  .page.density-compact.hierarchy-clean .totals-tbody td.apos-mes { border-left: 1px solid #9aa4b2; }
+  /* duas colunas de totais seguidas («Total unid. do bloco» + «Período: Total unid.»): um só filete entre elas */
+  .page.density-compact.hierarchy-clean .tint-total + .tint-total { border-left-width: 0; }
 
   /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
   .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
