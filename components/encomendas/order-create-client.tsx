@@ -53,6 +53,7 @@ import {
 import type { EstadoAutosave } from "@/lib/encomendas/use-autosave-encomenda";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
+import { LaboratorioMultiSelect } from "@/components/reporting/laboratorio-multi-select";
 import {
   TEMPO_AVISO_DEMORA_MS,
   guardarDocumentosPendentes,
@@ -3203,7 +3204,16 @@ export function OrderCreateClient({
             )}
           </div>
           <div className="grid gap-4 px-4 py-4 md:grid-cols-2 lg:grid-cols-4">
-            <FilterMulti label="Fabricantes" options={filterOptions.fabricantes} selected={selFabricantes} onChange={setSelFabricantes} disabled={busy || generating} />
+            {/* Garantia (`laboratorios` povoado): "Laboratório ou grupo" agrupado; a proposta resolve grupo:/fabricante: no servidor. Outros tenants: igual a sempre. */}
+            {filterOptions.laboratorios && filterOptions.laboratorios.length > 0 ? (
+              <LaboratorioMultiSelect
+                laboratorios={filterOptions.laboratorios}
+                selected={selFabricantes}
+                onToggle={(v) => setSelFabricantes(selFabricantes.includes(v) ? selFabricantes.filter((x) => x !== v) : [...selFabricantes, v])}
+              />
+            ) : (
+              <FilterMulti label="Fabricantes" options={filterOptions.fabricantes} selected={selFabricantes} onChange={setSelFabricantes} disabled={busy || generating} />
+            )}
             <FilterMulti label="Distribuidores" options={filterOptions.distribuidores} selected={selFornecedores} onChange={setSelFornecedores} disabled={busy || generating} />
             <FilterMulti label="Categorias" options={filterOptions.categorias} selected={selCategorias} onChange={setSelCategorias} disabled={busy || generating} />
             <FilterMulti label="Subcategorias" options={subcategoriasVisiveis} selected={selSubcategorias} onChange={setSelSubcategorias} disabled={busy || generating} />

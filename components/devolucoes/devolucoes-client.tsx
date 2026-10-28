@@ -11,6 +11,9 @@ import {
 } from "@/lib/farmacias-header";
 import type { DevolucaoRow } from "@/lib/devolucoes-data";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { FiltroFabricante } from "@/components/reporting/filtro-fabricante";
+import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
+import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
 import { runDevolucoesReport } from "@/app/devolucoes/actions";
 
 type Props = {
@@ -35,6 +38,9 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
   const farmacias = uniqNonEmpty(farmaciasInfo.map((f) => f.nome));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  const laboratorios = filterOptions.laboratorios;
+  const modoGrupos = !!laboratorios && laboratorios.length > 0;
   const categorias = filterOptions.categorias;
   void initialRows;
 
@@ -62,6 +68,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -80,11 +87,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
         !fornecedoresSelecionados.includes(row.fornecedor)
       )
         return false;
-      if (
-        fabricantesSelecionados.length > 0 &&
-        !fabricantesSelecionados.includes(row.fabricante)
-      )
-        return false;
+      if (!passaFiltroLaboratorioLinha(row, fabricantesSelecionados, filtroLab)) return false;
       if (
         categoriasSelecionadas.length > 0 &&
         !categoriasSelecionadas.includes(row.categoria)
@@ -100,6 +103,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
     farmaciasSelecionadas,
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    filtroLab,
     categoriasSelecionadas,
     dateFrom,
     dateTo,
@@ -175,6 +179,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
         pharmacies: farmacias,
         suppliers: fornecedores,
         manufacturers: fabricantes,
+        laboratorios,
         categories: categorias,
       },
       organization: formatFarmaciaHeader(farmaciasSelecionadas, farmaciasInfo),
@@ -251,12 +256,23 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
               selected={fornecedoresSelecionados}
               onChange={setFornecedoresSelecionados}
             />
-            <FilterSelect
-              label="Fabricante"
-              options={fabricantes}
-              selected={fabricantesSelecionados}
-              onChange={setFabricantesSelecionados}
-            />
+            {modoGrupos ? (
+              <FiltroFabricante
+                fabricantes={fabricantes}
+                laboratorios={laboratorios}
+                selected={fabricantesSelecionados}
+                onToggle={(v) =>
+                  setFabricantesSelecionados((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+                }
+              />
+            ) : (
+              <FilterSelect
+                label="Fabricante"
+                options={fabricantes}
+                selected={fabricantesSelecionados}
+                onChange={setFabricantesSelecionados}
+              />
+            )}
             <FilterSelect
               label="Categoria"
               options={categorias}

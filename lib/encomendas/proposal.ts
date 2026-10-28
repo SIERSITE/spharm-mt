@@ -9,6 +9,7 @@ import {
   type ResumoListaImportada,
 } from "@/lib/encomendas/resumo-lista";
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
+import { resolverFiltroFabricantesProposta } from "@/lib/encomendas/filtro-fabricantes-proposta";
 import { ordenarLinhasProposta } from "@/lib/ordenacao-artigos";
 
 /**
@@ -381,7 +382,9 @@ type RawRow = {
 
 export async function generateOrderProposal(
   input: ProposalInput,
-  client?: PrismaClient
+  client?: PrismaClient,
+  // Só para testes: simula o tenant fora de um pedido Next.js. Produção usa sempre o default.
+  opcoes?: { resolverTenant?: () => Promise<string | null> }
 ): Promise<ProposalResult> {
   if (input.endDate < input.startDate) {
     throw new Error("Data fim anterior à data início.");
@@ -391,7 +394,8 @@ export async function generateOrderProposal(
   const numDays = diffDaysInclusive(input.startDate, input.endDate);
   const farmaciaNome = input.farmaciaNome ?? input.farmaciaId;
 
-  const fabFilter = input.filters?.fabricantes?.length ? input.filters.fabricantes : null;
+  // Garantia: grupo:/fabricante: resolvem-se para produtos; nos outros tenants continua a ser por nome de fabricante.
+  const fabFiltro = await resolverFiltroFabricantesProposta(prisma, input.filters?.fabricantes, opcoes?.resolverTenant);
   const fornFilter = input.filters?.fornecedores?.length ? input.filters.fornecedores : null;
   const catFilter = input.filters?.categorias?.length ? input.filters.categorias : null;
   const subcatFilter = input.filters?.subcategorias?.length ? input.filters.subcategorias : null;
@@ -409,7 +413,8 @@ export async function generateOrderProposal(
   // A lista NÃO entra em `conds`. Com lista, ela decide a FORMA da
   // consulta — ver o bloco `rawRows` abaixo — e não é mais um `AND`.
   const conds: Prisma.Sql[] = [];
-  if (fabFilter) conds.push(Prisma.sql`fab."nomeNormalizado" = ANY(${fabFilter})`);
+  if (fabFiltro?.modo === "nomes") conds.push(Prisma.sql`fab."nomeNormalizado" = ANY(${fabFiltro.nomes})`);
+  if (fabFiltro?.modo === "produtos") conds.push(Prisma.sql`p.id = ANY(${fabFiltro.produtoIds})`);
   if (fornFilter) conds.push(Prisma.sql`pf."fornecedorOrigem" = ANY(${fornFilter})`);
   if (typeFilter) conds.push(Prisma.sql`p."productType" = ANY(${typeFilter})`);
   if (catFilter) {

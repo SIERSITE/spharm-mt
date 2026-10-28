@@ -27,7 +27,7 @@
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
+import { resolveCurrentTenantSlug, gruposLaboratoriaisAtivos } from "@/lib/tenant-context";
 import { carregarLaboratoriosGarantia } from "@/lib/catalog/carregar-laboratorios-garantia";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
@@ -159,7 +159,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
   let fabricantesFinal = cleanSortUnique(fabricanteRows.map((r) => r.nome));
   let laboratorios: CatalogoFilterOptionLaboratorio[] | undefined;
   const tenantSlug = await resolveCurrentTenantSlug();
-  if (tenantSlug === TENANT_GRUPOS_LABORATORIAIS) {
+  if (gruposLaboratoriaisAtivos(tenantSlug)) {
     const [grupos, associacoesIntegrais] = await Promise.all([
       prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { nome: true } }),
       prisma.grupoLaboratorialFabricante.findMany({ select: { fabricante: { select: { nomeNormalizado: true } } } }),

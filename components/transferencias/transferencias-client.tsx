@@ -22,6 +22,10 @@ import { ReportActions } from "@/components/reporting/report-actions";
 import { buildTransferenciasReport } from "@/lib/reporting/adapters/transferencias";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
+import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
+import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
+import { nomeLegivelLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import { TransferenciasRegistadasList } from "@/components/transferencias/transferencias-registadas-list";
 import type { TransferenciaRegistadaRow } from "@/lib/transferencias/registadas-data";
@@ -88,6 +92,9 @@ type TransferenciasCriterios = {
   modoVisualizacao: ModoVisualizacao;
   ordenacaoTabela: EstadoOrdenacao<ColunaTransferencias>;
 };
+
+/** Referência estável para "sem selecção" (evita re-resolver no servidor a cada render). */
+const SEM_SELECAO: string[] = [];
 
 type ReportSnapshot = {
   farmaciasOrigemSelecionadas: string[];
@@ -161,6 +168,9 @@ export function TransferenciasClient({
   const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  const laboratorios = filterOptions.laboratorios;
+  const modoGrupos = !!laboratorios && laboratorios.length > 0;
   const categorias = filterOptions.categorias;
   void initialRows;
   const prioridades = ["alta", "media", "baixa"];
@@ -282,6 +292,8 @@ export function TransferenciasClient({
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
+  const filtroLab = useFiltroLaboratorio(snapshot?.fabricantesSelecionados ?? SEM_SELECAO, modoGrupos);
+
   const rowsForReport = useMemo(() => {
     if (!snapshot) return [];
 
@@ -309,10 +321,7 @@ export function TransferenciasClient({
         return false;
       }
 
-      if (
-        snapshot.fabricantesSelecionados.length > 0 &&
-        !snapshot.fabricantesSelecionados.includes(row.fabricante)
-      ) {
+      if (!passaFiltroLaboratorioLinha(row, snapshot.fabricantesSelecionados, filtroLab)) {
         return false;
       }
 
@@ -358,7 +367,7 @@ export function TransferenciasClient({
 
       return true;
     });
-  }, [snapshot, initialRows]);
+  }, [snapshot, initialRows, filtroLab]);
 
   const orderedRows = useMemo(() => {
     if (!snapshot) return [];
@@ -406,12 +415,12 @@ export function TransferenciasClient({
     const identidade = `${pathname}?workspace=${workspaceId}`;
     const foco =
       fabricantesSelecionados.length === 1
-        ? fabricantesSelecionados[0]
+        ? nomeLegivelLaboratorio(fabricantesSelecionados[0]!, laboratorios) || "Fabricante"
         : prioridadesSelecionadas.length === 1
           ? `prioridade ${prioridadesSelecionadas[0]}`
           : null;
     taskBar.actualizarTitulo(identidade, ["Transferências", foco].filter(Boolean).join(" — "));
-  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, prioridadesSelecionadas]);
+  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, prioridadesSelecionadas, laboratorios]);
 
   const rowsVisiveis = useMemo(
     () => (ordenacao ? ordenarLinhas(orderedRows, ordenacao, acessorTransferencias) : orderedRows),
@@ -563,7 +572,7 @@ export function TransferenciasClient({
                   apenasAltaPrioridade,
                   quantidadeMinima,
                 },
-                universe: { farmacias, fornecedores, fabricantes, categorias, prioridades },
+                universe: { farmacias, fornecedores, fabricantes, laboratorios, categorias, prioridades },
                 organization: formatFarmaciaHeader(
                   Array.from(
                     new Set([
@@ -735,9 +744,9 @@ export function TransferenciasClient({
                   }
                 />
 
-                <SearchableMultiSelect
-                  label="Fabricante"
-                  options={fabricantes}
+                <FiltroFabricante
+                  fabricantes={fabricantes}
+                  laboratorios={laboratorios}
                   selected={fabricantesSelecionados}
                   onToggle={(value) =>
                     toggleValue(
@@ -838,7 +847,7 @@ export function TransferenciasClient({
                 {fabricantesSelecionados.map((item) => (
                   <FilterPill
                     key={`fabricante-${item}`}
-                    label={`Fabricante: ${item}`}
+                    label={rotuloChipFabricante(item, laboratorios)}
                     onRemove={() =>
                       setFabricantesSelecionados((prev) =>
                         prev.filter((v) => v !== item)

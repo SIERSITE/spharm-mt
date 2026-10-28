@@ -30,6 +30,10 @@ import { ReportActions } from "@/components/reporting/report-actions";
 import { buildExcessosReport } from "@/lib/reporting/adapters/excessos";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
+import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
+import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
+import { nomeLegivelLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 type ModoVisualizacao = "tabela" | "relatorio";
 type Ordenacao =
@@ -84,6 +88,9 @@ type ExcessosCriterios = {
   modoVisualizacao: ModoVisualizacao;
   ordenacaoTabela: EstadoOrdenacao<ColunaExcessos>;
 };
+
+/** Referência estável para "sem selecção" (evita re-resolver no servidor a cada render). */
+const SEM_SELECAO: string[] = [];
 
 type ReportSnapshot = {
   farmaciasOrigemSelecionadas: string[];
@@ -179,6 +186,9 @@ export function ExcessosClient({
   const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  const laboratorios = filterOptions.laboratorios;
+  const modoGrupos = !!laboratorios && laboratorios.length > 0;
   const categorias = filterOptions.categorias;
   const nomePorSlug = new Map(filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
   const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
@@ -304,6 +314,8 @@ export function ExcessosClient({
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
+  const filtroLab = useFiltroLaboratorio(snapshot?.fabricantesSelecionados ?? SEM_SELECAO, modoGrupos);
+
   const rowsForReport = useMemo(() => {
     if (!snapshot) return [];
     const quantidadeMin = Number(snapshot.quantidadeMinima || 0);
@@ -323,7 +335,7 @@ export function ExcessosClient({
       )
         return false;
       if (snapshot.fornecedoresSelecionados.length > 0 && !snapshot.fornecedoresSelecionados.includes(row.fornecedor)) return false;
-      if (snapshot.fabricantesSelecionados.length > 0 && !snapshot.fabricantesSelecionados.includes(row.fabricante)) return false;
+      if (!passaFiltroLaboratorioLinha(row, snapshot.fabricantesSelecionados, filtroLab)) return false;
       if (!passaFiltroCatalogo(row, {
         categorias: snapshot.categoriasSelecionadas,
         subcategorias: snapshot.subcategoriasSelecionadas,
@@ -341,7 +353,7 @@ export function ExcessosClient({
         return false;
       return true;
     });
-  }, [snapshot, initialRows]);
+  }, [snapshot, initialRows, filtroLab]);
 
   const orderedRows = useMemo(() => {
     if (!snapshot) return [];
@@ -387,12 +399,12 @@ export function ExcessosClient({
     const identidade = `${pathname}?workspace=${workspaceId}`;
     const foco =
       fabricantesSelecionados.length === 1
-        ? fabricantesSelecionados[0]
+        ? nomeLegivelLaboratorio(fabricantesSelecionados[0]!, laboratorios) || "Fabricante"
         : prioridadesSelecionadas.length === 1
           ? `prioridade ${prioridadesSelecionadas[0]}`
           : null;
     taskBar.actualizarTitulo(identidade, ["Excessos", foco].filter(Boolean).join(" — "));
-  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, prioridadesSelecionadas]);
+  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, prioridadesSelecionadas, laboratorios]);
 
   const rowsVisiveis = useMemo(
     () => (ordenacao ? ordenarLinhas(orderedRows, ordenacao, acessorExcessos) : orderedRows),
@@ -504,7 +516,7 @@ export function ExcessosClient({
                   apenasAltaPrioridade,
                   quantidadeMinima,
                 },
-                universe: { farmacias, fornecedores, fabricantes, categorias, prioridades },
+                universe: { farmacias, fornecedores, fabricantes, laboratorios, categorias, prioridades },
                 organization: formatFarmaciaHeader(
                   Array.from(
                     new Set([
@@ -593,7 +605,7 @@ export function ExcessosClient({
                 <SearchableMultiSelect label="Farmácia destino" options={farmacias} selected={farmaciasDestinoSelecionadas} onToggle={(value) => toggleValue(value, farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas)} />
                 <SearchableMultiSelect label="Prioridade" options={prioridades} selected={prioridadesSelecionadas} onToggle={(value) => toggleValue(value, prioridadesSelecionadas, setPrioridadesSelecionadas)} />
                 <SearchableMultiSelect label="Distribuidor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
-                <SearchableMultiSelect label="Fabricante" options={fabricantes} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
+                <FiltroFabricante fabricantes={fabricantes} laboratorios={laboratorios} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
                 <SearchableMultiSelect label="Categoria" options={categorias} selected={categoriasSelecionadas} onToggle={(value) => toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)} />
                 <SearchableMultiSelect label="Subcategoria" options={subcategorias} selected={subcategoriasSelecionadas} onToggle={(value) => toggleValue(value, subcategoriasSelecionadas, setSubcategoriasSelecionadas)} />
                 {/* Viaja em slug, mostra-se pelo nome. */}
@@ -623,7 +635,7 @@ export function ExcessosClient({
                   <FilterPill key={`fornecedor-${item}`} label={`Fornecedor: ${item}`} onRemove={() => setFornecedoresSelecionados((prev) => prev.filter((v) => v !== item))} />
                 ))}
                 {fabricantesSelecionados.map((item) => (
-                  <FilterPill key={`fabricante-${item}`} label={`Fabricante: ${item}`} onRemove={() => setFabricantesSelecionados((prev) => prev.filter((v) => v !== item))} />
+                  <FilterPill key={`fabricante-${item}`} label={rotuloChipFabricante(item, laboratorios)} onRemove={() => setFabricantesSelecionados((prev) => prev.filter((v) => v !== item))} />
                 ))}
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill key={`categoria-${item}`} label={`Categoria: ${item}`} onRemove={() => setCategoriasSelecionadas((prev) => prev.filter((v) => v !== item))} />

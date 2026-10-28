@@ -35,6 +35,9 @@ import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header"
 import type { EncomendaBaseRow } from "@/lib/encomendas-data";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
+import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
+import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
 import { runEncomendasReport } from "@/app/encomendas/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 
@@ -264,6 +267,10 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const farmacias = farmaciasUniverse;
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  const laboratorios = filterOptions.laboratorios;
+  const modoGrupos = !!laboratorios && laboratorios.length > 0;
+  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos);
   const categorias = filterOptions.categorias;
   // Subcategorias acompanham a categoria escolhida.
   const subcategorias = (
@@ -301,7 +308,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     const filtered = rowsCalculadas.filter((row) => {
       if (farmaciasSelecionadas.length > 0 && !farmaciasSelecionadas.includes(row.farmacia)) return false;
       if (fornecedoresSelecionados.length > 0 && !fornecedoresSelecionados.includes(row.fornecedor)) return false;
-      if (fabricantesSelecionados.length > 0 && !fabricantesSelecionados.includes(row.fabricante)) return false;
+      if (!passaFiltroLaboratorioLinha(row, fabricantesSelecionados, filtroLab)) return false;
       if (
         !passaFiltroCatalogo(row, {
           categorias: categoriasSelecionadas,
@@ -432,6 +439,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     farmaciasSelecionadas,
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    filtroLab,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -632,7 +640,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                       apenasComSugestao,
                       apenasCriticos,
                     },
-                    universe: { farmacias, fornecedores, fabricantes, categorias },
+                    universe: { farmacias, fornecedores, fabricantes, laboratorios, categorias },
                     organization: formatFarmaciaHeader(farmaciasSelecionadas, farmaciasInfo),
                   })
                 }
@@ -710,9 +718,10 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                     toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)
                   }
                 />
-                <SearchableMultiSelect
+                <FiltroFabricante
                   label="Fabricantes"
-                  options={fabricantes}
+                  fabricantes={fabricantes}
+                  laboratorios={laboratorios}
                   selected={fabricantesSelecionados}
                   onToggle={(value) =>
                     toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)
@@ -770,7 +779,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                 {fabricantesSelecionados.map((item) => (
                   <FilterPill
                     key={`fabricante-${item}`}
-                    label={item}
+                    label={laboratorios && laboratorios.length > 0 ? rotuloChipFabricante(item, laboratorios) : item}
                     onRemove={() =>
                       setFabricantesSelecionados((prev) => prev.filter((v) => v !== item))
                     }

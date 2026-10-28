@@ -48,8 +48,15 @@ import type { Prisma } from "@/generated/prisma/client";
  * `produtos` é a contagem agregada (uma única query, nunca uma por
  * opção — ver `carregarLaboratoriosGarantia`).
  */
+/**
+ * Uma VARIANTE de um grupo: um fabricante legal integralmente associado ao
+ * grupo (`GrupoLaboratorialFabricante` — prova inequívoca). Serve só para
+ * mostrar/pesquisar dentro do grupo; nunca altera `Produto.fabricanteId`.
+ */
+export type VarianteLaboratorio = { id: string; nome: string; produtos: number; aliases: string[] };
+
 export type CatalogoFilterOptionLaboratorio =
-  | { tipo: "grupo"; id: string; nome: string; termosBusca: string[]; resumoAlcance: string[]; produtos: number }
+  | { tipo: "grupo"; id: string; nome: string; termosBusca: string[]; resumoAlcance: string[]; produtos: number; variantes?: VarianteLaboratorio[] }
   | { tipo: "fabricante"; id: string; nomeNormalizado: string; produtos: number };
 
 export function nomeDeLaboratorio(o: CatalogoFilterOptionLaboratorio): string {
@@ -225,4 +232,93 @@ export function resolverFiltroLaboratorioWhere(valor: string | undefined): Prism
   // Sem prefixo — um link antigo (?fabricante=<id>, de antes desta mudança)
   // continua a funcionar tal e qual, tratado como fabricanteId directo.
   return { fabricanteId: valor };
+}
+
+// ─── Lista AGRUPADA (filtros dos relatórios/listas operacionais em garantia) ──────────────────────────────────────────
+//
+// Uma opção por grupo lógico ("Viatris (3 variantes)"), com as variantes (fabricantes integrais) por baixo e pesquisáveis;
+// um fabricante SEM prova de grupo fica como opção própria. Pura e sem fuzzy: um nome só "parecido" nunca agrupa — só a
+// associação integral gravada (`variantes`) decide. O catálogo continua a usar `pesquisarLaboratorios` (decisão de 2026-09-24).
+
+/** Uma linha da lista agrupada. */
+export type ItemLaboratorioAgrupado = {
+  opcao: CatalogoFilterOptionLaboratorio;
+  /** Nome a mostrar: "Viatris (3 variantes)" para grupos com variantes, o nome simples nos restantes. */
+  rotulo: string;
+  variantes: VarianteLaboratorio[];
+  /** Variantes que bateram na pesquisa (vazio sem pesquisa) — a UI expande-as sozinha. */
+  variantesCorrespondentes: VarianteLaboratorio[];
+};
+
+/** "Nome (N variantes)" — sem sufixo quando o grupo não tem variantes. */
+export function rotuloGrupoComVariantes(nome: string, nVariantes: number): string {
+  if (nVariantes <= 0) return nome;
+  return `${nome} (${nVariantes} ${nVariantes === 1 ? "variante" : "variantes"})`;
+}
+
+/**
+ * Filtra e ordena (alfabético, pt-PT) a lista agrupada. Pesquisa, sem distinguir acentos/maiúsculas, por: nome do grupo,
+ * aliases do grupo, nomes e aliases das variantes. Fabricantes que são variantes de um grupo NÃO aparecem à parte.
+ * Cada produto conta uma só vez (a contagem do grupo vem de `ProdutoGrupoLaboratorial`, 1 linha por produto).
+ */
+export function agruparOpcoesLaboratorio(
+  opcoes: readonly CatalogoFilterOptionLaboratorio[],
+  query = "",
+): ItemLaboratorioAgrupado[] {
+  const q = normalizarTermoBusca(query);
+  const idsVariante = new Set<string>();
+  for (const o of opcoes) if (o.tipo === "grupo") for (const v of o.variantes ?? []) idsVariante.add(v.id);
+
+  const bate = (texto: string) => normalizarTermoBusca(texto).includes(q);
+  const itens: ItemLaboratorioAgrupado[] = [];
+  const vistos = new Set<string>();
+  for (const o of opcoes) {
+    const valor = valorDeLaboratorio(o);
+    if (vistos.has(valor)) continue;
+    vistos.add(valor);
+    if (o.tipo === "fabricante") {
+      if (idsVariante.has(o.id)) continue; // é variante de um grupo — vive dentro dele
+      if (q && !bate(o.nomeNormalizado)) continue;
+      itens.push({ opcao: o, rotulo: o.nomeNormalizado, variantes: [], variantesCorrespondentes: [] });
+      continue;
+    }
+    const variantes = o.variantes ?? [];
+    const variantesCorrespondentes = q ? variantes.filter((v) => bate(v.nome) || v.aliases.some(bate)) : [];
+    if (q && !(bate(o.nome) || o.termosBusca.some(bate) || variantesCorrespondentes.length > 0)) continue;
+    itens.push({ opcao: o, rotulo: rotuloGrupoComVariantes(o.nome, variantes.length), variantes, variantesCorrespondentes });
+  }
+  itens.sort((a, b) => nomeDeLaboratorio(a.opcao).localeCompare(nomeDeLaboratorio(b.opcao), "pt-PT"));
+  for (const i of itens) i.variantes = [...i.variantes].sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT"));
+  return itens;
+}
+
+/**
+ * Linha "Fabricantes"/"Laboratório/grupo" dos cabeçalhos de export (PDF/Excel) das listas operacionais (Excessos,
+ * Transferências, Devoluções, Encomendas). Só em garantia (`laboratorios` presente): rótulos lógicos
+ * "Grupo: X"/"Fabricante: Y" (via `traduzirLaboratoriosParaExport`), NUNCA a lista de variantes nem um id. Nos restantes
+ * tenants devolve `null` e o adapter mantém o seu comportamento de sempre.
+ */
+export function filtroLaboratorioParaExport(
+  selecionados: readonly string[] | undefined,
+  laboratorios: readonly CatalogoFilterOptionLaboratorio[] | undefined,
+): { label: string; value: string } | null {
+  if (!laboratorios || !selecionados || selecionados.length === 0) return null;
+  const rotulos = traduzirLaboratoriosParaExport(selecionados, laboratorios) ?? [];
+  const value =
+    rotulos.length === laboratorios.length
+      ? "Todos"
+      : rotulos.length <= 3
+        ? rotulos.join("; ")
+        : `${rotulos.slice(0, 3).join("; ")} (+${rotulos.length - 3})`;
+  return { label: selecionados.length === 1 ? "Laboratório/grupo" : "Laboratórios/grupos", value };
+}
+
+/**
+ * Nome legível de um valor seleccionado (sem o prefixo "Grupo:"/"Fabricante:" nem id), para títulos curtos
+ * (ex.: separador "Excessos — Viatris"). Valor sem prefixo (nome solto) devolve-se tal e qual; id desconhecido -> "".
+ */
+export function nomeLegivelLaboratorio(valor: string, laboratorios: readonly CatalogoFilterOptionLaboratorio[] | undefined): string {
+  if (!parseValorLaboratorio(valor)) return valor;
+  const opcao = (laboratorios ?? []).find((o) => valorDeLaboratorio(o) === valor);
+  return opcao ? nomeDeLaboratorio(opcao) : "";
 }

@@ -30,7 +30,7 @@
  * fabricantes.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
-import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
+import { resolveCurrentTenantSlug, gruposLaboratoriaisAtivos } from "@/lib/tenant-context";
 import { parseValorLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 type PrismaParaResolucao = Pick<PrismaClient, "grupoLaboratorial" | "produtoGrupoLaboratorial" | "fabricante" | "produto">;
@@ -53,7 +53,7 @@ export async function resolverProdutoIdsPorLaboratoriosSelecionados(
   // tenha corrido, incluindo garantia antes de aplicada) NUNCA são
   // consultadas — nem para valores tipados "grupo:", nem para nomes soltos.
   const tenantSlug = await resolverTenant();
-  const gruposPodemExistir = tenantSlug === TENANT_GRUPOS_LABORATORIAIS;
+  const gruposPodemExistir = gruposLaboratoriaisAtivos(tenantSlug);
 
   const idsGrupoTipados: string[] = [];
   const idsFabricanteTipados: string[] = [];

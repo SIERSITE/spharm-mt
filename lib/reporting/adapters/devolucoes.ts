@@ -15,6 +15,7 @@ import type {
 } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { normalizarLargura } from "../column-widths";
+import { filtroLaboratorioParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 // Shape alinhado com lib/devolucoes-data.ts. Campos derivados de origens
 // não fiáveis (stock no momento da devolução, validade, observações
@@ -87,6 +88,8 @@ function buildFilters(
     pharmacies: string[];
     suppliers: string[];
     manufacturers: string[];
+    /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     categories: string[];
   }
 ): ReportFilter[] {
@@ -105,7 +108,9 @@ function buildFilters(
     });
   }
   if (f.selectedManufacturers && f.selectedManufacturers.length > 0) {
-    out.push({
+    const lab = filtroLaboratorioParaExport(f.selectedManufacturers, universe.laboratorios);
+    if (lab) out.push(lab);
+    else out.push({
       label: "Fabricantes",
       value: joinList(f.selectedManufacturers, universe.manufacturers.length, "Todos"),
     });
@@ -141,6 +146,8 @@ export function buildDevolucoesReport(input: {
     pharmacies: string[];
     suppliers: string[];
     manufacturers: string[];
+    /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     categories: string[];
   };
   organization: string;

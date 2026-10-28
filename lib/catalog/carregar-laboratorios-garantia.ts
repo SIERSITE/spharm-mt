@@ -35,7 +35,7 @@
  * têm linha em `ProdutoGrupoLaboratorial`).
  */
 import type { PrismaClient } from "@/generated/prisma/client";
-import type { CatalogoFilterOptionLaboratorio } from "./laboratorio-filtro";
+import type { CatalogoFilterOptionLaboratorio, VarianteLaboratorio } from "./laboratorio-filtro";
 
 type PrismaParaLaboratorios = Pick<PrismaClient, "fabricante" | "grupoLaboratorial" | "grupoLaboratorialFabricante" | "grupoLaboratorialAlias" | "produto" | "produtoGrupoLaboratorial">;
 
@@ -69,6 +69,19 @@ export async function carregarLaboratoriosGarantia(prisma: PrismaParaLaboratorio
     termosBuscaPorGrupo.set(a.grupoLaboratorialId, lista);
   }
 
+  // Variantes de cada grupo = os fabricantes integralmente associados (prova gravada). Só estes agrupam; nada por semelhança de nome.
+  const variantesPorGrupo = new Map<string, VarianteLaboratorio[]>();
+  for (const a of associacoesIntegrais) {
+    const lista = variantesPorGrupo.get(a.grupoLaboratorialId) ?? [];
+    lista.push({
+      id: a.fabricante.id,
+      nome: a.fabricante.nomeNormalizado,
+      produtos: produtosPorFabricanteId.get(a.fabricante.id) ?? 0,
+      aliases: a.fabricante.aliases.map((al) => al.aliasNome),
+    });
+    variantesPorGrupo.set(a.grupoLaboratorialId, lista);
+  }
+
   return [
     ...grupos.map((g): CatalogoFilterOptionLaboratorio => ({
       tipo: "grupo",
@@ -77,6 +90,7 @@ export async function carregarLaboratoriosGarantia(prisma: PrismaParaLaboratorio
       termosBusca: [...(aliasesCuradosPorGrupo.get(g.id) ?? []), ...(termosBuscaPorGrupo.get(g.id) ?? [])],
       resumoAlcance: [g.nome, ...(aliasesCuradosPorGrupo.get(g.id) ?? [])],
       produtos: produtosPorGrupoId.get(g.id) ?? 0,
+      variantes: variantesPorGrupo.get(g.id) ?? [],
     })),
     ...fabricantesRaw.map((f): CatalogoFilterOptionLaboratorio => ({
       tipo: "fabricante",
