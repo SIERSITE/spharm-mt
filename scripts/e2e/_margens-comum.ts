@@ -11,6 +11,18 @@ import type { Ambiente } from "./_ambiente-silveira";
 
 export type Check = (cond: boolean, msg: string) => void;
 
+/**
+ * Margens NÃO gera ao alterar filtros: depois de mexer no formulário é preciso carregar em «Atualizar» (1 pedido).
+ * Espera pela resposta da Server Action de geração (POST com Next-Action) e pelo botão voltar a «Atualizar».
+ */
+export async function atualizarMargens(page: Page): Promise<void> {
+  const resposta = page.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"], { timeout: 60000 });
+  await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+  await resposta;
+  await page.getByRole("button", { name: "Atualizar", exact: true }).waitFor({ timeout: 60000 });
+  await page.waitForTimeout(300);
+}
+
 const CAB = ["Nº registo", "Substância Ativa/DCI", "Nome do medicamento", "Forma farmacêutica", "Dosagem", "Tamanho da embalagem", "CNPEM", "Preço (PVP)", "PVP Notificado", "Preço Utente", "Preço Pensionistas", "Comerc.", "Genérico"];
 export function xlsBuf(rows: Array<Array<string | number | null>>): Buffer {
   const wb = XLSX.utils.book_new();

@@ -21,7 +21,7 @@ import path from "node:path";
 import { chromium, type Page, type Browser } from "playwright";
 import { baseFor, criarAmbiente, type Ambiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
-import { CNP, semearMargens } from "./_margens-comum";
+import { atualizarMargens, CNP, semearMargens } from "./_margens-comum";
 
 let ok = 0;
 let falhas = 0;
@@ -115,7 +115,7 @@ async function suiteInterna(browser: Browser, amb: Ambiente, seed: { userId: str
   const SELM = '[data-testid="tabela-margens-produto"]';
   await page.locator(SELM).waitFor({ timeout: 60000 });
   await page.getByPlaceholder("Pesquisar CNP ou descrição").fill(String(CNP.A));
-  await page.waitForTimeout(1500);
+  await atualizarMargens(page); // Margens não gera ao escrever: aplicar com «Atualizar»
   await page.locator(`${SELM} tbody > tr[data-cnp="${CNP.A}"]:not([data-tabela-linha]) [data-testid="expandir-cnpem"]`).first().click();
   await page.locator('[data-testid="comparacao-contagem"]').waitFor({ timeout: 20000 });
   await page.locator('[data-testid="comparacao-mostrar-todos"]').check();

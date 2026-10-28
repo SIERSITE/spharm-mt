@@ -24,7 +24,7 @@ import * as XLSX from "xlsx";
 import { chromium, type Page, type BrowserContext } from "playwright";
 import { baseFor, criarAmbiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
-import { CNP, semearMargens } from "./_margens-comum";
+import { atualizarMargens, CNP, semearMargens } from "./_margens-comum";
 
 let ok = 0;
 let falhas = 0;
@@ -109,7 +109,7 @@ async function main() {
     check(ordenadoOk, `as ${todas.length} linhas do mapa estão em ordem alfabética`);
 
     await page.getByPlaceholder("Pesquisar CNP ou descrição").fill(String(CNP.A));
-    await page.waitForTimeout(1500);
+    await atualizarMargens(page); // Margens não gera ao escrever: aplicar com «Atualizar»
     const botao = page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"][data-farmacia="${seed.nomes.alfa}"]:not([data-tabela-linha]) [data-testid="expandir-cnpem"]`);
     await botao.click();
     await page.locator('[data-testid="comparacao-contagem"]').waitFor({ timeout: 20000 });
