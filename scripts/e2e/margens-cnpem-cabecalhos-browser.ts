@@ -20,7 +20,7 @@ import { request as httpRequest } from "node:http";
 import { chromium, type Page } from "playwright";
 import { baseFor, criarAmbiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
-import { alinhamentoColunas, CNP, estadoCabecalho, semearMargens, type Check } from "./_margens-comum";
+import { alinhamentoColunas, atualizarMargens, CNP, estadoCabecalho, semearMargens, type Check } from "./_margens-comum";
 
 let ok = 0;
 let falhas = 0;
@@ -130,7 +130,7 @@ async function main() {
     secao("2 · Margens — expansão por CNPEM");
     await page.evaluate((sel) => { const c = document.querySelector(sel) as HTMLElement; c.scrollTop = 0; c.scrollLeft = 0; }, SEL);
     await page.getByPlaceholder("Pesquisar CNP ou descrição").fill(String(CNP.A));
-    await page.waitForTimeout(1500);
+    await atualizarMargens(page); // Margens não gera ao escrever
     const rowsA = page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"]`);
     check((await rowsA.count()) === 2, "pesquisa pelo CNP do artigo analisado: 2 linhas (Alfa e Beta)");
     const semBotao = await page.locator(`${SEL} tbody > tr:not([data-cnp="${CNP.A}"]) [data-testid="expandir-cnpem"]`).count();
@@ -165,12 +165,12 @@ async function main() {
     // período: junto ao período do relatório, C passa a ter 0 vendas noutro; escolher um período sem vendas
     await page.locator('input[aria-label="Desde"]').fill("2020-01-01");
     await page.locator('input[aria-label="Até"]').fill("2020-12-31");
-    await page.waitForTimeout(2500);
+    await atualizarMargens(page);
     const semDados = await page.locator(`${SEL}`).count();
     check(semDados === 0 || (await page.getByText("Sem produtos para os filtros actuais").count()) > 0, "período sem vendas: o mapa principal fica vazio (a expansão acompanha o relatório)");
     await page.locator('input[aria-label="Desde"]').fill(`${new Date().getFullYear()}-01-01`);
     await page.locator('input[aria-label="Até"]').fill(new Date().toISOString().slice(0, 10));
-    await page.waitForTimeout(2500);
+    await atualizarMargens(page);
     await page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"]`).first().waitFor({ timeout: 20000 });
     // reabrir após o recálculo: pede dados novos
     const botao2 = page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"][data-farmacia="${seed.nomes.alfa}"] [data-testid="expandir-cnpem"]`);
@@ -182,7 +182,7 @@ async function main() {
     await page.getByRole("button", { name: /Filtros/ }).first().click();
     const pill = (nome: string) => page.locator("span.rounded-full", { hasText: nome }).locator("button").first();
     await pill(seed.nomes.gama).click();
-    await page.waitForTimeout(3000);
+    await atualizarMargens(page);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="etiqueta-comparavel"]').length > 0, null, { timeout: 20000 });
     const semGama = await page.locator('tr[data-tabela-linha^="comparacao"]').evaluateAll((trs) => trs.map((t) => (t as HTMLElement).dataset.cnp ?? ""));
     check(!semGama.includes(String(CNP.D)) && semGama.includes(String(CNP.B)) && semGama.includes(String(CNP.C)), `sem a Gama selecionada: D desaparece, B e C mantêm-se [${semGama}]`);
@@ -190,7 +190,7 @@ async function main() {
     check(!farmaciasExp.includes(seed.nomes.gama), "nenhuma farmácia fora da seleção aparece na expansão");
     // só a Alfa: A@Beta deixa de aparecer
     await pill(seed.nomes.beta).click();
-    await page.waitForTimeout(3000);
+    await atualizarMargens(page);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="etiqueta-comparavel"]').length > 0, null, { timeout: 20000 });
     const soAlfa = await page.locator('tr[data-tabela-linha^="comparacao"]').evaluateAll((trs) => trs.map((t) => (t as HTMLElement).dataset.farmacia ?? "").filter(Boolean));
     check(soAlfa.length > 0 && soAlfa.every((f) => f === "Farmacia Alfa"), `uma só farmácia (Alfa): a expansão só tem artigos da Alfa (${soAlfa.length} linhas)`);

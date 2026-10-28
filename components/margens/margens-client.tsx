@@ -25,7 +25,9 @@ import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
-import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
+import { useEstadoSeparador, useIdSeparador } from "@/lib/workspace/estado-separador";
+import { filtrosDiferem, geracaoAtual, iniciarGeracao } from "@/lib/reporting/filtros-aplicados";
+import { StockCelula } from "@/components/ui/stock-celula";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
@@ -238,62 +240,43 @@ export function MargensClient({
   const [error, setError] = useEstadoSeparador<string | null>("margens:error", null);
   const [isPending, startTransition] = useTransition();
 
+  // ── Filtros EM EDIÇÃO (draft) vs APLICADOS ───────────────────────────────
+  //
+  // `filters` (critérios do workspace, sessionStorage) é SÓ o draft: o que o formulário mostra. Alterá-lo NUNCA
+  // dispara uma consulta — não existe auto-regeneração. Os filtros APLICADOS são `filtrosResultado`: os EXATOS
+  // com que `result` foi calculado, gravados no MESMO instante que o resultado (`useEstadoSeparador`, mesma
+  // vida: fechar o separador apaga os dois; reabrir começa limpo; resultado e filtros nunca ficam desencontrados).
+  // Tabela, contagens, totais, comparação CNPEM e TODAS as saídas (PDF, impressão, Excel, email) leem os aplicados.
+  // «Atualizar» aplica o draft INTEIRO numa única geração.
+  const idSeparador = useIdSeparador() ?? "";
+  const emCursoRef = useRef(false);
+  const alteracoesPorAplicar = hasGenerated && filtrosDiferem(filters, filtrosResultado);
+
   const handleGerar = () => {
+    // Um pedido de cada vez: o botão fica desativado em `isPending`; a ref cobre o duplo clique no mesmo tick.
+    if (isPending || emCursoRef.current) return;
+    emCursoRef.current = true;
+    // Instantâneo do draft NO MOMENTO do clique: é isto que se envia E o que passa a ser «aplicado». Edições
+    // feitas enquanto o pedido corre ficam como «alterações por aplicar» (draft ≠ aplicado), nunca perdidas.
+    const aplicar = filters;
+    const minha = iniciarGeracao(idSeparador);
     setError(null);
     startTransition(async () => {
       try {
-        const r = await runMargensReport(filters);
+        const r = await runMargensReport(aplicar);
+        // Uma resposta mais antiga que a última geração deste separador (chegada fora de ordem) é descartada.
+        if (!geracaoAtual(idSeparador, minha)) return;
         setResult(r);
-        setFiltrosResultado(filters);
+        setFiltrosResultado(aplicar);
         setHasGenerated(true);
       } catch (err) {
+        if (!geracaoAtual(idSeparador, minha)) return;
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        emCursoRef.current = false;
       }
     });
   };
-
-  /**
-   * Os filtros passam a APLICAR-SE.
-   *
-   * Antes, alterar a pesquisa (ou qualquer outro filtro) mudava o estado
-   * do formulário e mais nada: só um clique em "Gerar" reenviava os
-   * filtros ao servidor. Quem escrevia um CNP via a mesma lista de
-   * sempre e concluía, com razão, que a pesquisa era ignorada — quando
-   * o que estava no ecrã era simplesmente o resultado anterior.
-   *
-   * A geração continua a ser explícita da PRIMEIRA vez: a página não
-   * pré-carrega Margens. Depois disso, cada alteração de filtro relança
-   * o relatório, com 400 ms de espera para não disparar uma query por
-   * cada tecla.
-   *
-   * O `JSON.stringify` é a chave de dependência de propósito: `filters`
-   * é recriado a cada `patch` do formulário e comparar por identidade
-   * relançava a query em renders que não mudaram nada.
-   */
-  const filtrosSerial = JSON.stringify(filters);
-  const primeiroEfeito = useRef(true);
-  useEffect(() => {
-    if (!hasGenerated) return;
-    if (primeiroEfeito.current) {
-      primeiroEfeito.current = false;
-      return;
-    }
-    const t = setTimeout(() => {
-      startTransition(async () => {
-        try {
-          setError(null);
-          setResult(await runMargensReport(JSON.parse(filtrosSerial)));
-          setFiltrosResultado(JSON.parse(filtrosSerial) as SharedReportFilters);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      });
-    }, 400);
-    return () => clearTimeout(t);
-    // `filtrosSerial` é a única dependência que representa uma mudança
-    // real de critérios; as restantes são estáveis.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtrosSerial, hasGenerated]);
 
   const rowsByEstadoProduto = useMemo(() => {
     if (!result) return [];
@@ -319,20 +302,9 @@ export function MargensClient({
     setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
   }
 
-  // Trocar de workspace restaura os CRITÉRIOS (incluindo filtros,
-  // nível, chip de estado e ordenação, acima — via useWorkspaceState)
-  // mas NUNCA um resultado calculado com os critérios do workspace
-  // ANTERIOR: mostrar linhas de uma análise enquanto o painel já diz
-  // outra seria pior do que mostrar "por gerar". Mesmo princípio de
-  // `vendas-client.tsx` e de `carregarRascunhoNovaEncomendaAction`:
-  // nunca finge um resultado que não foi recalculado com os critérios
-  // actuais.
-  // O resultado/estado de cada análise vive no seu separador (useEstadoSeparador) e é re-hidratado ao mudar de
-  // workspace — não se apaga nada aqui. Só se repõe o marcador do debounce: ao entrar noutro separador com um resultado
-  // já gerado, a 1.ª passagem do efeito de «relançar ao mudar filtros» NÃO pode disparar uma consulta redundante.
-  useEffect(() => {
-    primeiroEfeito.current = true;
-  }, [workspaceId]);
+  // Trocar de workspace restaura os CRITÉRIOS (o draft, o nível, o chip de estado e a ordenação, acima — via
+  // useWorkspaceState) e o ESTADO do separador (resultado + filtros aplicados + expansões, via useEstadoSeparador).
+  // Nada é regenerado ao entrar num separador: a página só LÊ o que lá está.
 
   // Título descritivo na barra de tarefas — sem isto, duas análises de
   // Margens mostravam-se as duas como "Margens", indistinguíveis (o
@@ -373,7 +345,8 @@ export function MargensClient({
     return c;
   }, [result]);
 
-  const organization = formatFarmaciaHeader(filters.farmaciaNomes ?? [], farmaciasInfo);
+  // Saídas (PDF/impressão/Excel/email) descrevem o relatório VISÍVEL: filtros APLICADOS, nunca o draft.
+  const organization = formatFarmaciaHeader(filtrosResultado.farmaciaNomes ?? [], farmaciasInfo);
 
   /**
    * As linhas da vista agregada actual.
@@ -392,20 +365,24 @@ export function MargensClient({
     }
   };
 
+  const universoRelatorio = {
+    farmacias: universe.farmacias,
+    categorias: universe.categorias,
+    subcategorias: universe.subcategorias,
+    utilizacoes: universe.utilizacoes,
+    fabricantes: universe.fabricantes,
+    laboratorios: universe.laboratorios,
+    distribuidores: universe.distribuidores,
+  };
+
   const buildReport = () => {
     if (nivel === "produto") {
       return buildMargensProdutoReport({
         // As MESMAS linhas do ecrã, na MESMA ordem: quem ordena e
         // exporta espera o ficheiro pela ordem que viu.
         rows: rowsOrdenadasProduto,
-        filters,
-        universe: {
-          farmacias: universe.farmacias,
-          categorias: universe.categorias,
-          fabricantes: universe.fabricantes,
-          laboratorios: universe.laboratorios,
-          distribuidores: universe.distribuidores,
-        },
+        filters: filtrosResultado,
+        universe: universoRelatorio,
         organization,
       });
     }
@@ -414,14 +391,8 @@ export function MargensClient({
     const aggRows = linhasAgregadas(result, nivel);
     return buildMargensAggReport({
       rows: aggRows,
-      filters,
-      universe: {
-        farmacias: universe.farmacias,
-        categorias: universe.categorias,
-        fabricantes: universe.fabricantes,
-        laboratorios: universe.laboratorios,
-        distribuidores: universe.distribuidores,
-      },
+      filters: filtrosResultado,
+      universe: universoRelatorio,
       organization,
       groupBy: nivel,
     });
@@ -439,13 +410,21 @@ export function MargensClient({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Aviso discreto (região viva SEMPRE presente; o texto só existe com draft ≠ aplicado). */}
+            <div aria-live="polite" className="text-right text-[11px] text-amber-700">
+              {alteracoesPorAplicar && (
+                <span data-testid="margens-alteracoes-por-aplicar">Existem alterações por aplicar</span>
+              )}
+            </div>
             <button
               type="button"
               onClick={handleGerar}
               disabled={isPending}
+              aria-busy={isPending}
+              data-testid="margens-gerar"
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-500 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? "A gerar…" : "Gerar"}
+              {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
             </button>
             {result && <ReportActions report={buildReport} />}
           </div>
@@ -477,6 +456,10 @@ export function MargensClient({
           // sem opção de desligar, o que fazia "vendas consideradas"
           // divergir de Vendas quando os toggles não estavam nos
           // defaults. `getMargensData` já aplica `naturezasIncluidas`.
+          //
+          // `value` é o DRAFT; `onChange` só o altera — nenhuma consulta (ver handleGerar).
+          // Gancho para o filtro de forma farmacêutica (a acrescentar): é mais um campo do draft; entra em
+          // `normalizarFiltros` (lib/reporting/filtros-aplicados.ts) e no rótulo (buildFiltersLabel).
           mostrarNaturezas
           lista={lista}
           onListaChange={setLista}
@@ -496,7 +479,9 @@ export function MargensClient({
             <p className="mx-auto mt-2 max-w-[480px] text-[12px] leading-5 text-slate-500">
               Define o período e clica em{" "}
               <span className="font-semibold text-emerald-700">Gerar</span>. A página não
-              pré-carrega Margens — só lê da BD após o trigger explícito.
+              pré-carrega Margens — só lê da BD após o trigger explícito. Depois, alterar os
+              filtros não atualiza o relatório: clica em{" "}
+              <span className="font-semibold text-emerald-700">Atualizar</span> para os aplicar.
             </p>
           </section>
         ) : (
@@ -575,12 +560,18 @@ export function MargensClient({
 function KPIBar({ result }: { result: MargensResult }) {
   const t = result.totals;
   return (
-    <section className="grid gap-3 md:grid-cols-6">
+    <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-7">
       <KPI label="Vendas € (c/ IVA)" value={fmtCurrency(t.valorVendido)} />
       <KPI
         label="Vendas € (s/ IVA)"
         value={t.valorVendidoSemIva > 0 ? fmtCurrency(t.valorVendidoSemIva) : "—"}
         helper={t.valorVendidoSemIva === 0 ? "Sem linhas com IVA conhecido" : undefined}
+      />
+      <KPI
+        label="Stock total"
+        value={fmtInt(t.stockTotal)}
+        helper={t.linhasSemStock > 0 ? `Parcial — ${t.linhasSemStock} linha(s) sem stock conhecido` : "Stock atual, não histórico"}
+        helperTone={t.linhasSemStock > 0 ? "warn" : undefined}
       />
       <KPI label="Custo €" value={fmtCurrency(t.custoEstimado)} />
       <KPI label="Margem €" value={fmtCurrency(t.margemEur)} />
@@ -641,7 +632,7 @@ type EstadoComparacao =
   | { tipo: "erro"; mensagem: string }
   | { tipo: "pronto"; dados: ComparacaoCnpem };
 
-const N_COLUNAS_PRODUTO = 18;
+const N_COLUNAS_PRODUTO = 19;
 
 const MAPA_VAZIO: Map<string, EstadoComparacao> = new Map();
 
@@ -783,6 +774,7 @@ function TabelaProduto({
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="categoria" className="py-2 pr-3">Categoria</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="farmacia" className="py-2 pr-3">Farmácia</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="qtdVendida" align="right" className="py-2 pr-3 text-right">Qtd</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="stockAtual" align="right" className="py-2 pr-3 text-right" title="Stock atual da farmácia (não histórico)">Stock</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="pvpUnitario" align="right" className="py-2 pr-3 text-right">PVP unit.</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorVendido" align="right" className="py-2 pr-3 text-right">Vendas c/IVA</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="taxaIva" align="right" className="py-2 pr-3 text-right">IVA %</CabecalhoOrdenavel>
@@ -894,6 +886,10 @@ function LinhaMargem({
       </td>
       <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
       <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
+      {/* Stock ATUAL desta farmácia: uma vez por linha (produto × farmácia). `null` = desconhecido («—», nunca 0). */}
+      <td className="py-2 pr-3 text-right text-[13px]" data-col="stock">
+        <StockCelula valor={r.stockAtual} />
+      </td>
       <td className="py-2 pr-3 text-right tabular-nums text-slate-600">{fmtCurrency(r.pvpUnitario)}</td>
       <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
       <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
@@ -1145,6 +1141,7 @@ type ColunaMargens =
   | "categoria"
   | "farmacia"
   | "qtdVendida"
+  | "stockAtual"
   | "pvpUnitario"
   | "valorVendido"
   | "taxaIva"

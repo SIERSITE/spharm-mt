@@ -25,6 +25,7 @@ import type {
   MargensAgg,
   EstadoMargem,
 } from "@/lib/margens-data";
+import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS, rotuloNaturezas } from "@/lib/reporting/natureza-venda";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
@@ -70,7 +71,7 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
 // que o número que mostra. `normalizarLargura` corrige a soma para 100
 // preservando estas proporções (ver column-widths.ts).
 const MARGENS_PRODUTO_BASE_WIDTHS = {
-  cnp: 4.5, designacao: 21.2, farmacia: 10, qtdVendida: 3,
+  cnp: 4.5, designacao: 21.2, farmacia: 10, qtdVendida: 3, stockAtual: 3.4,
   pvpUnitario: 4.6, valorVendido: 5.4, taxaIva: 2.8, valorVendidoSemIva: 5.4,
   custoUnitario: 4.6, custoEstimado: 5.4, margemEur: 5.4, margemUnitaria: 4.6, margemPct: 5.4,
   coberturaPct: 3.8, estado: 5, utenteGeral: 4.4, utenteEspecial: 4.4,
@@ -105,6 +106,18 @@ const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
     displayKey: "farmaciaCurta",
   },
   { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: MPW.qtdVendida,  showTotal: true },
+  // Stock ATUAL da farmácia desta linha (ProdutoFarmacia.stockAtual — não histórico). Cada
+  // (produto, farmácia) conta UMA vez: a linha já é única por par, nunca multiplicada por meses
+  // nem pela expansão CNPEM (que nunca entra no Report). Desconhecido = null («—», nunca 0).
+  // TOTAL ARTIGO soma o stock CONHECIDO das farmácias do artigo; o TOTAL GERAL soma só o DETALHE.
+  {
+    key: "stockAtual",         label: "Stock",        format: "integer",  width: MPW.stockAtual,  noClip: true,
+    showTotal: true,
+    // Com stock / sem stock (0) / negativo — legível a preto e branco; mesmos tons que Vendas.
+    stockIndicator: true,
+    toneWhenZero: "danger",
+    toneWhenPositive: "success",
+  },
   { key: "pvpUnitario",        label: "PVP unit.",    format: "currency", width: MPW.pvpUnitario },
   { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: MPW.valorVendido,  showTotal: true },
   { key: "taxaIva",            label: "IVA %",        format: "text",     width: MPW.taxaIva },
@@ -131,17 +144,20 @@ function joinList(list: string[] | undefined, total: number, labelTodas: string,
   return `${list.slice(0, 3).join(separador)} (+${list.length - 3})`;
 }
 
-function buildFiltersLabel(
-  f: SharedReportFilters,
-  universe: {
-    farmacias: string[];
-    categorias: string[];
-    fabricantes: string[];
-    /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
-    laboratorios?: CatalogoFilterOptionLaboratorio[];
-    distribuidores: string[];
-  },
-): ReportFilter[] {
+/** O universo de opções de que o rótulo de filtros precisa (totais "Todas" e tradução de slugs). */
+export type UniversoMargens = {
+  farmacias: string[];
+  categorias: string[];
+  fabricantes: string[];
+  /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
+  laboratorios?: CatalogoFilterOptionLaboratorio[];
+  distribuidores: string[];
+  /** Opcionais: só servem para o total ("Todas") e para traduzir o slug da utilização no rótulo. */
+  subcategorias?: Array<{ nome: string }>;
+  utilizacoes?: Array<{ slug: string; nome: string }>;
+};
+
+function buildFiltersLabel(f: SharedReportFilters, universe: UniversoMargens): ReportFilter[] {
   const out: ReportFilter[] = [];
   if (f.from && f.to) out.push({ label: "Período", value: `${f.from} a ${f.to}` });
   out.push({
@@ -152,6 +168,20 @@ function buildFiltersLabel(
     out.push({
       label: "Categorias",
       value: joinList(f.categorias, universe.categorias.length, "Todas"),
+    });
+  }
+  if (f.subcategorias && f.subcategorias.length > 0) {
+    out.push({
+      label: "Subcategorias",
+      value: joinList(f.subcategorias, universe.subcategorias?.length ?? 0, "Todas"),
+    });
+  }
+  if (f.utilizacoes && f.utilizacoes.length > 0) {
+    // O filtro guarda o SLUG; o relatório mostra o nome (slug desconhecido fica como veio).
+    const nomePorSlug = new Map((universe.utilizacoes ?? []).map((u) => [u.slug, u.nome]));
+    out.push({
+      label: "Utilizações",
+      value: joinList(f.utilizacoes.map((s) => nomePorSlug.get(s) ?? s), universe.utilizacoes?.length ?? 0, "Todas"),
     });
   }
   if (f.fabricantes && f.fabricantes.length > 0) {
@@ -176,10 +206,41 @@ function buildFiltersLabel(
       value: joinList(f.distribuidores, universe.distribuidores.length, "Todos"),
     });
   }
+  // Naturezas de venda: só quando diferem do default do relatório oficial (crédito sim, transferências não) —
+  // quem exporta com os defaults não vê uma linha nova; quem os mudou fica a saber o que foi somado.
+  if (
+    (f.incluirCredito ?? DEFAULT_INCLUIR_CREDITO) !== DEFAULT_INCLUIR_CREDITO ||
+    (f.incluirTransferencias ?? DEFAULT_INCLUIR_TRANSFERENCIAS) !== DEFAULT_INCLUIR_TRANSFERENCIAS
+  ) {
+    out.push({ label: "Naturezas de venda", value: rotuloNaturezas(f) });
+  }
   if (f.pesquisa && f.pesquisa.trim()) out.push({ label: "Pesquisa", value: f.pesquisa.trim() });
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
   return out;
+}
+
+/**
+ * «Stock total» = soma do stock ATUAL das linhas (produto × farmácia), cada uma UMA vez. O stock desconhecido
+ * (`null`) não vira zero: fica fora da soma e conta-se à parte. Negativo entra com sinal; zero entra como zero.
+ * Cobre só os artigos que o mapa lista (com vendas no período), não o stock integral da farmácia.
+ */
+export function stockTotalDasLinhas(rows: ReadonlyArray<Pick<MargemRow, "stockAtual">>): { total: number; desconhecidas: number } {
+  let total = 0;
+  let desconhecidas = 0;
+  for (const r of rows) {
+    if (r.stockAtual === null) desconhecidas += 1;
+    else total += r.stockAtual;
+  }
+  return { total, desconhecidas };
+}
+
+/** Nota de rodapé sobre o stock (atual, não histórico; total parcial quando há linhas sem stock conhecido). */
+function notaStock(desconhecidas: number): string {
+  return [
+    "Stock atual à data de geração do relatório (não histórico); soma o stock atual de cada artigo/farmácia listado (uma vez por linha, não por mês). Stock: número simples = com stock; número em caixa = 0; fundo escuro = negativo.",
+    desconhecidas > 0 ? `Stock total PARCIAL: ${desconhecidas} linha(s) sem stock conhecido ficam fora do total (aparecem «—»).` : "",
+  ].filter(Boolean).join(" ");
 }
 
 function pct(n: number | null, suffix = "%"): string {
@@ -198,13 +259,7 @@ function commonSubtitle(): string {
 export function buildMargensProdutoReport(input: {
   rows: MargemRow[];
   filters: SharedReportFilters;
-  universe: {
-    farmacias: string[];
-    categorias: string[];
-    fabricantes: string[];
-    laboratorios?: CatalogoFilterOptionLaboratorio[];
-    distribuidores: string[];
-  };
+  universe: UniversoMargens;
   organization: string;
 }): Report {
   // ── BLOCO POR ARTIGO (uniformização 2026-09, referência: Vendas) ────
@@ -227,6 +282,8 @@ export function buildMargensProdutoReport(input: {
     farmacia: r.farmacia,
     farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     qtdVendida: r.qtdVendida,
+    // `null` (stock desconhecido) fica «—»; 0 é um zero real (ruptura).
+    stockAtual: r.stockAtual,
     // `null` e não 0: com quantidade 0 não há preço unitário nenhum, e
     // "0,00 €" leria-se como grátis. O renderer pinta null como "—".
     // PVP/custo são SEMPRE por esta farmácia — nunca uma média entre
@@ -283,6 +340,8 @@ export function buildMargensProdutoReport(input: {
       farmacia: "TOTAL ARTIGO",
       farmaciaCurta: nomeFarmaciaCurto("TOTAL ARTIGO"),
       qtdVendida: qtdTotal,
+      // Stock do artigo = soma do stock CONHECIDO das farmácias; «—» só se nenhuma o conhece.
+      stockAtual: detalhes.every((l) => l.stockAtual === null) ? null : somaNum("stockAtual"),
       pvpUnitario: null,
       valorVendido: valorVendidoTotal,
       taxaIva: null,
@@ -325,6 +384,7 @@ export function buildMargensProdutoReport(input: {
     }
   }
   const cobertura = qty > 0 ? qtyFiavel / qty : 0;
+  const stock = stockTotalDasLinhas(input.rows);
   const margemPctGlobal =
     cobertura >= 0.95 && valorSemIva > 0
       ? Math.round((margem / valorSemIva) * 10000) / 100
@@ -333,6 +393,10 @@ export function buildMargensProdutoReport(input: {
   const summary: ReportSummaryItem[] = [
     { label: "Linhas", value: input.rows.length, format: "integer" },
     { label: "Unidades vendidas", value: Math.round(qty), format: "integer" },
+    { label: "Stock total", value: stock.total, format: "integer" },
+    ...(stock.desconhecidas > 0
+      ? [{ label: "Linhas sem stock conhecido (fora do stock total)", value: stock.desconhecidas, format: "integer" as const }]
+      : []),
     { label: "Vendas € (c/ IVA)", value: Math.round(valorComIva * 100) / 100, format: "currency" },
     { label: "Vendas € (s/ IVA)", value: Math.round(valorSemIva * 100) / 100, format: "currency" },
     { label: "Custo estimado (s/ IVA)", value: Math.round(custo * 100) / 100, format: "currency" },
@@ -359,9 +423,12 @@ export function buildMargensProdutoReport(input: {
       // em cada página (thead display:table-header-group) e o TOTAL ARTIGO não se separa
       // do artigo. Nunca afecta o Excel.
       hierarchy: "strong",
-      // 17 colunas: cabeçalhos a 7.5px e linhas mais finas, sem cortar rótulos.
+      // 18 colunas (17 + Stock): cabeçalhos a 7.5px e linhas mais finas, sem cortar rótulos.
       tableDensity: "tight",
       footer: "SPharm.MT · Margens operacional",
+      // Faixa de uma linha sob os filtros (HTML/PDF/impressão compactos): unidades vendidas e stock atual lado a lado.
+      resumoFaixa: ["Unidades vendidas", "Stock total", "Linhas sem stock conhecido (fora do stock total)"],
+      tableNote: `${input.rows.length} linha${input.rows.length === 1 ? "" : "s"} · ${notaStock(stock.desconhecidas)}`,
     },
   };
 }
@@ -381,13 +448,7 @@ const MAW = normalizarLargura(MARGENS_AGG_BASE_WIDTHS);
 export function buildMargensAggReport(input: {
   rows: MargensAgg[];
   filters: SharedReportFilters;
-  universe: {
-    farmacias: string[];
-    categorias: string[];
-    fabricantes: string[];
-    laboratorios?: CatalogoFilterOptionLaboratorio[];
-    distribuidores: string[];
-  };
+  universe: UniversoMargens;
   organization: string;
   groupBy: DimensaoAgregada;
 }): Report {

@@ -147,16 +147,17 @@ console.log("\nC · totais respeitam a pesquisa");
     check(dados.includes(linha), `agregado derivado de porProduto: ${linha.slice(6, 26)}…`);
   }
 
-  // E a UI reenvia os filtros quando eles mudam — antes só o botão
-  // "Gerar" o fazia, e escrever um CNP não mudava nada no ecrã.
+  // REGRA INVERTIDA (tarefa «Margens não gera automaticamente»): antes a UI relançava o relatório a cada
+  // alteração de filtro (debounce de 400 ms); agora alterar filtros só muda o DRAFT e quem gera é o botão
+  // «Gerar/Atualizar». Prova-se por inspeção; a prova completa está em test-margens-sem-geracao-automatica.ts.
   check(
-    cliente.includes("runMargensReport(JSON.parse(filtrosSerial))"),
-    "a UI relança o relatório quando os filtros mudam",
+    !cliente.includes("runMargensReport(JSON.parse(filtrosSerial))"),
+    "a UI NÃO relança o relatório quando os filtros mudam (sem auto-regeneração)",
   );
-  check(cliente.includes("}, 400);"), "com debounce, para não disparar por tecla");
+  check(!cliente.includes("}, 400);"), "sem efeito com debounce a gerar por tecla");
   check(
-    cliente.includes("if (!hasGenerated) return;"),
-    "mas nunca antes da primeira geração explícita",
+    (cliente.match(/runMargensReport\(/g) ?? []).length === 1 && cliente.includes("await runMargensReport(aplicar)"),
+    "runMargensReport só é chamado em handleGerar (com os filtros do instantâneo)",
   );
 }
 
@@ -382,6 +383,9 @@ console.log("\nM · totalizadores e fabricante");
     margemPct: 30,
     coberturaCusto: 1,
     estado: "FIAVEL",
+    // Campos de stock do agregado (coluna Stock em Margens): este teste não os exercita.
+    stockTotal: 0,
+    linhasSemStock: 0,
   };
   const relAgg = buildMargensAggReport({
     rows: [agg],

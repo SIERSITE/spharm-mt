@@ -19,7 +19,7 @@ import * as XLSX from "xlsx";
 import { chromium, type Page } from "playwright";
 import { baseFor, criarAmbiente } from "./_ambiente-silveira";
 import { abrirContexto } from "./_grupo-comum";
-import { alinhamentoColunas, CNP, estadoCabecalho, semearMargens } from "./_margens-comum";
+import { alinhamentoColunas, atualizarMargens, CNP, estadoCabecalho, semearMargens } from "./_margens-comum";
 
 let ok = 0;
 let falhas = 0;
@@ -31,7 +31,7 @@ const secao = (t: string) => console.log(`\n── ${t}`);
 const EVID = path.resolve("docs/validacao-visual/2026-10-margens-colunas");
 const SEL = '[data-testid="tabela-margens-produto"]';
 
-const COLUNAS = ["CNP", "Descrição", "Categoria", "Farmácia", "Qtd", "PVP unit.", "Vendas c/IVA", "IVA %", "Vendas s/IVA", "Custo unit. est.", "Custo est.", "Margem €", "Margem unitária", "Margem %", "Estado", "Preço utente — regime geral", "Preço utente — regime especial"];
+const COLUNAS = ["CNP", "Descrição", "Categoria", "Farmácia", "Qtd", "Stock", "PVP unit.", "Vendas c/IVA", "IVA %", "Vendas s/IVA", "Custo unit. est.", "Custo est.", "Margem €", "Margem unitária", "Margem %", "Estado", "Preço utente — regime geral", "Preço utente — regime especial"];
 
 function postBinario(u: URL, corpo: Buffer, cookies: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -120,8 +120,9 @@ async function main() {
 
     // ═══ 2 · comparação aberta ═══
     secao("2 · comparação CNPEM aberta e «mostrar todos» não desconfiguram as larguras");
+    // Margens não gera ao escrever: aplicar a pesquisa com «Atualizar».
     await page.getByPlaceholder("Pesquisar CNP ou descrição").fill(String(CNP.A));
-    await page.waitForTimeout(1500);
+    await atualizarMargens(page);
     const dimPesq = await page.evaluate((sel) => (document.querySelector(sel) as HTMLElement).scrollWidth, SEL);
     await page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"][data-farmacia="${seed.nomes.alfa}"]:not([data-tabela-linha]) [data-testid="expandir-cnpem"]`).click();
     await page.locator('[data-testid="comparacao-contagem"]').waitFor({ timeout: 20000 });
@@ -151,7 +152,7 @@ async function main() {
     secao("4 · comparação CNPEM por rentabilidade");
     const ler = async () => page.locator(`${SEL} tr[data-tabela-linha^="comparacao"][data-cnp]`).evaluateAll((trs) => trs.map((t) => {
       const tds = t.querySelectorAll(":scope > td");
-      return { cnp: (t as HTMLElement).dataset.cnp!, farm: (t as HTMLElement).dataset.farmacia!, tipo: (t as HTMLElement).dataset.tabelaLinha!, pct: (tds[14] as HTMLElement).innerText, un: (tds[13] as HTMLElement).innerText, des: (tds[2] as HTMLElement).innerText.split("\n")[0] };
+      return { cnp: (t as HTMLElement).dataset.cnp!, farm: (t as HTMLElement).dataset.farmacia!, tipo: (t as HTMLElement).dataset.tabelaLinha!, pct: (tds[15] as HTMLElement).innerText, un: (tds[14] as HTMLElement).innerText, des: (tds[2] as HTMLElement).innerText.split("\n")[0] };
     }));
     const linhas = await ler();
     check(linhas[0].tipo === "comparacao-analisado" && linhas[0].cnp === String(CNP.A) && linhas[0].farm === seed.nomes.alfa, "o produto analisado é a 1.ª linha e está identificado");
@@ -173,7 +174,7 @@ async function main() {
     // mudar as farmácias recalcula e reordena
     await page.getByRole("button", { name: /Filtros/ }).first().click();
     await page.locator("span.rounded-full", { hasText: seed.nomes.gama }).locator("button").first().click();
-    await page.waitForTimeout(3000);
+    await atualizarMargens(page);
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="etiqueta-comparavel"]').length > 0, null, { timeout: 20000 });
     const semGama = (await ler()).slice(1).map((l) => ({ ...l, p: pct(l.pct) }));
     const cm = semGama.filter((l) => l.p !== null);
@@ -257,7 +258,7 @@ async function main() {
       // com a comparação aberta
       await page.evaluate((sel) => { const c = document.querySelector(sel) as HTMLElement; c.scrollLeft = 0; c.scrollTop = 0; }, SEL);
       await page.getByPlaceholder("Pesquisar CNP ou descrição").fill(String(CNP.A));
-      await page.waitForTimeout(1500);
+      await atualizarMargens(page);
       await page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"]:not([data-tabela-linha]) [data-testid="expandir-cnpem"]`).first().click();
       await page.locator('[data-testid="comparacao-contagem"]').waitFor({ timeout: 20000 });
       await page.evaluate((sel) => { (document.querySelector(sel) as HTMLElement).scrollLeft = 350; }, SEL);

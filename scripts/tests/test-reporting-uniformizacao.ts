@@ -145,6 +145,7 @@ console.log("\nB · Margens");
   const agg = (label: string): MargensAgg => ({
     key: label, label, qtdVendida: 1, valorVendido: 10, valorVendidoSemIva: 8, custoEstimado: 5,
     margemEur: 3, margemPct: 37.5, coberturaCusto: 1, estado: "FIAVEL",
+    stockTotal: 0, linhasSemStock: 0, // campos de stock do agregado (não exercitados aqui)
   });
 
   // Ordem de CHEGADA invertida face ao universo — prova que a ordem final

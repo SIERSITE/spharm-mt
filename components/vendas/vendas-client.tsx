@@ -1,6 +1,7 @@
 "use client";
 
 import { ArtigoLink } from "@/components/stock/artigo-link";
+import { StockCelula } from "@/components/ui/stock-celula";
 import { correspondeAPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -2130,20 +2131,6 @@ function QuantidadeMes({ valor }: { valor: number }) {
   if (valor === 0) return <span className="text-slate-300" aria-label="sem vendas">·</span>;
   if (valor < 0) return <span className="font-semibold text-rose-700" title="Quantidade líquida negativa (devoluções/anulações)">{valor}</span>;
   return <span>{valor}</span>;
-}
-
-/**
- * Stock ATUAL: positivo = número simples; zero = número em CAIXA; negativo = branco sobre escuro. Lê-se a preto e
- * branco (a cor só reforça) — igual ao PDF/impressão.
- */
-function StockCelula({ valor }: { valor: number }) {
-  if (valor < 0) {
-    return <span className="inline-block min-w-[1.6em] rounded bg-slate-900 px-1 text-center font-bold tabular-nums text-white" data-stock="negativo" title="Stock negativo">{valor}</span>;
-  }
-  if (valor === 0) {
-    return <span className="inline-block min-w-[1.6em] rounded border border-slate-900 bg-rose-50 px-1 text-center font-bold tabular-nums text-rose-800" data-stock="zero" title="Sem stock">0</span>;
-  }
-  return <span className="font-semibold tabular-nums text-emerald-800" data-stock="positivo">{valor}</span>;
 }
 
 /** Linha de totais da tabela de Vendas — soma só o DETALHE (nunca os «Total artigo»), igual ao relatório. */

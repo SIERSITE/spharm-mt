@@ -154,6 +154,17 @@ export type MargensAgg = {
   margemPct: number | null;
   coberturaCusto: number;
   estado: EstadoMargem;
+  /**
+   * Stock ATUAL somado sobre as linhas (produto × farmácia) deste agregado — cada
+   * combinação UMA vez (a linha já é única por produto/farmácia; nunca por mês nem
+   * pela expansão CNPEM). Só entra o stock CONHECIDO: o desconhecido (`null`) não é
+   * convertido em 0 e conta-se em `linhasSemStock`. Negativo entra com sinal.
+   * Cobre apenas os artigos COM VENDAS no período (o universo do mapa), não o stock
+   * integral da categoria/farmácia.
+   */
+  stockTotal: number;
+  /** Linhas com stock desconhecido (fora de `stockTotal`). */
+  linhasSemStock: number;
 };
 
 export type MargensResult = {
@@ -174,6 +185,10 @@ export type MargensResult = {
     margemPct: number | null;
     coberturaCusto: number;
     estado: EstadoMargem;
+    /** Stock atual das linhas do mapa (cada produto/farmácia uma vez; só conhecido). */
+    stockTotal: number;
+    /** Linhas com stock desconhecido (fora de `stockTotal`). */
+    linhasSemStock: number;
   };
 };
 
@@ -648,6 +663,8 @@ export async function getMargensData(
     margemPct: null,
     coberturaCusto: 0,
     estado: "IVA_POR_APURAR" as EstadoMargem,
+    stockTotal: 0,
+    linhasSemStock: 0,
   };
 
   return {
@@ -665,6 +682,8 @@ export async function getMargensData(
       margemPct: totalRow.margemPct,
       coberturaCusto: totalRow.coberturaCusto,
       estado: totalRow.estado,
+      stockTotal: totalRow.stockTotal,
+      linhasSemStock: totalRow.linhasSemStock,
     },
   };
 }
@@ -685,6 +704,8 @@ function emptyResult(): MargensResult {
       margemPct: null,
       coberturaCusto: 0,
       estado: "IVA_POR_APURAR",
+      stockTotal: 0,
+      linhasSemStock: 0,
     },
   };
 }
@@ -699,7 +720,7 @@ function emptyResult(): MargensResult {
  * SEM_CUSTO entram no qty total (impactam cobertura) mas não no numerador
  * da margem (não inventamos).
  */
-function aggregate(
+export function aggregate(
   rows: MargemRow[],
   keyOf: (r: MargemRow) => string,
 ): MargensAgg[] {
@@ -711,6 +732,8 @@ function aggregate(
     valorVendidoSemIvaTotal: number;  // só linhas com IVA conhecido
     custoEstimadoTotal: number;
     margemEurTotal: number;
+    stockTotal: number;
+    linhasSemStock: number;
   };
   const map = new Map<string, Acc>();
   for (const r of rows) {
@@ -724,9 +747,14 @@ function aggregate(
         valorVendidoSemIvaTotal: 0,
         custoEstimadoTotal: 0,
         margemEurTotal: 0,
+        stockTotal: 0,
+        linhasSemStock: 0,
       });
     }
     const acc = map.get(k)!;
+    // Stock: cada linha (produto × farmácia) conta UMA vez; desconhecido não é 0.
+    if (r.stockAtual === null) acc.linhasSemStock += 1;
+    else acc.stockTotal += r.stockAtual;
     acc.qtdTotal += r.qtdVendida;
     acc.valorVendidoTotal += r.valorVendido;
     if (r.margemEur !== null && r.custoEstimado !== null && r.valorVendidoSemIva !== null) {
@@ -760,6 +788,8 @@ function aggregate(
       margemPct,
       coberturaCusto: Math.round(cobertura * 10000) / 10000,
       estado,
+      stockTotal: acc.stockTotal,
+      linhasSemStock: acc.linhasSemStock,
     };
   }).sort((a, b) => a.label.localeCompare(b.label, "pt-PT"));
 }
