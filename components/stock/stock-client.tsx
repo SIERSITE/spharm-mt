@@ -13,6 +13,7 @@ import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
 import type { ColunaOrdenacaoStock } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
+import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
 import { SyncNowWidget } from "@/components/stock/sync-now-widget";
 import type { SyncFarmaciaOption } from "@/lib/sync-request-data";
 
@@ -161,6 +162,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   const selectedCategorias = data.params.categorias ?? [];
   const selectedSubcategorias = data.params.subcategorias ?? [];
   const selectedUtilizacoes = data.params.utilizacoes ?? [];
+  const selectedFormas = data.params.formas ?? [];
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
   const subcategoriasVisiveis = (
@@ -228,6 +230,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
       p.delete("categoria");
       p.delete("subcategoria");
       p.delete("utilizacao");
+      p.delete("forma");
       p.delete("page");
     });
   };
@@ -301,14 +304,16 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     selectedStatus.length > 0 ||
     selectedCategorias.length > 0 ||
     selectedSubcategorias.length > 0 ||
-    selectedUtilizacoes.length > 0;
+    selectedUtilizacoes.length > 0 ||
+    selectedFormas.length > 0;
   const activeFilterCount =
     selectedPharmacies.length +
     selectedCoverage.length +
     selectedStatus.length +
     selectedCategorias.length +
     selectedSubcategorias.length +
-    selectedUtilizacoes.length;
+    selectedUtilizacoes.length +
+    selectedFormas.length;
 
   const rows = useMemo(() => data.rows, [data.rows]);
 
@@ -469,6 +474,13 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                   onRemove={() => toggleMulti("utilizacao", slug)}
                 />
               ))}
+              {selectedFormas.map((chave) => (
+                <FilterChip
+                  key={`forma-${chave}`}
+                  label={rotuloChipForma(chave, data.filterOptions.formas)}
+                  onRemove={() => toggleMulti("forma", chave)}
+                />
+              ))}
               <button
                 type="button"
                 onClick={clearAllFilters}
@@ -574,6 +586,14 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                   />
                 ))}
               </CaixaFiltro>
+
+              {/* Forma farmacêutica: o MESMO componente dos mapas (pesquisa + contagem), porque a lista tem centenas
+                  de opções. Viaja na URL como chave normalizada (`forma`, multi). */}
+              <FiltroFormaFarmaceutica
+                formas={data.filterOptions.formas}
+                selected={selectedFormas}
+                onToggle={(chave) => toggleMulti("forma", chave)}
+              />
             </div>
           )}
         </section>

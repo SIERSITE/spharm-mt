@@ -161,6 +161,7 @@ export function MargensClient({
       utilizacoes: filterOptions.utilizacoes,
       fabricantes: filterOptions.fabricantes,
       laboratorios: filterOptions.laboratorios,
+      formas: filterOptions.formas,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),
@@ -372,6 +373,7 @@ export function MargensClient({
     utilizacoes: universe.utilizacoes,
     fabricantes: universe.fabricantes,
     laboratorios: universe.laboratorios,
+    formas: universe.formas,
     distribuidores: universe.distribuidores,
   };
 

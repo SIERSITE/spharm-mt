@@ -75,6 +75,7 @@ import {
   alternarValor,
 } from "./filter-panel";
 import { ImportListaCodigos } from "./import-lista-codigos";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "./filtro-forma-farmaceutica";
 import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "./laboratorio-multi-select";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -274,7 +275,7 @@ export function ReportFiltersBar({
               — os restantes tenants continuam a ver exactamente o
               SearchableMultiSelect antigo, com `options.fabricantes`
               tal e qual sempre foi. */}
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className={options.formas ? "mt-3 grid gap-3 md:grid-cols-3" : "mt-3 grid gap-3 md:grid-cols-2"}>
             {options.laboratorios && options.laboratorios.length > 0 ? (
               <LaboratorioMultiSelect
                 laboratorios={options.laboratorios}
@@ -287,6 +288,14 @@ export function ReportFiltersBar({
                 options={options.fabricantes}
                 selected={value.fabricantes ?? []}
                 onToggle={(v) => patch({ fabricantes: alternarValor(v, value.fabricantes ?? []) })}
+              />
+            )}
+            {/* Forma farmacêutica: chave normalizada (sem acentos/caixa), filtrada no SERVIDOR. */}
+            {options.formas && (
+              <FiltroFormaFarmaceutica
+                formas={options.formas}
+                selected={value.formasFarmaceuticas ?? []}
+                onToggle={(v) => patch({ formasFarmaceuticas: alternarValor(v, value.formasFarmaceuticas ?? []) })}
               />
             )}
             <SearchableMultiSelect
@@ -320,6 +329,13 @@ export function ReportFiltersBar({
                 onRemove={() => patch({ fabricantes: (value.fabricantes ?? []).filter((v) => v !== item) })}
               />
             ))}
+            {options.formas && (
+              <ChipsFormaFarmaceutica
+                formas={options.formas}
+                selected={value.formasFarmaceuticas ?? []}
+                onRemove={(chave) => patch({ formasFarmaceuticas: (value.formasFarmaceuticas ?? []).filter((v) => v !== chave) })}
+              />
+            )}
             {(value.distribuidores ?? []).map((item) => (
               <FilterPill key={`distribuidor-${item}`} label={item} onRemove={() => patch({ distribuidores: (value.distribuidores ?? []).filter((v) => v !== item) })} />
             ))}

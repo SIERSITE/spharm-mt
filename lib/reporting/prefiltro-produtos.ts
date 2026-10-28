@@ -24,7 +24,7 @@ import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 export type FiltrosPrefiltroProdutos = Pick<
   SharedReportFilters,
-  "categorias" | "apenasSemClassif" | "fabricantes" | "subcategorias" | "utilizacoes" | "cnps" | "pesquisa"
+  "categorias" | "apenasSemClassif" | "fabricantes" | "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas" | "pesquisa"
 >;
 
 export async function resolverPrefiltroProdutos(

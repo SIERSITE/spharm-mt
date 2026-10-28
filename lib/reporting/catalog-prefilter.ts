@@ -17,11 +17,12 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { temListaCodigos } from "@/lib/produtos/lista-codigos-tipos";
+import { idsProdutosPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
 import type { SharedReportFilters } from "./filters-shared";
 
 export type FiltrosCatalogo = Pick<
   SharedReportFilters,
-  "subcategorias" | "utilizacoes" | "cnps"
+  "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas"
 >;
 
 /** Há alguma restrição destas para aplicar? */
@@ -31,7 +32,8 @@ export function temFiltroCatalogo(f: FiltrosCatalogo): boolean {
     (f.utilizacoes?.length ?? 0) > 0 ||
     // PRESENÇA, não comprimento: uma lista importada de que nada foi
     // encontrado é `[]` e tem de filtrar para zero. Ver `temListaCodigos`.
-    temListaCodigos(f.cnps)
+    temListaCodigos(f.cnps) ||
+    (f.formasFarmaceuticas?.length ?? 0) > 0
   );
 }
 
@@ -102,6 +104,15 @@ export async function restringirPorCatalogo(
     });
     ids = produtos.map((p) => p.id);
     if (ids.length === 0) return [];
+  }
+
+  // ── Forma farmacêutica ──────────────────────────────────────────
+  //
+  // Por CHAVE normalizada (sem acentos/caixa/espaços) em SQL — UMA consulta, antes de paginação, totais e exportações.
+  // `SEM_FORMA` = formaFarmaceutica nula/vazia. Vazio = sem restrição (comportamento anterior).
+  if (filtros.formasFarmaceuticas && filtros.formasFarmaceuticas.length > 0) {
+    ids = await idsProdutosPorFormas(prisma, filtros.formasFarmaceuticas, ids);
+    if (ids && ids.length === 0) return [];
   }
 
   return ids;

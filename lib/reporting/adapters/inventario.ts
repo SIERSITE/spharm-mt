@@ -28,6 +28,7 @@ import type {
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
+import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
 import { agruparLinhasPorArtigo, grupoArtigoPrecisaDeTotal } from "../agrupamento-artigo";
@@ -88,6 +89,8 @@ function buildFiltersLabel(
     fabricantes: string[];
     /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     distribuidores: string[];
   },
 ): ReportFilter[] {
@@ -118,6 +121,8 @@ function buildFiltersLabel(
       ),
     });
   }
+  const forma = filtroFormaFarmaceuticaLinha(f.formasFarmaceuticas, universe.formas);
+  if (forma) out.push(forma);
   if (f.distribuidores && f.distribuidores.length > 0) {
     out.push({
       label: "Distribuidores",
@@ -154,6 +159,8 @@ export function buildInventarioReport(input: {
     categorias: string[];
     fabricantes: string[];
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     distribuidores: string[];
   };
   organization: string;
@@ -316,6 +323,8 @@ export function buildInventarioPorFarmaciaReport(input: {
     categorias: string[];
     fabricantes: string[];
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     distribuidores: string[];
   };
   organization: string;
@@ -403,6 +412,8 @@ export function buildInventarioPorGrupoReport(input: {
     categorias: string[];
     fabricantes: string[];
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     distribuidores: string[];
   };
   organization: string;
@@ -482,6 +493,8 @@ export function buildInventarioPorIvaReport(input: {
     categorias: string[];
     fabricantes: string[];
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     distribuidores: string[];
   };
   organization: string;

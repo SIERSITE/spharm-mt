@@ -82,6 +82,7 @@
  * entram em nenhum outro cálculo deste ficheiro (peso, custo, etc.) — só
  * nesta soma aditiva, gated por `filters.incluirManutencao`.
  */
+import { chaveFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { ordenarArtigos } from "@/lib/ordenacao-artigos";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
@@ -205,6 +206,12 @@ export type SalesReportRow = {
   subcategoria: string;
   /** Slugs das utilizações do produto. */
   utilizacoes: string[];
+  /**
+   * CHAVE normalizada da forma farmacêutica (`chaveFormaFarmaceutica`; `SEM_FORMA` se não houver). Serve ao
+   * refinamento client-side do filtro «Forma farmacêutica» sem round-trip — a filtragem real é no servidor
+   * (`restringirPorCatalogo`). Opcional para não partir consumidores/fixtures anteriores.
+   */
+  formaChave?: string;
   farmacia: string;
   /**
    * Chave de agregação "Agrupar por: grupo". N2 com queda para N1 —
@@ -524,6 +531,7 @@ export async function getVendasData(
       fabricante: { select: { nomeNormalizado: true } },
       classificacaoNivel1: { select: { nome: true } },
       classificacaoNivel2: { select: { nome: true } },
+      formaFarmaceutica: true,
       // Uma ida à base para os produtos todos — não uma por produto.
       utilizacoes: { select: { utilizacao: { select: { slug: true } } } },
     },
@@ -627,6 +635,7 @@ export async function getVendasData(
       categoria,
       subcategoria,
       utilizacoes: produto.utilizacoes.map((u) => u.utilizacao.slug),
+      formaChave: chaveFormaFarmaceutica(produto.formaFarmaceutica),
       farmacia: farmaciaNome,
       grupo,
     });
@@ -681,6 +690,7 @@ export async function getVendasData(
             fabricante: { select: { nomeNormalizado: true } },
             classificacaoNivel1: { select: { nome: true } },
             classificacaoNivel2: { select: { nome: true } },
+            formaFarmaceutica: true,
             utilizacoes: { select: { utilizacao: { select: { slug: true } } } },
           },
         });
@@ -747,6 +757,7 @@ export async function getVendasData(
           categoria,
           subcategoria,
           utilizacoes: produto.utilizacoes.map((u) => u.utilizacao.slug),
+          formaChave: chaveFormaFarmaceutica(produto.formaFarmaceutica),
           farmacia: farmaciaNome,
           grupo,
         });

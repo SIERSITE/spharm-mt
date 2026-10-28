@@ -88,6 +88,7 @@ import type {
 } from "../report-types";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { filtroListaImportada } from "../filters-shared";
+import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { formatCell } from "../report-formatters";
@@ -172,6 +173,8 @@ export type VendasAdapterFilters = {
   farmaciasSelecionadas?: string[];
   fornecedoresSelecionados?: string[];
   fabricantesSelecionados?: string[];
+  /** CHAVES de forma farmacêutica (aplicadas). Vazio/omitido = sem filtro. */
+  formasSelecionadas?: string[];
   categoriasSelecionadas?: string[];
   artigo?: string;
   /** ISO yyyy-mm-dd — refletido no subtitle e na lista de filtros. */
@@ -434,6 +437,8 @@ function buildFilters(
     fabricantes: string[];
     /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (para os RÓTULOS das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     categorias: string[];
   }
 ): ReportFilter[] {
@@ -483,6 +488,8 @@ function buildFilters(
   if (f.utilizacoesSelecionadas && f.utilizacoesSelecionadas.length > 0) {
     out.push({ label: "Utilizações", value: joinList(f.utilizacoesSelecionadas, 0, "Todas") });
   }
+  const forma = filtroFormaFarmaceuticaLinha(f.formasSelecionadas, universe.formas);
+  if (forma) out.push(forma);
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
   if (f.artigo && f.artigo.trim()) {
@@ -622,6 +629,7 @@ export function buildVendasReport(input: {
     fabricantes: string[];
     /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    formas?: OpcaoFormaFarmaceutica[];
     categorias: string[];
   };
   /**

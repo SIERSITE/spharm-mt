@@ -3,6 +3,8 @@ import { condicoesPrismaPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { getPrisma } from "@/lib/prisma";
 import { carregarFichaRegulamentar, type FichaRegulamentar } from "@/lib/regulamentar/consulta";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
+import { carregarOpcoesFormaFarmaceutica, wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
+import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import {
   valoresClassificacaoErp,
   whereClassificacaoErp,
@@ -146,6 +148,8 @@ export type CatalogoListFilters = {
   /** Filtro de classificação ERP (whitelist em parseFiltroClassificacaoErp). */
   classificacaoErp?: FiltroClassificacaoErp;
   classificacaoN1Id?: string;
+  /** Formas farmacêuticas por CHAVE normalizada (parâmetro de URL `forma`, multi). Vazio/omitido = todas. */
+  formas?: string[];
   verificationStatus?: VerificationStatus;
   estado?: ProdutoEstado;
   /**
@@ -187,6 +191,8 @@ export type CatalogoListData = {
 export type CatalogoFilterOptions = {
   laboratorios: CatalogoFilterOptionLaboratorio[];
   classificacoesN1: Array<{ id: string; nome: string }>;
+  /** Formas farmacêuticas do tenant (chave, rótulo, nº de produtos activos/catalogáveis). */
+  formas: OpcaoFormaFarmaceutica[];
 };
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -209,7 +215,7 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
   const tenantSlug = await resolveCurrentTenantSlug();
   const comGrupos = gruposLaboratoriaisAtivos(tenantSlug);
 
-  const [classificacoesN1, laboratorios] = await Promise.all([
+  const [classificacoesN1, laboratorios, formas] = await Promise.all([
     prisma.classificacao.findMany({
       where: { tipo: "NIVEL_1", estado: "ATIVO" },
       select: { id: true, nome: true },
@@ -222,11 +228,13 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
           .then((fabricantesRaw): CatalogoFilterOptionLaboratorio[] =>
             fabricantesRaw.map((f) => ({ tipo: "fabricante", id: f.id, nomeNormalizado: f.nomeNormalizado, produtos: 0 })),
           ),
+    carregarOpcoesFormaFarmaceutica(prisma),
   ]);
 
   return {
     laboratorios: [...laboratorios].sort((a, b) => nomeDeLaboratorio(a).localeCompare(nomeDeLaboratorio(b), "pt-PT")),
     classificacoesN1,
+    formas,
   };
 }
 
@@ -248,6 +256,7 @@ export async function loadCatalogoListData(
   if (filters.verificationStatus) where.verificationStatus = filters.verificationStatus;
   if (filters.origem) Object.assign(where, whereOrigem(filters.origem));
   const whereCls = whereClassificacaoErp(filters.classificacaoErp);
+  const whereForma = await wherePrismaPorFormas(prisma, filters.formas);
 
   if (filters.search && filters.search.trim().length > 0) {
     // Termos AND (lib/reporting/pesquisa-termos.ts): cada termo tem de
@@ -266,9 +275,10 @@ export async function loadCatalogoListData(
     }
   }
 
-  if (whereCls) {
+  for (const extra of [whereCls, whereForma]) {
+    if (!extra) continue;
     const existentes = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
-    where.AND = [...existentes, whereCls];
+    where.AND = [...existentes, extra];
   }
 
   const [total, rows, resumo] = await Promise.all([

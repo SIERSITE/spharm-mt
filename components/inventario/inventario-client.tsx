@@ -141,6 +141,7 @@ export function InventarioClient({
       utilizacoes: filterOptions.utilizacoes,
       fabricantes: filterOptions.fabricantes,
       laboratorios: filterOptions.laboratorios,
+      formas: filterOptions.formas,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),
@@ -377,6 +378,7 @@ export function InventarioClient({
       categorias: universe.categorias,
       fabricantes: universe.fabricantes,
       laboratorios: universe.laboratorios,
+      formas: universe.formas,
       distribuidores: universe.distribuidores,
     };
     if (vista === "farmacia") {

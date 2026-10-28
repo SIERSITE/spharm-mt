@@ -30,6 +30,8 @@ import { ReportActions } from "@/components/reporting/report-actions";
 import { buildExcessosReport } from "@/lib/reporting/adapters/excessos";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
@@ -72,6 +74,8 @@ type ExcessosCriterios = {
   farmaciasDestinoSelecionadas: string[];
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
+  /** CHAVES de forma farmacêutica. Opcional: estados antigos não o têm (lê-se como []). */
+  formasSelecionadas?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -97,6 +101,8 @@ type ReportSnapshot = {
   farmaciasDestinoSelecionadas: string[];
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
+  /** Opcional: snapshots guardados no separador antes deste filtro não o têm (= sem filtro). */
+  formasSelecionadas?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -215,6 +221,7 @@ export function ExcessosClient({
       farmaciasDestinoSelecionadas: farmacias,
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
+      formasSelecionadas: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -252,6 +259,10 @@ export function ExcessosClient({
   const [farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas] = campo("farmaciasDestinoSelecionadas");
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = campo("fornecedoresSelecionados");
   const [fabricantesSelecionados, setFabricantesSelecionados] = campo("fabricantesSelecionados");
+  const [formasBruto, setFormasBruto] = campo("formasSelecionadas");
+  const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
+  const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
@@ -289,6 +300,7 @@ export function ExcessosClient({
       farmaciasDestinoSelecionadas: [...farmaciasDestinoSelecionadas],
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
+      formasSelecionadas: [...formasSelecionadas],
       categoriasSelecionadas: [...categoriasSelecionadas],
       subcategoriasSelecionadas: [...subcategoriasSelecionadas],
       utilizacoesSelecionadas: [...utilizacoesSelecionadas],
@@ -311,6 +323,7 @@ export function ExcessosClient({
     farmaciasDestinoSelecionadas.length +
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
+    formasSelecionadas.length +
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
@@ -336,6 +349,8 @@ export function ExcessosClient({
         return false;
       if (snapshot.fornecedoresSelecionados.length > 0 && !snapshot.fornecedoresSelecionados.includes(row.fornecedor)) return false;
       if (!passaFiltroLaboratorioLinha(row, snapshot.fabricantesSelecionados, filtroLab)) return false;
+      // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
+      if (!passaFiltroForma(row.formaChave, snapshot.formasSelecionadas)) return false;
       if (!passaFiltroCatalogo(row, {
         categorias: snapshot.categoriasSelecionadas,
         subcategorias: snapshot.subcategoriasSelecionadas,
@@ -505,6 +520,8 @@ export function ExcessosClient({
                   farmaciasDestinoSelecionadas,
                   fornecedoresSelecionados,
                   fabricantesSelecionados,
+                  // Filtros APLICADOS (os que produziram as linhas exportadas), nunca o rascunho em edição.
+                  formasSelecionadas: snapshot?.formasSelecionadas ?? [],
                   categoriasSelecionadas,
                   prioridadesSelecionadas,
                   artigo,
@@ -516,7 +533,7 @@ export function ExcessosClient({
                   apenasAltaPrioridade,
                   quantidadeMinima,
                 },
-                universe: { farmacias, fornecedores, fabricantes, laboratorios, categorias, prioridades },
+                universe: { farmacias, fornecedores, fabricantes, laboratorios, formas: filterOptions.formas, categorias, prioridades },
                 organization: formatFarmaciaHeader(
                   Array.from(
                     new Set([
@@ -606,6 +623,7 @@ export function ExcessosClient({
                 <SearchableMultiSelect label="Prioridade" options={prioridades} selected={prioridadesSelecionadas} onToggle={(value) => toggleValue(value, prioridadesSelecionadas, setPrioridadesSelecionadas)} />
                 <SearchableMultiSelect label="Distribuidor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
                 <FiltroFabricante fabricantes={fabricantes} laboratorios={laboratorios} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
+                <FiltroFormaFarmaceutica formas={filterOptions.formas ?? []} selected={formasSelecionadas} onToggle={(value) => toggleValue(value, formasSelecionadas, setFormasSelecionadas)} />
                 <SearchableMultiSelect label="Categoria" options={categorias} selected={categoriasSelecionadas} onToggle={(value) => toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)} />
                 <SearchableMultiSelect label="Subcategoria" options={subcategorias} selected={subcategoriasSelecionadas} onToggle={(value) => toggleValue(value, subcategoriasSelecionadas, setSubcategoriasSelecionadas)} />
                 {/* Viaja em slug, mostra-se pelo nome. */}
@@ -637,6 +655,7 @@ export function ExcessosClient({
                 {fabricantesSelecionados.map((item) => (
                   <FilterPill key={`fabricante-${item}`} label={rotuloChipFabricante(item, laboratorios)} onRemove={() => setFabricantesSelecionados((prev) => prev.filter((v) => v !== item))} />
                 ))}
+                <ChipsFormaFarmaceutica formas={filterOptions.formas ?? []} selected={formasSelecionadas} onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))} />
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill key={`categoria-${item}`} label={`Categoria: ${item}`} onRemove={() => setCategoriasSelecionadas((prev) => prev.filter((v) => v !== item))} />
                 ))}

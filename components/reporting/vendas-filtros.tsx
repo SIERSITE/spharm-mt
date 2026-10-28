@@ -26,6 +26,8 @@ import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "@/componen
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
+import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { rotuloNaturezas } from "@/lib/reporting/natureza-venda";
 
 export function CompactInput({
@@ -92,6 +94,8 @@ export type VendasFiltrosValores = {
   subcategorias: string[];
   /** Slugs. */
   utilizacoes: string[];
+  /** Chaves de forma farmacêutica. Opcional: a Manutenção em massa não o usa (o eixo só aparece se `opcoes.formas` existir). */
+  formas?: string[];
   incluirCredito: boolean;
   incluirTransferencias: boolean;
 };
@@ -104,6 +108,7 @@ export type VendasFiltrosSetters = {
   categorias: Dispatch<SetStateAction<string[]>>;
   subcategorias: Dispatch<SetStateAction<string[]>>;
   utilizacoes: Dispatch<SetStateAction<string[]>>;
+  formas?: Dispatch<SetStateAction<string[]>>;
   incluirCredito: (v: boolean) => void;
   incluirTransferencias: (v: boolean) => void;
 };
@@ -117,6 +122,8 @@ export type VendasFiltrosOpcoes = {
   /** Já com a cascata aplicada (só as subcategorias das categorias escolhidas, se houver). */
   subcategorias: string[];
   utilizacoes: Array<{ slug: string; nome: string }>;
+  /** Formas farmacêuticas do tenant. Omitido = sem o eixo (Manutenção em massa). */
+  formas?: OpcaoFormaFarmaceutica[];
 };
 
 export function VendasFiltrosPainel({
@@ -200,6 +207,13 @@ export function VendasFiltrosPainel({
             set.utilizacoes((prev) => (prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]));
           }}
         />
+        {opcoes.formas && set.formas && (
+          <FiltroFormaFarmaceutica
+            formas={opcoes.formas}
+            selected={valores.formas ?? []}
+            onToggle={toggle(set.formas)}
+          />
+        )}
         {extra}
       </div>
 
@@ -262,6 +276,9 @@ export function VendasFiltrosPainel({
             label={nomePorSlug.get(slug) ?? slug}
             onRemove={() => remover(set.utilizacoes, slug)}
           />
+        ))}
+        {opcoes.formas && set.formas && (valores.formas ?? []).map((chave) => (
+          <FilterPill key={`forma-${chave}`} label={rotuloChipForma(chave, opcoes.formas!)} onRemove={() => remover(set.formas!, chave)} />
         ))}
       </div>
     </div>

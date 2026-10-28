@@ -8,6 +8,7 @@
  * Excess identification: products with coverage >> threshold in any pharmacy,
  * regardless of whether the other pharmacy needs them.
  */
+import { chaveFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
@@ -69,6 +70,11 @@ export type TransferSuggestionRow = {
   subcategoria: string;
   /** Slugs das utilizações do produto. Vazio quando não tem nenhuma. */
   utilizacoes: string[];
+  /**
+   * CHAVE normalizada da forma farmacêutica (`chaveFormaFarmaceutica`; `SEM_FORMA` se não houver). O filtro «Forma
+   * farmacêutica» corre no cliente sobre as linhas JÁ carregadas (o servidor só recebe datas), como os restantes eixos.
+   */
+  formaChave?: string;
   fornecedor: string;
   prioridade: Priority;
   observacao?: string;
@@ -242,6 +248,8 @@ export type PfBase = {
   utilizacoes: string[];
   fornecedorOrigem: string | null;
   fabricanteCanonico: string | null;
+  /** Valor cru de `Produto.formaFarmaceutica` (a chave do filtro calcula-se a partir dele). */
+  formaFarmaceutica?: string | null;
   // Enriquecimento clínico — usado por tooltips na UI (item 3) e pelo
   // detector DCI-equivalente (lib/transfers/dci-equivalent-substitution).
   dci: string | null;
@@ -309,6 +317,7 @@ export async function loadPfAndSales(
       pf."fornecedorOrigem",
       fab."nomeNormalizado"            AS "fabricanteCanonico",
       p.dci                            AS dci,
+      p."formaFarmaceutica"            AS "formaFarmaceutica",
       p."codigoATC"                    AS "codigoATC",
       p."productType"                  AS "productType"
     FROM "ProdutoFarmacia" pf
@@ -545,6 +554,7 @@ function montarLinha(
       classificacaoNivel2: origem.canonN2 ? { nome: origem.canonN2 } : null,
     }),
     utilizacoes: origem.utilizacoes ?? [],
+    formaChave: chaveFormaFarmaceutica(origem.formaFarmaceutica),
     fornecedor: origem.fornecedorOrigem ?? "",
     prioridade,
     observacao,

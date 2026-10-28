@@ -30,6 +30,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { resolveCurrentTenantSlug, gruposLaboratoriaisAtivos } from "@/lib/tenant-context";
 import { carregarLaboratoriosGarantia } from "@/lib/catalog/carregar-laboratorios-garantia";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { carregarOpcoesFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-sql";
 
 export type ReportingFilterOptions = {
   /**
@@ -67,6 +69,11 @@ export type ReportingFilterOptions = {
    * usado.
    */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
+  /**
+   * Formas farmacêuticas distintas dos produtos activos/catalogáveis DESTE tenant, agrupadas por chave normalizada
+   * (UMA agregação SQL). Ver `lib/catalog/forma-farmaceutica-filtro.ts`.
+   */
+  formas: OpcaoFormaFarmaceutica[];
   /**
    * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). NUNCA
    * inclui texto bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
@@ -120,6 +127,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
       distribuidores: [],
       fornecedores: [],
       fabricantes: [],
+      formas: [],
       categorias: [],
       subcategorias: [],
       utilizacoes: [],
@@ -239,6 +247,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     fornecedores: distribuidores, // alias deprecated — mesma lista
     fabricantes: fabricantesFinal,
     laboratorios,
+    formas: await carregarOpcoesFormaFarmaceutica(prisma),
     categorias,
     subcategorias: subcategoriaRows
       .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))

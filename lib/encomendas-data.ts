@@ -35,6 +35,7 @@
  * ficam vazios nesta passagem — não há ainda pipeline real para eles
  * (ver nota no fim do ficheiro).
  */
+import { chaveFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
@@ -84,6 +85,11 @@ export type EncomendaBaseRow = {
   subcategoria: string;
   /** Slugs das utilizações do produto. */
   utilizacoes: string[];
+  /**
+   * CHAVE normalizada da forma farmacêutica (`chaveFormaFarmaceutica`; `SEM_FORMA` se não houver). O filtro «Forma
+   * farmacêutica» corre no cliente sobre as linhas JÁ carregadas (o servidor só recebe datas), como os restantes eixos.
+   */
+  formaChave?: string;
   productType: string | null;
   // Enriquecimento clínico — surfaced em tooltip + chip ATC na UI.
   dci: string | null;
@@ -429,6 +435,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       categoria: par.categoria,
       subcategoria: par.subcategoria,
       utilizacoes: pf.utilizacoes ?? [],
+      formaChave: chaveFormaFarmaceutica(pf.formaFarmaceutica),
       productType: pf.productType,
       dci: pf.dci,
       codigoATC: pf.codigoATC,

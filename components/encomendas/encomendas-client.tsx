@@ -35,6 +35,8 @@ import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header"
 import type { EncomendaBaseRow } from "@/lib/encomendas-data";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
@@ -78,6 +80,8 @@ type EncomendaFarmaciaRow = {
   categoria: string;
   subcategoria: string;
   utilizacoes: string[];
+  /** Chave normalizada da forma farmacêutica (calculada no servidor) — alimenta o filtro «Forma farmacêutica». */
+  formaChave?: string;
   dci?: string | null;
   codigoATC?: string | null;
   valorEstimado: number;
@@ -250,6 +254,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   );
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
+  const [formasSelecionadas, setFormasSelecionadas] = useState<string[]>([]);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
@@ -309,6 +314,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       if (farmaciasSelecionadas.length > 0 && !farmaciasSelecionadas.includes(row.farmacia)) return false;
       if (fornecedoresSelecionados.length > 0 && !fornecedoresSelecionados.includes(row.fornecedor)) return false;
       if (!passaFiltroLaboratorioLinha(row, fabricantesSelecionados, filtroLab)) return false;
+      // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
+      if (!passaFiltroForma(row.formaChave, formasSelecionadas)) return false;
       if (
         !passaFiltroCatalogo(row, {
           categorias: categoriasSelecionadas,
@@ -440,6 +447,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     fornecedoresSelecionados,
     fabricantesSelecionados,
     filtroLab,
+    formasSelecionadas,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -527,6 +535,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     farmaciasSelecionadas.length +
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
+    formasSelecionadas.length +
     categoriasSelecionadas.length;
 
   return (
@@ -727,6 +736,11 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                     toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)
                   }
                 />
+                <FiltroFormaFarmaceutica
+                  formas={filterOptions.formas ?? []}
+                  selected={formasSelecionadas}
+                  onToggle={(value) => toggleValue(value, formasSelecionadas, setFormasSelecionadas)}
+                />
                 <SearchableMultiSelect
                   label="Categorias"
                   options={categorias}
@@ -785,6 +799,11 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                     }
                   />
                 ))}
+                <ChipsFormaFarmaceutica
+                  formas={filterOptions.formas ?? []}
+                  selected={formasSelecionadas}
+                  onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))}
+                />
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill
                     key={`categoria-${item}`}

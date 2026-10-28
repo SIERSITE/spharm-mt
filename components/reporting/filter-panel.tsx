@@ -44,22 +44,30 @@ export function SearchableMultiSelect({
   options,
   selected,
   onToggle,
+  labelOf,
+  countOf,
+  testId,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onToggle: (value: string) => void;
+  /** Opcional: o texto mostrado (e pesquisado) de um valor quando o valor que viaja não é o rótulo (ex.: chave de forma farmacêutica). */
+  labelOf?: (value: string) => string;
+  /** Opcional: nº de produtos da opção, mostrado à direita. */
+  countOf?: (value: string) => number | undefined;
+  testId?: string;
 }) {
   const [query, setQuery] = useState("");
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter((option) => option.toLowerCase().includes(q));
-  }, [options, query]);
+    return options.filter((option) => (labelOf ? labelOf(option) : option).toLowerCase().includes(q));
+  }, [options, query, labelOf]);
 
   return (
-    <div>
+    <div data-testid={testId}>
       <div className="mb-1 text-[11px] font-medium text-slate-500">{label}</div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-2">
@@ -88,8 +96,13 @@ export function SearchableMultiSelect({
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200",
                 ].join(" ")}
               >
-                <span className="truncate">{option}</span>
-                {active && <span className="ml-2 text-[11px] font-semibold">✓</span>}
+                <span className="truncate">{labelOf ? labelOf(option) : option}</span>
+                <span className="ml-2 flex shrink-0 items-center gap-1.5 text-[11px]">
+                  {countOf && countOf(option) !== undefined && (
+                    <span className={active ? "text-emerald-100" : "text-slate-400"}>{countOf(option)!.toLocaleString("pt-PT")}</span>
+                  )}
+                  {active && <span className="font-semibold">✓</span>}
+                </span>
               </button>
             );
           })}

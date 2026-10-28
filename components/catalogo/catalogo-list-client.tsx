@@ -22,6 +22,7 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { badgesClassificacaoErp, FILTROS_CLASSIFICACAO_ERP } from "@/lib/catalogo/classificacao-erp";
 
 type Props = {
@@ -137,11 +138,15 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     setSearchInput(urlSearch);
   }
 
-  function buildHref(updates: Record<string, string | undefined>): string {
+  function buildHref(updates: Record<string, string | string[] | undefined>): string {
     const next = new URLSearchParams(searchParams.toString());
     for (const [k, v] of Object.entries(updates)) {
       if (v === undefined || v === "") next.delete(k);
-      else next.set(k, v);
+      // Multi-valor (forma): parâmetros REPETIDOS, nunca separados por vírgula (há formas com vírgula no nome).
+      else if (Array.isArray(v)) {
+        next.delete(k);
+        for (const item of v) next.append(k, item);
+      } else next.set(k, v);
     }
     // Qualquer alteração de filtro reposiciona para página 1, exceto
     // quando o próprio update é a página.
@@ -150,7 +155,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     return qs.length > 0 ? `${pathname}?${qs}` : pathname;
   }
 
-  function navigate(updates: Record<string, string | undefined>): void {
+  function navigate(updates: Record<string, string | string[] | undefined>): void {
     startNavigate(() => router.push(buildHref(updates)));
   }
 
@@ -173,7 +178,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.classificacaoN1Id ||
     !!filters.verificationStatus ||
     !!filters.estado ||
-    !!filters.origem;
+    !!filters.origem ||
+    (filters.formas?.length ?? 0) > 0;
 
   const startIdx = (data.page - 1) * data.pageSize + 1;
   const endIdx = Math.min(data.page * data.pageSize, data.total);
@@ -287,6 +293,15 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             value={filters.classificacaoErp ?? ""}
             onChange={(v) => navigate({ cls: v || undefined })}
             options={CLASSIFICACAO_ERP_OPTIONS}
+          />
+          {/* Forma farmacêutica: multi-seleção (URL `forma` repetido), filtrada no SERVIDOR antes da paginação e do total. */}
+          <FiltroFormaFarmaceutica
+            formas={filterOptions.formas}
+            selected={filters.formas ?? []}
+            onToggle={(chave) => {
+              const atuais = filters.formas ?? [];
+              navigate({ forma: atuais.includes(chave) ? atuais.filter((c) => c !== chave) : [...atuais, chave] });
+            }}
           />
           {hasActiveFilters && (
             <div className="flex items-end">

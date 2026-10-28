@@ -7,7 +7,7 @@
  *
  *   1 · escrever no nome / apagar o nome / Enter no campo ............ 0 pedidos
  *   2 · selecionar e remover fabricante .............................. 0 pedidos
- *   3 · forma farmacêutica (gancho — o filtro ainda não existe) ...... 0 pedidos (TODO abaixo)
+ *   3 · forma farmacêutica ........................................... selecionar/remover 0 pedidos; «Atualizar» 1 pedido
  *   4 · «Limpar filtros» ............................................. 0 pedidos e o relatório visível mantém-se
  *   5 · mudar de separador e voltar .................................. 0 novas gerações; estado preservado
  *   6 · «Atualizar» (também com duplo clique) ........................ exatamente 1 pedido; aplica TODOS os filtros
@@ -116,21 +116,40 @@ async function main() {
     check((await quieto(page, net, 1500)) === 0, "remover o fabricante: 0 pedidos");
     check((await page.locator(AVISO).count()) === 0, "…e voltou a «sem alterações»");
 
-    // ═══ 3 · forma farmacêutica (gancho) ═══
-    secao("3 · forma farmacêutica (gancho para o agente seguinte)");
-    // TODO(forma farmacêutica): quando o filtro existir em Margens, o seletor terá o placeholder abaixo (padrão
-    // SearchableMultiSelect: `Pesquisar ${label.toLowerCase()}...`). Este bloco passa a exercitá-lo sozinho; até lá é
-    // um aviso, não uma falha. Deve provar: selecionar/remover = 0 pedidos; «Atualizar» aplica-o (1 pedido).
+    // ═══ 3 · forma farmacêutica ═══
+    secao("3 · forma farmacêutica: selecionar/remover = 0 pedidos; «Atualizar» aplica-a (1 pedido)");
     const campoForma = page.getByPlaceholder("Pesquisar forma farmacêutica...");
-    if ((await campoForma.count()) > 0) {
-      const cartaoForma = campoForma.locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
-      await cartaoForma.getByRole("button").first().click();
-      check((await quieto(page, net, 1500)) === 0, "selecionar uma forma farmacêutica: 0 pedidos");
-      await page.locator("span.rounded-full button").last().click();
-      check((await quieto(page, net, 1200)) === 0, "remover a forma farmacêutica: 0 pedidos");
-    } else {
-      console.log("  [PENDENTE] o filtro de forma farmacêutica ainda não existe em Margens — gancho por preencher.");
-    }
+    check((await campoForma.count()) === 1, "o filtro «Forma farmacêutica» existe no painel de filtros de Margens");
+    const cartaoForma = campoForma.locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
+    // «Comprimido» e « comprimido » (A e B) numa só opção, com contagem; «Comprimido revestido» é outra.
+    const opcaoComprimido = cartaoForma.getByRole("button", { name: /^Comprimido\s*\d/ });
+    check((await opcaoComprimido.count()) === 1, "«Comprimido» e « comprimido » aparecem numa única opção");
+    check((await cartaoForma.getByRole("button", { name: /^Comprimido revestido/ }).count()) === 1, "«Comprimido revestido» é uma opção diferente");
+    check((await cartaoForma.getByRole("button", { name: /^Sem forma farmacêutica/ }).count()) === 1, "existe a opção «Sem forma farmacêutica»");
+    const g3 = geracoes();
+    await opcaoComprimido.click();
+    check((await quieto(page, net, 1500)) === 0 && geracoes() === g3, "selecionar uma forma farmacêutica: 0 pedidos");
+    check((await page.locator(AVISO).count()) === 1, "…com «alterações por aplicar» (a forma entra na comparação draft ≠ aplicado)");
+    check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify(todosCnps), "o relatório visível NÃO mudou");
+    await page.locator("span.rounded-full", { hasText: "Forma: Comprimido" }).locator("button").first().click();
+    check((await quieto(page, net, 1200)) === 0, "remover a forma farmacêutica: 0 pedidos");
+    check((await page.locator(AVISO).count()) === 0, "…e voltou a «sem alterações»");
+    // «Atualizar» aplica a forma: exatamente 1 geração, só A e B (o filtro corre no servidor).
+    await opcaoComprimido.click();
+    const i3 = net.n();
+    await gerar.click();
+    await page.locator(`${SEL} tbody > tr[data-cnp="${CNP.A}"]`).first().waitFor({ timeout: 30000 });
+    await page.waitForTimeout(800);
+    check(net.desde(i3).filter((p) => p.id === ID_GERAR).length === 1, "«Atualizar» com a forma: exatamente 1 pedido de geração");
+    check(JSON.stringify(await cnpsMapa(page)) === JSON.stringify([String(CNP.A), String(CNP.B)].sort()), "o mapa passou a mostrar só A e B (Comprimido; NÃO os revestidos)");
+    await page.screenshot({ path: path.join(EVID, "forma-aplicada.png") });
+    // voltar ao universo completo para os passos seguintes.
+    await page.locator("span.rounded-full", { hasText: "Forma: Comprimido" }).locator("button").first().click();
+    await gerar.click();
+    await page.locator(`${SEL} tbody > tr`).nth(120).waitFor({ timeout: 30000 }).catch(() => undefined);
+    await page.waitForTimeout(800);
+    check((await cnpsMapa(page)).length > 100 && (await page.locator(AVISO).count()) === 0, "removida a forma e «Atualizar»: universo completo restaurado");
+
 
     // ═══ 6a · Atualizar aplica a pesquisa (preparar o resto) ═══
     secao("6 · «Atualizar»: exatamente 1 pedido, aplica TODOS os filtros do draft de uma vez");

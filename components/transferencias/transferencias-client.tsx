@@ -25,6 +25,8 @@ import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { nomeLegivelLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import { TransferenciasRegistadasList } from "@/components/transferencias/transferencias-registadas-list";
@@ -76,6 +78,8 @@ type TransferenciasCriterios = {
   farmaciasDestinoSelecionadas: string[];
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
+  /** CHAVES de forma farmacêutica. Opcional: estados antigos não o têm (lê-se como []). */
+  formasSelecionadas?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -101,6 +105,8 @@ type ReportSnapshot = {
   farmaciasDestinoSelecionadas: string[];
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
+  /** Opcional: snapshots guardados no separador antes deste filtro não o têm (= sem filtro). */
+  formasSelecionadas?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -195,6 +201,7 @@ export function TransferenciasClient({
       farmaciasDestinoSelecionadas: farmacias,
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
+      formasSelecionadas: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -235,6 +242,10 @@ export function TransferenciasClient({
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
+  const [formasBruto, setFormasBruto] = campo("formasSelecionadas");
+  const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
+  const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
   // Subcategorias acompanham a categoria escolhida.
   const subcategorias = (
     categoriasSelecionadas.length > 0
@@ -266,6 +277,7 @@ export function TransferenciasClient({
       farmaciasDestinoSelecionadas: [...farmaciasDestinoSelecionadas],
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
+      formasSelecionadas: [...formasSelecionadas],
       categoriasSelecionadas: [...categoriasSelecionadas],
       subcategoriasSelecionadas: [...subcategoriasSelecionadas],
       utilizacoesSelecionadas: [...utilizacoesSelecionadas],
@@ -289,6 +301,7 @@ export function TransferenciasClient({
     farmaciasDestinoSelecionadas.length +
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
+    formasSelecionadas.length +
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
@@ -322,6 +335,11 @@ export function TransferenciasClient({
       }
 
       if (!passaFiltroLaboratorioLinha(row, snapshot.fabricantesSelecionados, filtroLab)) {
+        return false;
+      }
+
+      // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
+      if (!passaFiltroForma(row.formaChave, snapshot.formasSelecionadas)) {
         return false;
       }
 
@@ -561,6 +579,8 @@ export function TransferenciasClient({
                   farmaciasDestinoSelecionadas,
                   fornecedoresSelecionados,
                   fabricantesSelecionados,
+                  // Filtros APLICADOS (os que produziram as linhas exportadas), nunca o rascunho em edição.
+                  formasSelecionadas: snapshot?.formasSelecionadas ?? [],
                   categoriasSelecionadas,
                   prioridadesSelecionadas,
                   artigo,
@@ -572,7 +592,7 @@ export function TransferenciasClient({
                   apenasAltaPrioridade,
                   quantidadeMinima,
                 },
-                universe: { farmacias, fornecedores, fabricantes, laboratorios, categorias, prioridades },
+                universe: { farmacias, fornecedores, fabricantes, laboratorios, formas: filterOptions.formas, categorias, prioridades },
                 organization: formatFarmaciaHeader(
                   Array.from(
                     new Set([
@@ -781,6 +801,11 @@ export function TransferenciasClient({
                     );
                   }}
                 />
+                <FiltroFormaFarmaceutica
+                  formas={filterOptions.formas ?? []}
+                  selected={formasSelecionadas}
+                  onToggle={(value) => toggleValue(value, formasSelecionadas, setFormasSelecionadas)}
+                />
                 <SearchableMultiSelect
                   label="Categoria"
                   options={categorias}
@@ -855,6 +880,12 @@ export function TransferenciasClient({
                     }
                   />
                 ))}
+
+                <ChipsFormaFarmaceutica
+                  formas={filterOptions.formas ?? []}
+                  selected={formasSelecionadas}
+                  onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))}
+                />
 
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill

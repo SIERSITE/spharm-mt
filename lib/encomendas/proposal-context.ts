@@ -18,6 +18,7 @@
  * `LinhaEncomenda` — a lista importada é uma FERRAMENTA de composição,
  * não um dado que precise de sobreviver por si.
  */
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 
 export type PropostaContexto = {
   version: 1;
@@ -35,6 +36,11 @@ export type PropostaContexto = {
     subcategorias: string[];
     utilizacoes: string[];
     productTypes: string[];
+    /**
+     * Chaves de forma farmacêutica. Opcional no TIPO (rascunhos v1 anteriores a este filtro não o têm), mas
+     * `parsearPropostaContexto` devolve SEMPRE um array (`[]` = sem filtro = o comportamento de então).
+     */
+    formas?: string[];
   };
   /** Resumo da lista importada, se houver — ver nota acima. */
   listaImportadaResumo: { nomeFicheiro: string; encontrados: number; naoEncontrados: number } | null;
@@ -86,6 +92,8 @@ export function parsearPropostaContexto(raw: string | null): PropostaContexto | 
         subcategorias: arr(f?.subcategorias),
         utilizacoes: arr(f?.utilizacoes),
         productTypes: arr(f?.productTypes),
+        // Rascunhos sem o campo -> [] (sem filtro). `lerChavesForma` valida e re-normaliza.
+        formas: lerChavesForma(f?.formas),
       },
       listaImportadaResumo:
         p.listaImportadaResumo && typeof p.listaImportadaResumo === "object"

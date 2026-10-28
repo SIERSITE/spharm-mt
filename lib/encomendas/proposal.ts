@@ -9,6 +9,8 @@ import {
   type ResumoListaImportada,
 } from "@/lib/encomendas/resumo-lista";
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
+import { sqlCondicaoForma } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { resolverFiltroFabricantesProposta } from "@/lib/encomendas/filtro-fabricantes-proposta";
 import { ordenarLinhasProposta } from "@/lib/ordenacao-artigos";
 
@@ -39,6 +41,11 @@ export type ProposalFilters = {
   /** Utilizações por SLUG. Produto entra se corresponder a QUALQUER uma. */
   utilizacoes?: string[];
   productTypes?: string[];
+  /**
+   * Formas farmacêuticas por CHAVE normalizada (`chaveFormaFarmaceutica`; `SEM_FORMA` = sem forma). Vazio/omitido =
+   * sem filtro. Aplicado no SQL da proposta (`= ANY($n)` parametrizado), antes do corte de linhas.
+   */
+  formas?: string[];
   /**
    * Lista de CNP importada por ficheiro. MESMO nome e MESMA semântica
    * que `SharedReportFilters.cnps` — é o que garante que o mesmo
@@ -401,6 +408,7 @@ export async function generateOrderProposal(
   const subcatFilter = input.filters?.subcategorias?.length ? input.filters.subcategorias : null;
   const utilFilter = input.filters?.utilizacoes?.length ? input.filters.utilizacoes : null;
   const typeFilter = input.filters?.productTypes?.length ? input.filters.productTypes : null;
+  const formaCond = sqlCondicaoForma(lerChavesForma(input.filters?.formas));
 
   // Lista importada: PRESENÇA, não comprimento. Uma lista vazia é uma
   // lista de que nada foi encontrado no catálogo — o universo é vazio, e
@@ -417,6 +425,7 @@ export async function generateOrderProposal(
   if (fabFiltro?.modo === "produtos") conds.push(Prisma.sql`p.id = ANY(${fabFiltro.produtoIds})`);
   if (fornFilter) conds.push(Prisma.sql`pf."fornecedorOrigem" = ANY(${fornFilter})`);
   if (typeFilter) conds.push(Prisma.sql`p."productType" = ANY(${typeFilter})`);
+  if (formaCond) conds.push(formaCond);
   if (catFilter) {
     conds.push(Prisma.sql`(c1.nome = ANY(${catFilter}) OR pf."categoriaOrigem" = ANY(${catFilter}))`);
   }

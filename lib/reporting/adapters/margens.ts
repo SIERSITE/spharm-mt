@@ -28,6 +28,7 @@ import type {
 import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS, rotuloNaturezas } from "@/lib/reporting/natureza-venda";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
 import { normalizarLargura } from "../column-widths";
@@ -151,6 +152,8 @@ export type UniversoMargens = {
   fabricantes: string[];
   /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
+  /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+  formas?: OpcaoFormaFarmaceutica[];
   distribuidores: string[];
   /** Opcionais: só servem para o total ("Todas") e para traduzir o slug da utilização no rótulo. */
   subcategorias?: Array<{ nome: string }>;
@@ -200,6 +203,8 @@ function buildFiltersLabel(f: SharedReportFilters, universe: UniversoMargens): R
       ),
     });
   }
+  const forma = filtroFormaFarmaceuticaLinha(f.formasFarmaceuticas, universe.formas);
+  if (forma) out.push(forma);
   if (f.distribuidores && f.distribuidores.length > 0) {
     out.push({
       label: "Distribuidores",

@@ -84,7 +84,7 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
   // ── 150 artigos «VOL» ─────────────────────────────────────────────
   for (let i = 1; i <= 150; i++) {
     const p = await prisma.produto.create({
-      data: { cnp: 7100000 + i, designacao: `ARTIGO VOL ${String(i).padStart(3, "0")}`, fabricanteId: fabricante.id, estado: "VALIDADO" },
+      data: { cnp: 7100000 + i, designacao: `ARTIGO VOL ${String(i).padStart(3, "0")}`, fabricanteId: fabricante.id, estado: "VALIDADO", formaFarmaceutica: "Cápsula" },
     });
     for (const f of [fa, fb, fg]) {
       await pf(p.id, f.id, 1);
@@ -93,13 +93,15 @@ export async function semearMargens(amb: Ambiente): Promise<Semeado> {
   }
 
   // ── Grupo CNPEM ───────────────────────────────────────────────────
-  const mk = async (cnp: number, designacao: string) =>
-    prisma.produto.create({ data: { cnp, designacao, dci: "Ibuprofeno", fabricanteId: fabricante.id, estado: "VALIDADO" } });
-  const A = await mk(CNP.A, "IBUPROFENO A 400 (analisado)");
-  const B = await mk(CNP.B, "IBUPROFENO B 400");
-  const C = await mk(CNP.C, "IBUPROFENO C 400 (sem vendas)");
+  // Forma farmacêutica sintética: A e B são a MESMA forma escrita de duas maneiras («Comprimido» / « comprimido »),
+  // C e E são «Comprimido revestido» (forma DIFERENTE), D não tem forma. Ver forma-farmaceutica-browser.ts.
+  const mk = async (cnp: number, designacao: string, formaFarmaceutica: string | null = null) =>
+    prisma.produto.create({ data: { cnp, designacao, dci: "Ibuprofeno", fabricanteId: fabricante.id, estado: "VALIDADO", formaFarmaceutica } });
+  const A = await mk(CNP.A, "IBUPROFENO A 400 (analisado)", "Comprimido");
+  const B = await mk(CNP.B, "IBUPROFENO B 400", " comprimido ");
+  const C = await mk(CNP.C, "IBUPROFENO C 400 (sem vendas)", "Comprimido revestido");
   const D = await mk(CNP.D, "IBUPROFENO D 400 (só em Gama)");
-  const E = await mk(CNP.E, "IBUPROFENO E 600 (mesma DCI, outro CNPEM)");
+  const E = await mk(CNP.E, "IBUPROFENO E 600 (mesma DCI, outro CNPEM)", "Comprimido revestido");
   const F = await mk(CNP.F, "IBUPROFENO F 400 (sem vendas nem stock)");
   await pf(A.id, fa.id, 40); await vendas(A.id, fa.id, 10, 12.3);
   await pf(A.id, fb.id, 40); await vendas(A.id, fb.id, 4, 12.3);

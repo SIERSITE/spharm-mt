@@ -14,6 +14,7 @@ import type {
 } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { normalizarLargura } from "../column-widths";
+import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { filtroLaboratorioParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 export type TransferenciasAdapterRow = {
@@ -41,6 +42,8 @@ export type TransferenciasAdapterFilters = {
   fornecedoresSelecionados?: string[];
   fabricantesSelecionados?: string[];
   categoriasSelecionadas?: string[];
+  /** CHAVES de forma farmacêutica (APLICADAS). Vazio/omitido = sem filtro. */
+  formasSelecionadas?: string[];
   prioridadesSelecionadas?: string[];
   artigo?: string;
   dataInicio?: string;
@@ -106,6 +109,8 @@ function buildFilters(
     fabricantes: string[];
     /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     categorias: string[];
     prioridades: string[];
   }
@@ -142,6 +147,8 @@ function buildFilters(
       value: joinList(f.categoriasSelecionadas, universe.categorias.length),
     });
   }
+  const forma = filtroFormaFarmaceuticaLinha(f.formasSelecionadas, universe.formas);
+  if (forma) out.push(forma);
   if (f.prioridadesSelecionadas && f.prioridadesSelecionadas.length > 0) {
     out.push({
       label: "Prioridades",
@@ -183,6 +190,8 @@ export function buildTransferenciasReport(input: {
     fabricantes: string[];
     /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
     categorias: string[];
     prioridades: string[];
   };

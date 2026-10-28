@@ -32,6 +32,7 @@
  */
 import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS } from "./natureza-venda";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 
 export type SharedReportFilters = {
   /** Lista de NOMES de farmácia. Vazio/omitido = todas as activas. */
@@ -79,6 +80,13 @@ export type SharedReportFilters = {
    * outro eixo.
    */
   cnps?: number[];
+  /**
+   * Formas farmacêuticas seleccionadas, por CHAVE normalizada (`chaveFormaFarmaceutica`: sem acentos, minúsculas,
+   * espaços colapsados; `SEM_FORMA` = produtos sem forma). Vazio/omitido = todas = comportamento anterior.
+   * Estados antigos (sessionStorage/URL/rascunho) sem este campo lêem-se como omitido. Ver
+   * `lib/catalog/forma-farmaceutica-filtro.ts`. Combina-se com os restantes eixos por E lógico.
+   */
+  formasFarmaceuticas?: string[];
   /** Fabricantes canónicos seleccionados. Vazio = todos. */
   fabricantes?: string[];
   /** Distribuidores / grossistas seleccionados. Vazio = todos. */
@@ -177,6 +185,7 @@ export function contarFiltrosAtivos(filtros: SharedReportFilters): number {
   if ((filtros.subcategorias?.length ?? 0) > 0) n++;
   if ((filtros.utilizacoes?.length ?? 0) > 0) n++;
   if ((filtros.fabricantes?.length ?? 0) > 0) n++;
+  if ((filtros.formasFarmaceuticas?.length ?? 0) > 0) n++;
   if ((filtros.distribuidores?.length ?? 0) > 0) n++;
   // A lista importada conta como UM eixo, não como "N produtos" — ver
   // a nota grande em `cnps` acima sobre `undefined` vs `[]`.
@@ -220,6 +229,7 @@ export function limparFiltrosPreservandoData(
     subcategorias: [],
     utilizacoes: [],
     fabricantes: [],
+    formasFarmaceuticas: [],
     distribuidores: [],
     cnps: undefined,
     apenasSemClassif: false,
@@ -269,6 +279,8 @@ export type ReportFilterOptions = {
   subcategorias: Array<{ nome: string; categoria: string }>;
   utilizacoes: Array<{ slug: string; nome: string }>;
   fabricantes: string[];
+  /** Formas farmacêuticas do tenant (chave, rótulo, nº de produtos). Omitido = sem filtro de forma (consumidor antigo). */
+  formas?: OpcaoFormaFarmaceutica[];
   /** SÓ no tenant garantia — ver o mesmo campo em `ReportingFilterOptions` (lib/reporting-filter-options.ts). */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
   distribuidores: string[];

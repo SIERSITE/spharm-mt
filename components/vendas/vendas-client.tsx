@@ -9,6 +9,7 @@ import { runVendasReport } from "@/app/vendas/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
+import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import {
   ENCOMENDA_PREFILL_STORAGE_KEY,
   buildEncomendaPrefillFromVendas,
@@ -95,6 +96,8 @@ type VendasCriterios = {
   farmaciasSelecionadas: string[];
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
+  /** CHAVES de forma farmacêutica. Opcional: estados de workspace antigos não o têm (lê-se como []). */
+  formasSelecionadas?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -262,6 +265,7 @@ export function VendasClient({
       farmaciasSelecionadas: farmacias,
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
+      formasSelecionadas: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -311,6 +315,11 @@ export function VendasClient({
   const [farmaciasSelecionadas, setFarmaciasSelecionadas] = campo("farmaciasSelecionadas");
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = campo("fornecedoresSelecionados");
   const [fabricantesSelecionados, setFabricantesSelecionados] = campo("fabricantesSelecionados");
+  const [formasSelecionadasBruto, setFormasBruto] = campo("formasSelecionadas");
+  // Estados de workspace gravados antes deste filtro não têm o campo: lê-se como «sem filtro».
+  const formasSelecionadas = useMemo(() => lerChavesForma(formasSelecionadasBruto), [formasSelecionadasBruto]);
+  const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
@@ -400,6 +409,9 @@ export function VendasClient({
       ) {
         return false;
       }
+      if (!passaFiltroForma(row.formaChave, formasSelecionadas)) {
+        return false;
+      }
       if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
         return false;
       }
@@ -434,6 +446,7 @@ export function VendasClient({
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    formasSelecionadas,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -452,6 +465,9 @@ export function VendasClient({
         fornecedoresSelecionados.length > 0 &&
         !fornecedoresSelecionados.includes(row.fornecedor)
       ) {
+        continue;
+      }
+      if (!passaFiltroForma(row.formaChave, formasSelecionadas)) {
         continue;
       }
       if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
@@ -552,6 +568,7 @@ export function VendasClient({
           })(),
           fornecedor: first.fornecedor,
           fabricante: first.fabricante,
+          formaChave: first.formaChave,
           categoria: first.categoria,
           subcategoria: first.subcategoria,
           utilizacoes: first.utilizacoes,
@@ -567,6 +584,7 @@ export function VendasClient({
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    formasSelecionadas,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -788,6 +806,9 @@ export function VendasClient({
         ) {
           return false;
         }
+        if (!passaFiltroForma(row.formaChave, formasSelecionadas)) {
+          return false;
+        }
         if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
           return false;
         }
@@ -823,6 +844,7 @@ export function VendasClient({
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    formasSelecionadas,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -876,6 +898,9 @@ export function VendasClient({
         fornecedoresSelecionados.length > 0 &&
         !fornecedoresSelecionados.includes(row.fornecedor)
       ) {
+        continue;
+      }
+      if (!passaFiltroForma(row.formaChave, formasSelecionadas)) {
         continue;
       }
       if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
@@ -936,6 +961,7 @@ export function VendasClient({
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
+    formasSelecionadas,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
@@ -960,6 +986,7 @@ export function VendasClient({
       subcategorias: subcategoriasSelecionadas,
       utilizacoes: utilizacoesSelecionadas,
       fabricantes: fabricantesSelecionados,
+      formasFarmaceuticas: formasSelecionadas,
       distribuidores: fornecedoresSelecionados,
       cnps: listaCodigos ? listaCodigos.cnps : undefined,
     }),
@@ -969,6 +996,7 @@ export function VendasClient({
       subcategoriasSelecionadas,
       utilizacoesSelecionadas,
       fabricantesSelecionados,
+      formasSelecionadas,
       fornecedoresSelecionados,
       listaCodigos,
     ],
@@ -988,6 +1016,7 @@ export function VendasClient({
     setFarmaciasSelecionadas([]);
     setFornecedoresSelecionados([]);
     setFabricantesSelecionados([]);
+    setFormasSelecionadas([]);
     setCategoriasSelecionadas([]);
     setSubcategoriasSelecionadas([]);
     setUtilizacoesSelecionadas([]);
@@ -1026,6 +1055,7 @@ export function VendasClient({
         farmaciasSelecionadas,
         fornecedoresSelecionados,
         fabricantesSelecionados,
+        formasSelecionadas,
         categoriasSelecionadas,
         artigo,
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
@@ -1044,7 +1074,7 @@ export function VendasClient({
         ordenacaoTabelaDescricao: descreverOrdenacaoTabela(ordenacao, buckets),
         selecaoArtigos: selecaoAplicavel ? { selecionados: nSelecionados, total: codigosVisiveis.length } : undefined,
       },
-      universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, categorias },
+      universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, formas: filterOptions.formas, categorias },
       organization: formatFarmaciaHeader(
         farmaciasSelecionadas,
         farmaciasInfo
@@ -1058,7 +1088,7 @@ export function VendasClient({
     () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
     [incluirPrecosVenda, incluirPrecosCompra, pvpDiferenteAtivo, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
       apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
-      fornecedoresSelecionados, fabricantesSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
+      fornecedoresSelecionados, fabricantesSelecionados, formasSelecionadas, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
       artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
   );
   /* eslint-enable react-hooks/exhaustive-deps */
@@ -1087,6 +1117,8 @@ export function VendasClient({
             utilizacoesSelecionadas.length > 0 ? utilizacoesSelecionadas : undefined,
           fabricantes:
             fabricantesSelecionados.length > 0 ? fabricantesSelecionados : undefined,
+          // Filtrado no SERVIDOR (restringirPorCatalogo), antes dos totais; vazio = sem filtro.
+          formasFarmaceuticas: formasSelecionadas.length > 0 ? formasSelecionadas : undefined,
           distribuidores:
             fornecedoresSelecionados.length > 0
               ? fornecedoresSelecionados
@@ -1352,6 +1384,7 @@ export function VendasClient({
                 distribuidores: fornecedores,
                 fabricantes,
                 laboratorios: filterOptions.laboratorios,
+                formas: filterOptions.formas,
                 categorias,
                 subcategorias,
                 utilizacoes: utilizacoesOpcoes,
@@ -1364,6 +1397,7 @@ export function VendasClient({
                 categorias: categoriasSelecionadas,
                 subcategorias: subcategoriasSelecionadas,
                 utilizacoes: utilizacoesSelecionadas,
+                formas: formasSelecionadas,
                 incluirCredito,
                 incluirTransferencias,
               }}
@@ -1375,6 +1409,7 @@ export function VendasClient({
                 categorias: setCategoriasSelecionadas,
                 subcategorias: setSubcategoriasSelecionadas,
                 utilizacoes: setUtilizacoesSelecionadas,
+                formas: setFormasSelecionadas,
                 incluirCredito: setIncluirCredito,
                 incluirTransferencias: setIncluirTransferencias,
               }}

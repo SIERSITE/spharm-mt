@@ -54,6 +54,8 @@ import type { EstadoAutosave } from "@/lib/encomendas/use-autosave-encomenda";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import { LaboratorioMultiSelect } from "@/components/reporting/laboratorio-multi-select";
+import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import {
   TEMPO_AVISO_DEMORA_MS,
   guardarDocumentosPendentes,
@@ -374,6 +376,9 @@ export function OrderCreateClient({
   const [selSubcategorias, setSelSubcategorias] = useEstadoSeparador<string[]>("nova:selSubcategorias", []);
   const [selUtilizacoes, setSelUtilizacoes] = useEstadoSeparador<string[]>("nova:selUtilizacoes", []);
   const [selProductTypes, setSelProductTypes] = useEstadoSeparador<string[]>("nova:selProductTypes", []);
+  // Chaves de forma farmacêutica. O valor guardado no separador pode vir de uma versão anterior (sem a chave => []).
+  const [selFormasBruto, setSelFormas] = useEstadoSeparador<string[]>("nova:selFormas", []);
+  const selFormas = useMemo(() => lerChavesForma(selFormasBruto), [selFormasBruto]);
   /**
    * Lista de CNP importada por ficheiro.
    *
@@ -1072,6 +1077,7 @@ export function OrderCreateClient({
         subcategorias: selSubcategorias,
         utilizacoes: selUtilizacoes,
         productTypes: selProductTypes,
+        formas: selFormas,
       },
       listaImportadaResumo: listaCodigos
         ? {
@@ -2053,6 +2059,7 @@ export function OrderCreateClient({
         setSelSubcategorias(d.contexto.filters.subcategorias);
         setSelUtilizacoes(d.contexto.filters.utilizacoes);
         setSelProductTypes(d.contexto.filters.productTypes);
+        setSelFormas(d.contexto.filters.formas ?? []);
       }
       const persistidas = d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId));
       setLinhas(persistidas);
@@ -2081,6 +2088,7 @@ export function OrderCreateClient({
               subcategorias: c.filters.subcategorias,
               utilizacoes: c.filters.utilizacoes,
               productTypes: c.filters.productTypes,
+              formas: c.filters.formas ?? [],
               // Universo = as linhas persistidas: garante que cada uma tem
               // a sua linha fresca independentemente dos filtros.
               cnps: persistidas.map((l) => l.cnp),
@@ -2190,6 +2198,7 @@ export function OrderCreateClient({
         fabricantes: selFabricantes, fornecedores: selFornecedores,
         categorias: selCategorias, subcategorias: selSubcategorias,
         utilizacoes: selUtilizacoes, productTypes: selProductTypes,
+        formas: selFormas,
         // `undefined` sem lista; o array (mesmo vazio) com lista.
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
       },
@@ -2779,7 +2788,7 @@ export function OrderCreateClient({
 
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
-    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length +
+    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length + selFormas.length +
     // A lista conta como UM filtro, não como 437: o contador diz quantos
     // eixos estão activos, e um ficheiro é um eixo.
     (listaCodigos ? 1 : 0);
@@ -3225,6 +3234,12 @@ export function OrderCreateClient({
               disabled={busy || generating}
             />
             <FilterMulti label="Tipos" options={productTypes} selected={selProductTypes} onChange={setSelProductTypes} disabled={busy || generating} />
+            {/* Forma farmacêutica: o MESMO componente dos mapas; chave normalizada, filtrada no SQL da proposta. */}
+            <FiltroFormaFarmaceutica
+              formas={filterOptions.formas ?? []}
+              selected={selFormas}
+              onToggle={(chave) => setSelFormas(selFormas.includes(chave) ? selFormas.filter((c) => c !== chave) : [...selFormas, chave])}
+            />
           </div>
           </>
         )}
