@@ -38,7 +38,7 @@ PASSO 0 - Extrair e validar a entrega
 
   O hash de cada ficheiro (o ZIP, o Install, o Remove e este LEIAME) tem de ser IGUAL ao da respetiva linha do
   SHA256SUMS.txt (o proprio SHA256SUMS.txt nao se inclui a si mesmo). O hash do ZIP do diagnostico (v2) tem de ser:
-    @@SHA256_INTERIOR_MINUSCULAS@@
+    cc6b1e3c4916adec4b6eb26ca496cd1f758e0c9819741df25a42529c1e2df0be
   Se algum hash nao bater: PARAR e pedir uma entrega nova.
 
 PASSO 1 - Validar a tarefa agendada e a rev98 (so leitura, nao mostra segredos)
@@ -58,7 +58,7 @@ PASSO 2 - Instalar lado a lado
     cd C:\Entregas\classification-audit
     .\Install-ClassificationAudit.ps1 `
       -ZipPath .\spharmmt-agent-classification-audit.zip `
-      -Sha256Esperado @@SHA256_INTERIOR_MAIUSCULAS@@
+      -Sha256Esperado CC6B1E3C4916ADEC4B6EB26CA496CD1F758E0C9819741DF25A42529C1E2DF0BE
 
   Cria  C:\SPharm_MT\spharmmt-classification-audit  (pasta nova, independente da rev98) e copia para la APENAS o
   agent.config.json da rev98 (sem mostrar o conteudo). Nao copia run, locks, logs nem output. Nao altera a tarefa
