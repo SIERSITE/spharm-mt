@@ -13,13 +13,13 @@
   locks. Escreve o pacote exterior em -OutDir (+ ficheiro .sha256 ao lado, FORA do pacote). Texto ASCII.
 
 .PARAMETER InnerZip           ZIP de diagnostico ja construido (dist-agent\spharmmt-agent-classification-audit.zip).
-.PARAMETER InnerSha256Esperado  SHA-256 esperado do ZIP interior.
+.PARAMETER InnerSha256Esperado  SHA-256 esperado do ZIP interior (obrigatorio; vem do .sha256 gerado pelo build do pacote). O LEIAME-INSTALACAO.txt tem de o mencionar.
 .PARAMETER OutDir             Pasta de saida do pacote exterior.
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$InnerZip,
-  [string]$InnerSha256Esperado = '3e621aa8a803b567ae37c1c749f674b08b8b823ed491b80546c23f06c202169e',
+  [Parameter(Mandatory = $true)][string]$InnerSha256Esperado,
   [Parameter(Mandatory = $true)][string]$OutDir
 )
 $ErrorActionPreference = 'Stop'
@@ -39,7 +39,9 @@ try {
     'LEIAME-INSTALACAO.txt'           = Join-Path $audit 'entrega\LEIAME-INSTALACAO.txt'
   }
   foreach ($k in $fontes.Keys) { if (-not (Test-Path -LiteralPath $fontes[$k] -PathType Leaf)) { throw "ficheiro de origem em falta: $($fontes[$k])" } }
+  if (Select-String -LiteralPath $fontes['LEIAME-INSTALACAO.txt'] -SimpleMatch -Pattern '@@SHA256' -Quiet) { throw 'o LEIAME ainda tem marcadores @@SHA256...@@ por substituir pelo hash do ZIP interior' }
   if (Select-String -LiteralPath $fontes['LEIAME-INSTALACAO.txt'] -SimpleMatch -Pattern $InnerSha256Esperado.Trim().ToLower() -Quiet) { } else { throw 'o LEIAME nao menciona o hash esperado do ZIP interior' }
+  if (-not (Select-String -LiteralPath $fontes['LEIAME-INSTALACAO.txt'] -SimpleMatch -Pattern $InnerSha256Esperado.Trim().ToUpper() -Quiet)) { throw 'o LEIAME nao menciona o hash esperado (maiusculas) no comando de instalacao' }
 
   $stage = Join-Path ([IO.Path]::GetTempPath()) ('delivery-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $stage | Out-Null

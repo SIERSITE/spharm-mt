@@ -5,11 +5,14 @@
     Install -> Run (node.exe REAL do ZIP interior, sem SQL Server: host .invalid) -> Collect -> Remove.
   Prova que a rev98, a tarefa agendada e o respetivo agent.config.json ficam byte a byte inalterados.
   Nenhuma tarefa agendada real e nenhum SQL Server real sao usados.
-  Uso:  powershell -NoProfile -ExecutionPolicy Bypass -File Test-Delivery.ps1 -DeliveryZip <SPharmMT-ClassificationAudit-Delivery.zip>
+  Uso:  powershell -NoProfile -ExecutionPolicy Bypass -File Test-Delivery.ps1 -DeliveryZip <SPharmMT-ClassificationAudit-Delivery.zip> -InnerSha256Esperado <sha256 do ZIP interior>
   Texto ASCII.
 #>
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string]$DeliveryZip)
+param(
+  [Parameter(Mandatory = $true)][string]$DeliveryZip,
+  [Parameter(Mandatory = $true)][string]$InnerSha256Esperado
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $script:ok = 0; $script:falhas = 0
@@ -40,7 +43,7 @@ function Get-NomesZip([string]$zip) {
 }
 
 $SEGREDOS = @('SENTINEL_PWD_5d8e!x', 'sentinel_user_91c2', 'SENTINEL_INGEST_KEY_aa11bb22cc33dd44', 'sentinel-host-7f3a.example.invalid', 'sentinel-tenant-x9')
-$INTERIOR_ESPERADO = '3e621aa8a803b567ae37c1c749f674b08b8b823ed491b80546c23f06c202169e'
+$INTERIOR_ESPERADO = $InnerSha256Esperado.Trim().ToLower()
 $raiz = Join-Path ([IO.Path]::GetTempPath()) ('delivery-e2e-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $raiz | Out-Null
 try {
@@ -65,9 +68,12 @@ try {
   }
   Check ($sums['spharmmt-agent-classification-audit.zip'] -eq $INTERIOR_ESPERADO) "hash interno do ZIP de auditoria = $INTERIOR_ESPERADO"
   $leiame = Get-Content -LiteralPath (Join-Path $entrega 'LEIAME-INSTALACAO.txt') -Raw
-  $ordem = @('PASSO 0', 'PASSO 1', 'PASSO 2', 'PASSO 3', 'PASSO 4', 'PASSO 5') | ForEach-Object { $leiame.IndexOf($_) }
-  Check (-not ($ordem | Where-Object { $_ -lt 0 }) -and (($ordem -join ',') -eq (($ordem | Sort-Object) -join ',')) -and $leiame.Contains($INTERIOR_ESPERADO)) 'LEIAME: passos 0..5 por ordem e o hash do ZIP de auditoria'
-  Check ($leiame -match 'validar a tarefa|Validar a tarefa' -and $leiame -match 'Instalar lado a lado' -and $leiame -match 'UMA unica auditoria' -and $leiame -match 'Recolher o relatorio' -and $leiame -match 'Remover o diagnostico') 'LEIAME: validar tarefa/rev98 -> instalar -> uma auditoria -> recolher -> remover'
+  $ordem = @('PASSO 0', 'PASSO 1', 'PASSO 2', 'PASSO 3', 'PASSO 4', 'PASSO 5', 'PASSO 6') | ForEach-Object { $leiame.IndexOf($_) }
+  Check (-not ($ordem | Where-Object { $_ -lt 0 }) -and (($ordem -join ',') -eq (($ordem | Sort-Object) -join ',')) -and $leiame.Contains($INTERIOR_ESPERADO) -and $leiame.Contains($INTERIOR_ESPERADO.ToUpper())) 'LEIAME: passos 0..6 por ordem e o hash do ZIP de auditoria (minusculas e maiusculas)'
+  Check (-not $leiame.Contains('@@SHA256')) 'LEIAME: sem marcadores por substituir'
+  $p1 = $leiame.IndexOf('PASSO 1'); $p2 = $leiame.IndexOf('PASSO 2'); $p3 = $leiame.IndexOf('PASSO 3'); $p4 = $leiame.IndexOf('PASSO 4'); $p5 = $leiame.IndexOf('PASSO 5'); $p6 = $leiame.IndexOf('PASSO 6')
+  Check ($leiame.Substring($p1, $p2 - $p1) -match 'Validar a tarefa' -and $leiame.Substring($p2, $p3 - $p2) -match 'Install-ClassificationAudit' -and $leiame.Substring($p3, $p4 - $p3) -match '(?s)OPCIONAL.*cnps-mt-readonly\.sql.*copia' -and $leiame.Substring($p4, $p5 - $p4) -match 'UMA unica auditoria' -and $leiame.Substring($p4, $p5 - $p4) -match '-CnpsMtFicheiro' -and $leiame.Substring($p5, $p6 - $p5) -match 'Collect-ClassificationAuditReport' -and $leiame.Substring($p6) -match 'Remove-ClassificationAudit') 'LEIAME: ordem exata validar tarefa/rev98 -> instalar -> (opcional) exportar CNPs MT e copiar -> UMA auditoria -> recolher -> remover'
+  Check ($leiame -match 'um ficheiro por farmacia|UM\s+ficheiro por farmacia' -and $leiame -match 'so SELECT' -and $leiame -match 'READ ONLY') 'LEIAME: explica 1 ficheiro por farmacia e que a exportacao do MT e so SELECT (READ ONLY)'
 
   $nomesInt = Get-NomesZip $zipInt
   $esperadosInt = @('Collect-ClassificationAuditReport.ps1', 'LEIAME.txt', 'MANIFEST.json', 'Run-ClassificationAudit.ps1', 'agent.cjs', 'node.exe', 'run-classification-audit.bat') | Sort-Object
@@ -121,6 +127,15 @@ try {
   $semSegredosDest = -not ((Get-ChildItem -LiteralPath $dest -Recurse -File -Force | Where-Object { $_.Name -notin @('agent.config.json', 'node.exe', 'agent.cjs') } | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) | Out-String | ForEach-Object { $t = $_; $SEGREDOS | Where-Object { $t.Contains($_) } })
   Check $semSegredosDest 'nenhum segredo em ficheiros gerados no destino (so o config copiado os tem)'
   Check ((Get-Impressao $rev98) -eq $impAntes) 'rev98 INTACTA depois do Run'
+  # v2: com um ficheiro de CNPs do MT (copiado para a pasta do diagnostico) o comando le-o e so depois tenta ligar ao SQL (que falha)
+  Set-Content -LiteralPath "$dest\cnps-mt.txt" -Value "5000001;1;0`r`n5000002;0;1" -Encoding ASCII
+  $r = Invoke-Filho "Set-Location '$dest'; & '$dest\Run-ClassificationAudit.ps1' -CnpsMtFicheiro .\cnps-mt.txt"
+  Check ($r.Exit -ne 0 -and $r.Out -match 'Ficheiro MT: 2 CNPs') 'Run com -CnpsMtFicheiro: le o ficheiro (2 CNPs) e depois falha so por falta de SQL Server' $r.Out
+  Check (-not ($SEGREDOS | Where-Object { $r.Out.Contains($_) }) -and -not $r.Out.Contains('cnps-mt.txt')) 'Run com ficheiro MT: nenhum segredo e o nome do ficheiro nao e citado na saida'
+  $r = Invoke-Filho "Set-Location '$dest'; & '$dest\Run-ClassificationAudit.ps1' -CnpsMtFicheiro .\nao-existe.txt"
+  Check ($r.Exit -eq 1 -and $r.Out -match 'CnpsMtFicheiro') 'Run com ficheiro MT inexistente: exit 1 e mensagem clara' $r.Out
+  Remove-Item -LiteralPath "$dest\cnps-mt.txt" -Force
+  Check ((Get-Impressao $rev98) -eq $impAntes) 'rev98 INTACTA depois do Run com ficheiro MT'
 
   # ---------------------------------------------------------------- 5. Collect (relatorio sintetico, sem segredos)
   Write-Host "`n=== 5. Collect ==="

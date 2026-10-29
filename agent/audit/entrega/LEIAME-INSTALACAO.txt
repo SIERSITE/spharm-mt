@@ -1,14 +1,16 @@
-SPharm.MT - AUDITORIA DA CLASSIFICACAO DO PRODUTO (pacote de DIAGNOSTICO)
-=========================================================================
+SPharm.MT - AUDITORIA DA CLASSIFICACAO DO PRODUTO (pacote de DIAGNOSTICO v2)
+============================================================================
 
 O QUE E
   Um pacote de diagnostico, instalado LADO A LADO com o agent em producao (rev98), que le (so SELECT) a base do
-  SPharm e escreve um relatorio sanitizado a dizer onde ficam Generico, Etico, NETT e Servico. NAO e um agent
-  instalavel: nao ha tarefa agendada, nao ha sincronizacao, nao envia nada ao SPharm.MT, nao usa o lock da rev98.
-  Nao altera o ERP, a rev98, a tarefa agendada nem o agent.config.json da rev98.
+  SPharm e escreve um relatorio sanitizado a dizer onde ficam Generico, Etico, NETT e Servico, como se distribuem os
+  artigos (universo total do ERP, universo sincronizavel hoje, universo que existe no MT e cobertura da classificacao)
+  e como o lookup Etico_NETT se mapeia pela DESCRICAO. NAO e um agent instalavel: nao ha tarefa agendada, nao ha
+  sincronizacao, nao envia nada ao SPharm.MT, nao usa o lock da rev98. Nao altera o ERP, a rev98, a tarefa agendada
+  nem o agent.config.json da rev98. (Versao v2: "diag2-<data UTC>", base rev98; NAO e uma revisao nova do agent.)
 
 CONTEUDO DESTA ENTREGA (so estes 5 ficheiros)
-  1. spharmmt-agent-classification-audit.zip   (o pacote de diagnostico)
+  1. spharmmt-agent-classification-audit.zip   (o pacote de diagnostico v2)
   2. Install-ClassificationAudit.ps1           (instala lado a lado, com pre-condicoes)
   3. Remove-ClassificationAudit.ps1            (remove so a pasta do diagnostico)
   4. SHA256SUMS.txt                            (hash de todos os outros ficheiros)
@@ -23,6 +25,8 @@ REQUISITOS
     do Install-ClassificationAudit.ps1 (ver "Get-Help .\Install-ClassificationAudit.ps1 -Full").
 
 ORDEM EXATA
+  Validar a entrega (0) -> validar a tarefa/rev98 (1) -> instalar lado a lado (2) -> (opcional) exportar os CNPs do MT
+  e copia-los (3) -> executar UMA auditoria (4) -> recolher o relatorio (5) -> remover o diagnostico (6).
 
 PASSO 0 - Extrair e validar a entrega
   Extrair o ZIP da entrega para  C:\Entregas\classification-audit  e correr:
@@ -33,8 +37,8 @@ PASSO 0 - Extrair e validar a entrega
       ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
 
   O hash de cada ficheiro (o ZIP, o Install, o Remove e este LEIAME) tem de ser IGUAL ao da respetiva linha do
-  SHA256SUMS.txt (o proprio SHA256SUMS.txt nao se inclui a si mesmo). O hash do ZIP do diagnostico tem de ser:
-    3e621aa8a803b567ae37c1c749f674b08b8b823ed491b80546c23f06c202169e
+  SHA256SUMS.txt (o proprio SHA256SUMS.txt nao se inclui a si mesmo). O hash do ZIP do diagnostico (v2) tem de ser:
+    @@SHA256_INTERIOR_MINUSCULAS@@
   Se algum hash nao bater: PARAR e pedir uma entrega nova.
 
 PASSO 1 - Validar a tarefa agendada e a rev98 (so leitura, nao mostra segredos)
@@ -54,29 +58,48 @@ PASSO 2 - Instalar lado a lado
     cd C:\Entregas\classification-audit
     .\Install-ClassificationAudit.ps1 `
       -ZipPath .\spharmmt-agent-classification-audit.zip `
-      -Sha256Esperado 3E621AA8A803B567AE37C1C749F674B08B8B823ED491B80546C23F06C202169E
+      -Sha256Esperado @@SHA256_INTERIOR_MAIUSCULAS@@
 
   Cria  C:\SPharm_MT\spharmmt-classification-audit  (pasta nova, independente da rev98) e copia para la APENAS o
   agent.config.json da rev98 (sem mostrar o conteudo). Nao copia run, locks, logs nem output. Nao altera a tarefa
   agendada. Se alguma pre-condicao falhar termina com erro e nao deixa nada instalado.
 
-PASSO 3 - Executar UMA unica auditoria (so leitura)
+PASSO 3 - (OPCIONAL, recomendado) Exportar os CNPs do MT e copia-los para a pasta do diagnostico
+  Serve para calcular o universo "efetivamente existente no MT" e a cobertura da classificacao dentro dele (e a
+  matriz MT.flagGenerico x ERP.Generico). O diagnostico NAO chama o MT: so le um ficheiro local.
+
+  Na maquina que tem acesso ao PostgreSQL do SPharm.MT (NAO na farmacia; so SELECT, transacao READ ONLY), por farmacia:
+
+    psql "$DATABASE_URL" -v farmacia="Nome Exato da Farmacia" -At -f scripts/diagnostics/cnps-mt-readonly.sql > cnps-mt.txt
+
+  (script e notas no repositorio: scripts/diagnostics/cnps-mt-readonly.sql e notes/cnps-mt-exportacao.md. Cada linha:
+  cnp;flagGenerico;manual, so digitos e 0/1.) Cada ERP e uma farmacia: num tenant com varias farmacias exporta-se UM
+  ficheiro por farmacia e cada ficheiro so se usa com o diagnostico DA RESPETIVA farmacia.
+  Copiar o cnps-mt.txt para  C:\SPharm_MT\spharmmt-classification-audit\cnps-mt.txt
+  Se saltares este passo, os universos "existente no MT" e "cobertura" ficam "nao calculado" (o resto corre igual).
+
+PASSO 4 - Executar UMA unica auditoria (so leitura)
 
     cd C:\SPharm_MT\spharmmt-classification-audit
-    .\Run-ClassificationAudit.ps1
+    .\Run-ClassificationAudit.ps1                                   # sem ficheiro MT
+    .\Run-ClassificationAudit.ps1 -CnpsMtFicheiro .\cnps-mt.txt     # com os CNPs do MT (passo 3)
 
   Opcional (CNPs conhecidos para comparar):  .\Run-ClassificationAudit.ps1 -Cnps 1234567,7654321
+  Outras opcoes: -MaxTabelas, -MaxPares, -MaxColunas, -Top (ver LEIAME.txt do pacote).
   Grava  .\output\auditoria-classificacao.json  e  .\output\auditoria-classificacao.md.
   Executar uma vez. Se falhar, ler a mensagem (nao mostra credenciais) e reportar; nao repetir em ciclo.
+  Com ficheiro MT grande (25 000 CNPs ou mais) a consulta ao ERP faz-se em blocos de ate 1000 CNPs (so SELECT
+  agregado); o orcamento total de tempo e de 20 minutos (--max-minutos).
 
-PASSO 4 - Recolher o relatorio
+PASSO 5 - Recolher o relatorio
 
     .\Collect-ClassificationAuditReport.ps1
 
   Cria  .\entrega\auditoria-classificacao-<UTC>.zip  (+ .sha256) so com o relatorio .json/.md e o SHA256.txt.
-  Recusa recolher se o relatorio parecer conter credenciais. ENVIAR ESSE ZIP. Nunca enviar o agent.config.json.
+  Recusa recolher se o relatorio parecer conter credenciais. ENVIAR ESSE ZIP. Nunca enviar o agent.config.json
+  nem o ficheiro de CNPs do MT (o relatorio nao cita o nome desse ficheiro).
 
-PASSO 5 - Remover o diagnostico (depois de ter o relatorio guardado e enviado)
+PASSO 6 - Remover o diagnostico (depois de ter o relatorio guardado e enviado)
 
     cd C:\Entregas\classification-audit
     .\Remove-ClassificationAudit.ps1             # simulacao: mostra o que removeria (nao apaga)
@@ -87,9 +110,9 @@ PASSO 5 - Remover o diagnostico (depois de ter o relatorio guardado e enviado)
 
 GARANTIAS
   - Todas as consultas SQL sao SELECT/metadados, validadas antes de executar (INSERT, UPDATE, DELETE, MERGE, EXEC,
-    ALTER, CREATE, DROP, TRUNCATE e semelhantes sao recusados).
+    ALTER, CREATE, DROP, TRUNCATE e semelhantes sao recusados; as listas IN (...) so aceitam inteiros).
   - O relatorio nao contem credenciais, nomes de clientes, vendas, prescricoes nem dados pessoais: so estrutura,
-    contagens e amostras com codigo/CNP e classificacao.
+    contagens e amostras com codigo/CNP e classificacao. Identifica a farmacia apenas pelo nome da base de dados.
   - A rev98, a tarefa agendada e o respetivo agent.config.json ficam byte a byte inalterados.
 
 EM CASO DE DUVIDA

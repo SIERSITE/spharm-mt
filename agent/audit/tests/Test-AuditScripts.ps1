@@ -208,6 +208,18 @@ try {
     Check ($r.Exit -eq 0) 'executa e devolve o exit code do node' $r.Out
     $args1 = Get-Content -LiteralPath "$dest\output\args.txt" -Raw | ConvertFrom-Json
     Check (($args1 -join ' ') -eq 'classification-audit --out .\output\auditoria-classificacao.json --cnps 1234567,7654321 --cnps-ficheiro cnps.txt') 'comando = classification-audit --out .\output\auditoria-classificacao.json [--cnps ..] [--cnps-ficheiro ..]' ($args1 -join ' ')
+    # v2: -CnpsMtFicheiro / -MaxTabelas / -MaxPares passam ao comando; ficheiro MT inexistente falha ANTES de correr o node
+    Set-Content -LiteralPath "$dest\agent.cjs" -Value "require('fs').writeFileSync('output/args.txt', JSON.stringify(process.argv.slice(2))); process.exit(0)" -Encoding ASCII
+    Remove-Item -LiteralPath "$dest\output\args.txt" -Force -ErrorAction SilentlyContinue
+    $r = Invoke-Filho "& '$dest\Run-ClassificationAudit.ps1' -CnpsMtFicheiro .\nao-existe-mt.txt"
+    Check ($r.Exit -eq 1 -and $r.Out -match 'CnpsMtFicheiro' -and -not (Test-Path -LiteralPath "$dest\output\args.txt")) 'ficheiro MT inexistente: exit 1, mensagem clara, o node nem arranca' $r.Out
+    Set-Content -LiteralPath "$dest\cnps-mt.txt" -Value "5000001;1;0" -Encoding ASCII
+    $r = Invoke-Filho "& '$dest\Run-ClassificationAudit.ps1' -CnpsMtFicheiro .\cnps-mt.txt -MaxTabelas 300 -MaxPares 120"
+    Check ($r.Exit -eq 0) 'executa com -CnpsMtFicheiro -MaxTabelas -MaxPares' $r.Out
+    $args2 = Get-Content -LiteralPath "$dest\output\args.txt" -Raw | ConvertFrom-Json
+    $esperado2 = 'classification-audit --out .\output\auditoria-classificacao.json --max-tabelas 300 --max-pares 120 --cnps-mt-ficheiro ' + "$dest\cnps-mt.txt"
+    Check (($args2 -join ' ') -eq $esperado2) 'comando inclui --cnps-mt-ficheiro (caminho absoluto), --max-tabelas e --max-pares' ($args2 -join ' ')
+    Remove-Item -LiteralPath "$dest\cnps-mt.txt" -Force
     Set-Content -LiteralPath "$dest\agent.cjs" -Value "process.exit(7)" -Encoding ASCII
     $r = Invoke-Filho "& '$dest\Run-ClassificationAudit.ps1'"
     Check ($r.Exit -eq 7) 'propaga o exit code do node (7)'

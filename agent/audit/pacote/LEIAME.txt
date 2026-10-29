@@ -1,4 +1,4 @@
-SPharm.MT - classification-audit  (PACOTE DE DIAGNOSTICO, base rev98)
+SPharm.MT - classification-audit  (PACOTE DE DIAGNOSTICO v2, base rev98)
 ===========================================================================
 
 O que e:    ferramenta de DIAGNOSTICO, de execucao manual, para descobrir onde o SPharm guarda Generico, Etico,
@@ -12,10 +12,22 @@ Passos (PowerShell, a partir da pasta onde esta o ZIP e os scripts Install/Remov
   2. Executar:               cd C:\SPharm_MT\spharmmt-classification-audit
                              .\Run-ClassificationAudit.ps1           (ou  run-classification-audit.bat)
                              opcional: -Cnps 1234567,7654321   ou   -CnpsFicheiro cnps.txt
+                             opcional (universos "existente no MT" e cobertura da classificacao):
+                               -CnpsMtFicheiro .\cnps-mt.txt
+                               (ficheiro LOCAL exportado do MT com os produtos que existem no MT desta farmacia: uma linha
+                               "cnp" ou "cnp;flagGenerico" ou "cnp;flagGenerico;manual", 0/1; so digitos. O diagnostico
+                               NAO chama o MT: so le este ficheiro. Consulta o ERP em blocos de ate 1000 CNPs, so SELECT.
+                               Sem este ficheiro esses dois universos ficam "nao calculado: forneca --cnps-mt-ficheiro".)
+                             opcional: -MaxTabelas N (omissao 5000)   -MaxPares N (omissao 150)   -MaxColunas N (omissao 80)
      Comando equivalente:    .\node.exe agent.cjs classification-audit --out .\output\auditoria-classificacao.json
+                             [--cnps-mt-ficheiro .\cnps-mt.txt]
   3. Recolher o relatorio:   .\Collect-ClassificationAuditReport.ps1   (so output\auditoria-classificacao.* + hash)
   4. Remover o diagnostico:  .\Remove-ClassificationAudit.ps1 -Confirmar   (so esta pasta; nunca a rev98)
 
 O relatorio (JSON + Markdown) e sanitizado: sem credenciais, anfitriao, clientes, vendas, receitas ou precos. Reve-o
-antes de o partilhar. Contem apenas factos (nao conclui significados).
+antes de o partilhar. Contem factos (nao conclui significados); a unica PROPOSTA e o mapeamento de Etico_NETT pela
+descricao do lookup (seccao F), a validar por pessoas. O cabecalho traz uma "impressao" do ambiente para comparar
+farmacias (ver notes/validacao-entre-tenants-classificacao.md no repositorio).
+O ficheiro dos CNPs do MT NAO e enviado nem citado no relatorio (nem o seu nome). Cada ERP = uma farmacia: usar o
+ficheiro MT exportado para ESSA farmacia.
 Ver MANIFEST.json para a origem exata do pacote (commit, data UTC, SHA-256 de cada ficheiro).
