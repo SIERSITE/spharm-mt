@@ -90,7 +90,7 @@ async function main() {
     check(igual(r.agrupadoNoCliente, []), `D7[${rotuloT(t)}]: agruparOpcoesLaboratorio sobre as opções do tenant -> lista vazia (nada a agrupar)`);
     for (const cen of ["ADMINISTRADOR", "OPERADOR"]) {
       const a = s.acoesLaboratorio.resultados[cen];
-      check(igual(a.grupo, []) && igual(a.nomeSoltoGrupo, []) && a.fabricante.length === 2, `D8[${rotuloT(t)}/${cen}]: server action resolverCnpsLaboratoriosAction: grupo -> []; fabricante -> só os seus 2 CNP`);
+      check(igual(a.grupo, []) && igual(a.nomeSoltoGrupo, []) && a.fabricante.length === 0, `D8[${rotuloT(t)}/${cen}]: server action resolverCnpsLaboratoriosAction recusada fora do Garantia (gruposLaboratoriaisAtivos): grupo, nome solto e fabricante -> []`);
     }
     check(igual(s.acoesLaboratorio.resultados["sem-sessao"].fabricante, []) && igual(s.acoesLaboratorio.resultados["ADMINISTRADOR-de-outro-tenant"].fabricante, []), `D9[${rotuloT(t)}]: resolverCnpsLaboratoriosAction sem sessão / sessão de outro tenant -> []`);
     check(igual(A[t].catalogo.listagem["grupo:g-viatris"].cnps, B[t].catalogo.listagem["grupo:g-viatris"].cnps), `D10[${rotuloT(t)}]: o where/produtos do Catálogo para \`grupo:\` idêntico ao base (nada novo no Catálogo)`);
