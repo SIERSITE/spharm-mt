@@ -4,7 +4,9 @@ import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Ban, Copy, FileText, Search, X } from "lucide-react";
+import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import {
@@ -17,6 +19,8 @@ import {
 type Props = {
   data: OrderListData;
   filters: OrderListFilters;
+  /** Opções do filtro «Forma farmacêutica» (carregadas pela página; a lista já vem filtrada). */
+  formasOpcoes: OpcaoFormaFarmaceutica[];
   /** Mesma gate de `deleteListaEncomendaAction` — controla o botão "Eliminar". */
   podeEliminar: boolean;
   /** Mesma gate de `anularListaEncomendaAction` — controla o botão "Anular". */
@@ -65,7 +69,7 @@ const EXPORT_OPTIONS = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Props) {
+export function OrderListClient({ data, filters, formasOpcoes, podeEliminar, podeAnular }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -136,6 +140,22 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
     });
   }
 
+  // Forma farmacêutica: parâmetro `forma` REPETIDO na URL (como em /stock). Mudar a forma é uma navegação — o servidor refaz
+  // a pesquisa (filtro + contagem + página) e volta à página 1.
+  const formasSelecionadas = filters.formas ?? [];
+  function toggleForma(chave: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const atuais = params.getAll("forma");
+    params.delete("forma");
+    const proximas = atuais.includes(chave) ? atuais.filter((c) => c !== chave) : [...atuais, chave];
+    for (const c of proximas) params.append("forma", c);
+    params.delete("page");
+    const qs = params.toString();
+    startNavigate(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    });
+  }
+
   function commitSearch() {
     const v = searchInput.trim();
     if (v === (filters.search ?? "")) return;
@@ -155,7 +175,8 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
     !!filters.estadoExport ||
     !!filters.search ||
     !!filters.dateFrom ||
-    !!filters.dateTo;
+    !!filters.dateTo ||
+    formasSelecionadas.length > 0;
 
   // ───── Acções por linha (mantidas tal como estavam) ─────
 
@@ -370,6 +391,19 @@ export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Pro
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50"
           />
         </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <FiltroFormaFarmaceutica
+            formas={formasOpcoes}
+            selected={formasSelecionadas}
+            onToggle={toggleForma}
+          />
+        </div>
+        {formasSelecionadas.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <ChipsFormaFarmaceutica formas={formasOpcoes} selected={formasSelecionadas} onRemove={toggleForma} />
+          </div>
+        )}
 
         {hasActiveFilters && (
           <div className="mt-2 flex justify-end">

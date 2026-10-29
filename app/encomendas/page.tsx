@@ -8,6 +8,8 @@ import {
   loadOrderListData,
   type OrderListFilters,
 } from "@/lib/encomendas/orders-data";
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { carregarOpcoesFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-sql";
 import { OrderListClient } from "@/components/encomendas/order-list-client";
 import type { OrderExportState, EstadoListaEncomenda } from "@/generated/prisma/client";
 
@@ -63,6 +65,8 @@ function parseFilters(
     search: asString(sp.q) || undefined,
     dateFrom: asDate(asString(sp.from)),
     dateTo: asDate(asString(sp.to), true),
+    // `forma` repetido na URL (como em /stock): chaves normalizadas, re-normalizadas e limitadas por `lerChavesForma`.
+    formas: lerChavesForma(sp.forma),
     page: clampPage(Number(asString(sp.page) ?? 1)),
     pageSize: clampPageSize(Number(asString(sp.pageSize) ?? DEFAULT_PAGE_SIZE)),
   };
@@ -77,7 +81,11 @@ export default async function EncomendasPage({ searchParams }: Props) {
   const sp = await searchParams;
   const filters = parseFilters(sp);
   const prisma = await getPrisma();
-  const data = await loadOrderListData(prisma, filters);
+  // Opções do filtro «Forma farmacêutica»: UMA agregação, em paralelo com a lista (que já traz o filtro aplicado).
+  const [data, formasOpcoes] = await Promise.all([
+    loadOrderListData(prisma, filters),
+    carregarOpcoesFormaFarmaceutica(prisma),
+  ]);
   // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction`/
   // `anularListaEncomendaAction` — calculada aqui para os botões
   // "Eliminar"/"Anular" nunca aparecerem a quem a server action recusaria
@@ -94,7 +102,7 @@ export default async function EncomendasPage({ searchParams }: Props) {
           Lista de encomendas criadas. Finalize rascunhos e acompanhe o estado de exportação.
         </p>
         <div className="mt-6">
-          <OrderListClient data={data} filters={filters} podeEliminar={podeEliminar} podeAnular={podeAnular} />
+          <OrderListClient data={data} filters={filters} formasOpcoes={formasOpcoes} podeEliminar={podeEliminar} podeAnular={podeAnular} />
         </div>
       </div>
     </MainShell>

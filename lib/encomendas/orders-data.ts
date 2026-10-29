@@ -4,6 +4,8 @@ import {
   type OrderExportState,
   type EstadoListaEncomenda,
 } from "@/generated/prisma/client";
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
 
 /**
  * Data loader para a página de listagem de encomendas (/encomendas).
@@ -69,6 +71,13 @@ export type OrderListFilters = {
   search?: string;
   dateFrom?: Date;
   dateTo?: Date;
+  /**
+   * CHAVES de forma farmacêutica (união; vazio/omitido = sem filtro). A lista é de DOCUMENTOS: fica a encomenda que tenha
+   * PELO MENOS UMA linha cujo produto tem uma das formas. O filtro vai no `where` do `findMany` E do `count`, antes de
+   * `skip`/`take` — logo o total, o nº de páginas e a página 2+ já são os do resultado filtrado. A encomenda aparece
+   * INTEIRA (linhasCount e valorEstimado são os do documento, não só das linhas com a forma).
+   */
+  formas?: string[];
   page: number;
   pageSize: number;
 };
@@ -133,6 +142,14 @@ export async function loadOrderListData(
     if (filters.dateFrom) range.gte = filters.dateFrom;
     if (filters.dateTo) range.lte = filters.dateTo;
     where.dataCriacao = range;
+  }
+
+  // Forma farmacêutica: valores crus distintos que casam com as chaves (consulta pequena sobre DISTINCT) -> relação
+  // `some` nas linhas. Sem ids de produto em `IN` (um catálogo de dezenas de milhares não cabe nos parâmetros).
+  const formas = lerChavesForma(filters.formas ?? []);
+  if (formas.length > 0) {
+    const porForma = await wherePrismaPorFormas(prisma, formas);
+    if (porForma) where.linhas = { some: { produto: porForma } };
   }
 
   const skip = (page - 1) * pageSize;

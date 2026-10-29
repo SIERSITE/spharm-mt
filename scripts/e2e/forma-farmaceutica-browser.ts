@@ -8,7 +8,7 @@
  *                        combinação com pesquisa, «Limpar filtros» limpa SEM gerar, PDF/Excel com a linha «Forma farmacêutica»
  *   2 · Margens ........ selecionar = 0 pedidos até «Atualizar» (1 pedido); draft ≠ aplicado; Limpar sem gerar; PDF/Excel APLICADOS
  *   3 · Inventário ..... mudar a forma = 0 pedidos; só «Gerar» aplica (comportamento do base, sem «Atualizar»)
- *   4 · Excessos ....... filtro no cliente sobre a coluna `formaChave` do servidor; chip; combinação
+ *   4 · Excessos ....... filtro no SERVIDOR (enviado no «Gerar», antes do corte de 200 linhas); chip; combinação — ver forma-listas-paginacao-browser.ts
  *   5 · Transferências . idem
  *   6 · Stock .......... parâmetro de URL `forma` (multi, repetido); chip; «Limpar» remove-o; deep link
  *   7 · Catálogo ....... idem + paginação/total no servidor

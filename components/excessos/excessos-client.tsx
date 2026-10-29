@@ -150,45 +150,6 @@ export function ExcessosClient({
   const [generationError, setGenerationError] = useEstadoSeparador<string | null>("excessos:generationError", null);
   const initialRows = rows;
 
-  /**
-   * A ÚNICA acção de geração do ecrã.
-   *
-   * Antes havia duas, com nomes quase iguais e efeitos diferentes:
-   * "Gerar" (no topo) ia ao servidor buscar as linhas, e "Gerar
-   * relatório" (nos filtros) só fixava o snapshot dos filtros. Quem
-   * carregasse no segundo via os filtros mudarem de sítio e mais nada
-   * acontecer — e quem carregasse só no primeiro nunca via a tabela,
-   * porque a tabela depende do snapshot.
-   *
-   * Passa a ser uma só: vai ao servidor com as datas do ecrã e, no fim,
-   * fixa o snapshot com os mesmos filtros que produziram esses dados.
-   */
-  const handleGerar = () => {
-    setGenerationError(null);
-    startTransition(async () => {
-      try {
-        // As datas do ecrã são as datas do cálculo. Antes ficavam-se
-        // pelo snapshot de apresentação e o servidor usava sempre os
-        // últimos 3 meses — a UI dizia uma coisa e a API calculava outra.
-        const result = await runExcessosReport({
-          ...(initialThresholdDays !== undefined
-            ? { thresholdDays: initialThresholdDays }
-            : {}),
-          dataInicio,
-          dataFim,
-        });
-        setRows(result);
-        // O snapshot é fixado DEPOIS de os dados chegarem: é ele que
-        // destranca a tabela, e destrancá-la antes mostrava a análise
-        // anterior como se fosse a nova.
-        fixarSnapshot();
-      } catch (err) {
-        setGenerationError(err instanceof Error ? err.message : String(err));
-        setRows([]);
-      }
-    });
-  };
-
   const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
@@ -259,6 +220,28 @@ export function ExcessosClient({
   const [farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas] = campo("farmaciasDestinoSelecionadas");
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = campo("fornecedoresSelecionados");
   const [fabricantesSelecionados, setFabricantesSelecionados] = campo("fabricantesSelecionados");
+  /**
+   * «Limpar filtros»: repõe os CRITÉRIOS de filtragem (farmácias todas, restantes eixos vazios, incl. a forma
+   * farmacêutica). Não toca no período, na ordenação nem nos filtros rápidos. NÃO regenera: o resultado visível continua o
+   * último gerado até «Atualizar» — o mesmo contrato de qualquer outro filtro deste ecrã.
+   */
+  function limparFiltros() {
+    setCriterios((prev) => ({
+      ...prev,
+      farmaciasOrigemSelecionadas: farmacias,
+      farmaciasDestinoSelecionadas: farmacias,
+      fornecedoresSelecionados: [],
+      fabricantesSelecionados: [],
+      formasSelecionadas: [],
+      categoriasSelecionadas: [],
+      subcategoriasSelecionadas: [],
+      utilizacoesSelecionadas: [],
+      prioridadesSelecionadas: [],
+      artigo: "",
+      quantidadeMinima: "",
+    }));
+  }
+
   const [formasBruto, setFormasBruto] = campo("formasSelecionadas");
   const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
   const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
@@ -284,6 +267,48 @@ export function ExcessosClient({
   const [quantidadeMinima, setQuantidadeMinima] = campo("quantidadeMinima");
   const [incluirTotais, setIncluirTotais] = campo("incluirTotais");
   const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
+  /**
+   * A ÚNICA acção de geração do ecrã.
+   *
+   * Antes havia duas, com nomes quase iguais e efeitos diferentes:
+   * "Gerar" (no topo) ia ao servidor buscar as linhas, e "Gerar
+   * relatório" (nos filtros) só fixava o snapshot dos filtros. Quem
+   * carregasse no segundo via os filtros mudarem de sítio e mais nada
+   * acontecer — e quem carregasse só no primeiro nunca via a tabela,
+   * porque a tabela depende do snapshot.
+   *
+   * Passa a ser uma só: vai ao servidor com as datas do ecrã e, no fim,
+   * fixa o snapshot com os mesmos filtros que produziram esses dados.
+   */
+  const handleGerar = () => {
+    setGenerationError(null);
+    startTransition(async () => {
+      try {
+        // As datas do ecrã são as datas do cálculo. Antes ficavam-se
+        // pelo snapshot de apresentação e o servidor usava sempre os
+        // últimos 3 meses — a UI dizia uma coisa e a API calculava outra.
+        const result = await runExcessosReport({
+          ...(initialThresholdDays !== undefined
+            ? { thresholdDays: initialThresholdDays }
+            : {}),
+          dataInicio,
+          dataFim,
+          // Forma farmacêutica no SERVIDOR (antes do corte de 200 linhas e dos totais). O snapshot fixado a seguir leva as
+          // mesmas formas, por isso o que se vê é sempre o que foi pedido.
+          formasFarmaceuticas: formasSelecionadas,
+        });
+        setRows(result);
+        // O snapshot é fixado DEPOIS de os dados chegarem: é ele que
+        // destranca a tabela, e destrancá-la antes mostrava a análise
+        // anterior como se fosse a nova.
+        fixarSnapshot();
+      } catch (err) {
+        setGenerationError(err instanceof Error ? err.message : String(err));
+        setRows([]);
+      }
+    });
+  };
+
   const [filtrosAbertos, setFiltrosAbertos] = useEstadoSeparador("excessos:filtrosAbertos", false);
   const [relatorioGerado, setRelatorioGerado] = useEstadoSeparador("excessos:relatorioGerado", false);
   const [snapshot, setSnapshot] = useEstadoSeparador<ReportSnapshot | null>("excessos:snapshot", null);
@@ -639,7 +664,15 @@ export function ExcessosClient({
                   }}
                 />
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={limparFiltros}
+                  data-testid="excessos-limpar-filtros"
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 text-[12px] font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800"
+                >
+                  Limpar filtros
+                </button>
                 {farmaciasOrigemSelecionadas.map((item) => (
                   <FilterPill key={`origem-${item}`} label={`Origem: ${item}`} onRemove={() => setFarmaciasOrigemSelecionadas((prev) => prev.filter((v) => v !== item))} />
                 ))}

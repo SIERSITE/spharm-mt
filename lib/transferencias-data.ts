@@ -8,7 +8,8 @@
  * Excess identification: products with coverage >> threshold in any pharmacy,
  * regardless of whether the other pharmacy needs them.
  */
-import { chaveFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { chaveFormaFarmaceutica, lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { sqlFiltroForma } from "@/lib/catalog/forma-farmaceutica-sql";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
@@ -272,6 +273,12 @@ export type LoadPfAndSalesOptions = {
    * dashboard, que precisam de ver produtos em rotura, passar `true`.
    */
   includeOutOfStock?: boolean;
+  /**
+   * CHAVES de forma farmacêutica (união; vazio/omitido = sem restrição). Aplicado no SQL de `pfRows`, ou seja ANTES de
+   * qualquer agrupamento, ordenação ou corte (top-N) feito pelos relatórios que usam este loader. É por PRODUTO, por
+   * isso o emparelhamento origem/destino entre farmácias não é afectado (um produto traz todas as suas farmácias).
+   */
+  formas?: readonly string[];
 };
 
 export async function loadPfAndSales(
@@ -330,6 +337,7 @@ export async function loadPfAndSales(
       ${stockClause}
       AND pf."flagRetirado" = false
       AND f.id = ANY(${farmaciaIds})
+      ${sqlFiltroForma(options?.formas)}
   `);
 
   type SalesAgg = { produtoId: string; farmaciaId: string; totalQty: number };
@@ -394,6 +402,12 @@ export type OpcoesOperacionais = {
    */
   dataInicio?: string;
   dataFim?: string;
+  /**
+   * CHAVES de forma farmacêutica (união; vazio = sem filtro). Filtrado no SERVIDOR, na query de origem, ANTES do corte
+   * dos 200 artigos mais relevantes — os totais do ecrã somam depois só o que sobrevive a este filtro. Re-normalizado
+   * aqui (input de Server Action).
+   */
+  formasFarmaceuticas?: string[];
 };
 
 /** Nome antigo. Mantido para não partir chamadores. */
@@ -495,7 +509,7 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
   const janela6M = janelaMesesAte(janela.fim, 6);
 
   const [{ pfRows, salesMap }, vendas6MMap] = await Promise.all([
-    loadPfAndSales(farmaciaIds, { janela }),
+    loadPfAndSales(farmaciaIds, { janela, formas: lerChavesForma(options?.formasFarmaceuticas ?? []) }),
     somarVendasNaJanela(farmaciaIds, janela6M),
   ]);
 

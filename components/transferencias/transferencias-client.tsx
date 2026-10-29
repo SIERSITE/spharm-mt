@@ -150,26 +150,6 @@ export function TransferenciasClient({
   const [generationError, setGenerationError] = useEstadoSeparador<string | null>("transferencias:generationError", null);
   const initialRows = rows;
 
-  /**
-   * A ÚNICA acção de geração do ecrã. Ver a mesma nota em
-   * `components/excessos/excessos-client.tsx`: havia dois botões com
-   * nomes quase iguais, e só o de cima ia mesmo à base de dados.
-   */
-  const handleGerar = () => {
-    setGenerationError(null);
-    startTransition(async () => {
-      try {
-        // As datas do ecrã são as datas do cálculo.
-        const result = await runTransferenciasReport({ dataInicio, dataFim });
-        setRows(result);
-        fixarSnapshot();
-      } catch (err) {
-        setGenerationError(err instanceof Error ? err.message : String(err));
-        setRows([]);
-      }
-    });
-  };
-
   // Universo de filtros — tudo eager, vindo do servidor no page open.
   const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
   const fornecedores = filterOptions.fornecedores;
@@ -242,6 +222,28 @@ export function TransferenciasClient({
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
+  /**
+   * «Limpar filtros»: repõe os CRITÉRIOS de filtragem (farmácias todas, restantes eixos vazios, incl. a forma
+   * farmacêutica). Não toca no período, na ordenação nem nos filtros rápidos. NÃO regenera: o resultado visível continua o
+   * último gerado até «Gerar/Atualizar» — o mesmo contrato de qualquer outro filtro deste ecrã.
+   */
+  function limparFiltros() {
+    setCriterios((prev) => ({
+      ...prev,
+      farmaciasOrigemSelecionadas: farmacias,
+      farmaciasDestinoSelecionadas: farmacias,
+      fornecedoresSelecionados: [],
+      fabricantesSelecionados: [],
+      formasSelecionadas: [],
+      categoriasSelecionadas: [],
+      subcategoriasSelecionadas: [],
+      utilizacoesSelecionadas: [],
+      prioridadesSelecionadas: [],
+      artigo: "",
+      quantidadeMinima: "",
+    }));
+  }
+
   const [formasBruto, setFormasBruto] = campo("formasSelecionadas");
   const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
   const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
@@ -265,6 +267,31 @@ export function TransferenciasClient({
   const [quantidadeMinima, setQuantidadeMinima] = campo("quantidadeMinima");
   const [incluirTotais, setIncluirTotais] = campo("incluirTotais");
   const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
+  /**
+   * A ÚNICA acção de geração do ecrã. Ver a mesma nota em
+   * `components/excessos/excessos-client.tsx`: havia dois botões com
+   * nomes quase iguais, e só o de cima ia mesmo à base de dados.
+   */
+  const handleGerar = () => {
+    setGenerationError(null);
+    startTransition(async () => {
+      try {
+        // As datas do ecrã são as datas do cálculo.
+        const result = await runTransferenciasReport({
+          dataInicio,
+          dataFim,
+          // Forma farmacêutica no SERVIDOR (antes do corte de 200 linhas e dos totais); o snapshot leva as mesmas formas.
+          formasFarmaceuticas: formasSelecionadas,
+        });
+        setRows(result);
+        fixarSnapshot();
+      } catch (err) {
+        setGenerationError(err instanceof Error ? err.message : String(err));
+        setRows([]);
+      }
+    });
+  };
+
   const [filtrosAbertos, setFiltrosAbertos] = useEstadoSeparador("transferencias:filtrosAbertos", false);
 
   const [relatorioGerado, setRelatorioGerado] = useEstadoSeparador("transferencias:relatorioGerado", false);
@@ -820,7 +847,15 @@ export function TransferenciasClient({
                 />
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={limparFiltros}
+                  data-testid="transferencias-limpar-filtros"
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 text-[12px] font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800"
+                >
+                  Limpar filtros
+                </button>
                 {farmaciasOrigemSelecionadas.map((item) => (
                   <FilterPill
                     key={`origem-${item}`}

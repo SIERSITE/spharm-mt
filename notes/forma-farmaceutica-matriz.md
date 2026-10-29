@@ -15,10 +15,11 @@ listam produtos.
 | Stock (`/stock`) | sim | servidor, antes da paginação | sim (total e página) | n/a (sem exportação) | URL `forma` repetido |
 | Catálogo (`/catalogo`) | sim | servidor (`wherePrismaPorFormas`, valores crus) | sim | n/a (sem exportação) | URL `forma` repetido |
 | Encomendas — proposta (`/encomendas/nova`) | sim | servidor (`sqlCondicaoForma` no SQL da proposta) | sim — antes do corte de linhas | n/a (a proposta gera um documento; o filtro fica no contexto do rascunho) | `useEstadoSeparador` + `PropostaContexto.filters.formas` |
-| Encomendas — mapa por farmácia (`/encomendas`) | sim | cliente (`row.formaChave`) | sim — as linhas filtradas alimentam totais e exportação | sim | `useState` local (como os restantes filtros dessa página) |
-| Excessos (`/excessos`) | sim | cliente (`row.formaChave`, vinda do SELECT existente) | sim | sim — filtro APLICADO (`snapshot`) | workspace |
-| Transferências (`/transferencias`) | sim | cliente | sim | sim | workspace |
-| **Devoluções (`/devolucoes`)** — NOVO | sim | cliente (`row.formaChave`; ver decisão) | sim — `filteredRows` alimenta agrupamento por fornecedor, totais e exportação | sim — «Forma farmacêutica: …» nos filtros aplicados (PDF/impressão/Excel/email partilham o `Report`) | `useEstadoSeparador` (forma, restantes filtros e resultado) |
+| Encomendas — lista (`/encomendas`, `OrderListClient`) | sim (corrigido) | **servidor** (`where.linhas.some.produto` no `findMany` e no `count`; URL `forma` repetido) | sim — antes de `skip/take`, do total e do nº de páginas | n/a | URL (searchParams); «Limpar filtros» navega para o pathname limpo |
+| Encomendas — `encomendas-client.tsx` (mapa antigo) | sim, mas **sem rota** (código morto) | cliente (`row.formaChave`) | n/a | n/a | n/a |
+| Excessos (`/excessos`) | sim (corrigido) | **servidor** (`formasFarmaceuticas` no «Gerar» -> `sqlFiltroForma` em `loadPfAndSales`) + refinamento cliente idempotente | sim — antes do corte de 200 linhas e dos totais | sim — filtro APLICADO (`snapshot`) | workspace; «Limpar filtros» novo (não regenera) |
+| Transferências (`/transferencias`) | sim (corrigido) | **servidor** (idem Excessos) + refinamento cliente | sim — antes do corte de 200 linhas e dos totais | sim | workspace; «Limpar filtros» novo (não regenera) |
+| **Devoluções (`/devolucoes`)** — NOVO | sim | cliente (`row.formaChave`; auditado: sem corte servidor, dataset completo) | sim — `filteredRows` alimenta agrupamento por fornecedor, totais e exportação | sim — «Forma farmacêutica: …» nos filtros aplicados (PDF/impressão/Excel/email partilham o `Report`) | `useEstadoSeparador` (forma, restantes filtros e resultado) |
 | **Manutenção em massa do catálogo (`/catalogo/manutencao`)** — NOVO | sim | servidor (aditivo em `resolverPrefiltroProdutos`; também no período via `getVendasData`) | sim — total e páginas calculados depois do filtro; a selecção «todos» alcança só o que o filtro lista | n/a (não há relatório; o resumo «Filtros utilizados» do preview inclui a forma) | estado local da aba; mudar o filtro limpa a selecção com aviso |
 
 ## 2. Áreas SEM o filtro — motivo técnico
@@ -66,3 +67,10 @@ ficaram intactos.
   `test-margens-sem-geracao-automatica.ts` (41) — regressões sem alteração.
 * `scripts/tests/test-auditoria-forma-db.ts` (47) — a auditoria só de leitura.
 * `scripts/e2e/forma-farmaceutica-browser.ts` (escrito, **não executado**): passos 8b (Devoluções) e 8c (Manutenção).
+
+## 5. Correcção (paginação/limite no servidor)
+
+Auditoria detalhada por área em `notes/forma-listas-paginacao.md`. Resumo: Excessos e Transferências cortam a 200 linhas no servidor e a lista
+de Encomendas pagina no servidor — o filtro de forma só no cliente não via os artigos fora do corte/página. Passou para o servidor nas três
+(antes do corte, da paginação e dos totais). Devoluções carrega o conjunto completo: o filtro cliente mantém-se. Teste:
+`scripts/tests/test-forma-paginacao-server-db.ts` (76); E2E escrito: `scripts/e2e/forma-listas-paginacao-browser.ts`.
