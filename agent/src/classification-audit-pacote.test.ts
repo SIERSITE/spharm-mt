@@ -69,7 +69,7 @@ async function main() {
     let falta = "";
     try { verificarMetafile({ inputs: { "agent/src/audit-cli.ts": {} } }); } catch (e) { falta = String(e); }
     check(falta.includes("não contém módulos esperados"), "módulo em falta também é recusado");
-    check(MODULOS_PERMITIDOS.length === 10 && !MODULOS_PERMITIDOS.some((m) => /http|lock|pipeline|sync|upload|cli\.ts$/.test(m.replace("audit-cli", ""))), "a lista fechada não tem http, lock, pipeline, sync, upload");
+    check(MODULOS_PERMITIDOS.length === 15 && !MODULOS_PERMITIDOS.some((m) => /http|lock|pipeline|sync|upload|cli\.ts$/.test(m.replace("audit-cli", ""))), "a lista fechada não tem http, lock, pipeline, sync, upload");
 
     // ═══ 2. árvore suja é recusada ════════════════════════════════════
     console.log("\n=== 2. O build recusa árvore git suja ===");

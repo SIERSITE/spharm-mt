@@ -29,6 +29,7 @@
  *   classification-audit --out .\output\auditoria-classificacao.json     (grava .json E .md)
  *   classification-audit --out .\output\auditoria.md --cnps 1234567,7654321
  *   classification-audit --cnps-ficheiro cnps.txt --top 20 --max-colunas 60
+ *   classification-audit --cnps-mt-ficheiro .\\cnps-mt.txt     (universos «existente no MT» e cobertura; só lê o ficheiro local)
  *
  * Sem `--out` grava ./output/classification-audit-<ts>.json e .md.
  */
@@ -52,6 +53,7 @@ import {
   type RelatorioAuditoria,
 } from "../classificacao-auditoria.js";
 import { commitDoPacote, FRASE_PACOTE, PACOTE_ID, versaoDoPacote } from "../diagnostico-pacote.js";
+import { parseFicheiroMt, type ParseMt } from "../classificacao-mt.js";
 
 const RULE = "═".repeat(72);
 export const NOME_CONFIG = "agent.config.json";
@@ -119,11 +121,19 @@ export function escreverRelatorio(rel: RelatorioAuditoria, saidas: SaidaAuditori
 }
 
 export const USO =
-  "Uso: classification-audit [--out <ficheiro>.json|.md] [--cnps 1234567,7654321] [--cnps-ficheiro f.txt] [--top N] [--max-colunas N]\n" +
-  "     [--timeout-segundos N] [--max-minutos N]\n" +
+  "Uso: classification-audit [--out <ficheiro>.json|.md] [--cnps 1234567,7654321] [--cnps-ficheiro f.txt] [--cnps-mt-ficheiro f.txt]\n" +
+  "     [--top N] [--max-colunas N] [--max-pares N] [--max-tabelas N] [--max-linhas-historico N] [--timeout-segundos N] [--max-minutos N]\n" +
   "  --out              relatório a gravar (.json e .md com o mesmo nome). Omissão: ./output/classification-audit-<ts>.*\n" +
   "  --cnps             CNPs conhecidos (só dígitos, separados por vírgulas) a comparar. Opcional.\n" +
   "  --cnps-ficheiro    ficheiro de texto com CNPs (um por linha ou separados por vírgulas). Opcional.\n" +
+  "  --cnps-mt-ficheiro CNPs dos produtos que EXISTEM no MT (exportados do MT; uma linha `cnp` ou `cnp;flagGenerico` ou\n" +
+  "                     `cnp;flagGenerico;manual`, 0/1). O diagnóstico só LÊ este ficheiro local (não chama o MT) e consulta o\n" +
+  "                     ERP em blocos de ≤ 1000 CNPs (só SELECT agregado). Sem ele, os universos «existente no MT» e a\n" +
+  "                     cobertura ficam «não calculado: forneça --cnps-mt-ficheiro». Opcional.\n" +
+  "  --max-colunas N    colunas candidatas inspecionadas em profundidade (omissão 80)\n" +
+  "  --max-pares N      pares de colunas cruzados (omissão 150; cobre todos os pares das colunas inspecionadas)\n" +
+  "  --max-tabelas N    tabelas candidatas listadas (omissão 5000; aviso se atingido)\n" +
+  "  --max-linhas-historico N  não consulta o histórico (Stocks_Histo/HistoF) se tiver mais linhas (omissão 5000000)\n" +
   "Requer agent.config.json na pasta de trabalho. Só executa SELECT; não escreve nada além do relatório.";
 
 /** Dependências injetáveis (testes): tudo o que toca no exterior. */
@@ -163,10 +173,14 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
         "out-dir": { type: "string", default: "./output" },
         top: { type: "string", default: String(OPCOES_OMISSAO.top) },
         "max-colunas": { type: "string", default: String(OPCOES_OMISSAO.maxColunas) },
+        "max-pares": { type: "string", default: String(OPCOES_OMISSAO.maxPares) },
+        "max-tabelas": { type: "string", default: String(OPCOES_OMISSAO.maxTabelas) },
+        "max-linhas-historico": { type: "string", default: String(OPCOES_OMISSAO.maxLinhasHistorico) },
+        "cnps-mt-ficheiro": { type: "string" },
         cnps: { type: "string" },
         "cnps-ficheiro": { type: "string" },
         "timeout-segundos": { type: "string", default: "60" },
-        "max-minutos": { type: "string", default: "10" },
+        "max-minutos": { type: "string", default: "20" },
         help: { type: "boolean", short: "h" },
       },
       allowPositionals: false,
@@ -187,9 +201,12 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
     return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : omissao;
   };
   const top = inteiro(values.top, OPCOES_OMISSAO.top, 5, 200);
-  const maxColunas = inteiro(values["max-colunas"], OPCOES_OMISSAO.maxColunas, 5, 200);
+  const maxColunas = inteiro(values["max-colunas"], OPCOES_OMISSAO.maxColunas, 5, 500);
+  const maxPares = inteiro(values["max-pares"], OPCOES_OMISSAO.maxPares, 1, 5000);
+  const maxTabelas = inteiro(values["max-tabelas"], OPCOES_OMISSAO.maxTabelas, 10, 100000);
+  const maxLinhasHistorico = inteiro(values["max-linhas-historico"], OPCOES_OMISSAO.maxLinhasHistorico, 1000, 2_000_000_000);
   const timeoutMs = inteiro(values["timeout-segundos"], 60, 5, 600) * 1000;
-  const orcamentoMs = inteiro(values["max-minutos"], 10, 1, 120) * 60_000;
+  const orcamentoMs = inteiro(values["max-minutos"], 20, 1, 240) * 60_000;
 
   const ts = d.agora().toISOString().replace(/[:.]/g, "-");
   let saidas: SaidaAuditoria[];
@@ -221,6 +238,21 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
   }
   const { cnps, invalidos } = parseCnps(textoCnps);
 
+  // CNPs dos produtos que EXISTEM no MT (ficheiro local; o diagnóstico não chama o MT). Só dígitos e 0/1 entram no SQL.
+  let parseMt: ParseMt | null = null;
+  if (values["cnps-mt-ficheiro"]) {
+    try {
+      parseMt = parseFicheiroMt(readFileSync(String(values["cnps-mt-ficheiro"]), "utf8"));
+    } catch {
+      d.erro("✗ Não foi possível ler o ficheiro indicado em --cnps-mt-ficheiro.");
+      return 2;
+    }
+    if (parseMt.unicos === 0) {
+      d.erro(`✗ O ficheiro --cnps-mt-ficheiro não tem nenhuma linha válida (${parseMt.invalidas} inválidas). Formato: cnp | cnp;flagGenerico | cnp;flagGenerico;manual (só dígitos e 0/1).`);
+      return 2;
+    }
+  }
+
   let cfg: AgentConfig;
   try {
     cfg = d.loadConfig("sql");
@@ -238,6 +270,11 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
   d.log(`  ${PACOTE_ID} · versão ${versaoDoPacote()}`);
   d.log(`  ${FRASE_READ_ONLY} — só SELECT; não conclui significados; não toca no lock nem no SaaS.`);
   d.log(RULE);
+  if (parseMt) {
+    d.log(
+      `  Ficheiro MT: ${parseMt.unicos} CNPs únicos (${parseMt.invalidas} linhas inválidas, ${parseMt.duplicadas} duplicadas, ${parseMt.conflitos} em conflito; com flagGenerico: ${parseMt.comFlag})`,
+    );
+  }
   if (cnps.length > 0) d.log(`  CNPs conhecidos a comparar: ${cnps.length}${invalidos ? ` (${invalidos} tokens inválidos ignorados)` : ""}`);
 
   try {
@@ -250,6 +287,10 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
         return executarAuditoria(criarLeitorSeguro(executar, registo), {
           top,
           maxColunas,
+          maxPares,
+          maxTabelas,
+          maxLinhasHistorico,
+          cnpsMt: parseMt,
           cnps,
           orcamentoMs,
           segredos,
@@ -277,6 +318,14 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
     }
     if (rel.conhecidos.length > 0) {
       d.log(`  CNPs conhecidos encontrados: ${rel.conhecidos.filter((c) => c.encontrado).length}/${rel.conhecidos.length}`);
+    }
+    d.log(`  Impressão do ambiente: ${h.impressao.curta} (lookup Etico_NETT ${h.impressao.nLinhasLookup ?? "ausente"} linhas · ${h.impressao.nColunasStocks} colunas em Stocks)`);
+    const ut = rel.universos;
+    if (ut.erpTotal.distribuicao) d.log(`  Universo ERP total: ${ut.erpTotal.distribuicao.total} artigos · sincronizável (daily): ${ut.sincronizavel.daily?.total ?? "?"}`);
+    if (ut.coberturaMt.calculado) {
+      d.log(`  Universo MT: ${ut.existenteNoMt.cnpsNoMt} CNPs · encontrados no ERP: ${ut.coberturaMt.encontradosNoErp} · não encontrados: ${ut.coberturaMt.naoEncontradosNoErp}`);
+    } else {
+      d.log(`  Universo MT: ${ut.coberturaMt.motivo}`);
     }
     d.log(`  Queries executadas (todas SELECT): ${h.queriesExecutadas} · avisos: ${rel.avisos.length}`);
     d.log(`\n${RULE}`);

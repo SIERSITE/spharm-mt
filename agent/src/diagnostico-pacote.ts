@@ -5,7 +5,7 @@
  * agent: é um pacote à parte, baseado na rev98, só para executar manualmente numa farmácia e recolher factos.
  * Nunca instalável, nunca substitui a rev98, nunca é publicado.
  *
- * `AUDIT_PACKAGE_VERSION` é injetado pelo `agent/build-audit-package.mjs` (`diag-<data>`); em desenvolvimento (tsx)
+ * `AUDIT_PACKAGE_VERSION` é injetado pelo `agent/build-audit-package.mjs` (`diag2-<data UTC>`; a v1 era `diag-<data>`); em desenvolvimento (tsx)
  * fica `diag-dev`. O `AGENT_COMMIT` também vem do build.
  */
 

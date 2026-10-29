@@ -150,7 +150,8 @@ async function main() {
   check(rel.tabelasCandidatas.some((t) => t.tabela === "dbo.TipoArtigo") && rel.tabelasCandidatas.some((t) => t.tabela === "dbo.Stocks"), "tabelas candidatas por nome (TipoArtigo, Stocks)");
   check(rel.tabelasCandidatas.find((t) => t.tabela === "dbo.TipoCliente")?.omitidaPorNome === true && !md.includes("Tipo Cliente") && !erp.tabelasLidas.has("dbo.TipoCliente"), "tabela com nome pessoal (TipoCliente) listada sem colunas e nunca lida");
   const stocksEstrut = rel.tabelasCandidatas.find((t) => t.tabela === "dbo.Stocks")!;
-  check(!stocksEstrut.colunas.some((c) => /Nome|Grupo Utente/.test(c.coluna)) && stocksEstrut.colunasOmitidas >= 2, "colunas pessoais de Stocks não listadas (contadas como omitidas)");
+  // v2: dbo.Stocks é tabela de CATÁLOGO aprovada — os NOMES das colunas (estrutura) são todos listados; os DADOS dessas colunas continuam por ler.
+  check(stocksEstrut.colunas.length === COLS_A.length && stocksEstrut.colunasOmitidas === 0, "dbo.Stocks (tabela aprovada): todos os nomes de colunas listados, sem omissões por nome");
   check(rel.conteudoTabelasDominio.some((c) => c.tabela === "dbo.TipoArtigo" && c.amostra.length === 2), "tabela de domínio pequena: conteúdo (códigos) lido");
 
   console.log("\n--- colunas candidatas e omissões ---");
@@ -161,7 +162,8 @@ async function main() {
   check(cand("Stocks", "Observacao Tipo")?.inspeccao === "texto-longo", "texto longo não é lido");
   check(cand("Stocks", "Data Classe")?.inspeccao === "tipo-nao-inspeccionavel", "tipo datetime não é inspeccionado");
   check(cand("TipoArtigo", "Tipo")?.linhasTabela === 12, "nº de linhas por tabela");
-  check(!md.includes("Grupo Utente") && !md.includes("Nome Medico") && !md.includes("Tipo Cliente"), "nomes de colunas pessoais ocultados no Markdown");
+  const mdDados = md.slice(md.indexOf("## 2."), md.indexOf("## 8."));
+  check(!mdDados.includes("Grupo Utente") && !mdDados.includes("Nome Medico") && !md.includes("Tipo Cliente"), "colunas pessoais: nomes ocultados nas secções de DADOS (2–7) e fora de Stocks; só a estrutura aprovada de Stocks os lista");
   check(rel.fksDeStocks.length === 1 && rel.fksDeStocks[0]!.tabelaRef === "TipoArtigo", "FKs: a que aponta para Clientes é filtrada");
 
   console.log("\n--- NULL / vazio / 0 / outros e valores distintos ---");
@@ -222,7 +224,7 @@ async function main() {
   check(!!dServ && dServ.soExcluidos.some((v) => v.valor === "1" && v.n === nServ), "Servico=1 só aparece em artigos excluídos (facto observado)", JSON.stringify(dServ));
   check(!!dServ && dServ.emAmbos.some((v) => v.valor === "0" && v.excluidos > 0 && v.incluidos > 0), "Servico=0 aparece nos dois grupos");
   check(s.exemplosZero.length === 10 && s.exemplosZero.every((e) => /^\d{7}$/.test(e.cnp ?? "") && e.processaStocks === "0"), "exemplos CNP/código com Processa_Stocks = 0");
-  check(s.exemplosZero.every((e) => !("Nome Comercial" in e)) && !/Nome Comercial|Preco/i.test(md), "exemplos sem nomes nem preços");
+  check(s.exemplosZero.every((e) => !("Nome Comercial" in e)) && !/Nome Comercial|Preco/i.test(mdDados), "exemplos sem nomes nem preços (secções de dados)");
 
   console.log("\n--- CNPs conhecidos (opcional) ---");
   const k1 = rel.conhecidos.find((c) => c.cnp === "1000001")!;

@@ -15,7 +15,10 @@
  *      GRANT, REVOKE, DENY, INTO, OPENROWSET, OUTPUT, SET, DECLARE, …) fora de literais '…' e identificadores […];
  *   5. nenhum procedimento de sistema/extendido (xp_*, sp_*);
  *   6. nenhuma aspa dupla (identificadores `"…"` esconderiam texto da análise);
- *   7. só funções da lista permitida (impede `dbo.fn_qualquer(...)`).
+ *   7. só funções da lista permitida (impede `dbo.fn_qualquer(...)`);
+ *   8. `IN (...)` só aceita uma lista de INTEIROS literais (`123` ou `'123'`, até 12 dígitos, no máximo
+ *      `MAX_ITENS_IN_LIST`): nunca texto livre, subconsultas, variáveis nem expressões. As IN-lists numéricas servem para
+ *      consultar o ERP em blocos pelos CNPs de um ficheiro local; as proibições dos pontos 1–7 mantêm-se todas.
  *
  * Os literais e os identificadores entre parênteses retos são esvaziados ANTES da análise, por isso uma coluna chamada
  * [Update] ou um valor 'DELETE' vindo do ERP não são falsos positivos — e uma palavra proibida nunca passa por estar
@@ -44,8 +47,75 @@ const FUNCOES_PERMITIDAS = new Set([
   "COUNT", "SUM", "MIN", "MAX", "AVG", "CAST", "CONVERT", "LTRIM", "RTRIM", "LEN", "DATALENGTH", "ISNULL", "COALESCE", "NULLIF",
   "UPPER", "LOWER", "SUBSTRING", "LEFT", "RIGHT", "REPLACE", "ABS", "CHARINDEX",
   "OBJECT_ID", "OBJECT_NAME", "OBJECT_SCHEMA_NAME", "DB_NAME", "DB_ID", "SCHEMA_NAME", "SERVERPROPERTY", "HAS_PERMS_BY_NAME", "COLUMNPROPERTY", "OBJECTPROPERTY",
+  // funções de janela (só leitura; usadas pelo histórico: transições de valor por artigo)
+  "LAG", "LEAD", "ROW_NUMBER",
   "NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "INT", "BIGINT", "SMALLINT", "TINYINT", "DECIMAL", "NUMERIC", "FLOAT",
 ]);
+
+/** Máximo de itens por `IN (...)` aceite pelo diagnóstico (blocos de CNPs). */
+export const MAX_ITENS_IN_LIST = 1000;
+const RE_ITEM_IN = /^(?:\d{1,12}|N?'\d{1,12}')$/;
+
+/**
+ * Valida TODAS as `IN (...)` da query (fora de literais e de identificadores): o conteúdo tem de ser uma lista de inteiros
+ * literais. Percorre o texto ORIGINAL (o esqueleto já esvaziou os literais). Devolve as razões de recusa.
+ */
+export function validarInLists(sql: string): string[] {
+  const problemas: string[] = [];
+  const n = sql.length;
+  let i = 0;
+  const salta = (ini: number, fecho: string): number => {
+    let j = ini + 1;
+    while (j < n) {
+      if (sql[j] === fecho) {
+        if (sql[j + 1] === fecho) { j += 2; continue; }
+        return j + 1;
+      }
+      j++;
+    }
+    return n;
+  };
+  while (i < n) {
+    const c = sql[i]!;
+    if (c === "'") { i = salta(i, "'"); continue; }
+    if (c === "[") { i = salta(i, "]"); continue; }
+    if (/[A-Za-z_@#$]/.test(c)) {
+      let j = i + 1;
+      while (j < n && /[\w@#$]/.test(sql[j]!)) j++;
+      const palavra = sql.slice(i, j);
+      i = j;
+      if (palavra.toUpperCase() !== "IN") continue;
+      let k = i;
+      while (k < n && /\s/.test(sql[k]!)) k++;
+      if (sql[k] !== "(") { problemas.push("IN sem lista entre parêntesis"); continue; }
+      // conteúdo até ao ')' (os itens válidos não contêm ')', por isso o primeiro ')' fecha a lista)
+      let p = k + 1;
+      let fechou = false;
+      const itens: string[] = [];
+      let atual = "";
+      while (p < n) {
+        const ch = sql[p]!;
+        if (ch === ")") { itens.push(atual.trim()); fechou = true; break; }
+        if (ch === ",") { itens.push(atual.trim()); atual = ""; p++; continue; }
+        if (ch === "'") {
+          const fim = salta(p, "'");
+          atual += sql.slice(p, fim);
+          p = fim;
+          continue;
+        }
+        atual += ch;
+        p++;
+      }
+      if (!fechou) { problemas.push("IN-list sem fecho"); i = n; break; }
+      if (itens.length > MAX_ITENS_IN_LIST) problemas.push(`IN-list com ${itens.length} itens (máximo ${MAX_ITENS_IN_LIST})`);
+      else if (itens.some((it) => !RE_ITEM_IN.test(it))) problemas.push("IN-list com elementos não numéricos (só inteiros literais são aceites)");
+      i = p + 1;
+      continue;
+    }
+    i++;
+  }
+  return problemas;
+}
 
 /** Substitui literais '…' por '' e identificadores […] por []; `null` se estiverem mal fechados. */
 export function esqueletoSeguro(sql: string): string | null {
@@ -102,6 +172,7 @@ export function validarSomenteSelect(sql: string): string[] {
   const m = esq.match(RE_PROIBIDAS);
   if (m) problemas.push(`palavra proibida: ${m[0]!.toUpperCase()}`);
   if (/(?<![\w@#$])(?:xp|sp)_\w*/i.test(esq)) problemas.push("procedimento de sistema (xp_/sp_)");
+  problemas.push(...validarInLists(sql));
   for (const f of esq.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)) {
     const nome = f[1]!.toUpperCase();
     if (NAO_SAO_FUNCOES.has(nome) || FUNCOES_PERMITIDAS.has(nome)) continue;
@@ -155,8 +226,10 @@ const LITERAIS_CONSTANTES = new Set(["OBJECT", "INSERT", "UPDATE", "DELETE", "PR
  */
 export function mascararQuery(sql: string): string {
   return sql
+    // IN-lists de inteiros (blocos de CNPs): o texto da query não repete os CNPs, só o tamanho da lista.
+    .replace(/\bIN\s*\(\s*(?:N?'?\d{1,12}'?\s*,\s*)*N?'?\d{1,12}'?\s*\)/gi, (todo: string) => (todo.split(",").length > 10 ? `IN (<lista de ${todo.split(",").length} inteiros>)` : todo))
     .replace(/N?'((?:[^']|'')*)'/g, (todo: string, corpo: string) =>
-      /^%.*%$/.test(corpo) || /^dbo\.\w+$/i.test(corpo) || LITERAIS_CONSTANTES.has(corpo.toUpperCase()) ? todo : "N'<valor>'",
+      /^%.*%$/.test(corpo) || /^dbo\.[\w ]+$/i.test(corpo) || LITERAIS_CONSTANTES.has(corpo.toUpperCase()) ? todo : "N'<valor>'",
     )
     .replace(/[ \t]+\n/g, "\n");
 }

@@ -224,7 +224,7 @@ async function main() {
     const grafo = new Set([...base(fecho(path.join(srcDir, "audit-cli.ts"))), ...base(fecho(path.join(srcDir, "commands", "classification-audit.ts")))]);
     const proibidos = ["lock-pipeline", "guarda-escrita", "http-client", "daily-pipeline", "daily-sync", "daily-sync-runner", "bootstrap-upload", "full-sync", "retoma-pipeline", "subprocesso", "plano-diario", "catch-up", "cli", "estado-local", "identidade-processo"];
     check(proibidos.every((p) => !grafo.has(p)), "grafo de imports do entry point e do comando NÃO contém lock-pipeline, http-client, guarda-escrita nem pipelines", [...grafo].join(", "));
-    check([...grafo].every((g) => ["audit-cli", "classification-audit", "classificacao-auditoria", "sql-somente-leitura", "sql-validador", "diagnostico-pacote", "config", "sql-client", "sql-erros", "politica-retry"].includes(g)), "…e só contém os 10 módulos esperados", [...grafo].sort().join(", "));
+    check([...grafo].every((g) => ["audit-cli", "classification-audit", "classificacao-auditoria", "classificacao-base", "classificacao-mapeamento", "classificacao-mt", "classificacao-secoes", "classificacao-universos", "sql-somente-leitura", "sql-validador", "diagnostico-pacote", "config", "sql-client", "sql-erros", "politica-retry"].includes(g)), "…e só contém os 15 módulos esperados (10 da v1 + 5 da extensão read-only v2)", [...grafo].sort().join(", "));
     const cli = fs.readFileSync(path.join(srcDir, "cli.ts"), "utf8");
     const conjunto = /COMANDOS_DE_ESCRITA = new Set\(\[([\s\S]*?)\]\)/.exec(cli)?.[1] ?? "";
     check(conjunto.length > 0 && !/classification/.test(conjunto) && !/classification/.test(cli), "classification-audit NÃO está em COMANDOS_DE_ESCRITA (o cli.ts da rev98 nem o conhece)");
@@ -242,6 +242,69 @@ async function main() {
     const rel = JSON.parse(fs.readFileSync(path.join(out, "auditoria-classificacao.json"), "utf8"));
     check(rel.conhecidos.length === 4 && rel.conhecidos.filter((c: { encontrado: boolean }) => c.encontrado).length === 3, "--cnps e --cnps-ficheiro combinados (4 CNPs, 3 existem)");
     check(rel.cabecalho.pacote.diagnostico === true && rel.cabecalho.pacote.instalavel === false && rel.cabecalho.pacote.baseRev === "98", "cabeçalho do JSON: diagnóstico, não instalável, base rev98");
+
+    // ═══ 3b. --cnps-mt-ficheiro e opções novas (v2) ═════════════════════
+    console.log("\n=== 3b. --cnps-mt-ficheiro: lê só o ficheiro local; relatório sem o seu nome ===");
+    {
+      const nomeMt = `cnps-mt-${SENTINELA.tenant}.txt`;
+      const ficheiroMt = path.join(pasta, nomeMt);
+      fs.writeFileSync(ficheiroMt, ["8000001;1;0", "8000002;0;0", "8000003;1;1", "8000004", "lixo", "7777777;0;0"].join("\r\n"), "utf8");
+      const h0 = sha(configPath);
+      const mt0 = fs.statSync(configPath).mtimeMs;
+      const mm = montar(cenario);
+      const logsM: string[] = [];
+      const errosM: string[] = [];
+      capturado.length = 0;
+      capturar();
+      let rcM: number;
+      try {
+        rcM = await cmd.classificationAudit({
+          argv: ["--out", path.join(".", "output-mt", "r.json"), "--cnps-mt-ficheiro", ficheiroMt, "--max-pares", "7", "--max-tabelas", "30", "--max-linhas-historico", "1000"],
+          cwd: pasta,
+          abrirPool: mm.abrirPool,
+          log: (l) => logsM.push(l),
+          erro: (l) => errosM.push(l),
+        });
+      } finally {
+        repor();
+      }
+      const consolaM = [...logsM, ...errosM, ...capturado].join("\n");
+      check(rcM === 0, "exit code 0 com --cnps-mt-ficheiro", errosM.join(" | "));
+      check(consolaM.includes("Ficheiro MT: 5 CNPs únicos (1 linhas inválidas") && consolaM.includes("Universo MT: 5 CNPs · encontrados no ERP: 4 · não encontrados: 1"), "consola resume o ficheiro MT (sem o seu nome) e a cobertura", consolaM.split("\n").filter((l) => /MT/.test(l)).join(" | "));
+      check(!consolaM.includes(nomeMt), "o nome do ficheiro MT não aparece na consola");
+      const outM = path.join(pasta, "output-mt");
+      const relM = fs.readFileSync(path.join(outM, "r.json"), "utf8");
+      const mdM = fs.readFileSync(path.join(outM, "r.md"), "utf8");
+      check(!relM.includes(SENTINELA.tenant) && !mdM.includes(SENTINELA.tenant) && !relM.includes(nomeMt) && !mdM.includes(nomeMt), "o nome do ficheiro MT (que contém o tenant) não está no JSON nem no Markdown");
+      const jM = JSON.parse(relM);
+      check(jM.universos.coberturaMt.calculado === true && jM.universos.coberturaMt.encontradosNoErp === 4 && jM.universos.coberturaMt.naoEncontradosNoErp === 1, "JSON: cobertura MT calculada (4 encontrados, 1 não encontrado)");
+      check(jM.universos.existenteNoMt.ficheiro.invalidas === 1 && jM.universos.existenteNoMt.ficheiro.comFlag === 4 && !("entradas" in jM.universos.existenteNoMt.ficheiro), "JSON: resumo do ficheiro (sem a lista de CNPs)");
+      check(mm.st.queries.every((q) => /^\s*SELECT\b/i.test(q)) && mm.st.escritasRejeitadas === 0 && mm.st.queries.some((q) => / IN \(8000002, 7777777\)/.test(q)), "queries todas SELECT; o bloco MT usa IN-list numérica");
+      check(jM.cruzadas.length <= 7 && jM.tabelasCandidatas.length <= 30, "--max-pares e --max-tabelas respeitados");
+      check(chamadasRede.length === 0, "ZERO chamadas de rede com o ficheiro MT");
+      check(sha(configPath) === h0 && fs.statSync(configPath).mtimeMs === mt0, "agent.config.json intacto (hash e mtime)");
+      check(!fs.existsSync(pastaRun) && !fs.existsSync(path.join(pasta, "run")), "nenhum lock/run criado");
+      check(fs.readdirSync(outM).sort().join() === "r.json,r.md", "só o relatório pedido foi escrito");
+      const tudoM = [consolaM, relM, mdM, ...mm.st.queries].join("\n");
+      check(TODOS_OS_SEGREDOS.every((v) => !tudoM.includes(v)), "valores-sentinela ausentes da consola, dos relatórios e das queries (também com --cnps-mt-ficheiro)");
+
+      // sem o ficheiro (argumento ausente): universos MT «não calculado», exit 0 (já coberto em 3) — aqui: ficheiro inexistente / inválido
+      const e1: string[] = [];
+      const m1 = montar(cenario);
+      const rc1 = await cmd.classificationAudit({ argv: ["--cnps-mt-ficheiro", path.join(pasta, "nao-existe.txt")], cwd: pasta, abrirPool: m1.abrirPool, erro: (l) => e1.push(l), log: () => undefined });
+      check(rc1 === 2 && e1.join("\n").includes("--cnps-mt-ficheiro") && m1.st.abertos === 0, "ficheiro MT inexistente: exit 2, sem ligar ao ERP");
+      fs.writeFileSync(ficheiroMt, "abc\n12x\n;;\n", "utf8");
+      const e2: string[] = [];
+      const m2 = montar(cenario);
+      const rc2 = await cmd.classificationAudit({ argv: ["--cnps-mt-ficheiro", ficheiroMt], cwd: pasta, abrirPool: m2.abrirPool, erro: (l) => e2.push(l), log: () => undefined });
+      check(rc2 === 2 && e2.join("\n").includes("nenhuma linha válida") && m2.st.abertos === 0 && !e2.join("\n").includes(nomeMt), "ficheiro MT sem linhas válidas: exit 2, mensagem de formato, sem ligar ao ERP");
+      const l3: string[] = [];
+      const rc3 = await cmd.classificationAudit({ argv: ["--help"], cwd: pasta, log: (l) => l3.push(l) });
+      const ajuda = l3.join("\n");
+      check(rc3 === 0 && ajuda.includes("--cnps-mt-ficheiro") && ajuda.includes("--max-pares") && ajuda.includes("--max-tabelas") && ajuda.includes("não chama o MT"), "--help documenta --cnps-mt-ficheiro, --max-pares e --max-tabelas");
+      fs.rmSync(outM, { recursive: true, force: true });
+      fs.rmSync(ficheiroMt, { force: true });
+    }
 
     // ═══ 4. Config inválido ═══════════════════════════════════════════
     console.log("\n=== 4. Config inválido / incompleto ===");

@@ -9,7 +9,7 @@
  *     é conferido contra uma lista fechada de módulos; se o bundle arrastasse http-client, lock-pipeline, daily-pipeline,
  *     guarda-escrita, … o build FALHA (`verificarMetafile`);
  *   · o valor de AGENT_REV é o da rev98 ("98"); o pacote identifica-se como DIAGNÓSTICO (`classification-audit`,
- *     `diag-<data UTC>`, base rev98, `diagnostico: true`, `instalavel: false`) no manifesto, no relatório e na consola.
+ *     `diag2-<data UTC>` (v2; a v1 era `diag-<data>`), base rev98, `diagnostico: true`, `instalavel: false`) no manifesto, no relatório e na consola.
  *     Nada diz rev99;
  *   · RECUSA árvore git suja (como o MANIFEST da rev97/98); `AUDIT_PACKAGE_ALLOW_DIRTY=1` só para ensaios (o manifesto
  *     fica com dirty=true);
@@ -19,7 +19,7 @@
  *   · NÃO inclui: agent.config.json, logs, run, locks, outputs, tokens, nem qualquer configuração de farmácia.
  *
  * Uso:   node agent/build-audit-package.mjs
- * Env:   AUDIT_PACKAGE_OUT (pasta de saída; omissão <repo>/dist-agent), AUDIT_PACKAGE_VERSION (omissão diag-AAAA-MM-DD),
+ * Env:   AUDIT_PACKAGE_OUT (pasta de saída; omissão <repo>/dist-agent), AUDIT_PACKAGE_VERSION (omissão diag2-AAAA-MM-DD; v2),
  *        AUDIT_PACKAGE_ALLOW_DIRTY=1 (ensaios), AUDIT_NODE_EXE (caminho explícito para um node.exe; é verificado por hash).
  * Saída: <OUT>/spharmmt-agent-classification-audit.zip (+ .sha256). O ZIP NÃO é versionado.
  */
@@ -61,6 +61,11 @@ export const MODULOS_PERMITIDOS = [
   "agent/src/audit-cli.ts",
   "agent/src/commands/classification-audit.ts",
   "agent/src/classificacao-auditoria.ts",
+  "agent/src/classificacao-base.ts",
+  "agent/src/classificacao-mapeamento.ts",
+  "agent/src/classificacao-mt.ts",
+  "agent/src/classificacao-secoes.ts",
+  "agent/src/classificacao-universos.ts",
   "agent/src/sql-somente-leitura.ts",
   "agent/src/sql-validador.ts",
   "agent/src/diagnostico-pacote.ts",
@@ -149,8 +154,8 @@ export async function construirPacote(opcoes = {}) {
   const permitirSujo = (opcoes.permitirSujo ?? process.env.AUDIT_PACKAGE_ALLOW_DIRTY === "1") === true;
   const saida = path.resolve(opcoes.saida ?? process.env.AUDIT_PACKAGE_OUT ?? path.join(REPO_ROOT, "dist-agent"));
   const agoraUtc = new Date();
-  const versao = opcoes.versao ?? process.env.AUDIT_PACKAGE_VERSION ?? `diag-${agoraUtc.toISOString().slice(0, 10)}`;
-  if (!/^diag-[0-9A-Za-z._-]+$/.test(versao)) throw new Error(`versão inválida (esperado diag-<data>): ${versao}`);
+  const versao = opcoes.versao ?? process.env.AUDIT_PACKAGE_VERSION ?? `diag2-${agoraUtc.toISOString().slice(0, 10)}`;
+  if (!/^diag2?-[0-9A-Za-z._-]+$/.test(versao)) throw new Error(`versão inválida (esperado diag2-<data UTC>; diag-<data> é a v1): ${versao}`);
 
   // 1) ANTES de qualquer trabalho: árvore limpa.
   const git = estadoGit(permitirSujo);

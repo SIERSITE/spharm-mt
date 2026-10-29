@@ -40,15 +40,36 @@ import {
   type Linha,
 } from "./sql-somente-leitura.js";
 import { PACOTE_BASE_REV, PACOTE_ID, FRASE_PACOTE, versaoDoPacote } from "./diagnostico-pacote.js";
+import { ehTabelaAprovada } from "./classificacao-base.js";
+import { calcularImpressao, type Impressao, type MapeamentoEticoNett } from "./classificacao-mapeamento.js";
+import type { ParseMt } from "./classificacao-mt.js";
+import { executarUniversos, renderMapeamento, renderUniversos, type UniversosRelatorio } from "./classificacao-universos.js";
+import { lerSeccoesV2, renderSeccoesV2, type SeccoesV2 } from "./classificacao-secoes.js";
+import {
+  OMITIDO,
+  bool3,
+  de,
+  familiaDoTipo,
+  lit,
+  num,
+  pareceDadoPessoal,
+  pareceDadoSensivel,
+  q,
+  sanitizaTexto,
+  semAcentos,
+  tentar,
+  valorSeguro,
+  type FamiliaTipo,
+  type Ref,
+} from "./classificacao-base.js";
+export { OMITIDO, familiaDoTipo, lit, pareceDadoPessoal, pareceDadoSensivel, q, sanitizaTexto };
+export type { FamiliaTipo };
 
 // A guarda de SQL vive em `sql-somente-leitura.ts`; reexportada para quem já a importava daqui.
 export { criarLeitorSeguro, SqlRecusadoError, validarQueryAuditoria, validarSomenteSelect };
 export type { LeitorSql, Linha };
 
 export const FRASE_READ_ONLY = "gerado em modo read-only";
-/** Rótulo de campos que o relatório nunca mostra. */
-export const OMITIDO = "[omitido]";
-
 export type PacoteInfo = { id: string; versao: string; baseRev: string; diagnostico: true; instalavel: false; commit: string | null };
 
 export type OpcoesAuditoria = {
@@ -66,6 +87,14 @@ export type OpcoesAuditoria = {
   maxQueriesAmostra: number;
   /** Nº máximo de tabelas pequenas cujo conteúdo (códigos/descrições) é lido. */
   maxTabelasConteudo: number;
+  /** Nº máximo de tabelas candidatas listadas (aviso se atingido). */
+  maxTabelas: number;
+  /** Tabelas de histórico com mais linhas que isto: consultas de histórico (janela/derivada) não executadas. */
+  maxLinhasHistorico: number;
+  /** Ficheiro MT já lido (`--cnps-mt-ficheiro`); null = universos (iii)/(iv) não calculados. */
+  cnpsMt: ParseMt | null;
+  /** Amostras (só CNP + categoria) por tipo no universo MT. */
+  maxAmostrasMt: number;
   /** CNPs conhecidos a comparar (só dígitos). */
   cnps: string[];
   /** Orçamento total de tempo (ms) entre queries. */
@@ -86,13 +115,17 @@ export function pacoteOmissao(commit: string | null = null): PacoteInfo {
 export const OPCOES_OMISSAO: OpcoesAuditoria = {
   top: 15,
   limiteListaCompleta: 50,
-  maxColunas: 40,
-  maxPares: 40,
+  maxColunas: 80,
+  maxPares: 150,
   amostrasPorValor: 3,
   maxQueriesAmostra: 120,
-  maxTabelasConteudo: 25,
+  maxTabelasConteudo: 60,
+  maxTabelas: 5000,
+  maxLinhasHistorico: 5_000_000,
+  cnpsMt: null,
+  maxAmostrasMt: 10,
   cnps: [],
-  orcamentoMs: 10 * 60_000,
+  orcamentoMs: 20 * 60_000,
   segredos: [],
   pacote: pacoteOmissao(),
   agora: () => new Date(),
@@ -101,69 +134,6 @@ export const OPCOES_OMISSAO: OpcoesAuditoria = {
 // ─────────────────────────────────────────────────────────────────────
 // 2. Identificadores, famílias de tipo, dados pessoais
 // ─────────────────────────────────────────────────────────────────────
-
-/** Identificador entre [ ] com `]` escapado — nomes vêm de sys.*, mas nunca se confia. */
-export function q(nome: string): string {
-  return `[${nome.replace(/]/g, "]]")}]`;
-}
-/** Literal N'…' com aspas duplicadas (valores vêm do ERP, nunca do operador). */
-export function lit(v: string): string {
-  return `N'${v.replace(/'/g, "''")}'`;
-}
-
-export type FamiliaTipo = "texto" | "numerico" | "outro";
-const TIPOS_TEXTO = new Set(["char", "varchar", "nchar", "nvarchar"]);
-const TIPOS_NUMERICOS = new Set(["bit", "tinyint", "smallint", "int", "bigint", "decimal", "numeric", "float", "real", "money", "smallmoney"]);
-export function familiaDoTipo(tipo: string): FamiliaTipo {
-  const t = tipo.toLowerCase();
-  if (TIPOS_TEXTO.has(t)) return "texto";
-  if (TIPOS_NUMERICOS.has(t)) return "numerico";
-  return "outro";
-}
-
-function semAcentos(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
-const TOKENS_PESSOAIS = new Set([
-  "nome", "name", "nif", "nipc", "nib", "iban", "cc", "bi", "rua", "fax", "cp", "mail", "email",
-  "cliente", "clientes", "utente", "utentes", "paciente", "pacientes", "doente", "doentes",
-  "medico", "medicos", "funcionario", "funcionarios", "operador", "operadores", "utilizador",
-  "utilizadores", "user", "users", "password", "pass",
-]);
-const SUBSTRINGS_PESSOAIS = [
-  "telef", "telem", "phone", "morada", "address", "endereco", "contribuinte", "passaport", "benefici", "localidade", "postal", "e-mail",
-  "client", "utent", "pacient", "doent", "funcionar", "utilizador", "password",
-];
-/** Tokens monetários/comerciais: o diagnóstico nunca lê preços, custos, valores de venda. */
-const TOKENS_MONETARIOS = new Set(["preco", "precos", "pvp", "pvf", "pcl", "custo", "custos", "price", "cost", "margem", "desconto", "valor", "total", "venda", "vendas", "receber"]);
-
-/** O NOME sugere dado pessoal (pessoa, NIF, morada, contacto)? Conservador de propósito. */
-export function pareceDadoPessoal(nome: string): boolean {
-  // CamelCase («TipoCliente», «NomeUtente») conta como várias palavras.
-  const n = semAcentos(nome.replace(/([a-z0-9])([A-Z])/g, "$1 $2"));
-  if (SUBSTRINGS_PESSOAIS.some((s) => n.includes(s))) return true;
-  return n.split(/[^a-z0-9]+/).some((t) => t && TOKENS_PESSOAIS.has(t));
-}
-/** Dado pessoal OU monetário (nome). Usado para decidir o que NUNCA se lê. */
-export function pareceDadoSensivel(nome: string): boolean {
-  if (pareceDadoPessoal(nome)) return true;
-  return semAcentos(nome.replace(/([a-z0-9])([A-Z])/g, "$1 $2")).split(/[^a-z0-9]+/).some((t) => t && TOKENS_MONETARIOS.has(t));
-}
-
-/** Remove e-mails, telefones e sequências de ≥9 dígitos (NIF/telefone/cartão) de um texto. */
-export function sanitizaTexto(s: string): string {
-  return s
-    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, OMITIDO)
-    .replace(/(?:\+\s?\d{1,3}[\s.-]?)?\b\d{3}[\s.-]\d{3}[\s.-]\d{3}\b/g, OMITIDO)
-    .replace(/\d{9,}/g, OMITIDO);
-}
-
-function valorSeguro(v: unknown): string | null {
-  if (v === null || v === undefined) return null;
-  const s = sanitizaTexto(String(v).trim());
-  return s.length > 60 ? `${s.slice(0, 57)}...` : s;
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 3. Queries (todas SELECT; todas passam pelo validador estrutural)
@@ -252,7 +222,7 @@ export function sqlColunasCandidatas(): string {
 }
 
 /** Colunas das tabelas cujo NOME casa com os padrões (estrutura; sem dados). */
-export function sqlColunasDeTabelasPorNome(padroes: readonly string[], top = 4000): string {
+export function sqlColunasDeTabelasPorNome(padroes: readonly string[], top = 200000): string {
   return [
     `SELECT TOP (${top}) sch.name AS esquema, t.name AS tabela, c.name AS coluna, ty.name AS tipo, c.max_length AS tamanho`,
     "  FROM [sys].[columns] c",
@@ -310,8 +280,6 @@ export function sqlColunasDeLookups(): string {
   ].join("\n");
 }
 
-type Ref = { esquema: string; tabela: string };
-const de = (r: Ref) => `${q(r.esquema)}.${q(r.tabela)} x WITH (NOLOCK)`;
 
 export function sqlPerfilColuna(r: Ref, coluna: string, familia: FamiliaTipo): string {
   const c = `x.${q(coluna)}`;
@@ -572,6 +540,10 @@ export type RelatorioAuditoria = {
     sqlServer: string | null;
     baseDados: string | null;
     queriesExecutadas: number;
+    /** 2 = relatório do diagnóstico v2 (secções B..G). */
+    schemaRelatorio: number;
+    /** «Impressão» comparável entre farmácias (hashes + contagens; nada que identifique o tenant além do nome da base). */
+    impressao: Impressao;
   };
   ambiente: {
     produtoVersao: string | null;
@@ -603,16 +575,20 @@ export type RelatorioAuditoria = {
   servicos: ServicosProcessaStocks;
   conhecidos: ClassificacaoDeCnp[];
   leituraAssistida: LeituraAssistida;
+  /** B–E: colunas completas de Stocks, Parametros, histórico, metadados de Generico/Etico_NETT. */
+  stocksColunas: SeccoesV2["stocksColunas"];
+  parametros: SeccoesV2["parametros"];
+  historico: SeccoesV2["historico"];
+  camposMeta: SeccoesV2["camposMeta"];
+  /** F: Etico_NETT pela descrição normalizada (PROPOSTA). */
+  mapeamentoEticoNett: MapeamentoEticoNett;
+  /** G: os quatro universos. */
+  universos: UniversosRelatorio;
   /** Texto de TODAS as queries executadas (valores mascarados), para auditoria humana. */
   queries: string[];
   avisos: string[];
 };
 
-const num = (v: unknown): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const bool3 = (v: unknown): boolean | null => (v === null || v === undefined ? null : Number(v) === 1);
 const nomeTabela = (r: Ref) => `${r.esquema}.${r.tabela}`;
 
 function padroesQueCasam(coluna: string): string[] {
@@ -666,15 +642,6 @@ function prioridade(c: ColunaCandidata): number {
   return p;
 }
 
-async function tentar<T>(avisos: string[], rotulo: string, f: () => Promise<T>): Promise<T | null> {
-  try {
-    return await f();
-  } catch (err) {
-    avisos.push(`${rotulo}: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300));
-    return null;
-  }
-}
-
 const SO_ZERO_UM = new Set(["0", "1", "true", "false"]);
 
 /** Tabulação cruzada → factos (sem conclusões). Pura. */
@@ -709,20 +676,35 @@ export function conceitoDoNome(nome: string): ConceitoClassificacao | null {
 function agruparEstrutura(
   linhas: Linha[],
   linhasPorTabela: Map<string, number>,
-  maxColunasPorTabela = 40,
+  maxColunasPorTabela = 120,
+  omitidas?: Array<{ tabela: string; porNome: number; porLimite: number }>,
 ): TabelaEstrutura[] {
   const por = new Map<string, TabelaEstrutura>();
   for (const r of linhas) {
     const nome = `${String(r.esquema)}.${String(r.tabela)}`;
     let t = por.get(nome);
+    const aprovada = ehTabelaAprovada(String(r.tabela));
     if (!t) {
       t = { tabela: nome, linhas: linhasPorTabela.get(nome.toLowerCase()) ?? null, colunas: [], colunasOmitidas: 0 };
-      if (pareceDadoSensivel(String(r.tabela))) t.omitidaPorNome = true;
+      if (!aprovada && pareceDadoSensivel(String(r.tabela))) t.omitidaPorNome = true;
       por.set(nome, t);
     }
     if (t.omitidaPorNome) { t.colunasOmitidas++; continue; }
-    if (pareceDadoSensivel(String(r.coluna))) { t.colunasOmitidas++; continue; }
-    if (t.colunas.length >= maxColunasPorTabela) { t.colunasOmitidas++; continue; }
+    // Tabelas de catálogo APROVADAS (dbo.Stocks, Etico_NETT, Tipo de Medicamento, ...): os NOMES das colunas (estrutura, nunca
+    // dados) são listados todos, sem o filtro de nomes pessoais/monetários e sem limite. Os DADOS dessas colunas continuam a
+    // obedecer ao filtro por nome (colunasCandidatas/perfis/amostras nunca leem colunas com nome sensível).
+    if (!aprovada && pareceDadoSensivel(String(r.coluna))) {
+      t.colunasOmitidas++;
+      const o = omitidas?.find((x) => x.tabela === nome) ?? (omitidas?.push({ tabela: nome, porNome: 0, porLimite: 0 }), omitidas?.[omitidas.length - 1]);
+      if (o) o.porNome++;
+      continue;
+    }
+    if (!aprovada && t.colunas.length >= maxColunasPorTabela) {
+      t.colunasOmitidas++;
+      const o = omitidas?.find((x) => x.tabela === nome) ?? (omitidas?.push({ tabela: nome, porNome: 0, porLimite: 0 }), omitidas?.[omitidas.length - 1]);
+      if (o) o.porLimite++;
+      continue;
+    }
     t.colunas.push({ coluna: String(r.coluna), tipo: String(r.tipo) });
   }
   return [...por.values()];
@@ -823,8 +805,17 @@ export async function executarAuditoria(ler: LeitorSql, parciais: Partial<Opcoes
 
   // ── tabelas candidatas por NOME (estrutura) + conteúdo de domínio pequeno ──
   const rowsTabCand = (await tentar(avisos, "tabelas candidatas", () => lerContado(sqlColunasDeTabelasPorNome(PADROES_TABELA)))) ?? [];
-  const tabelasCandidatas = agruparEstrutura(rowsTabCand, linhasPorTabela).slice(0, 150);
-  if (agruparEstrutura(rowsTabCand, linhasPorTabela).length > 150) avisos.push("lista de tabelas candidatas truncada a 150");
+  if (rowsTabCand.length >= 200000) avisos.push("estrutura das tabelas candidatas truncada a 200000 colunas (resultado da query TOP)");
+  const omitidasEstrutura: Array<{ tabela: string; porNome: number; porLimite: number }> = [];
+  const todasCandidatas = agruparEstrutura(rowsTabCand, linhasPorTabela, 120, omitidasEstrutura);
+  const tabelasCandidatas = todasCandidatas.slice(0, o.maxTabelas);
+  if (todasCandidatas.length > o.maxTabelas) avisos.push(`lista de tabelas candidatas limitada a ${o.maxTabelas} (de ${todasCandidatas.length}); aumentar com --max-tabelas`);
+  for (const om of omitidasEstrutura) {
+    const cand = tabelasCandidatas.some((t) => t.tabela === om.tabela);
+    if (!cand) continue;
+    if (om.porNome > 0) avisos.push(`${om.tabela}: ${om.porNome} coluna(s) não listadas por o nome sugerir dado pessoal/monetário/segredo`);
+    if (om.porLimite > 0) avisos.push(`${om.tabela}: ${om.porLimite} coluna(s) não listadas por limite de 120 colunas por tabela`);
+  }
 
   const conteudoTabelasDominio: ConteudoTabela[] = [];
   const lerConteudo = async (t: TabelaEstrutura, brutasT: Linha[], rotulo: string): Promise<ConteudoTabela | null> => {
@@ -844,8 +835,9 @@ export async function executarAuditoria(ler: LeitorSql, parciais: Partial<Opcoes
   {
     const dominio = tabelasCandidatas
       .filter((t) => !t.omitidaPorNome && t.linhas !== null && t.linhas <= 200 && PADROES_TABELA_DOMINIO.some((p) => semAcentos(t.tabela).includes(p)))
-      .slice(0, o.maxTabelasConteudo);
-    for (const t of dominio) {
+      ;
+    if (dominio.length > o.maxTabelasConteudo) avisos.push(`conteúdo de tabelas de domínio limitado a ${o.maxTabelasConteudo} (de ${dominio.length} elegíveis)`);
+    for (const t of dominio.slice(0, o.maxTabelasConteudo)) {
       if (!dentroDoOrcamento()) { avisos.push("orçamento de tempo esgotado antes de ler as tabelas de domínio"); break; }
       const c = await lerConteudo(t, rowsTabCand, "conteúdo");
       if (c) conteudoTabelasDominio.push(c);
@@ -1142,6 +1134,22 @@ export async function executarAuditoria(ler: LeitorSql, parciais: Partial<Opcoes
     }
   }
 
+  // ── v2: secções B–E, mapeamento F e universos G ─────────
+  const secoes = await lerSeccoesV2({ ler: lerContado, avisos, dentroDoOrcamento, linhasPorTabela, maxLinhasHistorico: o.maxLinhasHistorico });
+  const uni = await executarUniversos({
+    ler: lerContado,
+    avisos,
+    dentroDoOrcamento,
+    colsStocks: colsStocks.map((c) => ({ coluna: c.coluna, tipo: c.tipo })),
+    fks: fksBrutas,
+    linhasPorTabela,
+    nomesTabelas: linhasRows.map((r) => ({ esquema: String(r.esquema), tabela: String(r.tabela) })),
+    parseMt: o.cnpsMt,
+    maxAmostras: o.maxAmostrasMt,
+  });
+  const nomesStocks = (secoes.stocksColunas.existe ? secoes.stocksColunas.colunas.map((c) => c.coluna) : colsStocks.map((c) => c.coluna)).filter((n) => n !== OMITIDO);
+  const impressao = calcularImpressao(uni.mapeamento, nomesStocks);
+
   const rel: RelatorioAuditoria = {
     cabecalho: {
       geradoEmUtc: o.agora().toISOString(),
@@ -1150,6 +1158,8 @@ export async function executarAuditoria(ler: LeitorSql, parciais: Partial<Opcoes
       sqlServer,
       baseDados,
       queriesExecutadas: queries,
+      schemaRelatorio: 2,
+      impressao,
     },
     ambiente,
     versaoSpharm: { tabelas: tabelasVersao, conteudo: conteudoVersao },
@@ -1166,6 +1176,12 @@ export async function executarAuditoria(ler: LeitorSql, parciais: Partial<Opcoes
     servicos,
     conhecidos,
     leituraAssistida: { aviso: "", conceitos: [], sobreposicoes: [] },
+    stocksColunas: secoes.stocksColunas,
+    parametros: secoes.parametros,
+    historico: secoes.historico,
+    camposMeta: secoes.camposMeta,
+    mapeamentoEticoNett: uni.mapeamento,
+    universos: uni.universos,
     queries: [],
     avisos,
   };
@@ -1182,8 +1198,12 @@ const AVISO_LEITURA =
   "HIPÓTESES a confirmar por uma pessoa que conheça o ERP. «suportada» / «contradita» refere-se apenas ao que os números deste relatório " +
   "mostram; a ausência de uma coluna por NOME não prova que o conceito não exista (pode ter outro nome). Nenhuma delas fixa o modelo.";
 
+/** Binária = só 0/1/NULL E com pelo menos um valor 0/1 (uma coluna toda NULL, p.ex. um parâmetro por configurar, não prova nada). */
 const ehBinaria = (p: PerfilColuna) =>
-  p.listaCompleta && p.valores.length > 0 && p.valores.every((x) => x.valor === null || SO_ZERO_UM.has(x.valor.toLowerCase()));
+  p.listaCompleta &&
+  p.valores.length > 0 &&
+  p.valores.some((x) => x.valor !== null) &&
+  p.valores.every((x) => x.valor === null || SO_ZERO_UM.has(x.valor.toLowerCase()));
 
 /** Pura: lê o relatório e devolve, por conceito, as cinco hipóteses de modelo com a evidência numérica. */
 export function construirLeituraAssistida(r: RelatorioAuditoria): LeituraAssistida {
@@ -1363,9 +1383,10 @@ export function renderMarkdown(r: RelatorioAuditoria): string {
     `- Modo: **${h.modo}**`,
     `- SQL Server: ${h.sqlServer ?? "(não obtido)"}`,
     `- Base de dados: ${h.baseDados ?? "(não obtida)"}`,
+    `- Impressão do ambiente (comparável entre farmácias): **${h.impressao.curta}** · lookup Etico_NETT \`${h.impressao.lookup.slice(0, 16)}\` (${h.impressao.nLinhasLookup ?? "sem lookup"} linhas) · colunas de Stocks \`${h.impressao.colunasStocks.slice(0, 16)}\` (${h.impressao.nColunasStocks} colunas)`,
     `- Queries executadas (todas SELECT): ${h.queriesExecutadas} — texto completo no fim do relatório`,
     "",
-    "> Relatório de FACTOS. Não conclui significados nem propõe mapeamento: serve para fixar o modelo com quem conhece o ERP. Nenhuma credencial, anfitrião, cliente, venda, receita ou preço é lido ou gravado.",
+    "> Relatório de FACTOS. Não conclui significados: serve para fixar o modelo com quem conhece o ERP. A única proposta é o mapeamento de Etico_NETT pela descrição do lookup (secção F), apresentado como PROPOSTA a validar por pessoas. Nenhuma credencial, anfitrião, cliente, venda, receita ou preço é lido ou gravado.",
     "",
   );
 
@@ -1533,6 +1554,15 @@ export function renderMarkdown(r: RelatorioAuditoria): string {
     for (const so of r.leituraAssistida.sobreposicoes) L.push(`- ${so}`);
     L.push("");
   }
+
+  renderSeccoesV2(L, {
+    stocksColunas: r.stocksColunas,
+    parametros: r.parametros,
+    historico: r.historico,
+    camposMeta: r.camposMeta,
+  });
+  renderMapeamento(L, r.mapeamentoEticoNett);
+  renderUniversos(L, r.universos);
 
   if (r.avisos.length > 0) {
     L.push("## Avisos", "");
