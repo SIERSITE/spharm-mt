@@ -1,0 +1,96 @@
+SPharm.MT - AUDITORIA DA CLASSIFICACAO DO PRODUTO (pacote de DIAGNOSTICO)
+=========================================================================
+
+O QUE E
+  Um pacote de diagnostico, instalado LADO A LADO com o agent em producao (rev98), que le (so SELECT) a base do
+  SPharm e escreve um relatorio sanitizado a dizer onde ficam Generico, Etico, NETT e Servico. NAO e um agent
+  instalavel: nao ha tarefa agendada, nao ha sincronizacao, nao envia nada ao SPharm.MT, nao usa o lock da rev98.
+  Nao altera o ERP, a rev98, a tarefa agendada nem o agent.config.json da rev98.
+
+CONTEUDO DESTA ENTREGA (so estes 5 ficheiros)
+  1. spharmmt-agent-classification-audit.zip   (o pacote de diagnostico)
+  2. Install-ClassificationAudit.ps1           (instala lado a lado, com pre-condicoes)
+  3. Remove-ClassificationAudit.ps1            (remove so a pasta do diagnostico)
+  4. SHA256SUMS.txt                            (hash de todos os outros ficheiros)
+  5. LEIAME-INSTALACAO.txt                     (este ficheiro)
+  Nunca contem agent.config.json, credenciais, logs, output, run nem locks.
+
+REQUISITOS
+  - Windows PowerShell 5.1, aberto como Administrador, na maquina onde corre a rev98.
+  - A rev98 em  C:\SPharm_MT\spharmmt-agent-base-rev98
+    e a tarefa agendada  "SPharm.MT <travessao> Daily Pipeline"  (travessao = caracter U+2014).
+  - Se os caminhos ou o nome da tarefa forem diferentes, usar os parametros -BaseDir, -Rev98Dir, -DestDir e -TaskName
+    do Install-ClassificationAudit.ps1 (ver "Get-Help .\Install-ClassificationAudit.ps1 -Full").
+
+ORDEM EXATA
+
+PASSO 0 - Extrair e validar a entrega
+  Extrair o ZIP da entrega para  C:\Entregas\classification-audit  e correr:
+
+    cd C:\Entregas\classification-audit
+    Get-Content .\SHA256SUMS.txt
+    Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+      ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
+
+  O hash de cada ficheiro (o ZIP, o Install, o Remove e este LEIAME) tem de ser IGUAL ao da respetiva linha do
+  SHA256SUMS.txt (o proprio SHA256SUMS.txt nao se inclui a si mesmo). O hash do ZIP do diagnostico tem de ser:
+    3e621aa8a803b567ae37c1c749f674b08b8b823ed491b80546c23f06c202169e
+  Se algum hash nao bater: PARAR e pedir uma entrega nova.
+
+PASSO 1 - Validar a tarefa agendada e a rev98 (so leitura, nao mostra segredos)
+
+    $nome = 'SPharm.MT ' + [char]0x2014 + ' Daily Pipeline'
+    $t = Get-ScheduledTask -TaskName $nome
+    $t.State                                   # tem de ser Ready (NAO pode ser Running)
+    $t.Actions[0] | Format-List Execute, Arguments, WorkingDirectory   # tem de apontar para ...\spharmmt-agent-base-rev98
+    Get-Content C:\SPharm_MT\spharmmt-agent-base-rev98\MANIFEST.json   # tem de dizer "rev": "98"
+    Test-Path C:\SPharm_MT\spharmmt-agent-base-rev98\agent.config.json # True (NAO abrir nem mostrar este ficheiro)
+
+  Se a tarefa estiver a correr, esperar que termine. Se nao apontar para a rev98 ou a rev for outra: PARAR.
+  (O Install repete estas verificacoes e recusa instalar se alguma falhar.)
+
+PASSO 2 - Instalar lado a lado
+
+    cd C:\Entregas\classification-audit
+    .\Install-ClassificationAudit.ps1 `
+      -ZipPath .\spharmmt-agent-classification-audit.zip `
+      -Sha256Esperado 3E621AA8A803B567AE37C1C749F674B08B8B823ED491B80546C23F06C202169E
+
+  Cria  C:\SPharm_MT\spharmmt-classification-audit  (pasta nova, independente da rev98) e copia para la APENAS o
+  agent.config.json da rev98 (sem mostrar o conteudo). Nao copia run, locks, logs nem output. Nao altera a tarefa
+  agendada. Se alguma pre-condicao falhar termina com erro e nao deixa nada instalado.
+
+PASSO 3 - Executar UMA unica auditoria (so leitura)
+
+    cd C:\SPharm_MT\spharmmt-classification-audit
+    .\Run-ClassificationAudit.ps1
+
+  Opcional (CNPs conhecidos para comparar):  .\Run-ClassificationAudit.ps1 -Cnps 1234567,7654321
+  Grava  .\output\auditoria-classificacao.json  e  .\output\auditoria-classificacao.md.
+  Executar uma vez. Se falhar, ler a mensagem (nao mostra credenciais) e reportar; nao repetir em ciclo.
+
+PASSO 4 - Recolher o relatorio
+
+    .\Collect-ClassificationAuditReport.ps1
+
+  Cria  .\entrega\auditoria-classificacao-<UTC>.zip  (+ .sha256) so com o relatorio .json/.md e o SHA256.txt.
+  Recusa recolher se o relatorio parecer conter credenciais. ENVIAR ESSE ZIP. Nunca enviar o agent.config.json.
+
+PASSO 5 - Remover o diagnostico (depois de ter o relatorio guardado e enviado)
+
+    cd C:\Entregas\classification-audit
+    .\Remove-ClassificationAudit.ps1             # simulacao: mostra o que removeria (nao apaga)
+    .\Remove-ClassificationAudit.ps1 -Confirmar  # apaga so C:\SPharm_MT\spharmmt-classification-audit
+
+  Recusa apagar a rev98, pastas dentro dela, pontos de juncao ou qualquer pasta sem o manifesto do diagnostico.
+  A pasta  C:\Entregas\classification-audit  (esta entrega) pode ser apagada a mao depois.
+
+GARANTIAS
+  - Todas as consultas SQL sao SELECT/metadados, validadas antes de executar (INSERT, UPDATE, DELETE, MERGE, EXEC,
+    ALTER, CREATE, DROP, TRUNCATE e semelhantes sao recusados).
+  - O relatorio nao contem credenciais, nomes de clientes, vendas, prescricoes nem dados pessoais: so estrutura,
+    contagens e amostras com codigo/CNP e classificacao.
+  - A rev98, a tarefa agendada e o respetivo agent.config.json ficam byte a byte inalterados.
+
+EM CASO DE DUVIDA
+  Parar no passo em que esta. Nada neste pacote precisa de reiniciar a rev98 nem de alterar a tarefa agendada.
