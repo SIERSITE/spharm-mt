@@ -35,7 +35,7 @@
  * hook reidratar do zero a partir da chave NOVA — nunca continua a
  * escrever na antiga, nunca mistura as duas.
  */
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function chaveWorkspaceState(tenant: string, userId: string, workspaceId: string, moduleKey: string): string {
   return `spharmmt:workspace:${tenant}:${userId}:${workspaceId}:${moduleKey}`;
@@ -93,21 +93,18 @@ export function useWorkspaceState<T>(
   const { workspaceId, tenantSlug, userId, moduleKey, initial } = opts;
   const chaveLS = workspaceId ? chaveWorkspaceState(tenantSlug, userId, workspaceId, moduleKey) : null;
 
-  // O 1.º render (servidor E cliente) usa SEMPRE `initial`: ler o `sessionStorage` aqui dentro faria o cliente
-  // hidratar com texto diferente do HTML do servidor (p.ex. o contador do botão «Filtros») — React #418. O estado
-  // guardado é restaurado a seguir, ANTES de qualquer efeito passivo e antes de pintar (useLayoutEffect).
-  const [estado, setEstadoInterno] = useState<T>(initial);
+  const [estado, setEstadoInterno] = useState<T>(() => {
+    if (!chaveLS) return initial;
+    return lerEstado<T>(chaveLS) ?? initial;
+  });
 
   // Rastreia a última chave já hidratada — evita reidratar no MESMO
   // workspace a cada render (só quando `workspaceId` muda de verdade).
-  // Começa a `null`: a 1.ª chave resolvida também é hidratada (a partir do storage, se houver).
-  const ultimaChaveRef = useRef<string | null>(null);
+  const ultimaChaveRef = useRef<string | null>(chaveLS);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (chaveLS === ultimaChaveRef.current) return;
     ultimaChaveRef.current = chaveLS;
-    // `sessionStorage` é uma fonte externa só-de-cliente: ler e sincronizar só pode acontecer DEPOIS de montado.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEstadoInterno(chaveLS ? (lerEstado<T>(chaveLS) ?? initial) : initial);
     // `initial` é deliberadamente omitido das deps — normalmente é um
     // literal novo a cada render do chamador, e incluí-lo reidratava a
