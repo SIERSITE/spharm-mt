@@ -749,6 +749,10 @@ export type CompraUncheckedUpdateManyWithoutFarmaciaNestedInput = {
   deleteMany?: Prisma.CompraScalarWhereInput | Prisma.CompraScalarWhereInput[]
 }
 
+export type NullableBoolFieldUpdateOperationsInput = {
+  set?: boolean | null
+}
+
 export type CompraCreateNestedManyWithoutLoteIngestaoInput = {
   create?: Prisma.XOR<Prisma.CompraCreateWithoutLoteIngestaoInput, Prisma.CompraUncheckedCreateWithoutLoteIngestaoInput> | Prisma.CompraCreateWithoutLoteIngestaoInput[] | Prisma.CompraUncheckedCreateWithoutLoteIngestaoInput[]
   connectOrCreate?: Prisma.CompraCreateOrConnectWithoutLoteIngestaoInput | Prisma.CompraCreateOrConnectWithoutLoteIngestaoInput[]

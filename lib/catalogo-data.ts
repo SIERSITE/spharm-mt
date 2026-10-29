@@ -5,12 +5,6 @@ import { carregarFichaRegulamentar, type FichaRegulamentar } from "@/lib/regulam
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { carregarOpcoesFormaFarmaceutica, wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
-import {
-  valoresClassificacaoErp,
-  whereClassificacaoErp,
-  type ClassificacaoErpValores,
-  type FiltroClassificacaoErp,
-} from "@/lib/catalogo/classificacao-erp";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
 import { resolveCurrentTenantSlug, gruposLaboratoriaisAtivos } from "@/lib/tenant-context";
 import {
@@ -93,8 +87,6 @@ export type CatalogoRow = {
   classificacaoConfianca: number | null;
   /** Código interno do ERP (taxa, serviço, ato clínico) — não é catálogo. */
   interno: boolean;
-  /** Classificação ERP (Ético/NETT/Serviço/Genérico), tri-estado. */
-  classificacaoErp: ClassificacaoErpValores;
 };
 
 /**
@@ -145,8 +137,6 @@ export type CatalogoListFilters = {
    */
   laboratorio?: string;
   productType?: string;
-  /** Filtro de classificação ERP (whitelist em parseFiltroClassificacaoErp). */
-  classificacaoErp?: FiltroClassificacaoErp;
   classificacaoN1Id?: string;
   /** Formas farmacêuticas por CHAVE normalizada (parâmetro de URL `forma`, multi). Vazio/omitido = todas. */
   formas?: string[];
@@ -255,7 +245,6 @@ export async function loadCatalogoListData(
   if (filters.classificacaoN1Id) where.classificacaoNivel1Id = filters.classificacaoN1Id;
   if (filters.verificationStatus) where.verificationStatus = filters.verificationStatus;
   if (filters.origem) Object.assign(where, whereOrigem(filters.origem));
-  const whereCls = whereClassificacaoErp(filters.classificacaoErp);
   const whereForma = await wherePrismaPorFormas(prisma, filters.formas);
 
   if (filters.search && filters.search.trim().length > 0) {
@@ -275,7 +264,7 @@ export async function loadCatalogoListData(
     }
   }
 
-  for (const extra of [whereCls, whereForma]) {
+  for (const extra of [whereForma]) {
     if (!extra) continue;
     const existentes = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
     where.AND = [...existentes, extra];
@@ -301,12 +290,6 @@ export async function loadCatalogoListData(
         classificacaoEstado: true,
         classificacaoConfianca: true,
         validadoManualmente: true,
-        flagGenerico: true,
-        genericoErp: true,
-        erpEtico: true,
-        erpNett: true,
-        erpServico: true,
-        classificacaoErpConflito: true,
         fabricante: { select: { nomeNormalizado: true } },
         classificacaoNivel1: { select: { nome: true } },
         classificacaoNivel2: { select: { nome: true } },
@@ -365,7 +348,6 @@ export async function loadCatalogoListData(
       origemClassificacao: origemClassificacao(p),
       classificacaoConfianca: p.classificacaoConfianca,
       interno: p.cnp <= MIN_CNP_CATALOGAVEL,
-      classificacaoErp: valoresClassificacaoErp(p),
     };
   });
 
@@ -458,10 +440,6 @@ export type CatalogoArticle = {
   flagMSRM: boolean;
   flagMNSRM: boolean;
   flagGenerico: boolean;
-  /** Classificação ERP (Ético/NETT/Serviço/Genérico efetivo), tri-estado. */
-  classificacaoErp: ClassificacaoErpValores;
-  classificacaoErpOrigem: string | null;
-  classificacaoErpEm: Date | null;
   validadoManualmente: boolean;
   needsManualReview: boolean;
   manualReviewReason: string | null;
@@ -578,9 +556,6 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     flagMSRM: p.flagMSRM,
     flagMNSRM: p.flagMNSRM,
     flagGenerico: p.flagGenerico,
-    classificacaoErp: valoresClassificacaoErp(p),
-    classificacaoErpOrigem: p.classificacaoErpOrigem,
-    classificacaoErpEm: p.classificacaoErpEm,
     validadoManualmente: p.validadoManualmente,
     needsManualReview: p.needsManualReview,
     manualReviewReason: p.manualReviewReason,

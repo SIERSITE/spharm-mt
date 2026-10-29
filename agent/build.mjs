@@ -96,14 +96,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // designacoesVerificadas/designacoesAlteradas no ack. Exige a aplicação
 // SaaS desta mesma entrega (endpoint …/products/designacoes). Fora do tenant
 // silveira / da Silveirense é um único GET e nada mais.
-// rev97 — classificação ERP (Ético/NETT/Serviço/Genérico): secção opcional
-// `classificacaoErp` em agent.config.json (mapeamento explícito por
-// instalação; sem ela o comportamento é o da rev96 + `genericoErp`
-// tri-estado no payload), comando novo read-only `classification-audit`
-// (run-classification-audit.bat). Exige o SaaS com a migração
-// 20261028120000_produto_classificacao_erp; um SaaS sem ela ignora os
-// campos novos. NÃO empacotado nem publicado por este bloco.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "97";
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "96";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
@@ -351,9 +344,6 @@ function writeBatchWrappers() {
     // o que a instalação expõe.
     "run-catalog-audit.bat": "catalog-audit",
     "run-catalog-discover-links.bat": "catalog-discover-links",
-    // rev97 — descobre onde o ERP guarda Ético/NETT/Serviço/Genérico.
-    // Read-only; não conclui significados.
-    "run-classification-audit.bat": "classification-audit",
     "run-health.bat": "health",
   };
   const preamble = [
@@ -2202,7 +2192,6 @@ function writeReadme() {
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
     `  run-catalog-audit.bat           (rev46) Auditoria READ-ONLY: localiza DCI, ATC, Grupo Homogeneo e Fabricante em dbo.Stocks e nas tabelas de lookup. Gera run\catalog-audit-<ts>.md. Correr ANTES de products-upload.`,
-    `  run-classification-audit.bat    (rev97) Auditoria READ-ONLY da classificacao (Etico/NETT/Servico/Generico): colunas candidatas + valores distintos. NAO conclui significados. Gera run\classification-audit-<ts>.md. Correr ANTES de configurar classificacaoErp.`,
     `  run-products-upload.bat         (rev46) Upload SO de produtos -> /bootstrap/products. NAO envia stock/sales. Batch 25 + retry+shrink. CONFIRMO.`,
     `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
     `  run-full-sync-dry-run.bat       ONBOARDING preview: corre TODAS as fases sem escrever. Pergunta datas.`,

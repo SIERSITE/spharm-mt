@@ -1,10 +1,10 @@
-# Evidências — Garantia (catálogo, classificação), Margens e filtro de forma farmacêutica
+# Evidências — Garantia (catálogo, fabricantes), Margens e filtro de forma farmacêutica
 
 Dados 100% sintéticos, browser real (Chromium) contra o build de produção de um clone limpo, PostgreSQL descartável.
 Pasta das capturas: `docs/validacao-visual/2026-10-garantia-catalogo-classificacao-margens/`.
 Cada captura é gravada por um E2E (indicado entre parênteses); os PDFs são os reais devolvidos por `/api/reports/pdf`.
 
-## 1. Manutenção do catálogo e classificação (`tenants-catalogo-browser.ts`)
+## 1. Manutenção do catálogo, fabricantes e forma (`tenants-catalogo-browser.ts`)
 
 | Captura | O que prova |
 |---|---|
@@ -13,8 +13,6 @@ Cada captura é gravada por um E2E (indicado entre parênteses); os PDFs são os
 | `sier-manutencao-catalogo.png` | Outro tenant (sier) recebe 404 real: a página não existe. |
 | `garantia-filtro-fabricante-agrupado.png` | No Garantia o filtro de fabricante é agrupado por grupo laboratorial. |
 | `silveira-filtro-fabricante-inalterado.png`, `sier-filtro-fabricante-inalterado.png` | Nos outros tenants o filtro de fabricante não mudou. |
-| `garantia-ficha-classificacao.png` (e `silveira-`, `sier-`) | Ficha do artigo com Genérico e Ético (ERP) e NETT (ERP) visíveis na secção «Classificação» (o campo Serviço fica abaixo da dobra desta captura; é verificado pelo E2E). |
-| `*-catalogo-filtro-etico.png` | Filtro de tipo «Ético» no Catálogo. |
 | `*-catalogo-filtro-forma.png` | Filtro de forma farmacêutica no Catálogo. |
 
 ## 2. Margens sem geração automática (`margens-sem-geracao-automatica-browser.ts`, 56 OK)

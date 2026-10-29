@@ -360,22 +360,7 @@ model Produto {
   /// MNSRM **não comparticipado** (Softreis: Stocks.MNSRM_NCompart). Distinto
   /// de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
   flagMnsrmNCompart         Boolean             @default(false)
-  // ── Classificação vinda do ERP (Ético / NETT / Serviço / Genérico) ──
-  // Flags independentes e tri-estado: null = o ERP nunca informou (todas as
-  // fichas existentes). Preenchidas SÓ por agents com o mapeamento
-  // `classificacaoErp` configurado; ver lib/ingest/classificacao-erp.ts.
-  erpEtico                  Boolean?
-  erpNett                   Boolean?
-  erpServico                Boolean?
-  /// Genérico tri-estado (false = "não genérico" conhecido; null = desconhecido).
-  /// `flagGenerico` mantém a semântica anterior (NOT NULL, default false).
-  genericoErp               Boolean?
-  /// Serviço combinado com Ético/NETT: guardado tal como veio, apenas sinalizado.
-  classificacaoErpConflito  Boolean             @default(false)
-  classificacaoErpEm        DateTime?
-  /// "spharm_erp:etico=Stocks.[X];nett=…" — proveniência do último valor.
-  classificacaoErpOrigem    String?
-  grupoHomogeneo           String?
+  grupoHomogeneo            String?
   estado                    ProdutoEstado       @default(PENDENTE)
   origemDados               ProdutoOrigemDados  @default(FARMACIA)
   validadoManualmente       Boolean             @default(false)

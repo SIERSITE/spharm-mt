@@ -5,7 +5,6 @@
  * (`garantia`, `silveira`, `sier`): prova o isolamento por tenant das funcionalidades novas.
  *   · /catalogo/manutencao: garantia e silveira abrem; sier → 404 (gate no servidor);
  *   · filtro de fabricante dos mapas: garantia mostra UMA opção «ALFASIGMA (10 variantes)»; silveira e sier mostram as 10 variantes à parte;
- *   · ficha do artigo e Catálogo: classificação ERP (Ético/NETT/Serviço/Genérico) e filtro `cls`, em todos os tenants;
  *   · filtro de forma farmacêutica no Catálogo em todos os tenants.
  *
  * Pré-requisito: `npx next build` com SERVER_ACTIONS_ALLOWED_ORIGINS="localhost:3100,127.0.0.1:3100,*.localhost:3100".
@@ -23,7 +22,6 @@ const check = (cond: boolean, msg: string, detalhe?: string) => {
   if (cond) { ok++; console.log(`  [OK]    ${msg}`); } else { falhas++; console.log(`  [FALHA] ${msg}${detalhe ? `\n            ${detalhe}` : ""}`); }
 };
 const EVID = path.resolve("docs/validacao-visual/2026-10-garantia-catalogo-classificacao-margens");
-const CNP_CLASS = 7900001;
 
 async function tenant(slug: "garantia" | "silveira" | "sier") {
   console.log(`\n── tenant ${slug}`);
@@ -44,10 +42,6 @@ async function tenant(slug: "garantia" | "silveira" | "sier") {
     const fSemProva = await prisma.fabricante.create({ data: { nomeNormalizado: "ALFA WASSERMAN PARECIDO" } });
     const pSem = await prisma.produto.create({ data: { cnp: 7800099, designacao: "ALFA SEM PROVA", fabricanteId: fSemProva.id, estado: "VALIDADO" } });
     await prisma.produtoFarmacia.create({ data: { produtoId: pSem.id, farmaciaId: seed.farmacias.alfa, pvp: 5, pmc: 2, stockAtual: 1, taxaIvaPercent: 23 } });
-    // classificação ERP sintética
-    const fabE = await prisma.fabricante.findFirstOrThrow({ where: { nomeNormalizado: "LAB E2E" } });
-    await prisma.produto.create({ data: { cnp: CNP_CLASS, designacao: "PRODUTO CLASSIFICADO ETICO GENERICO", fabricanteId: fabE.id, estado: "VALIDADO", erpEtico: true, erpNett: false, erpServico: false, genericoErp: true, classificacaoErpEm: new Date(), classificacaoErpOrigem: "e2e" } });
-    await prisma.produto.create({ data: { cnp: CNP_CLASS + 1, designacao: "PRODUTO NETT NAO GENERICO", fabricanteId: fabE.id, estado: "VALIDADO", erpEtico: false, erpNett: true, erpServico: false, genericoErp: false, classificacaoErpEm: new Date(), classificacaoErpOrigem: "e2e" } });
 
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
     const page = await ctx.newPage();
@@ -90,22 +84,9 @@ async function tenant(slug: "garantia" | "silveira" | "sier") {
       await page.screenshot({ path: path.join(EVID, `${slug}-filtro-fabricante-inalterado.png`) });
     }
 
-    // 3 · classificação ERP: ficha + filtros do Catálogo (todos os tenants)
-    await page.goto(base + `/catalogo/artigo/${CNP_CLASS}`, { waitUntil: "networkidle" });
-    const ficha = await page.locator("body").innerText();
-    check(/Ético/i.test(ficha) && /NETT/i.test(ficha) && /Serviço/i.test(ficha) && /Genérico/i.test(ficha), `${slug}: ficha mostra Ético / NETT / Serviço / Genérico`);
-    await page.screenshot({ path: path.join(EVID, `${slug}-ficha-classificacao.png`) });
-    await page.goto(base + "/catalogo?cls=etico&q=PRODUTO", { waitUntil: "networkidle" });
-    let corpo = await page.locator("body").innerText();
-    check(/PRODUTO CLASSIFICADO ETICO/.test(corpo) && !/PRODUTO NETT NAO GENERICO/.test(corpo), `${slug}: filtro Ético do Catálogo`);
-    await page.screenshot({ path: path.join(EVID, `${slug}-catalogo-filtro-etico.png`) });
-    await page.goto(base + "/catalogo?cls=nao_generico&q=PRODUTO", { waitUntil: "networkidle" });
-    corpo = await page.locator("body").innerText();
-    check(/PRODUTO NETT NAO GENERICO/.test(corpo) && !/PRODUTO CLASSIFICADO ETICO/.test(corpo), `${slug}: filtro Não genérico do Catálogo`);
-
-    // 4 · forma farmacêutica no Catálogo: «Comprimido» e « COMPRIMIDO » são UMA opção (10 produtos)
+    // 3 · forma farmacêutica no Catálogo: «Comprimido» e « COMPRIMIDO » são UMA opção (10 produtos)
     await page.goto(base + "/catalogo?forma=comprimido", { waitUntil: "networkidle" });
-    corpo = await page.locator("body").innerText();
+    const corpo = await page.locator("body").innerText();
     check((corpo.match(/ALFA PRODUTO \d+/g) ?? []).length >= 10 && !/ALFA SEM PROVA/.test(corpo), `${slug}: filtro de forma farmacêutica no Catálogo junta Comprimido/COMPRIMIDO`);
     await page.screenshot({ path: path.join(EVID, `${slug}-catalogo-filtro-forma.png`) });
   } finally {

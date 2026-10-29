@@ -5336,13 +5336,6 @@ export const ProdutoScalarFieldEnum = {
   flagMSRM: 'flagMSRM',
   flagMNSRM: 'flagMNSRM',
   flagMnsrmNCompart: 'flagMnsrmNCompart',
-  erpEtico: 'erpEtico',
-  erpNett: 'erpNett',
-  erpServico: 'erpServico',
-  genericoErp: 'genericoErp',
-  classificacaoErpConflito: 'classificacaoErpConflito',
-  classificacaoErpEm: 'classificacaoErpEm',
-  classificacaoErpOrigem: 'classificacaoErpOrigem',
   grupoHomogeneo: 'grupoHomogeneo',
   estado: 'estado',
   origemDados: 'origemDados',
@@ -6650,20 +6643,6 @@ export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
 
 
 /**
- * Reference to a field of type 'DateTime'
- */
-export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
-    
-
-
-/**
- * Reference to a field of type 'DateTime[]'
- */
-export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
-    
-
-
-/**
  * Reference to a field of type 'ProdutoEstado'
  */
 export type EnumProdutoEstadoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ProdutoEstado'>
@@ -6730,6 +6709,20 @@ export type EnumVerificationStatusFieldRefInput<$PrismaModel> = FieldRefInputTyp
  * Reference to a field of type 'VerificationStatus[]'
  */
 export type ListEnumVerificationStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'VerificationStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'DateTime'
+ */
+export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
+    
+
+
+/**
+ * Reference to a field of type 'DateTime[]'
+ */
+export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
     
 
 

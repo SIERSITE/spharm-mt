@@ -14,7 +14,6 @@ import type {
 } from "@/generated/prisma/client";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
-import { parseFiltroClassificacaoErp } from "@/lib/catalogo/classificacao-erp";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +84,6 @@ function parseFilters(
     laboratorio: asString(sp.fabricante) || undefined,
     classificacaoN1Id: asString(sp.n1) || undefined,
     productType,
-    classificacaoErp: parseFiltroClassificacaoErp(asString(sp.cls)),
     // `forma` (multi): chaves normalizadas, re-normalizadas e limitadas por `lerChavesForma`.
     formas: lerChavesForma(sp.forma),
     verificationStatus,

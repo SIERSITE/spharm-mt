@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { Package, Tag, Building2, Image as ImageIcon, Pill, Stethoscope } from "lucide-react";
 import type { ArtigoFichaData } from "@/lib/stock/artigo-ficha-data";
-import { rotuloClassificacaoFicha, rotuloTri } from "@/lib/catalogo/classificacao-erp";
 import { EditorFabricante } from "@/components/stock/editor-fabricante";
 import { EditorDesignacao } from "@/components/stock/editor-designacao";
 
@@ -203,13 +202,7 @@ function ArtigoIdentidade({ data }: { data: ArtigoFichaData }) {
 
       <div className="grid gap-3 md:grid-cols-2">
         <MetaCell label="Utilizações" value={data.utilizacoes} />
-        <MetaCell label="Genérico" value={rotuloTri(data.classificacaoErp.generico, PLACEHOLDER)} />
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <MetaCell label="Ético (ERP)" value={rotuloClassificacaoFicha("etico", data.classificacaoErp, PLACEHOLDER)} />
-        <MetaCell label="NETT (ERP)" value={rotuloClassificacaoFicha("nett", data.classificacaoErp, PLACEHOLDER)} />
-        <MetaCell label="Serviço (ERP)" value={rotuloClassificacaoFicha("servico", data.classificacaoErp, PLACEHOLDER)} />
+        <MetaCell label="Genérico" value={data.flagGenerico ? "Sim" : data.flagGenerico === false ? "Não" : PLACEHOLDER} />
       </div>
     </div>
   );
