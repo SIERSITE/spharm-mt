@@ -155,11 +155,13 @@ async function main() {
     check(rel.fabricantes === totalFabricantes && rel.opcoesAntes === totalFabricantes && rel.opcoesDepois === 5, `A11: auditoria — ${rel.fabricantes} fabricantes, ${rel.opcoesAntes} antes, ${rel.opcoesDepois} depois`);
     check(rel.gruposComMaisVariantes[0]?.grupo === "Viatris" && rel.gruposComMaisVariantes[0]?.variantes === 10, "A12: auditoria — Viatris é o grupo com mais variantes");
     check(rel.fabricantesSemProva.map((f) => f.fabricante).sort().join("|") === ["OUTRO LAB SUCESSAO", "PFIZER LABORATORIOS", "VIATRIS PHARMA LDA"].sort().join("|"), "A13: auditoria — lista os fabricantes sem prova de grupo");
-    // A14 (alterado): antes o script recusava qualquer host não local; agora o utilizador vai corrê-lo na base REAL do
-    // Garantia, por isso a protecção é: URL explícita + --confirmo-read-only + sessão só-leitura (ver test-auditoria-fabricantes-grupos-db.ts).
+    // A14 (alterado de novo): o script já não recebe URL — corre no contentor `migrate` e resolve a ligação pelo control
+    // plane (ver test-auditoria-fabricantes-grupos-db.ts). Aqui só se confirma o contrato dos argumentos.
     let recusouSemConfirmacao = false;
-    try { lerArgumentos(["--url", urlDe(db)], {}); } catch { recusouSemConfirmacao = true; }
-    check(recusouSemConfirmacao && lerArgumentos(["--confirmo-read-only", "--url", urlDe(db)], {}).url === urlDe(db), "A14: o script de auditoria recusa sem --confirmo-read-only e aceita a URL explícita");
+    try { lerArgumentos([]); } catch { recusouSemConfirmacao = true; }
+    let recusouUrl = false;
+    try { lerArgumentos(["--confirmo-read-only", "--url", urlDe(db)]); } catch { recusouUrl = true; }
+    check(recusouSemConfirmacao && recusouUrl && lerArgumentos(["--confirmo-read-only"]).tenant === "garantia", "A14: o script de auditoria recusa sem --confirmo-read-only, recusa URL e assume o tenant garantia")
 
     console.log("\nB · pesquisa");
     const achaGrupo = (q: string) => L.agruparOpcoesLaboratorio(opcoes, q).filter((i) => i.opcao.tipo === "grupo" && i.opcao.nome === "Viatris");

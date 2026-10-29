@@ -1,29 +1,37 @@
 /**
  * scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts
  *
- * Auditoria SOMENTE LEITURA do agrupamento de fabricantes nos filtros do tenant garantia. Pensada para correr contra a
- * base REAL do Garantia (por isso NÃO se restringe a localhost) — a segurança vem de ela nunca poder escrever:
- *   · só corre com `--confirmo-read-only` e com a URL passada EXPLICITAMENTE (`--url <url>`, 1.º argumento posicional ou
- *     `AUDITORIA_DATABASE_URL`; nunca `DATABASE_URL`, para não apanhar uma base por engano);
- *   · a sessão abre com `default_transaction_read_only=on`, a consulta corre numa transacção `READ ONLY` (REPEATABLE
- *     READ: um retrato coerente) e antes de qualquer consulta confirma `transaction_read_only = on`; só há SELECT;
- *   · nunca imprime a password (a URL é mascarada em todas as saídas, incluindo mensagens de erro);
- *   · `--out ficheiro.md|.json` escreve o relatório num FICHEIRO local (não na base).
+ * Auditoria SOMENTE LEITURA do agrupamento de fabricantes nos filtros do tenant garantia. Corre DENTRO do contentor
+ * `migrate` (imagem `migrator`), sem receber nem mostrar URL de base de dados:
+ *   · a ligação ao tenant resolve-se pelo MESMO mecanismo do `tenancy:*` — `CONTROL_DATABASE_URL` + tabela `Tenant`
+ *     do control plane + password decifrada com `TENANT_ENCRYPTION_SECRET` (`buildTenantConnectionString`, que respeita
+ *     `TENANT_DB_SSLMODE`) — tudo a partir do ambiente do contentor. Não há `--url` nem URL posicional;
+ *   · só corre com `--confirmo-read-only`; o slug (por omissão `garantia`) tem de existir e estar ACTIVE no control plane;
+ *   · as duas ligações (control plane e tenant) abrem com `default_transaction_read_only=on`; a consulta corre numa
+ *     transacção `READ ONLY` (REPEATABLE READ: um retrato coerente) e antes de QUALQUER consulta confirma
+ *     `SHOW transaction_read_only = on`; só há SELECT;
+ *   · nunca imprime URL, utilizador, password nem host:porta (mascarados em todas as saídas, incluindo erros);
+ *   · grava `auditoria-fabricantes-<slug>-<UTC>.md` e `.json` em `--out-dir` (por omissão `/relatorios`), que TEM de
+ *     existir e ser gravável — não cria caminhos nem escreve fora dele; na consola só sai um resumo curto.
  *
- * O que produz (consola e `--out`): fabricantes apresentados antes / opções depois do agrupamento; grupos com mais
- * variantes e quantos têm mais de 10; por grupo, nome canónico, fabricantes membros (nome, id, tipo de associação,
- * validadoManualmente), aliases, produtos abrangidos e produtos incluídos por regra CNP/snapshot/manual/alias cujo
- * fabricante NÃO é membro; fabricantes semelhantes que ficaram separados (SÓ candidatos para revisão humana — a
- * semelhança de nomes nunca agrupa nada); ambiguidades e sobreposições; e a secção «casos com mais de dez nomes».
+ * O que o relatório contém: opções ANTES (uma por fabricante) e DEPOIS (grupos + fabricantes sem prova) do agrupamento;
+ * grupos com mais variantes e quantos têm mais de 10; por grupo, nome canónico, fabricantes membros (nome, id, tipo de
+ * associação, validadoManualmente = relações manuais), aliases (do grupo e de cada fabricante), nº de produtos distintos,
+ * regras CNP e produtos manuais (CNP), produtos incluídos por regra CNP/snapshot/manual/alias cujo fabricante NÃO é
+ * membro; ambiguidades e sobreposições; e fabricantes semelhantes que ficaram separados (SÓ candidatos para revisão
+ * humana — a semelhança de nomes nunca agrupa nada).
  *
- * Uso:
- *   npx tsx scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts --confirmo-read-only \
- *       --url postgresql://utilizador:***@host:5432/base [--out relatorio.md|relatorio.json] [--top 15]
+ * Uso (dentro do contentor; ver notes/auditoria-fabricantes-garantia-comando.md):
+ *   npx tsx scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts --confirmo-read-only [--tenant garantia] \
+ *       [--out-dir /relatorios] [--top 15]
  */
-import { writeFileSync } from "node:fs";
+import { accessSync, constants as fsConstants, existsSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { Client } from "pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { buildTenantConnectionString, type TenantRecord } from "../../lib/control-plane";
+import { decryptTenantSecret } from "../../lib/tenant-crypto";
 import { carregarLaboratoriosGarantia } from "../../lib/catalog/carregar-laboratorios-garantia";
 import { agruparOpcoesLaboratorio, type CatalogoFilterOptionLaboratorio } from "../../lib/catalog/laboratorio-filtro";
 
@@ -59,8 +67,26 @@ export type GrupoAuditado = {
   produtosAbrangidos: number;
   produtosPorOrigem: Record<string, number>;
   produtosForaDoGrupo: { total: number; porOrigem: Record<string, number>; amostra: ProdutoForaDoGrupo[] };
+  /** Regras CNP (RegraGrupoLaboratorialPorCnp) deste grupo: o CNP, o estado e onde o produto está de facto. */
+  regrasCnp: RegraCnpAuditada[];
+  /** Produtos colocados manualmente (origem MANUAL ou validadoManualmente) neste grupo, com CNP. */
+  produtosManuais: Array<{ cnp: number; designacao: string; fabricante: string | null; origem: string; fabricanteEMembro: boolean }>;
   produtosDeMembrosForaDoGrupo: { total: number; amostra: Array<{ produtoId: string; cnp: number; designacao: string; fabricante: string; grupoAtual: string | null; origemAtual: string | null }> };
 };
+
+export type RegraCnpAuditada = {
+  cnp: number;
+  estado: string;
+  validadoManualmente: boolean;
+  /** `false` quando nenhum produto tem este CNP (regra órfã). */
+  produtoExiste: boolean;
+  fabricante: string | null;
+  fabricanteEMembro: boolean;
+  grupoAtualDoProduto: string | null;
+  origemAtual: string | null;
+};
+
+export type OpcaoDepois = { tipo: "grupo" | "fabricante"; id: string; nome: string; produtos: number; variantes: number };
 
 export type CandidatoRevisao = { fabricante: string; fabricanteId: string; produtos: number; grupo: string; razao: string };
 export type ClusterSolto = { chave: string; fabricantes: Array<{ id: string; nome: string; produtos: number }> };
@@ -79,10 +105,16 @@ export type CasoMaisDeDezNomes = {
 
 export type RelatorioAuditoria = {
   geradoEm: string;
+  /** `tenant <slug> · base <nome>` — nunca host, utilizador nem password. */
   base: string;
+  tenant: string;
   fabricantesAtivos: number;
   /** Opções «antes»: fabricantes ATIVO com pelo menos um produto (a lista que os filtros mostravam, uma por fabricante). */
   fabricantesApresentadosAntes: number;
+  /** A lista «antes», uma opção por fabricante ativo com produtos. */
+  opcoesAntesLista: Array<{ id: string; nome: string; produtos: number }>;
+  /** A lista «depois», pela mesma função da UI (grupos com contagem de variantes + fabricantes sem prova). */
+  opcoesDepoisLista: OpcaoDepois[];
   /** Opções «depois»: o que o filtro agrupado mostra (grupos + fabricantes sem prova), pela mesma função da UI. */
   opcoesDepois: number;
   gruposAtivos: number;
@@ -98,62 +130,150 @@ export type RelatorioAuditoria = {
 
 // ─── Argumentos e segurança ──────────────────────────────────────────────────────────────────────────────────────────
 
-export type ArgumentosAuditoria = { url: string; out: string | null; top: number };
+export type ArgumentosAuditoria = { tenant: string; outDir: string; top: number };
 
-/** Esconde a password de qualquer URL de ligação (e a sua versão codificada) num texto. */
-export function mascararSegredos(texto: string, url?: string): string {
+export const SLUG_TENANT = /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/;
+export const DIRETORIO_RELATORIOS_PADRAO = "/relatorios";
+const OPCOES_SESSAO_READ_ONLY = "-c default_transaction_read_only=on";
+
+/**
+ * Esconde segredos num texto: cada valor dado (URL, password, host:porta…) e as suas variantes (descodificada,
+ * codificada, e — se for um URL — a password, o utilizador e o host), mais qualquer `postgres://u:p@` residual.
+ */
+export function mascararSegredos(texto: string, ...segredos: Array<string | null | undefined>): string {
   let out = texto.replace(/(postgres(?:ql)?:\/\/[^:\/\s@]+:)[^@\s]*@/gi, "$1***@");
-  if (url) {
+  const valores = new Set<string>();
+  const juntar = (v: string | null | undefined) => {
+    if (!v || v.length < 4) return;
+    valores.add(v);
     try {
-      const pw = new URL(url).password;
-      if (pw) for (const v of new Set([pw, decodeURIComponent(pw)])) if (v) out = out.split(v).join("***");
+      valores.add(decodeURIComponent(v));
     } catch {
-      /* URL inválida — já mascarada acima */
+      /* percent-encoding inválido — fica o literal */
+    }
+    valores.add(encodeURIComponent(v));
+  };
+  for (const sgr of segredos) {
+    juntar(sgr);
+    if (!sgr) continue;
+    try {
+      const u = new URL(sgr);
+      juntar(u.password);
+      juntar(u.username);
+      if (u.host) juntar(u.host);
+    } catch {
+      /* não é URL */
     }
   }
+  // Os mais longos primeiro: um URL inteiro antes da sua password.
+  for (const v of [...valores].sort((a, b) => b.length - a.length)) out = out.split(v).join("***");
   return out;
 }
 
-/** Identificação segura da base para o relatório: host:porta/base, sem utilizador nem password. */
-export function descreverBase(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.hostname}${u.port ? `:${u.port}` : ""}${u.pathname}`;
-  } catch {
-    return "(url inválida)";
-  }
-}
-
-export function lerArgumentos(argv: readonly string[], env: Record<string, string | undefined> = process.env): ArgumentosAuditoria {
-  let url: string | undefined;
-  let out: string | null = null;
+export function lerArgumentos(argv: readonly string[]): ArgumentosAuditoria {
+  let tenant = "garantia";
+  let outDir = DIRETORIO_RELATORIOS_PADRAO;
   let top = 15;
   let confirmo = false;
-  const posicionais: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--confirmo-read-only") confirmo = true;
-    else if (a === "--url") url = argv[++i];
-    else if (a.startsWith("--url=")) url = a.slice("--url=".length);
-    else if (a === "--out") out = argv[++i] ?? null;
-    else if (a.startsWith("--out=")) out = a.slice("--out=".length);
+    else if (a === "--tenant") tenant = argv[++i] ?? "";
+    else if (a.startsWith("--tenant=")) tenant = a.slice("--tenant=".length);
+    else if (a === "--out-dir") outDir = argv[++i] ?? "";
+    else if (a.startsWith("--out-dir=")) outDir = a.slice("--out-dir=".length);
     else if (a === "--top") top = Number(argv[++i]);
     else if (a.startsWith("--top=")) top = Number(a.slice("--top=".length));
-    else if (!a.startsWith("--")) posicionais.push(a);
-    else throw new Error(`Argumento desconhecido: ${a}`);
+    else if (a === "--url" || a.startsWith("--url=") || /^postgres(ql)?:/i.test(a)) {
+      // Não repete o valor: pode ser um URL com password.
+      throw new Error("Recusado: este comando NÃO aceita URL de base de dados. A ligação vem do ambiente do contentor (CONTROL_DATABASE_URL + TENANT_ENCRYPTION_SECRET).");
+    } else throw new Error(`Argumento desconhecido: ${a.startsWith("--") ? a.split("=")[0] : "(posicional)"}`);
   }
-  if (!confirmo) throw new Error("Recusado: falta --confirmo-read-only. Este comando só LÊ, mas exige a confirmação explícita antes de abrir a ligação.");
-  url = url ?? posicionais[0] ?? env.AUDITORIA_DATABASE_URL;
-  if (!url) throw new Error("Recusado: passe a URL explicitamente (--url <url>, 1.º argumento ou AUDITORIA_DATABASE_URL). DATABASE_URL NÃO é usada por omissão.");
-  try {
-    const p = new URL(url).protocol;
-    if (p !== "postgresql:" && p !== "postgres:") throw new Error();
-  } catch {
-    throw new Error("Recusado: a URL não é uma URL PostgreSQL válida.");
-  }
+  if (!confirmo) throw new Error("Recusado: falta --confirmo-read-only. Este comando só LÊ, mas exige a confirmação explícita antes de abrir qualquer ligação.");
+  if (!SLUG_TENANT.test(tenant)) throw new Error("--tenant inválido: use o slug do control plane (minúsculas, dígitos e hífens).");
+  if (!outDir || outDir.includes("\0")) throw new Error("--out-dir inválido.");
   if (!Number.isInteger(top) || top < 1 || top > 1000) throw new Error("--top tem de ser um inteiro entre 1 e 1000.");
-  if (out && !/\.(md|json)$/i.test(out)) throw new Error("--out tem de terminar em .md ou .json.");
-  return { url, out, top };
+  return { tenant, outDir, top };
+}
+
+/**
+ * O diretório de saída TEM de existir, ser um diretório e ser gravável. Nunca é criado (evita escrever em caminhos
+ * arbitrários por engano): se faltar, o operador monta-o (`-v <pasta-no-host>:/relatorios`).
+ */
+export function verificarDiretorioSaida(outDir: string): string {
+  const dir = path.resolve(outDir);
+  if (!existsSync(dir)) throw new Error(`O diretório de relatórios ${dir} não existe. Monte-o no contentor (-v <pasta-no-host>:${dir}) — o comando não cria diretórios.`);
+  if (!statSync(dir).isDirectory()) throw new Error(`${dir} não é um diretório.`);
+  try {
+    accessSync(dir, fsConstants.W_OK);
+  } catch {
+    throw new Error(`O diretório ${dir} não é gravável por este utilizador.`);
+  }
+  return dir;
+}
+
+export function nomeBaseRelatorio(tenant: string, agora = new Date()): string {
+  const ts = agora.toISOString().replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "");
+  return `auditoria-fabricantes-${tenant}-${ts}`;
+}
+
+/** Escreve `.md` e `.json` APENAS dentro de `dir` (nome fixo derivado do slug validado; nunca sobrescreve: flag `wx`). */
+export function escreverRelatorios(dir: string, tenant: string, md: string, json: string, agora = new Date()): { md: string; json: string } {
+  const base = nomeBaseRelatorio(tenant, agora);
+  const alvo = (ext: string) => {
+    const p = path.resolve(dir, `${base}.${ext}`);
+    if (path.dirname(p) !== path.resolve(dir)) throw new Error("Recusado: o ficheiro de relatório ficaria fora do diretório de saída.");
+    return p;
+  };
+  const f = { md: alvo("md"), json: alvo("json") };
+  writeFileSync(f.md, md, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  writeFileSync(f.json, json, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  return f;
+}
+
+export type LigacaoTenant = { url: string; baseLabel: string; segredos: string[] };
+
+/**
+ * Resolve a ligação ao tenant pelo MESMO mecanismo do tenancy, só em leitura: control plane (read-only, SELECT) →
+ * `buildTenantConnectionString` (decifra a password com TENANT_ENCRYPTION_SECRET; respeita TENANT_DB_SSLMODE).
+ * Devolve também os valores a mascarar em qualquer saída.
+ */
+export async function resolverLigacaoTenant(slug: string, env: Record<string, string | undefined> = process.env): Promise<LigacaoTenant> {
+  const controlUrl = env.CONTROL_DATABASE_URL;
+  const chave = env.TENANT_ENCRYPTION_SECRET;
+  if (!controlUrl) throw new Error("CONTROL_DATABASE_URL em falta no ambiente (este comando corre no contentor `migrate`).");
+  if (!chave) throw new Error("TENANT_ENCRYPTION_SECRET em falta no ambiente (este comando corre no contentor `migrate`).");
+  const segredos: string[] = [controlUrl, chave];
+  const control = new Client({ connectionString: controlUrl, options: OPCOES_SESSAO_READ_ONLY });
+  try {
+    await control.connect();
+    await control.query("BEGIN TRANSACTION READ ONLY");
+    const ro = await control.query("SHOW transaction_read_only");
+    if (ro.rows[0]?.transaction_read_only !== "on") throw new Error("A sessão do control plane não ficou em modo só-leitura — abortado antes de qualquer consulta.");
+    const r = await control.query(
+      `SELECT id, slug, nome, estado::text AS estado, "dbHost", "dbPort", "dbName", "dbUser", "dbPassEncrypted" FROM "Tenant" WHERE slug = $1`,
+      [slug],
+    );
+    const todos = r.rows.length === 0 ? (await control.query(`SELECT slug FROM "Tenant" ORDER BY slug`)).rows.map((x) => String(x.slug)) : [];
+    await control.query("ROLLBACK");
+    const t = r.rows[0];
+    if (!t) throw new Error(`O tenant «${slug}» não existe no control plane. Tenants registados: ${todos.join(", ") || "(nenhum)"}.`);
+    segredos.push(String(t.dbPassEncrypted), `${t.dbHost}:${t.dbPort}`, String(t.dbHost), String(t.dbUser));
+    try {
+      segredos.push(decryptTenantSecret(String(t.dbPassEncrypted)));
+    } catch {
+      throw new Error("Não foi possível decifrar a password do tenant (TENANT_ENCRYPTION_SECRET errada?).");
+    }
+    if (t.estado !== "ACTIVE") throw new Error(`O tenant «${slug}» está ${t.estado}; a auditoria só corre sobre tenants ACTIVE.`);
+    const url = buildTenantConnectionString(t as unknown as TenantRecord);
+    segredos.push(url);
+    return { url, baseLabel: `tenant ${slug} · base ${t.dbName}`, segredos };
+  } catch (e) {
+    await control.query("ROLLBACK").catch(() => undefined);
+    throw new Error(mascararSegredos(e instanceof Error ? e.message : String(e), ...segredos));
+  } finally {
+    await control.end().catch(() => undefined);
+  }
 }
 
 // ─── Comparação de nomes — SÓ para listar candidatos a revisão humana, nunca para agrupar ────────────────────────────
@@ -216,10 +336,10 @@ export function auditarOpcoes(opcoes: readonly CatalogoFilterOptionLaboratorio[]
   };
 }
 
-const AMOSTRA_MAX = 50;
+const AMOSTRA_MAX = 500;
 
-export async function executarAuditoria(url: string, topN = 15): Promise<RelatorioAuditoria> {
-  const opcoesLigacao = "-c default_transaction_read_only=on";
+export async function executarAuditoria(url: string, topN = 15, baseLabel = "(tenant)", tenant = "garantia", segredos: readonly string[] = []): Promise<RelatorioAuditoria> {
+  const opcoesLigacao = OPCOES_SESSAO_READ_ONLY;
   const cliente = new Client({ connectionString: url, options: opcoesLigacao });
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url, options: opcoesLigacao }) });
   try {
@@ -276,6 +396,14 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
     const aliasesGrupoPartilhados = await q(`
       SELECT "aliasNormalizado" AS norm, array_agg(DISTINCT "grupoLaboratorialId" ORDER BY "grupoLaboratorialId") AS gs
         FROM "GrupoLaboratorialAlias" WHERE estado = 'ATIVO' GROUP BY 1 HAVING count(DISTINCT "grupoLaboratorialId") > 1`);
+    const manuaisRaw = await q(`
+      SELECT pgl."grupoLaboratorialId" AS g, p.cnp, p.designacao, pgl.origem, f."nomeNormalizado" AS fnome, gf.id IS NOT NULL AS membro
+        FROM "ProdutoGrupoLaboratorial" pgl
+        JOIN "Produto" p ON p.id = pgl."produtoId"
+        LEFT JOIN "Fabricante" f ON f.id = p."fabricanteId"
+        LEFT JOIN "GrupoLaboratorialFabricante" gf ON gf."fabricanteId" = p."fabricanteId" AND gf."grupoLaboratorialId" = pgl."grupoLaboratorialId"
+       WHERE pgl.origem = 'MANUAL' OR pgl."validadoManualmente"
+       ORDER BY pgl."grupoLaboratorialId", p.cnp`);
     await cliente.query("ROLLBACK");
 
     // ── Índices ──
@@ -319,6 +447,27 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
       };
       (foraPorGrupo.get(s(r.g)) ?? foraPorGrupo.set(s(r.g), []).get(s(r.g))!).push(item);
     }
+    const regrasPorGrupo = new Map<string, RegraCnpAuditada[]>();
+    for (const r of regras) {
+      const lista = regrasPorGrupo.get(s(r.g)) ?? [];
+      lista.push({
+        cnp: n(r.cnp),
+        estado: s(r.estado),
+        validadoManualmente: !!r.val,
+        produtoExiste: r.pid != null,
+        fabricante: r.fnome == null ? null : s(r.fnome),
+        fabricanteEMembro: r.fg != null && s(r.fg) === s(r.g),
+        grupoAtualDoProduto: r.atual == null ? null : (nomeGrupo.get(s(r.atual)) ?? s(r.atual)),
+        origemAtual: r.origem == null ? null : s(r.origem),
+      });
+      regrasPorGrupo.set(s(r.g), lista);
+    }
+    const manuaisPorGrupo = new Map<string, GrupoAuditado["produtosManuais"]>();
+    for (const r of manuaisRaw) {
+      const lista = manuaisPorGrupo.get(s(r.g)) ?? [];
+      lista.push({ cnp: n(r.cnp), designacao: s(r.designacao), fabricante: r.fnome == null ? null : s(r.fnome), origem: s(r.origem), fabricanteEMembro: !!r.membro });
+      manuaisPorGrupo.set(s(r.g), lista);
+    }
     const membroForaPorGrupo = new Map<string, Linha[]>();
     for (const r of membroForaRaw) (membroForaPorGrupo.get(s(r.g)) ?? membroForaPorGrupo.set(s(r.g), []).get(s(r.g))!).push(r);
 
@@ -341,6 +490,8 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
           nomesTotal: membros.length + membros.reduce((t, m) => t + m.aliases.length, 0) + aliasesDoGrupo.length,
           produtosAbrangidos: Object.values(porOrigem).reduce((t, v) => t + v, 0),
           produtosPorOrigem: porOrigem,
+          regrasCnp: regrasPorGrupo.get(id) ?? [],
+          produtosManuais: manuaisPorGrupo.get(id) ?? [],
           produtosForaDoGrupo: { total: foraLista.length, porOrigem: porOrigemFora, amostra: foraLista.slice(0, AMOSTRA_MAX) },
           produtosDeMembrosForaDoGrupo: {
             total: mf.length,
@@ -468,7 +619,10 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
 
     return {
       geradoEm: new Date().toISOString(),
-      base: descreverBase(url),
+      base: baseLabel,
+      tenant,
+      opcoesAntesLista: [...fabPorId.values()].filter((f) => f.estado === "ATIVO" && f.produtos > 0).map((f) => ({ id: f.id, nome: f.nome, produtos: f.produtos })),
+      opcoesDepoisLista: agrupadas.map((i) => ({ tipo: i.opcao.tipo, id: i.opcao.id, nome: i.opcao.tipo === "grupo" ? i.opcao.nome : i.opcao.nomeNormalizado, produtos: i.opcao.produtos, variantes: i.variantes.length })),
       fabricantesAtivos: [...fabPorId.values()].filter((f) => f.estado === "ATIVO").length,
       fabricantesApresentadosAntes: [...fabPorId.values()].filter((f) => f.estado === "ATIVO" && f.produtos > 0).length,
       opcoesDepois: agrupadas.length,
@@ -488,7 +642,7 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
     };
   } catch (e) {
     await cliente.query("ROLLBACK").catch(() => undefined);
-    throw new Error(mascararSegredos(e instanceof Error ? e.message : String(e), url));
+    throw new Error(mascararSegredos(e instanceof Error ? e.message : String(e), url, ...segredos));
   } finally {
     await cliente.end().catch(() => undefined);
     await prisma.$disconnect().catch(() => undefined);
@@ -497,18 +651,22 @@ export async function executarAuditoria(url: string, topN = 15): Promise<Relator
 
 // ─── Saída ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+const LIMITE_MD = 25;
+
 export function renderizarMarkdown(r: RelatorioAuditoria, topN = 15): string {
   const L: string[] = [];
   const nOrigem = (o: Record<string, number>) => Object.entries(o).map(([k, v]) => `${k}=${v}`).join(", ") || "—";
+  const cortar = <T>(lista: readonly T[], limite = LIMITE_MD) => ({ vistos: lista.slice(0, limite), resto: Math.max(0, lista.length - limite) });
   L.push("# Auditoria de fabricantes e grupos (Garantia) — só leitura", "");
-  L.push(`Base: \`${r.base}\` · gerado em ${r.geradoEm}`, "");
+  L.push(`${r.base} · gerado em ${r.geradoEm}`, "");
   L.push("## Resumo", "");
   L.push(`- Fabricantes ATIVOS: ${r.fabricantesAtivos}`);
   L.push(`- Opções ANTES (fabricantes ativos com produtos, uma por fabricante): ${r.fabricantesApresentadosAntes}`);
   L.push(`- Opções DEPOIS (grupos + fabricantes sem prova): ${r.opcoesDepois}`);
   L.push(`- Grupos ATIVOS: ${r.gruposAtivos}; com mais de 10 variantes: ${r.gruposComMaisDeDezVariantes}`);
   L.push(`- Produtos incluídos num grupo cujo fabricante NÃO é membro: ${r.resumoForaDoGrupo.incluidosPorRegra} por regra/manual/alias (base aprovada) e ${r.resumoForaDoGrupo.obsoletosSemBase} obsoletos sem base atual (FABRICANTE_INEQUIVOCO — a reconciliação diária corrige)`);
-  L.push(`- Produtos de fabricantes membros que NÃO estão no grupo do fabricante (sem linha ou noutro grupo): ${r.resumoForaDoGrupo.deMembroNoutroGrupoOuSemLinha}`, "");
+  L.push(`- Produtos de fabricantes membros que NÃO estão no grupo do fabricante (sem linha ou noutro grupo): ${r.resumoForaDoGrupo.deMembroNoutroGrupoOuSemLinha}`);
+  L.push(`- Ambiguidades e sobreposições: ${r.ambiguidades.length}; fabricantes semelhantes separados (candidatos para revisão humana): ${r.candidatosParaRevisao.length}`, "");
   L.push(`## Top ${topN} grupos por variantes`, "", "| Grupo | Variantes | Produtos |", "|---|---:|---:|");
   for (const g of r.gruposComMaisVariantes) L.push(`| ${g.grupo} | ${g.variantes} | ${g.produtos} |`);
   L.push("", "## Casos com mais de dez nomes", "");
@@ -516,17 +674,35 @@ export function renderizarMarkdown(r: RelatorioAuditoria, topN = 15): string {
   for (const c of r.casosMaisDeDezNomes) {
     L.push(`- **${c.grupo}**: ${c.variantes} variantes (${c.nomes} nomes com aliases) — ${c.todasAgrupadas ? "TODAS agrupadas no filtro" : `NÃO agrupadas: ${c.variantesEmFalta.join("; ")}`}; produtos dos membros ${c.produtosDosMembros}, no grupo ${c.produtosDosMembrosNoGrupo}`);
   }
+
+  L.push("", "## Opções ANTES — uma por fabricante apresentado nos filtros", "", `${r.opcoesAntesLista.length} opções.`, "");
+  for (const o of r.opcoesAntesLista) L.push(`- ${o.nome} (${o.produtos} produtos) · id ${o.id}`);
+  L.push("", "## Opções DEPOIS — o que o filtro agrupado mostra", "", `${r.opcoesDepoisLista.length} opções.`, "");
+  for (const o of r.opcoesDepoisLista) L.push(o.tipo === "grupo" ? `- GRUPO ${o.nome} — ${o.variantes} variantes · ${o.produtos} produtos · id ${o.id}` : `- ${o.nome} (${o.produtos} produtos) · id ${o.id}`);
+
   L.push("", "## Grupos", "");
   for (const g of r.grupos) {
-    L.push(`### ${g.nome}`, "", `- Aliases do grupo: ${g.aliases.join("; ") || "—"}`);
+    L.push(`### ${g.nome}`, "", `- Nome canónico: ${g.nome} · id ${g.id}`, `- Aliases do grupo: ${g.aliases.join("; ") || "—"}`);
     L.push(`- Produtos abrangidos (distintos): ${g.produtosAbrangidos} (${nOrigem(g.produtosPorOrigem)})`);
-    L.push(`- Membros (${g.membros.length}):`);
-    for (const m of g.membros) L.push(`  - ${m.nome} · id ${m.id} · ${m.tipoAssociacao}${m.validadoManualmente ? " · validado manualmente" : ""} · ${m.produtos} produtos${m.aliases.length ? ` · aliases: ${m.aliases.join("; ")}` : ""}`);
+    L.push(`- Variantes / fabricantes membros (${g.membros.length}):`);
+    for (const m of g.membros) L.push(`  - ${m.nome} · id ${m.id} · ${m.tipoAssociacao}${m.validadoManualmente ? " · RELAÇÃO MANUAL (validado manualmente)" : ""} · ${m.produtos} produtos${m.aliases.length ? ` · aliases: ${m.aliases.join("; ")}` : ""}`);
+    const manuais = g.membros.filter((m) => m.validadoManualmente);
+    L.push(`- Relações manuais fabricante→grupo: ${manuais.length ? manuais.map((m) => m.nome).join("; ") : "nenhuma"}`);
+    const regrasMd = cortar(g.regrasCnp);
+    L.push(`- Regras CNP (${g.regrasCnp.length}):${g.regrasCnp.length === 0 ? " nenhuma" : ""}`);
+    for (const x of regrasMd.vistos) L.push(`  - CNP ${x.cnp} · ${x.estado}${x.validadoManualmente ? " · validada manualmente" : ""} · ${x.produtoExiste ? `fabricante ${x.fabricante ?? "—"}${x.fabricanteEMembro ? " (membro)" : " (NÃO membro)"} · produto agora em ${x.grupoAtualDoProduto ?? "nenhum grupo"}${x.origemAtual ? ` (${x.origemAtual})` : ""}` : "SEM produto com este CNP"}`);
+    if (regrasMd.resto) L.push(`  - … mais ${regrasMd.resto} (ver o JSON)`);
+    const manMd = cortar(g.produtosManuais);
+    L.push(`- Produtos colocados manualmente (${g.produtosManuais.length}):${g.produtosManuais.length === 0 ? " nenhum" : ""}`);
+    for (const x of manMd.vistos) L.push(`  - CNP ${x.cnp} ${x.designacao} · fabricante ${x.fabricante ?? "—"}${x.fabricanteEMembro ? " (membro)" : " (NÃO membro)"} · ${x.origem}`);
+    if (manMd.resto) L.push(`  - … mais ${manMd.resto} (ver o JSON)`);
     L.push(`- Incluídos cujo fabricante NÃO é membro: ${g.produtosForaDoGrupo.total} (${nOrigem(g.produtosForaDoGrupo.porOrigem)})`);
-    for (const p of g.produtosForaDoGrupo.amostra.slice(0, 10)) L.push(`  - CNP ${p.cnp} ${p.designacao} · fabricante ${p.fabricante ?? "—"} · ${p.origem}${p.validadoManualmente ? " (validado)" : ""} · ${p.motivo}${p.fabricanteMembroDeOutroGrupo ? ` · fabricante é membro de ${p.fabricanteMembroDeOutroGrupo}` : ""}`);
+    for (const p of g.produtosForaDoGrupo.amostra.slice(0, LIMITE_MD)) L.push(`  - CNP ${p.cnp} ${p.designacao} · fabricante ${p.fabricante ?? "—"} · ${p.origem}${p.validadoManualmente ? " (validado)" : ""} · ${p.motivo}${p.fabricanteMembroDeOutroGrupo ? ` · fabricante é membro de ${p.fabricanteMembroDeOutroGrupo}` : ""}`);
+    if (g.produtosForaDoGrupo.total > LIMITE_MD) L.push(`  - … mais ${g.produtosForaDoGrupo.total - LIMITE_MD} (ver o JSON)`);
     if (g.produtosDeMembrosForaDoGrupo.total > 0) {
       L.push(`- Produtos de membros que NÃO estão neste grupo: ${g.produtosDeMembrosForaDoGrupo.total}`);
-      for (const p of g.produtosDeMembrosForaDoGrupo.amostra.slice(0, 10)) L.push(`  - CNP ${p.cnp} ${p.designacao} · ${p.fabricante} · agora em ${p.grupoAtual ?? "nenhum grupo"}${p.origemAtual ? ` (${p.origemAtual})` : ""}`);
+      for (const p of g.produtosDeMembrosForaDoGrupo.amostra.slice(0, LIMITE_MD)) L.push(`  - CNP ${p.cnp} ${p.designacao} · ${p.fabricante} · agora em ${p.grupoAtual ?? "nenhum grupo"}${p.origemAtual ? ` (${p.origemAtual})` : ""}`);
+      if (g.produtosDeMembrosForaDoGrupo.total > LIMITE_MD) L.push(`  - … mais ${g.produtosDeMembrosForaDoGrupo.total - LIMITE_MD} (ver o JSON)`);
     }
     L.push("");
   }
@@ -544,19 +720,32 @@ export function renderizarMarkdown(r: RelatorioAuditoria, topN = 15): string {
   return L.join("\n");
 }
 
+/** Resumo curto para a consola: números e caminhos — nunca credenciais, hosts nem listas de dados. */
+export function resumoConsola(r: RelatorioAuditoria, ficheiros: { md: string; json: string }): string {
+  return [
+    `Auditoria de fabricantes (só leitura) — ${r.base}`,
+    `  fabricantes ativos: ${r.fabricantesAtivos} · opções antes: ${r.fabricantesApresentadosAntes} · opções depois: ${r.opcoesDepois}`,
+    `  grupos ativos: ${r.gruposAtivos} · com mais de 10 variantes: ${r.gruposComMaisDeDezVariantes}`,
+    `  ambiguidades: ${r.ambiguidades.length} · candidatos a revisão humana: ${r.candidatosParaRevisao.length}`,
+    `  relatório: ${ficheiros.md}`,
+    `  dados:     ${ficheiros.json}`,
+  ].join("\n");
+}
+
 async function main() {
-  let args: ArgumentosAuditoria | null = null;
+  let segredos: string[] = [];
   try {
-    args = lerArgumentos(process.argv.slice(2));
-    const rel = await executarAuditoria(args.url, args.top);
+    const args = lerArgumentos(process.argv.slice(2));
+    // Falha cedo, antes de abrir qualquer ligação, se não houver onde gravar o relatório.
+    const dir = verificarDiretorioSaida(args.outDir);
+    const lig = await resolverLigacaoTenant(args.tenant);
+    segredos = lig.segredos;
+    const rel = await executarAuditoria(lig.url, args.top, lig.baseLabel, args.tenant, lig.segredos);
     const md = renderizarMarkdown(rel, args.top);
-    console.log(md);
-    if (args.out) {
-      writeFileSync(args.out, /\.json$/i.test(args.out) ? JSON.stringify(rel, null, 2) : md, "utf8");
-      console.log(`\nRelatório escrito em ${args.out}`);
-    }
+    const ficheiros = escreverRelatorios(dir, args.tenant, md, JSON.stringify(rel, null, 2));
+    console.log(resumoConsola(rel, ficheiros));
   } catch (e) {
-    console.error(mascararSegredos(e instanceof Error ? e.message : String(e), args?.url));
+    console.error(mascararSegredos(e instanceof Error ? e.message : String(e), ...segredos));
     process.exit(1);
   }
 }

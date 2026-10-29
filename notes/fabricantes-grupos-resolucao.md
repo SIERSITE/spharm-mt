@@ -1,7 +1,7 @@
 # Fabricantes do Garantia: o que é um grupo, como se resolve, e porquê «por CNP»
 
 Resposta à pergunta «porque disseste "selecção resolvida por CNP"?». Escrito depois de auditar o código real (commit 44356b5 e seguintes).
-Provas executáveis: `scripts/tests/test-fabricantes-grupo-resolucao-db.ts` (73 verificações) e `scripts/tests/test-auditoria-fabricantes-grupos-db.ts` (42).
+Provas executáveis: `scripts/tests/test-fabricantes-grupo-resolucao-db.ts` (73 verificações) e `scripts/tests/test-auditoria-fabricantes-grupos-db.ts` (58).
 
 ## 1. O que é um «grupo»
 
@@ -105,13 +105,13 @@ O caso inverso (produto de fabricante membro **fora** do grupo: sem linha, ou co
 
 ## 7. Auditoria read-only para a base real
 
-`scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts` (sem restrição a localhost, para correr na base real):
+`scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts` corre **no contentor `migrate`** (comando exato em `notes/auditoria-fabricantes-garantia-comando.md`):
 
 ```
-npx tsx scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts --confirmo-read-only --url <url> [--out rel.md|rel.json] [--top 15]
+npx tsx scripts/diagnostics/auditoria-fabricantes-grupos-garantia.ts --confirmo-read-only [--tenant garantia] [--out-dir /relatorios] [--top 15]
 ```
 
-* Exige `--confirmo-read-only` e URL explícita (`--url`, 1.º argumento ou `AUDITORIA_DATABASE_URL`; **nunca** `DATABASE_URL`).
-* Sessão com `default_transaction_read_only=on`, transacção `READ ONLY REPEATABLE READ`, confirma `transaction_read_only=on` antes de consultar; só SELECT; nunca imprime a password (URL mascarada também em erros).
-* Produz: fabricantes antes/depois, top de grupos e quantos têm >10 variantes; por grupo nome, membros (id, tipo de associação, `validadoManualmente`, aliases), produtos abrangidos por origem, incluídos por regra com fabricante fora do grupo, e produtos de membros fora do grupo; candidatos por semelhança (**só listagem para revisão humana**); ambiguidades (alias de grupo partilhado, alias de fabricante partilhado entre grupos, alias de grupo = fabricante de outro grupo, regra CNP não reflectida / contra o grupo do fabricante, produto com grupo ≠ grupo do fabricante, membro de grupo inactivo); e a secção «casos com mais de dez nomes» a confirmar se todas as variantes estão agrupadas (e se todos os produtos dos membros estão no grupo).
-* Provado em Postgres descartável (xmin/ctid e contagens de 8 tabelas iguais antes/depois; escrita rejeitada pela sessão; execução real por CLI com role só de SELECT e password distinta que nunca aparece, nem em erros de autenticação).
+* Exige `--confirmo-read-only`. **Não recebe URL** (`--url`/posicional são recusados): a ligação ao tenant vem do control plane (`CONTROL_DATABASE_URL` + `TENANT_ENCRYPTION_SECRET`, como o `tenancy:*`).
+* Control plane e tenant com `default_transaction_read_only=on`, transacção `READ ONLY` (tenant em `REPEATABLE READ`), `SHOW transaction_read_only = on` antes de consultar; só SELECT; nunca imprime URL/host/password (mascarados também em erros). Grava `.md` e `.json` em `--out-dir` (por omissão `/relatorios`, que tem de existir).
+* Produz: fabricantes antes/depois, top de grupos e quantos têm >10 variantes; por grupo nome, membros (id, tipo de associação, `validadoManualmente`, aliases), produtos abrangidos por origem, incluídos por regra com fabricante fora do grupo, regras CNP e produtos manuais (CNP), e produtos de membros fora do grupo; listas completas das opções antes/depois; candidatos por semelhança (**só listagem para revisão humana**); ambiguidades (alias de grupo partilhado, alias de fabricante partilhado entre grupos, alias de grupo = fabricante de outro grupo, regra CNP não reflectida / contra o grupo do fabricante, produto com grupo ≠ grupo do fabricante, membro de grupo inactivo); e a secção «casos com mais de dez nomes» a confirmar se todas as variantes estão agrupadas (e se todos os produtos dos membros estão no grupo).
+* Provado em Postgres descartável (xmin/ctid e contagens de 8 tabelas iguais antes/depois; escrita rejeitada pela sessão; execução real por CLI (control plane + tenant descartáveis) com role só de SELECT e com superutilizador; password, host:porta, URLs e chaves nunca aparecem em consola nem ficheiros, nem em erros).
