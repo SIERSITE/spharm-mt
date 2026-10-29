@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- testes com stubs/módulos carregados dinamicamente */
 /**
  * scripts/tests/test-isolamento-sier-recusa.ts
  *
