@@ -114,7 +114,12 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 //   · logs de cada pedido (endpoint/etapa/dia/lote/tentativa/tipo de falha/ambígua) sem segredos;
 //   · `daily-pipeline --plan` (dry-run do plano) e wrapper run-daily-pipeline-plan.bat.
 // Só código do agent: SEM alterações ao SaaS, SEM migrations, `agent.config.json` rev97 continua válido (opções novas opcionais).
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "98";
+// rev99 — VALOR DE DESENVOLVIMENTO (branch feat/classificacao-erp-produtos; NÃO empacotado nem publicado): sobre a
+// rev98 acrescenta SÓ o comando `classification-audit` (auditoria READ-ONLY da classificação do produto, só SELECT,
+// relatório sanitizado via `--out`) e o wrapper run-classification-audit.bat. Sem alterações a lock, heartbeat,
+// identidade, retoma, cliente HTTP, SQL transitório nem aos pipelines de produtos. A rev97 já existe em produção com
+// outro conteúdo; a rev98 é a resiliência. Não gerar ZIP até a auditoria real fixar o modelo.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "99";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
@@ -370,8 +375,12 @@ function writeBatchWrappers() {
     // o que a instalação expõe.
     "run-catalog-audit.bat": "catalog-audit",
     "run-catalog-discover-links.bat": "catalog-discover-links",
+    // rev99 — auditoria READ-ONLY da classificação (só SELECT). Reencaminha os argumentos (%*):
+    // --out <f>.json|.md, --cnps a,b, --cnps-ficheiro f.txt.
+    "run-classification-audit.bat": "classification-audit",
     "run-health.bat": "health",
   };
+  const comArgumentos = new Set(["run-classification-audit.bat"]);
   const preamble = [
     `cd /d "%~dp0"`,
     `if not exist agent.config.json (`,
@@ -399,7 +408,7 @@ function writeBatchWrappers() {
       `REM Gerado por agent/build.mjs. Não editar manualmente.`,
       ``,
       ...preamble,
-      `node.exe agent.cjs ${command}`,
+      `node.exe agent.cjs ${command}${comArgumentos.has(filename) ? " %*" : ""}`,
       `set EXIT=%ERRORLEVEL%`,
       `echo.`,
       `pause`,
@@ -2241,6 +2250,7 @@ function writeReadme() {
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
     `  run-catalog-audit.bat           (rev46) Auditoria READ-ONLY: localiza DCI, ATC, Grupo Homogeneo e Fabricante em dbo.Stocks e nas tabelas de lookup. Gera run\catalog-audit-<ts>.md. Correr ANTES de products-upload.`,
+    `  run-classification-audit.bat    (rev99) Auditoria READ-ONLY da classificacao (Etico/NETT/Servico/Generico): so SELECT, relatorio sanitizado. Ex.: run-classification-audit.bat --out run\audit.json --cnps 1234567,7654321. NAO conclui significados.`,
     `  run-products-upload.bat         (rev46) Upload SO de produtos -> /bootstrap/products. NAO envia stock/sales. Batch 25 + retry+shrink. CONFIRMO.`,
     `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
     `  run-full-sync-dry-run.bat       ONBOARDING preview: corre TODAS as fases sem escrever. Pergunta datas.`,
