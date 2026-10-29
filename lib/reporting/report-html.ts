@@ -1160,8 +1160,10 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .tint-total + .tint-total { border-left-width: 0; }
 
   /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
-  .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .page.density-compact.hierarchy-clean .resumo-faixa strong { color: #111827; font-weight: 700; }
+  .page.density-compact.hierarchy-clean .resumo-faixa,
+  .page.density-compact.hierarchy-strong .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .page.density-compact.hierarchy-clean .resumo-faixa strong,
+  .page.density-compact.hierarchy-strong .resumo-faixa strong { color: #111827; font-weight: 700; }
 
   /* NÚMEROS +1 px (valores, quantidades, stock, preços, custos, totais) — a descrição, o cabeçalho e o resto do texto não mudam.
      A largura das colunas é medida pelo adapter com este mesmo aumento (AUMENTO_NUMEROS_PX). */

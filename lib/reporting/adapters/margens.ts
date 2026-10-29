@@ -593,6 +593,8 @@ export function buildMargensAggReport(input: {
       density: "compact",
       footer: "SPharm.MT · Margens executivo",
       tableNote: notaStockAgregado(stock.desconhecidas),
+      // Em modo compacto o resumo não tem cartões: a faixa garante o «Stock total» na impressão/PDF (como no mapa por produto).
+      resumoFaixa: ["Unidades vendidas", "Stock total", "Linhas sem stock conhecido (fora do stock total)"],
     },
   };
 }
