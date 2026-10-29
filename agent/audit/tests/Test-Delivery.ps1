@@ -88,7 +88,8 @@ try {
   New-Item -ItemType Directory -Path "$rev98\run", "$rev98\logs", "$rev98\output" -Force | Out-Null
   $cfg = @{ saas = @{ endpoint = 'https://saas.sentinel.invalid'; tenantSlug = 'sentinel-tenant-x9'; ingestKey = 'SENTINEL_INGEST_KEY_aa11bb22cc33dd44' }
             sqlServer = @{ host = 'sentinel-host-7f3a.example.invalid'; port = 1433; database = 'SPharm'; user = 'sentinel_user_91c2'; password = 'SENTINEL_PWD_5d8e!x'; requestTimeoutMs = 3000 } } | ConvertTo-Json -Depth 5
-  Set-Content -LiteralPath "$rev98\agent.config.json" -Value $cfg -Encoding UTF8
+  # sem BOM (como o agent.config.json real): o node.exe do pacote faz JSON.parse e um BOM tornaria o config invalido
+  [IO.File]::WriteAllText("$rev98\agent.config.json", $cfg, (New-Object Text.UTF8Encoding($false)))
   Set-Content -LiteralPath "$rev98\MANIFEST.json" -Value '{ "name": "spharmmt-agent-base", "rev": "98", "commit": "beb5fa7c008cb33238b3e644ec1165caf99fb648", "dirty": false }' -Encoding ASCII
   Set-Content -LiteralPath "$rev98\node.exe" -Value 'fake-node-rev98' -Encoding ASCII
   Set-Content -LiteralPath "$rev98\agent.cjs" -Value 'console.log("rev98")' -Encoding ASCII
