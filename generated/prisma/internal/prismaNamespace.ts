@@ -5336,6 +5336,7 @@ export const ProdutoScalarFieldEnum = {
   flagMSRM: 'flagMSRM',
   flagMNSRM: 'flagMNSRM',
   flagMnsrmNCompart: 'flagMnsrmNCompart',
+  genericoErp: 'genericoErp',
   grupoHomogeneo: 'grupoHomogeneo',
   estado: 'estado',
   origemDados: 'origemDados',

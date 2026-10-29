@@ -22,12 +22,18 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { FILTROS_CLASSIFICACAO_ERP } from "@/lib/catalogo/classificacao-erp";
 
 type Props = {
   data: CatalogoListData;
   filters: CatalogoListFilters;
   filterOptions: CatalogoFilterOptions;
 };
+
+const GENERICO_ERP_OPTIONS = [
+  { value: "", label: "Genérico ERP (todos)" },
+  ...FILTROS_CLASSIFICACAO_ERP.map((f) => ({ value: f.value as string, label: f.label as string })),
+];
 
 const PRODUCT_TYPE_OPTIONS = [
   { value: "", label: "Tipo (todos)" },
@@ -163,6 +169,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.search ||
     !!filters.laboratorio ||
     !!filters.productType ||
+    !!filters.classificacaoErp ||
     !!filters.classificacaoN1Id ||
     !!filters.verificationStatus ||
     !!filters.estado ||
@@ -256,7 +263,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
           />
         </div>
 
-        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_1fr_auto]">
+        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
           <SelectFilter
             label="Verificação"
             value={filters.verificationStatus ?? ""}
@@ -274,6 +281,12 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             value={filters.origem ?? ""}
             onChange={(v) => navigate({ origem: v || undefined })}
             options={ORIGEM_OPTIONS}
+          />
+          <SelectFilter
+            label="Genérico (ERP)"
+            value={filters.classificacaoErp ?? ""}
+            onChange={(v) => navigate({ cls: v || undefined })}
+            options={GENERICO_ERP_OPTIONS}
           />
           {hasActiveFilters && (
             <div className="flex items-end">

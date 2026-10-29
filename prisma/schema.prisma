@@ -360,6 +360,13 @@ model Produto {
   /// MNSRM **não comparticipado** (Softreis: Stocks.MNSRM_NCompart). Distinto
   /// de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
   flagMnsrmNCompart         Boolean             @default(false)
+  /// PROVISÓRIO (classificação ERP, pendente de auditoria real — ver
+  /// notes/classificacao-erp-produtos.md). Genérico TRI-ESTADO vindo de
+  /// dbo.Stocks.[Generico]: true = genérico, false = não genérico, null =
+  /// o ERP não informou / nunca foi enviado. `flagGenerico` (NOT NULL,
+  /// default false) não distingue "não genérico" de "desconhecido" e
+  /// mantém a semântica anterior. Protegível por camposManuais ("genericoErp").
+  genericoErp               Boolean?
   grupoHomogeneo            String?
   estado                    ProdutoEstado       @default(PENDENTE)
   origemDados               ProdutoOrigemDados  @default(FARMACIA)

@@ -1,6 +1,7 @@
 import "server-only";
 import { condicoesPrismaPesquisa } from "@/lib/reporting/pesquisa-termos";
 import { getPrisma } from "@/lib/prisma";
+import { genericoEfetivo, whereClassificacaoErp, type FiltroClassificacaoErp } from "@/lib/catalogo/classificacao-erp";
 import { carregarFichaRegulamentar, type FichaRegulamentar } from "@/lib/regulamentar/consulta";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
@@ -147,6 +148,8 @@ export type CatalogoListFilters = {
    * sítio, para o filtro da UI e o KPI não poderem divergir.
    */
   origem?: OrigemClassificacao;
+  /** PROVISÓRIO — Genérico tri-estado do ERP (URL `cls`); ver lib/catalogo/classificacao-erp.ts. */
+  classificacaoErp?: FiltroClassificacaoErp;
   page: number;
   pageSize: number;
 };
@@ -253,6 +256,12 @@ export async function loadCatalogoListData(
     } else {
       where.AND = condicoes;
     }
+  }
+
+  const whereCls = whereClassificacaoErp(filters.classificacaoErp);
+  if (whereCls) {
+    const atual = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
+    where.AND = [...atual, whereCls];
   }
 
   const [total, rows, resumo] = await Promise.all([
@@ -425,6 +434,8 @@ export type CatalogoArticle = {
   flagMSRM: boolean;
   flagMNSRM: boolean;
   flagGenerico: boolean;
+  /** Genérico efetivo tri-estado (genericoErp ?? flagGenerico); null = ERP não informou. */
+  generico: boolean | null;
   validadoManualmente: boolean;
   needsManualReview: boolean;
   manualReviewReason: string | null;
@@ -541,6 +552,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     flagMSRM: p.flagMSRM,
     flagMNSRM: p.flagMNSRM,
     flagGenerico: p.flagGenerico,
+    generico: genericoEfetivo(p.genericoErp, p.flagGenerico),
     validadoManualmente: p.validadoManualmente,
     needsManualReview: p.needsManualReview,
     manualReviewReason: p.manualReviewReason,

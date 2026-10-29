@@ -13,6 +13,7 @@ import {
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ROTULO_ORIGEM } from "@/lib/categoria-resolver";
+import { rotuloTri } from "@/lib/catalogo/classificacao-erp";
 
 export const dynamic = "force-dynamic";
 
@@ -257,7 +258,7 @@ function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArtic
             />
             {article.flagMSRM && <Badge tone="sky" label="Receita médica" />}
             {article.flagMNSRM && <Badge tone="slate" label="Sem receita" />}
-            {article.flagGenerico && <Badge tone="emerald" label="Genérico" />}
+            {article.generico === true && <Badge tone="emerald" label="Genérico" />}
             {article.validadoManualmente && (
               <Badge tone="emerald" label="Validado manualmente" />
             )}
@@ -333,7 +334,7 @@ function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArtic
                   ? article.utilizacoes.map((u) => u.nome).join(" · ")
                   : "—",
             },
-            { label: "Genérico", value: article.flagGenerico ? "Sim" : "Não" },
+            { label: "Genérico", value: rotuloTri(article.generico) },
           ]}
         />
 
