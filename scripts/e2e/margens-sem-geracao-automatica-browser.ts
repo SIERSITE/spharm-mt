@@ -15,6 +15,10 @@
  *   8 · resposta fora de ordem (atrasada por page.route) não substitui a mais recente
  *   9 · duas análises independentes; refresh: critérios ficam, resultado não, e nada é gerado sozinho
  *
+ * AVISO CONHECIDO: no refresh (passo 9) o `[pageerror] React #418` (hidratação de `use-workspace-state.ts`) é um bug
+ * PRÉ-EXISTENTE no base (a69cbc5), corrigido noutra branch (`fix/workspace-hidratacao-estado`). Aqui é só REGISTADO como aviso
+ * conhecido e não falha o E2E; qualquer OUTRO `pageerror` conta como falha.
+ *
  * NÃO foi executado pelo autor (corre o coordenador no fim). Pré-requisito: `npx next build` com
  * SERVER_ACTIONS_ALLOWED_ORIGINS="localhost:3100,127.0.0.1:3100,*.localhost:3100".
  *   TEST_PG_ADMIN_URL=postgresql://postgres:test@localhost:15433/postgres npx tsx scripts/e2e/margens-sem-geracao-automatica-browser.ts
@@ -68,7 +72,14 @@ async function main() {
     const seed = await semearMargens(amb);
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
+    page.on("pageerror", (e) => {
+      if (/React error #418|Hydration failed|#418/.test(e.message)) {
+        console.log("  [AVISO conhecido] pageerror React #418 (hidratação do estado do workspace; bug pré-existente no base)");
+      } else {
+        console.log("  [pageerror]", e.message);
+        check(false, "pageerror inesperado", e.message);
+      }
+    });
     await page.setViewportSize({ width: 1600, height: 900 });
     const net = observar(page);
 
