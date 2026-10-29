@@ -51,49 +51,61 @@ MSRM/MNSRM, DCI, ATC nem `camposManuais`; a política da Silveirense (designaç�
 regra `LEGACY` da garantia continuam como antes; uma falha da classificação não derruba o lote (vai em
 `classificacaoErp.erro` na resposta).
 
-## Auditoria real (READ-ONLY) — como correr
+## Auditoria real (READ-ONLY) — pacote de DIAGNÓSTICO (fase 1)
 
-Comando novo do agent (rev99 de desenvolvimento): `classification-audit`, wrapper `run-classification-audit.bat`.
+**Não é uma revisão do agent.** É um pacote separado, `spharmmt-agent-classification-audit.zip` (id `classification-audit`,
+versão `diag-<data>`, base **rev98**, `diagnostico: true`, `instalavel: false`), para executar à mão numa farmácia ao lado da
+rev98 (que não é tocada). O `AGENT_REV` operacional continua `98`; `npm run agent:package` continua a produzir exatamente a
+rev98 (o `cli.ts` e o `build.mjs` não conhecem este comando). O pacote tem **entry point próprio** (`agent/src/audit-cli.ts`):
+o bundle só contém o comando `classification-audit` e 10 módulos (lista fechada, conferida pelo build) — sem cliente HTTP,
+sem lock, sem pipelines, sem nenhum comando de escrita.
+
+Build (a partir de um commit selado; recusa árvore suja): `npm run agent:package-audit` → `dist-agent/spharmmt-agent-classification-audit.zip`
+(não versionado). Scripts PowerShell (`agent/audit/`): `Install-ClassificationAudit.ps1` (instala lado a lado, com
+pré-condições), `Run-ClassificationAudit.ps1`, `Collect-ClassificationAuditReport.ps1`, `Remove-ClassificationAudit.ps1`.
 
 ```
-run-classification-audit.bat --out run\auditoria-classificacao.json
-run-classification-audit.bat --out run\auditoria-classificacao.md --cnps 1234567,7654321
-run-classification-audit.bat --cnps-ficheiro cnps-conhecidos.txt --top 20 --max-colunas 60
+.\node.exe agent.cjs classification-audit --out .\output\auditoria-classificacao.json     (grava .json E .md)
+.\Run-ClassificationAudit.ps1 -Cnps 1234567,7654321        (opcional: -CnpsFicheiro cnps.txt)
 ```
 
-Argumentos: `--out <f>.json|.md` (sem `--out` grava `run\classification-audit-<ts>.md` e `.json`), `--cnps a,b` e/ou
-`--cnps-ficheiro f.txt` (só dígitos, máx. 200; o resto é ignorado e contado), `--top N` (valores mais frequentes de
-texto livre, omissão 15), `--max-colunas N` (omissão 40), `--timeout-segundos N` (por pedido, omissão 60),
-`--max-minutos N` (orçamento total, omissão 10), `--out-dir`.
+Argumentos: `--out <f>.json|.md` (grava sempre os dois), `--cnps a,b` e/ou `--cnps-ficheiro f.txt` (opcionais; só dígitos, máx.
+200), `--top N` (omissão 15), `--max-colunas N` (omissão 40), `--timeout-segundos N` (omissão 60), `--max-minutos N` (omissão 10),
+`--out-dir`. Exige `agent.config.json` na pasta (não cai para `.env`) e nunca o altera.
 
-Garantias: só `SELECT` (cada query passa por `validarSomenteSelect` + `sql-validador.ts` antes de executar; qualquer
-DML/DDL/EXEC/`SELECT INTO`/vários statements/comentários é recusado); ligação com `readOnlyIntent`
-(ApplicationIntent=ReadOnly); leituras a `dbo.Stocks` com `WITH (NOLOCK)`; não imprime credenciais, anfitrião nem
-connection string; colunas/tabelas cujo nome sugere dado pessoal (nome, NIF, morada, contacto, cliente, utente, médico…)
-nunca são lidas; valores com e-mail/telefone/≥9 dígitos saem como `[omitido]`; amostras só com CNP/código; relatório
-com data/hora UTC, rev do agent e a frase «gerado em modo read-only».
+Garantias: só `SELECT` — cada query passa por `sql-somente-leitura.ts` (primeira palavra SELECT, sem `;`, sem comentários,
+sem palavras de escrita/EXEC/INTO/xp_/sp_, só funções permitidas) **e** por `sql-validador.ts` (intacto) antes de sair; ligação
+com `readOnlyIntent` (ApplicationIntent=ReadOnly — só tem efeito em Always On), isolamento READ UNCOMMITTED, `appName`
+identificável e `WITH (NOLOCK)`; o SQL Server **não tem transação read-only**, por isso a barreira real é o validador (e,
+recomendado, um login só de leitura — o relatório mostra as permissões efetivas do login em `dbo.Stocks`); não adquire o
+lock operacional, não usa o cliente HTTP, não fala com o SaaS; não imprime credenciais/anfitrião/connection string;
+colunas/tabelas cujo nome sugere dado pessoal ou monetário (nome, NIF, morada, cliente, utente, preço, custo, valor…) nunca
+são lidas; valores com e-mail/telefone/≥9 dígitos saem como `[omitido]`; amostras só com CNP/código.
 
-Conteúdo do relatório (factos, sem conclusões): versão e nome da base (`@@VERSION` 1.ª linha, `DB_NAME()`); colunas
-candidatas em **todas** as tabelas de utilizador (etico/ético, nett, servic, generic, tipo, natur, categ, famil, classe,
-grupo, receita, msrm, mnsrm, comparticip, processa, retirado) com tipo e nº de linhas da tabela; FKs de `dbo.Stocks`;
-valores distintos + contagens por coluna (lista completa até 50 distintos, senão top-N) e contagem por categoria
-(NULL / vazio / 0 / 1 / outros); amostras CNP/código por valor; secção Genérico; tabulações cruzadas entre pares de
-colunas de `dbo.Stocks` (SQL agregado; + `Processa_Stocks` e `Retirado`); serviços (`Processa_Stocks = 0` vs `<> 0` vs
-NULL, colunas/valores observados só de um lado, exemplos CNP/código de cada lado, e o aviso de que o filtro
-`Processa_Stocks <> 0` do agent NÃO prova que 0 = serviço); classificação de CNPs conhecidos (`--cnps`).
+Conteúdo do relatório (factos, sem conclusões): cabeçalho «pacote de DIAGNÓSTICO (base rev98), modo read-only, não instalável»
+com data/hora UTC; versão/edição/compatibilidade do SQL Server, nome da base e permissões do login; tabelas-chave
+(Stocks, StocksMov, Atendimento, Fornecedores, Armazens…) presentes/ausentes com nº de linhas; tabelas de versão/parâmetros do
+SPharm; colunas e tabelas candidatas em todas as tabelas de utilizador (etico, nett, servic, generic, tipo, natur, categ,
+famil, classe, receita, msrm, mnsrm, comparticip, produto, artigo, stock…) com tipo de dados; tabelas de domínio pequenas
+(conteúdo) e lookups ligados a `dbo.Stocks` por FK (código ↔ descrição ↔ nº de artigos); valores distintos e contagens por
+coluna (NULL / vazio / 0 / 1 / outros); auditoria própria do `Stocks.Generico`; tabulações cruzadas em SQL agregado
+(candidatas × `Processa_Stocks` / `Retirado` e entre si); serviços e o filtro do agent (`Processa_Stocks <> 0`,
+`daily-sync-runner.ts`; `Retirado = 0 AND Processa_Stocks <> 0`, `bootstrap-upload.ts`) — artigos incluídos/excluídos e quantos
+candidatos a serviço ficam fora; CNPs conhecidos; «leitura assistida» (hipóteses campos independentes / categoria única /
+tabela relacionada / propriedade derivada / inexistente, suportadas ou contraditas pelos números, **a confirmar por humano**);
+e o texto de todas as queries executadas. Nada assume que Ético/NETT/Serviço são booleanos.
 
-**Nunca foi corrido contra um ERP real** (os testes usam um ERP falso com dados sintéticos). Rever o relatório antes de
+**Nunca foi corrido contra um SQL Server real** (os testes usam um ERP falso com dados sintéticos). Rever o relatório antes de
 o partilhar. Depois de analisado com quem conhece o SPharm, decidir o modelo (e só então escrever a migration/UI
-definitiva, ou apagar `genericoErp`).
+definitiva, ou apagar `genericoErp`). Esta fase NÃO instala migrations, NÃO altera o servidor e NÃO prepara um agent novo.
 
 ## Ordem de instalação (quando o modelo estiver fixado — NÃO agora)
 
 1. Fixar o modelo com base no relatório da auditoria; rever/ajustar a migration.
 2. Aplicar a migration a todos os tenants (`tenancy:migrate-all`) **antes** de instalar o código desta branch (o
    cliente Prisma passa a selecionar `Produto.genericoErp`; sem a coluna, as queries de `Produto` falham).
-3. Agents: nenhum agent novo é necessário para o Genérico (já enviam `generico`). A rev99 só acrescenta o comando de
-   auditoria e **não é empacotada** (`AGENT_REV = "99"` é valor de desenvolvimento; rev97 e rev98 já têm outro
-   conteúdo em produção/preparação).
+3. Agents: nenhum agent novo é necessário para o Genérico (já enviam `generico`). O pacote de diagnóstico é separado da
+   rev98 e **não é uma revisão do agent** (`AGENT_REV` continua `98`).
 
 ## Rollback
 
