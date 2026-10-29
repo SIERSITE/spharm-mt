@@ -80,6 +80,7 @@ async function validarPedido(
     categorias: filtro.categorias,
     subcategorias: filtro.subcategorias,
     utilizacoes: filtro.utilizacoes,
+    formasFarmaceuticas: filtro.formasFarmaceuticas,
     distribuidores: filtro.distribuidores,
     fabricanteAtualIds: filtro.fabricanteAtualIds,
     fornecedorAtualIds: filtro.fornecedorAtualIds,

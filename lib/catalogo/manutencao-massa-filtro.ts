@@ -19,6 +19,7 @@
  * explicitamente listadas em `farmaciaIds` — nunca noutra.
  */
 import { ESTADO_INICIAL_MOVIMENTO } from "@/lib/reporting/estado-inicial-movimento";
+import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 
 export type TipoManutencaoMassa = "FABRICANTE" | "FORNECEDOR";
 
@@ -37,6 +38,11 @@ export type ManutencaoMassaFiltro = {
   subcategorias?: string[];
   /** Utilizações, por SLUG. */
   utilizacoes?: string[];
+  /**
+   * Forma farmacêutica, por CHAVE normalizada (`chaveFormaFarmaceutica`; `__sem_forma__` = sem forma). Aditivo e
+   * opcional: omitido/vazio = sem restrição e NÃO entra no snapshot/hash (os previews anteriores continuam válidos).
+   */
+  formasFarmaceuticas?: string[];
   /** Distribuidor (`ProdutoFarmacia.fornecedorOrigem`, texto do ERP) — por farmácia, como em Vendas. */
   distribuidores?: string[];
   apenasSemClassif?: boolean;
@@ -108,6 +114,8 @@ export function normalizarFiltro(f: ManutencaoMassaFiltro): ManutencaoMassaFiltr
   set("categorias", lista(f.categorias));
   set("subcategorias", lista(f.subcategorias));
   set("utilizacoes", lista(f.utilizacoes));
+  // Re-normaliza (o servidor nunca confia na chave que o cliente envia) e limita a MAX_CHAVES_FORMA.
+  set("formasFarmaceuticas", lista(lerChavesForma(f.formasFarmaceuticas)));
   set("distribuidores", lista(f.distribuidores));
   if (f.apenasSemClassif) out.apenasSemClassif = true;
   if (periodoActivo(f)) {

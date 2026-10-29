@@ -397,25 +397,10 @@ async function main() {
     secao("I · auditoria de cobertura (script só de leitura, base descartável)");
     await prisma.produto.updateMany({ where: { cnp: { in: [8_100_001, 8_100_002, 8_100_003, 8_100_004, 8_100_005, 8_100_006, 8_100_008] } }, data: { productType: "MEDICAMENTO" } });
     await prisma.produto.update({ where: { cnp: 8_100_006 }, data: { camposManuais: ["formaFarmaceutica"] } });
-    const aud = await import("../diagnostics/auditoria-forma-farmaceutica");
-    let recusou = false;
-    try { aud.validarUrlDescartavel("postgresql://u:p@db.exemplo.pt:5432/spharmmt_t_garantia"); } catch { recusou = true; }
-    check(recusou, "I1: o script recusa hosts remotos / bases reais");
-    const saida = execSync("npx tsx scripts/diagnostics/auditoria-forma-farmaceutica.ts", { env: { ...process.env, AUDITORIA_DATABASE_URL: urlDe(dbA) }, encoding: "utf8" });
-    const num = (re: RegExp) => Number((saida.match(re) ?? [])[1]);
-    check(num(/Produtos activos\/catalogáveis:\s+(\d+)/) === 11 && num(/com forma:\s+(\d+)/) === 9 && num(/sem forma \(nulo ou só espaços\):\s+(\d+)/) === 2, "I2: 11 produtos, 9 com forma, 2 sem forma (INATIVO e código interno fora)");
-    check(num(/Medicamentos \(productType=MEDICAMENTO\):\s+(\d+)/) === 7 && /sem forma:\s+1\s/.test(saida), "I3: 7 medicamentos, 1 sem forma");
-    check(num(/Protegidos \(camposManuais ∋ formaFarmaceutica\):\s+(\d+)/) === 1, "I4: 1 produto protegido por camposManuais");
-    const antes = num(/Opções ANTES \(DISTINCT cru\):\s+(\d+)/);
-    const depois = num(/Opções DEPOIS \(por chave normalizada\):\s+(\d+)/);
-    check(antes > depois && depois === formas.length, `I5: opções antes (${antes}) > depois (${depois} = ${formas.length} da UI)`);
-    check(/comprimido: .*\|.*\|/.test(saida), "I6: lista as grafias juntadas de «comprimido»");
-    const puro = aud.auditarFormas([
-      { valor: "Comp.", total: 2, medicamentos: 2, manuais: 0 },
-      { valor: "Comprimido de libertação prolongada", total: 3, medicamentos: 3, manuais: 0 },
-      { valor: null, total: 4, medicamentos: 1, manuais: 0 },
-    ]);
-    check(puro.possiveisAbreviaturas.length === 1 && puro.compostas === 1 && puro.semForma === 4 && puro.medicamentosSemForma === 1, "I7: abreviaturas assinaladas (não expandidas), compostas contadas, sem forma contado (função pura)");
+    // A auditoria foi reescrita como comando SÓ DE LEITURA por tenant (--url/--tenant/--confirmo-read-only) e tem o seu
+    // próprio teste com Postgres descartável: scripts/tests/test-auditoria-forma-db.ts (não escreve, recusa sem a flag,
+    // não imprime a password, valores certos num dataset conhecido).
+    check(/confirmo-read-only/.test(src("scripts/diagnostics/auditoria-forma-farmaceutica.ts")), "I1: a auditoria exige --confirmo-read-only (testada em test-auditoria-forma-db.ts)");
 
     // ── H · desempenho ─────────────────────────────────────────────────────────────────────────────────────────
     secao("H · desempenho com 50 000 produtos sintéticos (base descartável)");

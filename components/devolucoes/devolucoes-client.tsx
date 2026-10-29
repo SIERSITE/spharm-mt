@@ -15,6 +15,9 @@ import { FiltroFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
 import { runDevolucoesReport } from "@/app/devolucoes/actions";
+import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 
 type Props = {
   farmaciasInfo: FarmaciaInfo[];
@@ -28,8 +31,8 @@ const uniqNonEmpty = (xs: string[]) =>
 
 export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
   // Estado lazy: nada de Devoluções é carregado até clicar em "Gerar".
-  const [rows, setRows] = useState<DevolucaoRow[]>([]);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [rows, setRows] = useEstadoSeparador<DevolucaoRow[]>("devolucoes:rows", []);
+  const [hasGenerated, setHasGenerated] = useEstadoSeparador("devolucoes:hasGenerated", false);
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
   const initialRows = rows;
@@ -38,7 +41,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
   const farmacias = uniqNonEmpty(farmaciasInfo.map((f) => f.nome));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
-  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) filtrado localmente pela pertença do grupo (sem pedidos).
   const laboratorios = filterOptions.laboratorios;
   const modoGrupos = !!laboratorios && laboratorios.length > 0;
   const categorias = filterOptions.categorias;
@@ -61,14 +64,18 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
     });
   };
 
-  const [search, setSearch] = useState("");
-  const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useState<string[]>(farmacias);
-  const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
-  const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
-  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos);
+  // Filtros no ESTADO POR SEPARADOR (`useEstadoSeparador`, o mecanismo do módulo — mesma assinatura que `useState`): mudar
+  // de separador e voltar preserva a selecção, e cada análise (`?workspace=`) tem a sua. Escopo tenant:utilizador.
+  const [search, setSearch] = useEstadoSeparador("devolucoes:search", "");
+  const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useEstadoSeparador<string[]>("devolucoes:farmacias", farmacias);
+  const [fornecedoresSelecionados, setFornecedoresSelecionados] = useEstadoSeparador<string[]>("devolucoes:fornecedores", []);
+  const [fabricantesSelecionados, setFabricantesSelecionados] = useEstadoSeparador<string[]>("devolucoes:fabricantes", []);
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useEstadoSeparador<string[]>("devolucoes:categorias", []);
+  // CHAVES de forma farmacêutica (não rótulos).
+  const [formasSelecionadas, setFormasSelecionadas] = useEstadoSeparador<string[]>("devolucoes:formas", []);
+  const [dateFrom, setDateFrom] = useEstadoSeparador("devolucoes:dateFrom", "");
+  const [dateTo, setDateTo] = useEstadoSeparador("devolucoes:dateTo", "");
+  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos, { laboratorios, pertencaGrupos: filterOptions.pertencaGrupos });
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -93,6 +100,9 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
         !categoriasSelecionadas.includes(row.categoria)
       )
         return false;
+      // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
+      // Corre ANTES de agrupar/totalizar/exportar: `groupedBySupplier`, `totals` e `rowsParaExportacao` derivam daqui.
+      if (!passaFiltroForma(row.formaChave, formasSelecionadas)) return false;
       if (dateFrom && row.data < dateFrom) return false;
       if (dateTo && row.data > dateTo) return false;
       return true;
@@ -105,9 +115,21 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
     fabricantesSelecionados,
     filtroLab,
     categoriasSelecionadas,
+    formasSelecionadas,
     dateFrom,
     dateTo,
   ]);
+
+  const limparFiltros = () => {
+    setSearch("");
+    setFarmaciasSelecionadas(farmacias);
+    setFornecedoresSelecionados([]);
+    setFabricantesSelecionados([]);
+    setCategoriasSelecionadas([]);
+    setFormasSelecionadas([]);
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const groupedBySupplier = useMemo(() => {
     const groups = new Map<string, DevolucaoRow[]>();
@@ -172,6 +194,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
         selectedSuppliers: fornecedoresSelecionados,
         selectedManufacturers: fabricantesSelecionados,
         selectedCategories: categoriasSelecionadas,
+        selectedForms: formasSelecionadas,
         dateFrom,
         dateTo,
       },
@@ -181,6 +204,7 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
         manufacturers: fabricantes,
         laboratorios,
         categories: categorias,
+        formas: filterOptions.formas ?? [],
       },
       organization: formatFarmaciaHeader(farmaciasSelecionadas, farmaciasInfo),
     });
@@ -279,6 +303,31 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
               selected={categoriasSelecionadas}
               onChange={setCategoriasSelecionadas}
             />
+            <FiltroFormaFarmaceutica
+              formas={filterOptions.formas ?? []}
+              selected={formasSelecionadas}
+              onToggle={(chave) =>
+                setFormasSelecionadas((prev) =>
+                  prev.includes(chave) ? prev.filter((x) => x !== chave) : [...prev, chave],
+                )
+              }
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <ChipsFormaFarmaceutica
+              formas={filterOptions.formas ?? []}
+              selected={formasSelecionadas}
+              onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))}
+            />
+            <button
+              type="button"
+              onClick={limparFiltros}
+              data-testid="devolucoes-limpar-filtros"
+              className="ml-auto text-[11px] font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+            >
+              Limpar filtros
+            </button>
           </div>
         </section>
 

@@ -105,6 +105,7 @@ async function resolverParesPeriodo(
       categorias: f.categorias,
       subcategorias: f.subcategorias,
       utilizacoes: f.utilizacoes,
+      formasFarmaceuticas: f.formasFarmaceuticas,
       distribuidores: f.distribuidores,
       apenasSemClassif: f.apenasSemClassif,
       incluirCredito: f.incluirCredito,
@@ -170,6 +171,7 @@ async function resolverEscopo(prisma: PrismaClient, tipo: TipoManutencaoMassa, f
     apenasSemClassif: f.apenasSemClassif,
     subcategorias: f.subcategorias,
     utilizacoes: f.utilizacoes,
+    formasFarmaceuticas: f.formasFarmaceuticas,
     cnps: f.cnps,
     pesquisa: f.pesquisa ?? undefined,
   });

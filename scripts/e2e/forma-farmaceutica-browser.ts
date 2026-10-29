@@ -7,12 +7,14 @@
  *   1 · Vendas ......... selecionar (multi, com pesquisa, contagem e «Sem forma farmacêutica»), «Gerar» aplica no servidor,
  *                        combinação com pesquisa, «Limpar filtros» limpa SEM gerar, PDF/Excel com a linha «Forma farmacêutica»
  *   2 · Margens ........ selecionar = 0 pedidos até «Atualizar» (1 pedido); draft ≠ aplicado; Limpar sem gerar; PDF/Excel APLICADOS
- *   3 · Inventário ..... idem (Gerar/Atualizar)
+ *   3 · Inventário ..... mudar a forma = 0 pedidos; só «Gerar» aplica (comportamento do base, sem «Atualizar»)
  *   4 · Excessos ....... filtro no cliente sobre a coluna `formaChave` do servidor; chip; combinação
  *   5 · Transferências . idem
  *   6 · Stock .......... parâmetro de URL `forma` (multi, repetido); chip; «Limpar» remove-o; deep link
  *   7 · Catálogo ....... idem + paginação/total no servidor
  *   8 · Proposta ....... «Gerar proposta» com a forma (filtro no SQL)
+ *  8b · Devoluções ..... filtro no cliente sobre `formaChave` (0 pedidos ao mudar), totais, Excel real, «Limpar filtros»
+ *  8c · Manutenção ..... /catalogo/manutencao (silveira): filtro aditivo no servidor, «Limpar filtros»
  *   9 · Workspace ...... duas análises independentes (Vendas e Margens); mudar de separador e voltar preserva a seleção
  *  10 · Resoluções ..... 1920×1080, 1536×864 e 1366×768: o painel de filtros não gera scroll horizontal e o filtro é utilizável
  *
@@ -211,18 +213,21 @@ async function main() {
     // ═══ 3 · Inventário ═══
     secao("3 · Inventário");
     await page.goto(base + "/relatorios/inventario", { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /^(Gerar|Atualizar)$/ }).first().click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 90000 });
+    // O Inventário mantém o comportamento do base: o botão chama-se sempre «Gerar», sem aviso de alterações por aplicar.
+    const gerarInv = async () => {
+      await page.getByRole("button", { name: /^Gerar$/ }).first().click();
+      await page.getByRole("button", { name: /^A gerar/ }).waitFor({ timeout: 5000 }).catch(() => {});
+      await page.getByRole("button", { name: /^Gerar$/ }).waitFor({ timeout: 90000 });
+    };
+    await gerarInv();
     await abrirFiltros(page);
     const i0 = net.n();
     await opcao(page, RE_COMP).click();
     check((await quieto(page, net, 1500)) === 0 && net.n() === i0, "Inventário: mudar a forma = 0 pedidos");
-    check((await page.getByTestId("inventario-alteracoes-por-aplicar").count()) === 1, "…com «alterações por aplicar»");
-    await page.getByRole("button", { name: /^Atualizar$/ }).click();
-    await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 90000 });
+    await gerarInv();
     await page.waitForTimeout(800);
     let ti = await textoPagina(page);
-    check(temCnp(ti, A) && temCnp(ti, B) && !temCnp(ti, C) && !temCnp(ti, D), "Inventário só mostra A e B depois de «Atualizar»");
+    check(temCnp(ti, A) && temCnp(ti, B) && !temCnp(ti, C) && !temCnp(ti, D), "Inventário só mostra A e B depois de «Gerar»");
     await page.screenshot({ path: path.join(EVID, "inventario.png") });
     await page.getByRole("button", { name: "Limpar filtros" }).click();
     check((await quieto(page, net, 1200)) === 0, "Inventário: «Limpar filtros» = 0 pedidos");
@@ -298,6 +303,64 @@ async function main() {
       const tp = await textoPagina(page);
       check(!temCnp(tp, C) && !temCnp(tp, E) && !temCnp(tp, D), "a proposta com «Comprimido» não traz revestidos nem sem forma (filtro no SQL)");
     await page.screenshot({ path: path.join(EVID, "encomenda-nova.png") });
+    }
+
+    // ═══ 8b · Devoluções (filtro no cliente sobre `formaChave`; sem workspace persistido) ═══
+    secao("8b · Devoluções");
+    {
+      const hoje = new Date();
+      const farm = await amb.prisma.farmacia.findFirstOrThrow({ where: { nome: seed.nomes.alfa } });
+      const forn = await amb.prisma.fornecedor.create({ data: { nomeNormalizado: "FORN DEVOL E2E", estado: "ATIVO" } });
+      for (const [cnp, qtd] of [[CNP.A, 1], [CNP.B, 2], [CNP.C, 4], [CNP.D, 8]] as const) {
+        const p = await amb.prisma.produto.findUniqueOrThrow({ where: { cnp } });
+        await amb.prisma.devolucao.create({
+          data: { farmaciaId: farm.id, produtoId: p.id, data: hoje, quantidade: qtd, valor: qtd * 10, tipo: "FORNECEDOR", motivo: "E2E forma", fornecedorDestinoId: forn.id },
+        });
+      }
+      await page.goto(base + "/devolucoes", { waitUntil: "networkidle" });
+      check((await page.getByPlaceholder(PLACEHOLDER_FORMA).count()) === 1, "Devoluções tem o filtro «Forma farmacêutica» (mesmo componente)");
+      await page.getByRole("button", { name: /^Gerar$/ }).click();
+      await page.getByRole("button", { name: /^Atualizar$/ }).waitFor({ timeout: 60000 });
+      let td = await textoPagina(page);
+      check(temCnp(td, A) && temCnp(td, B) && temCnp(td, C) && temCnp(td, D), "sem filtro: as 4 devoluções");
+      check((await opcao(page, RE_COMP).count()) === 1 && (await opcao(page, RE_REVEST).count()) === 1, "Devoluções: «Comprimido» e «Comprimido revestido» são opções distintas (agrupa só espaços/caixa)");
+      const d0 = net.n();
+      await opcao(page, RE_COMP).click();
+      check((await quieto(page, net, 1200)) === 0 && net.n() === d0, "Devoluções: mudar a forma = 0 pedidos (filtro no cliente)");
+      td = await textoPagina(page);
+      check(temCnp(td, A) && temCnp(td, B) && !temCnp(td, C) && !temCnp(td, D), "Devoluções com «Comprimido»: só A e B");
+      check(/Linhas\s*2\b/.test(td.replace(/\s+/g, " ")), "…as linhas/totais refletem o filtro (2 linhas)");
+      await opcao(page, RE_COMP).click();
+      await opcao(page, RE_SEM).click();
+      td = await textoPagina(page);
+      check(temCnp(td, D) && !temCnp(td, A) && !temCnp(td, C), "Devoluções: «Sem forma farmacêutica» devolve só D");
+      const xlD = await excelReal(page, EVID, "devolucoes-forma.xlsx");
+      const csvD = xlD.csv.split(String.fromCharCode(10)).join(" ").split(",").join(" ");
+      check(/Forma farmacêutica\W{0,6}Sem forma farmacêutica/.test(csvD) && xlD.csv.includes(D) && !xlD.csv.includes(A), "Devoluções: Excel real traz o filtro aplicado e só as linhas filtradas");
+      await page.getByTestId("devolucoes-limpar-filtros").click();
+      check((await chip(page, "Forma:").count()) === 0, "Devoluções: «Limpar filtros» limpa a forma");
+      td = await textoPagina(page);
+      check(temCnp(td, A) && temCnp(td, C) && temCnp(td, D), "…e voltam todas as linhas");
+      await page.screenshot({ path: path.join(EVID, "devolucoes.png") });
+    }
+
+    // ═══ 8c · Manutenção em massa do catálogo (só silveira/garantia; o e2e corre em silveira) ═══
+    secao("8c · Manutenção em massa do catálogo");
+    {
+      await page.goto(base + "/catalogo/manutencao", { waitUntil: "networkidle" });
+      await abrirFiltros(page);
+      check((await page.getByPlaceholder(PLACEHOLDER_FORMA).count()) === 1, "Manutenção: o painel de filtros tem «Forma farmacêutica» (mesmo componente)");
+      await page.getByPlaceholder("Pesquisar por CNP ou descrição...").fill("IBUPROFENO");
+      await opcao(page, RE_COMP).click();
+      await page.waitForTimeout(2500);
+      let tm = await textoPagina(page);
+      check(temCnp(tm, A) && temCnp(tm, B) && !temCnp(tm, C) && !temCnp(tm, D), "Manutenção com «Comprimido»: só A e B na grelha");
+      check(/Forma farmacêutica: Comprimido/.test(tm) || (await chip(page, "Forma: Comprimido").count()) >= 1, "…e o filtro aparece no resumo/chip");
+      await page.getByRole("button", { name: "Limpar filtros" }).first().click();
+      await page.waitForTimeout(2500);
+      tm = await textoPagina(page);
+      check((await chip(page, "Forma:").count()) === 0 && temCnp(tm, C), "Manutenção: «Limpar filtros» limpa a forma e voltam os restantes produtos");
+      await page.screenshot({ path: path.join(EVID, "manutencao.png") });
     }
 
     // ═══ 9 · Workspace: duas análises independentes ═══

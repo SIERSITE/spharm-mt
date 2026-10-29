@@ -15,6 +15,7 @@ import type {
 } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { normalizarLargura } from "../column-widths";
+import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { filtroLaboratorioParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 // Shape alinhado com lib/devolucoes-data.ts. Campos derivados de origens
@@ -40,6 +41,8 @@ export type DevolucoesAdapterFilters = {
   selectedSuppliers?: string[];
   selectedManufacturers?: string[];
   selectedCategories?: string[];
+  /** CHAVES de forma farmacêutica (APLICADAS). Vazio/omitido = sem filtro. */
+  selectedForms?: string[];
   dateFrom?: string;
   dateTo?: string;
 };
@@ -91,6 +94,8 @@ function buildFilters(
     /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
     categories: string[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
   }
 ): ReportFilter[] {
   const out: ReportFilter[] = [];
@@ -121,6 +126,8 @@ function buildFilters(
       value: joinList(f.selectedCategories, universe.categories.length),
     });
   }
+  const forma = filtroFormaFarmaceuticaLinha(f.selectedForms, universe.formas);
+  if (forma) out.push(forma);
   if (f.search && f.search.trim()) {
     out.push({ label: "Pesquisa", value: f.search.trim() });
   }
@@ -149,6 +156,8 @@ export function buildDevolucoesReport(input: {
     /** SÓ em garantia: valores tipados grupo:/fabricante: são traduzidos para "Grupo: X"/"Fabricante: Y" no export. */
     laboratorios?: CatalogoFilterOptionLaboratorio[];
     categories: string[];
+    /** Opções de forma farmacêutica (rótulos das chaves seleccionadas). */
+    formas?: OpcaoFormaFarmaceutica[];
   };
   organization: string;
 }): Report {

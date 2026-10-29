@@ -58,11 +58,10 @@ um round-trip novo por mudança de filtro num ecrã que hoje só chama o servido
 refinamento instantâneo que os outros eixos já têm sobre as linhas recebidas (seleccionar outra forma sem esperar pelo «Gerar»
 mostra zero linhas antigas em vez de linhas que contrariam o filtro).
 
-**Mapas NÃO abrangidos (e porquê):** históricos de documentos finalizados e detalhe imutável de encomendas/transferências (são
-registos, o filtro de produtos não faz sentido; mudariam o que foi emitido); páginas sem listagem de produtos; **Devoluções**
-(`/devolucoes`, fora da lista do enunciado — usa o mesmo `ReportingFilterOptions.formas`, está pronto a receber o componente);
-**Manutenção em massa do catálogo** (reutiliza `resolverPrefiltroProdutos`; o eixo é aditivo e opcional, por isso não parte, mas
-não foi exposto na UI da manutenção: `VendasFiltrosPainel` só mostra a forma se lhe passarem `opcoes.formas`).
+**Devoluções e Manutenção em massa do catálogo** foram acrescentadas depois (cliente e servidor, respectivamente) — ver
+`notes/forma-farmaceutica-matriz.md`, que lista TODAS as áreas, o que está aplicado e o motivo técnico das restantes.
+**Não abrangidos:** históricos de documentos finalizados e detalhe imutável de encomendas/transferências (são registos; mudariam o
+que foi emitido), pickers de adição de linhas, ficha de artigo, dashboard, oportunidades e a consola de plataforma (cross-tenant).
 
 ## 4. Mapas com arquitectura própria — como foram alinhados
 
@@ -103,13 +102,22 @@ que impede o planificador de empurrar o filtro para dentro do `DISTINCT`) e comp
 **Não há índice nem migração**: 47 ms em 50 000 produtos (seq scan + hash) não o justifica; um índice de expressão só
 mudaria um tempo já pequeno e acrescentaria uma migração em todos os tenants. Reavaliar se um tenant passar de ~10× este volume.
 
-## 7. Auditoria de cobertura
+## 7. Auditoria de cobertura (só leitura, por tenant)
 
-`scripts/diagnostics/auditoria-forma-farmaceutica.ts` (só leitura; recusa hosts não locais e URLs de produção, como
-`auditoria-fabricantes-grupos-garantia.ts`). Reporta: produtos com/sem forma; medicamentos (`productType = 'MEDICAMENTO'`,
-critério já usado em `lib/encomendas-data.ts`) com/sem forma; produtos protegidos por `camposManuais`; variantes de caixa/acentos/
-espaços juntadas; possíveis abreviaturas (NÃO expandidas); formas compostas; opções antes (DISTINCT cru) e depois (por chave).
-Executar contra uma base de cópia local para conhecer a cobertura real — **este trabalho não mediu nenhuma base real**.
+`scripts/diagnostics/auditoria-forma-farmaceutica.ts` — comando SÓ DE LEITURA para correr, depois de revisto, em UMA base de
+tenant de cada vez:
+
+```
+npx tsx scripts/diagnostics/auditoria-forma-farmaceutica.ts --url postgresql://… --tenant <slug> --confirmo-read-only [--out relatorio.md|.json] [--top 25]
+```
+
+Sessão `default_transaction_read_only=on` + `BEGIN READ ONLY` + só SELECT/WITH (ROLLBACK no fim); exige `--url` explícito (não lê
+`DATABASE_URL`), `--tenant` e a flag; nunca imprime a password (só `host:porta/base`, também nos erros). Reporta: total, com/sem
+forma e cobertura; top N; variantes normalizadas (grafias cruas por chave, com contagens); colisões suspeitas (chave de produção
+vs normalização independente NFD — deve ser zero) e pares muito parecidos NÃO agrupados (distância de edição <= 2) para revisão
+humana; produtos sem correspondência INFARMED (ProdutoRegulamentar da versão ativa ou RegulatoryRecord, por CNP) e quantos desses
+não têm forma; medicamentos vs não medicamentos (`productType = 'MEDICAMENTO'` OU com registo INFARMED — critério e limitação
+vão no relatório). Teste: `scripts/tests/test-auditoria-forma-db.ts`. **Nenhuma base real foi medida.**
 
 ## 8. Testes
 

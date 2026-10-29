@@ -43,6 +43,7 @@ import {
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { contarFiltrosAtivos } from "@/lib/reporting/filters-shared";
+import { rotulosFormasSelecionadas } from "@/lib/catalog/forma-farmaceutica-filtro";
 import {
   FilterPill,
   FiltrosToggleButton,
@@ -78,6 +79,7 @@ type FiltroFormState = {
   categorias: string[];
   subcategorias: string[];
   utilizacoes: string[]; // slugs
+  formas: string[]; // CHAVES de forma farmacêutica
   incluirCredito: boolean;
   incluirTransferencias: boolean;
   apenasComStock: boolean;
@@ -100,6 +102,7 @@ const FORM_VAZIO: FiltroFormState = {
   categorias: [],
   subcategorias: [],
   utilizacoes: [],
+  formas: [],
   incluirCredito: DEFAULTS_MOVIMENTO.incluirCredito,
   incluirTransferencias: DEFAULTS_MOVIMENTO.incluirTransferencias,
   apenasComStock: DEFAULTS_MOVIMENTO.apenasComStock,
@@ -123,6 +126,7 @@ function paraFiltro(tipo: TipoManutencaoMassa, f: FiltroFormState, o: OpcoesManu
     categorias: f.categorias,
     subcategorias: f.subcategorias,
     utilizacoes: f.utilizacoes,
+    formasFarmaceuticas: f.formas,
     distribuidores: f.distribuidores,
     from: periodo ? f.dataInicio : null,
     to: periodo ? f.dataFim : null,
@@ -156,6 +160,7 @@ function resumoFiltroLegivel(tipo: TipoManutencaoMassa, f: FiltroFormState, o: O
     const nomePorSlug = new Map(o.filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
     partes.push(`Utilização: ${f.utilizacoes.map((s) => nomePorSlug.get(s) ?? s).join(", ")}`);
   }
+  if (f.formas.length) partes.push(`Forma farmacêutica: ${rotulosFormasSelecionadas(f.formas, o.filterOptions.formas).join(", ")}`);
   if (f.tiposArtigo.length) partes.push(`Tipo de artigo: ${f.tiposArtigo.join(", ")}`);
   if (tipo === "FORNECEDOR" && (f.fornecedoresHabituais.length || f.semFornecedor)) {
     partes.push(`Fornecedor habitual actual: ${[...f.fornecedoresHabituais, ...(f.semFornecedor ? ["sem fornecedor habitual"] : [])].join(", ")}`);
@@ -381,6 +386,7 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
     categorias: form.categorias,
     subcategorias: form.subcategorias,
     utilizacoes: form.utilizacoes,
+    formasFarmaceuticas: form.formas,
     fabricantes: [...form.fabricantes, ...(tipo === "FORNECEDOR" ? form.fornecedoresHabituais : [])],
     distribuidores: form.distribuidores,
     cnps: form.listaCodigos ? form.listaCodigos.cnps : undefined,
@@ -557,6 +563,7 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
               categorias: opcoes.filterOptions.categorias,
               subcategorias: subcategoriasOpcoes,
               utilizacoes: opcoes.filterOptions.utilizacoes,
+              formas: opcoes.filterOptions.formas ?? [],
             }}
             valores={{
               listaCodigos: form.listaCodigos,
@@ -566,6 +573,7 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
               categorias: form.categorias,
               subcategorias: form.subcategorias,
               utilizacoes: form.utilizacoes,
+              formas: form.formas,
               incluirCredito: form.incluirCredito,
               incluirTransferencias: form.incluirTransferencias,
             }}
@@ -577,6 +585,7 @@ function AbaManutencao({ tipo, opcoes }: { tipo: TipoManutencaoMassa; opcoes: Op
               categorias: campo("categorias"),
               subcategorias: campo("subcategorias"),
               utilizacoes: campo("utilizacoes"),
+              formas: campo("formas"),
               incluirCredito: campo("incluirCredito"),
               incluirTransferencias: campo("incluirTransferencias"),
             }}

@@ -10,6 +10,7 @@
 
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { chaveFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 
 export type DevolucaoRow = {
   id: string;
@@ -22,6 +23,11 @@ export type DevolucaoRow = {
   categoria: string;
   /** Nível filho (Preservativos). Usado para exibição quando != categoria. */
   subcategoria: string;
+  /**
+   * Chave normalizada da forma farmacêutica do produto (`Produto.formaFarmaceutica` sem espaços/acentos/maiúsculas;
+   * `__sem_forma__` se nula). Alimenta o filtro «Forma farmacêutica» no cliente. O valor guardado não é alterado.
+   */
+  formaChave: string;
   farmacia: string;
   fornecedor: string;
   quantidade: number;
@@ -75,6 +81,8 @@ export async function getDevolucoesData(
         select: {
           cnp: true,
           designacao: true,
+          // Forma farmacêutica no SELECT que já existia (sem consulta nova, sem N+1) — filtro «Forma farmacêutica».
+          formaFarmaceutica: true,
           fabricante: { select: { nomeNormalizado: true } },
           classificacaoNivel1: { select: { nome: true } },
           classificacaoNivel2: { select: { nome: true } },
@@ -135,6 +143,7 @@ export async function getDevolucoesData(
       fabricante: r.produto.fabricante?.nomeNormalizado ?? "",
       categoria,
       subcategoria: grupo && grupo !== categoria ? grupo : "",
+      formaChave: chaveFormaFarmaceutica(r.produto.formaFarmaceutica),
       farmacia: r.farmacia.nome,
       fornecedor: r.fornecedorDestino?.nomeNormalizado ?? "",
       quantidade: Math.round(toF(r.quantidade)),
