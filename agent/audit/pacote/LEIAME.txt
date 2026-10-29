@@ -1,0 +1,21 @@
+SPharm.MT - classification-audit  (PACOTE DE DIAGNOSTICO, base rev98)
+===========================================================================
+
+O que e:    ferramenta de DIAGNOSTICO, de execucao manual, para descobrir onde o SPharm guarda Generico, Etico,
+            NETT e Servico. NAO e um agent de producao, NAO e instalavel, NAO substitui a rev98.
+O que faz:  so SELECT (cada query e validada antes de sair); escreve APENAS o relatorio em output\.
+            Nao adquire o lock, nao chama o SaaS, nao altera o ERP, nao altera agent.config.json.
+O que nao faz: sincronizar, enviar dados, correr o daily-pipeline, instalar migrations.
+
+Passos (PowerShell, a partir da pasta onde esta o ZIP e os scripts Install/Remove):
+  1. Instalar lado a lado:   .\Install-ClassificationAudit.ps1 -ZipPath <zip> -Sha256Esperado <sha256>
+  2. Executar:               cd C:\SPharm_MT\spharmmt-classification-audit
+                             .\Run-ClassificationAudit.ps1           (ou  run-classification-audit.bat)
+                             opcional: -Cnps 1234567,7654321   ou   -CnpsFicheiro cnps.txt
+     Comando equivalente:    .\node.exe agent.cjs classification-audit --out .\output\auditoria-classificacao.json
+  3. Recolher o relatorio:   .\Collect-ClassificationAuditReport.ps1   (so output\auditoria-classificacao.* + hash)
+  4. Remover o diagnostico:  .\Remove-ClassificationAudit.ps1 -Confirmar   (so esta pasta; nunca a rev98)
+
+O relatorio (JSON + Markdown) e sanitizado: sem credenciais, anfitriao, clientes, vendas, receitas ou precos. Reve-o
+antes de o partilhar. Contem apenas factos (nao conclui significados).
+Ver MANIFEST.json para a origem exata do pacote (commit, data UTC, SHA-256 de cada ficheiro).
