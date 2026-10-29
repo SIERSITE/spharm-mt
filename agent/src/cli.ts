@@ -74,7 +74,6 @@ import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
 import { acertosStockDryRun } from "./commands/acertos-stock.js";
 import { ivaAudit } from "./commands/iva-audit.js";
 import { catalogAudit } from "./commands/catalog-audit.js";
-import { classificationAudit } from "./commands/classification-audit.js";
 import { catalogDiscoverLinks } from "./commands/catalog-discover-links.js";
 import { syncNow } from "./commands/sync-now.js";
 import { health } from "./commands/health.js";
@@ -217,10 +216,6 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "catalog-audit": {
     run: catalogAudit,
     desc: "rev46: auditoria estrutural do catálogo regulamentar — localiza DCI, ATC, Grupo Homogéneo e Fabricante em Stocks e nas tabelas de lookup, via sys.columns + FKs + taxa de preenchimento. Read-only. Gera ./run/catalog-audit-<ts>.{md,json}.",
-  },
-  "classification-audit": {
-    run: classificationAudit,
-    desc: "rev99: auditoria READ-ONLY da classificação do produto (Ético/NETT/Serviço/Genérico) — só SELECT; colunas candidatas, valores distintos, tabulações cruzadas, Processa_Stocks/serviços e CNPs conhecidos. Relatório sanitizado: --out <f>.json|.md, --cnps a,b. NÃO conclui significados.",
   },
   "catalog-discover-links": {
     run: catalogDiscoverLinks,
