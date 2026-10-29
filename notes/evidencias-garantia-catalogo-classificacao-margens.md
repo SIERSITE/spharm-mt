@@ -36,7 +36,6 @@ mudar de separador e voltar = 0 gerações novas; «Atualizar» = exatamente 1; 
 | `margens-stock-1920x1080.png`, `margens-stock-1536x864.png`, `margens-stock-1366x768.png` | Coluna «Stock» logo a seguir a «Qtd», sem cabeçalho truncado, alinhada; em 1536 e 1366 há scroll horizontal com CNP/Descrição fixos. |
 | `margens-stock-valores.png` | Stock positivo, zero (caixa), negativo (escuro) e desconhecido («—», nunca 0); «Stock total» = soma das linhas. |
 | `margens-stock-expansao-cnpem-so-ecra.png` | A expansão CNPEM mostra o stock no ecrã sem alterar o «Stock total». |
-| `margens-stock-pdf-real-p1.png`, `margens-stock-pdf-real.pdf` | PDF real com a coluna Stock e o resumo «Stock total», sem a expansão CNPEM. |
 
 No mesmo E2E, com a expansão CNPEM aberta no ecrã: impressão (iframe capturado), PDF real, Excel real (lido com xlsx) e email real
 (servidor SMTP de ensaio, anexos recebidos) trazem o Stock e nunca as linhas do CNPEM. O mapa de Margens não tem separador «Relatório»
@@ -47,11 +46,26 @@ No mesmo E2E, com a expansão CNPEM aberta no ecrã: impressão (iframe capturad
 | Captura | O que prova |
 |---|---|
 | `margens-stock-modo-categoria.png`, `-farmacia.png`, `-grupo.png`, `-fabricante.png` | Ecrã: coluna «Stock» a seguir a «Qtd», nota «artigos com vendas no período», «Sem stock conhecido» só quando existe; Σ da coluna = «Stock total» do mapa por produto. |
-| `margens-stock-modo-<modo>-pdf-p1.png` (4) e `margens-stock-modo-fabricante.pdf` | PDF real de cada modo (1.ª página) com a coluna Stock, a faixa «Unidades vendidas · Stock total» e a nota. |
 
 Para cada modo o E2E confirma também a impressão (iframe), o Excel (total da coluna Stock) e, no fabricante, o email real.
 Correção desta fase: o relatório agregado não tinha a faixa de resumo, logo a impressão/PDF dos modos agregados não mostrava o «Stock total»
-(só o ecrã). Passou a trazer a faixa (`resumoFaixa`), com o espaçamento corrigido também no mapa por produto.
+(só o ecrã). Passou a trazer a faixa (`resumoFaixa`). A faixa estava SEM estilo nos modos agregados e no mapa por produto (os itens colavam:
+«Unidades vendidas: 478Stock total: 329»); ver a secção seguinte, que fixa o desenho e prova cada modo.
+
+### PDF e impressão de Margens nos 5 modos (`scripts/tests/test-margens-pdf-modos.ts`, dados sintéticos)
+
+Decisão (opção B, corrigir): a faixa de resumo passa a ter o MESMO desenho (as mesmas declarações) em todos os relatórios compactos que
+não são o mapa de Vendas (`.page.density-compact:not(.hierarchy-clean)`); a regra de Vendas (clean) fica literalmente como era, por
+isso o mapa de Vendas não muda (os 4 testes de Vendas passam sem alterações). No modo Produto os cabeçalhos longos («Custo unit. est.»,
+«IVA %») passavam cortados com «…» (já no base a69cbc5): passam a quebrar em 2 linhas (regra só em `hierarchy-strong`), sem alterar larguras. As capturas são a 1.ª página (PDF com as opções reais do endpoint; impressão com o `@page` do iframe, sem fundos nem cabeçalho
+do Chromium), 3 farmácias, stock positivo/zero/negativo/desconhecido; o teste confirma também 1 farmácia e as restantes páginas.
+
+| Captura | O que prova |
+|---|---|
+| `margens-pdf-modo-produto.png` | Produto, PDF (4 páginas): faixa «Unidades vendidas: 478 · Stock total: 329 · Linhas sem stock conhecido: 8» separada e acima da tabela; coluna Stock (positivo, 0 em caixa, negativo escuro, «—»), TOTAL ARTIGO e cabeçalhos inteiros; nada cortado à direita. |
+| `margens-pdf-modo-categoria.png`, `-farmacia.png`, `-grupo.png`, `-fabricante.png` | Agregados, PDF: a mesma faixa bem formada, coluna Stock + «Sem stock conhecido», TOTAL GERAL 329/8 igual ao do modo Produto, sem colunas cortadas nem duplicadas. |
+| `margens-impressao-modo-produto.png` | Produto, impressão: igual ao PDF salvo a numeração «Pág.»; a faixa, o Stock e os totais saem com os fundos desligados por omissão. |
+| `margens-impressao-modo-categoria.png`, `-farmacia.png`, `-grupo.png`, `-fabricante.png` | Agregados, impressão: faixa, coluna Stock e TOTAL GERAL idênticos ao PDF; nada passa a margem de 8 mm. |
 
 ## 4. Filtro de forma farmacêutica (`forma-farmaceutica-browser.ts`, 102 OK)
 

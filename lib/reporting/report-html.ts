@@ -945,6 +945,9 @@ const STYLES = `
     border: 1px solid #111827;
     border-bottom: 2px solid #000000;
   }
+  /* Cabeçalhos longos («Custo unit. est.», «IVA %») quebram em duas linhas em vez de ficarem cortados com «…»
+     (a tabela de Margens tem 18 colunas). Só a hierarquia forte (Margens): Vendas (clean) e os restantes não mudam. */
+  .page.density-compact.hierarchy-strong table.table-density-tight thead th { white-space: normal; text-overflow: clip; }
   .page.density-compact.hierarchy-strong tbody td {
     border-left: 1px solid #d1d5db;
     border-right: 1px solid #d1d5db;
@@ -1160,10 +1163,13 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .tint-total + .tint-total { border-left-width: 0; }
 
   /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
-  .page.density-compact.hierarchy-clean .resumo-faixa,
-  .page.density-compact.hierarchy-strong .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .page.density-compact.hierarchy-clean .resumo-faixa strong,
-  .page.density-compact.hierarchy-strong .resumo-faixa strong { color: #111827; font-weight: 700; }
+  .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .page.density-compact.hierarchy-clean .resumo-faixa strong { color: #111827; font-weight: 700; }
+  /* Mesma faixa, mesmas declarações, nos relatórios compactos SEM hierarquia clean (Margens por produto = strong; Margens agregados = sem
+     hierarquia). Sem isto a faixa ficava sem estilo e os itens colavam («Unidades vendidas: 42Stock total: 80»). A regra de Vendas (clean)
+     acima é a original, intocada. */
+  .page.density-compact:not(.hierarchy-clean) .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .page.density-compact:not(.hierarchy-clean) .resumo-faixa strong { color: #111827; font-weight: 700; }
 
   /* NÚMEROS +1 px (valores, quantidades, stock, preços, custos, totais) — a descrição, o cabeçalho e o resto do texto não mudam.
      A largura das colunas é medida pelo adapter com este mesmo aumento (AUMENTO_NUMEROS_PX). */

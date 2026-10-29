@@ -40,3 +40,5 @@ dimensão: o total teria de ser a soma de pares distintos do relatório, e a col
 verdadeiro): positivo, zero, negativo, desconhecido, uma farmácia, várias, mesmo produto em várias farmácias, 1 vs 12 meses,
 universo (produto com stock mas sem vendas fica fora), expansão CNPEM sem contaminar, e cada modo agregado com valores exatos
 em `Report`, HTML e Excel lido. E2E (escrito, por executar): `scripts/e2e/margens-stock-browser.ts`, secção «modos agregados».
+
+PDF e impressão dos 5 modos: `scripts/tests/test-margens-pdf-modos.ts` gera os PDFs (Chromium) e lê palavras e geometria (PyMuPDF): coluna Stock 1× por página, valores de linhas/TOTAL ARTIGO/TOTAL GERAL exatos, cabeçalhos inteiros, nada fora das margens nem sobreposto, faixa «Unidades vendidas · Stock total» bem separada (382 verificações, 1 e 3 farmácias).
