@@ -41,12 +41,13 @@ type PrismaParaLaboratorios = Pick<PrismaClient, "fabricante" | "grupoLaboratori
 
 export async function carregarLaboratoriosGarantia(prisma: PrismaParaLaboratorios): Promise<CatalogoFilterOptionLaboratorio[]> {
   const [fabricantesRaw, grupos, associacoesIntegrais, aliasesGrupoRaw, contagemPorFabricante, contagemPorGrupo] = await Promise.all([
-    prisma.fabricante.findMany({ where: { estado: "ATIVO" }, select: { id: true, nomeNormalizado: true } }),
-    prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { id: true, nome: true } }),
+    prisma.fabricante.findMany({ where: { estado: "ATIVO" }, select: { id: true, nomeNormalizado: true }, orderBy: { nomeNormalizado: "asc" } }),
+    prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { id: true, nome: true }, orderBy: [{ nome: "asc" }, { id: "asc" }] }),
     prisma.grupoLaboratorialFabricante.findMany({
-      select: { grupoLaboratorialId: true, fabricante: { select: { id: true, nomeNormalizado: true, aliases: { select: { aliasNome: true } } } } },
+      select: { grupoLaboratorialId: true, fabricante: { select: { id: true, nomeNormalizado: true, aliases: { select: { aliasNome: true }, orderBy: { aliasNome: "asc" } } } } },
+      orderBy: { fabricanteId: "asc" },
     }),
-    prisma.grupoLaboratorialAlias.findMany({ where: { estado: "ATIVO" }, select: { grupoLaboratorialId: true, alias: true } }),
+    prisma.grupoLaboratorialAlias.findMany({ where: { estado: "ATIVO" }, select: { grupoLaboratorialId: true, alias: true }, orderBy: [{ alias: "asc" }, { id: "asc" }] }),
     prisma.produto.groupBy({ by: ["fabricanteId"], _count: { _all: true }, where: { fabricanteId: { not: null } } }),
     prisma.produtoGrupoLaboratorial.groupBy({ by: ["grupoLaboratorialId"], _count: { _all: true } }),
   ]);

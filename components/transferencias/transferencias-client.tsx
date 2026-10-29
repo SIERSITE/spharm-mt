@@ -174,7 +174,7 @@ export function TransferenciasClient({
   const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
-  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) filtrado localmente pela pertença do grupo (sem pedidos).
   const laboratorios = filterOptions.laboratorios;
   const modoGrupos = !!laboratorios && laboratorios.length > 0;
   const categorias = filterOptions.categorias;
@@ -305,7 +305,7 @@ export function TransferenciasClient({
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
-  const filtroLab = useFiltroLaboratorio(snapshot?.fabricantesSelecionados ?? SEM_SELECAO, modoGrupos);
+  const filtroLab = useFiltroLaboratorio(snapshot?.fabricantesSelecionados ?? SEM_SELECAO, modoGrupos, { laboratorios, pertencaGrupos: filterOptions.pertencaGrupos });
 
   const rowsForReport = useMemo(() => {
     if (!snapshot) return [];

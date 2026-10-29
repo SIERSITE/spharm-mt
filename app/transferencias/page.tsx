@@ -16,7 +16,7 @@ export default async function TransferenciasPage() {
   const session = await requirePermission("reports.write");
   const [farmaciasInfo, filterOptions, transferenciasRegistadas] = await Promise.all([
     getFarmaciasInfo(),
-    getReportingFilterOptions(),
+    getReportingFilterOptions({ comPertencaGrupos: true }),
     loadTransferenciasRegistadas(),
   ]);
   // Mesma gate de `deleteTransferenciaAction` — o botão "Eliminar" na

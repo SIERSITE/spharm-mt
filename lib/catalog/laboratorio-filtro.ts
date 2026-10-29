@@ -287,8 +287,14 @@ export function agruparOpcoesLaboratorio(
     if (q && !(bate(o.nome) || o.termosBusca.some(bate) || variantesCorrespondentes.length > 0)) continue;
     itens.push({ opcao: o, rotulo: rotuloGrupoComVariantes(o.nome, variantes.length), variantes, variantesCorrespondentes });
   }
-  itens.sort((a, b) => nomeDeLaboratorio(a.opcao).localeCompare(nomeDeLaboratorio(b.opcao), "pt-PT"));
-  for (const i of itens) i.variantes = [...i.variantes].sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT"));
+  // Ordem TOTAL e determinística: nome (pt-PT), depois tipo (grupo antes de fabricante) e id — nunca depende da ordem da BD.
+  itens.sort(
+    (a, b) =>
+      nomeDeLaboratorio(a.opcao).localeCompare(nomeDeLaboratorio(b.opcao), "pt-PT") ||
+      a.opcao.tipo.localeCompare(b.opcao.tipo) ||
+      a.opcao.id.localeCompare(b.opcao.id),
+  );
+  for (const i of itens) i.variantes = [...i.variantes].sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT") || a.id.localeCompare(b.id));
   return itens;
 }
 

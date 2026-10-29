@@ -76,7 +76,7 @@ async function main() {
     const { passaFiltroLaboratorioLinha } = await import("../../lib/reporting/filtro-laboratorio-linhas");
     const { getReportingFilterOptions } = await import("../../lib/reporting-filter-options");
     const { generateOrderProposal } = await import("../../lib/encomendas/proposal");
-    const { auditarOpcoes, validarUrlDescartavel } = await import("../diagnostics/auditoria-fabricantes-grupos-garantia");
+    const { auditarOpcoes, lerArgumentos } = await import("../diagnostics/auditoria-fabricantes-grupos-garantia");
 
     // ── Fixture sintética ────────────────────────────────────────────────────────────────────────────────────────
     const farm = await prisma.farmacia.create({ data: { nome: "FAG Farmácia" } });
@@ -155,9 +155,11 @@ async function main() {
     check(rel.fabricantes === totalFabricantes && rel.opcoesAntes === totalFabricantes && rel.opcoesDepois === 5, `A11: auditoria — ${rel.fabricantes} fabricantes, ${rel.opcoesAntes} antes, ${rel.opcoesDepois} depois`);
     check(rel.gruposComMaisVariantes[0]?.grupo === "Viatris" && rel.gruposComMaisVariantes[0]?.variantes === 10, "A12: auditoria — Viatris é o grupo com mais variantes");
     check(rel.fabricantesSemProva.map((f) => f.fabricante).sort().join("|") === ["OUTRO LAB SUCESSAO", "PFIZER LABORATORIOS", "VIATRIS PHARMA LDA"].sort().join("|"), "A13: auditoria — lista os fabricantes sem prova de grupo");
-    let recusouReal = false;
-    try { validarUrlDescartavel("postgresql://u:p@db.exemplo.pt:5432/spharmmt_t_garantia"); } catch { recusouReal = true; }
-    check(recusouReal && validarUrlDescartavel(urlDe(db)) === urlDe(db), "A14: o script de auditoria recusa hosts remotos / bases reais");
+    // A14 (alterado): antes o script recusava qualquer host não local; agora o utilizador vai corrê-lo na base REAL do
+    // Garantia, por isso a protecção é: URL explícita + --confirmo-read-only + sessão só-leitura (ver test-auditoria-fabricantes-grupos-db.ts).
+    let recusouSemConfirmacao = false;
+    try { lerArgumentos(["--url", urlDe(db)], {}); } catch { recusouSemConfirmacao = true; }
+    check(recusouSemConfirmacao && lerArgumentos(["--confirmo-read-only", "--url", urlDe(db)], {}).url === urlDe(db), "A14: o script de auditoria recusa sem --confirmo-read-only e aceita a URL explícita");
 
     console.log("\nB · pesquisa");
     const achaGrupo = (q: string) => L.agruparOpcoesLaboratorio(opcoes, q).filter((i) => i.opcao.tipo === "grupo" && i.opcao.nome === "Viatris");
@@ -221,7 +223,7 @@ async function main() {
     const cnpsVar = new Set(await resolverCnpsPorLaboratoriosSelecionados(prisma, [`fabricante:${membros[0].id}`], garantia));
     check(linhas.filter((l) => passaFiltroLaboratorioLinha(l, [`fabricante:${membros[0].id}`], { modoGrupos: true, cnps: cnpsVar })).length === 2, "E4: seleccionar uma variante devolve só as suas linhas");
     check(linhas.every((l) => passaFiltroLaboratorioLinha(l, [], estadoG)), "E5: sem selecção, todas as linhas passam");
-    check(linhas.every((l) => !passaFiltroLaboratorioLinha(l, grupoSel, { modoGrupos: true, cnps: null })), "E6: enquanto o servidor resolve (cnps=null) não mostra linhas erradas");
+    check(linhas.every((l) => !passaFiltroLaboratorioLinha(l, grupoSel, { modoGrupos: true, cnps: null })), "E6: no caminho de reserva (servidor), enquanto resolve (cnps=null) não mostra linhas erradas");
     const cnpsPfizer = new Set(await resolverCnpsPorLaboratoriosSelecionados(prisma, ["PFIZER LABORATORIOS"], garantia));
     check(linhas.filter((l) => passaFiltroLaboratorioLinha(l, ["PFIZER LABORATORIOS"], { modoGrupos: true, cnps: cnpsPfizer })).length === 1, "E7: valor antigo solto (nome de fabricante) continua a filtrar em garantia");
     const legado = { modoGrupos: false, cnps: null };

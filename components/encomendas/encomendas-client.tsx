@@ -272,10 +272,10 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const farmacias = farmaciasUniverse;
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
-  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) resolvido por CNP no servidor.
+  // SÓ garantia: `laboratorios` povoado -> filtro agrupado (grupo:/fabricante:) filtrado localmente pela pertença do grupo (sem pedidos).
   const laboratorios = filterOptions.laboratorios;
   const modoGrupos = !!laboratorios && laboratorios.length > 0;
-  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos);
+  const filtroLab = useFiltroLaboratorio(fabricantesSelecionados, modoGrupos, { laboratorios, pertencaGrupos: filterOptions.pertencaGrupos });
   const categorias = filterOptions.categorias;
   // Subcategorias acompanham a categoria escolhida.
   const subcategorias = (

@@ -30,6 +30,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { resolveCurrentTenantSlug, gruposLaboratoriaisAtivos } from "@/lib/tenant-context";
 import { carregarLaboratoriosGarantia } from "@/lib/catalog/carregar-laboratorios-garantia";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import { carregarPertencaGruposPorCnp, type PertencaGruposPorCnp } from "@/lib/catalog/pertenca-grupos-laboratoriais";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { carregarOpcoesFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-sql";
 
@@ -69,6 +70,12 @@ export type ReportingFilterOptions = {
    * usado.
    */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
+  /**
+   * SÓ garantia e SÓ quando pedido (`getReportingFilterOptions({ comPertencaGrupos: true })` — Excessos, Transferências,
+   * Devoluções): grupoId -> CNP dos produtos do grupo (`ProdutoGrupoLaboratorial`, um SELECT). Permite filtrar por
+   * grupo no cliente sem ir ao servidor a cada selecção. Ver `lib/catalog/pertenca-grupos-laboratoriais.ts`.
+   */
+  pertencaGrupos?: PertencaGruposPorCnp;
   /**
    * Formas farmacêuticas distintas dos produtos activos/catalogáveis DESTE tenant, agrupadas por chave normalizada
    * (UMA agregação SQL). Ver `lib/catalog/forma-farmaceutica-filtro.ts`.
@@ -114,7 +121,9 @@ function cleanSortUnique(values: Array<string | null | undefined>): string[] {
   return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-PT"));
 }
 
-export async function getReportingFilterOptions(): Promise<ReportingFilterOptions> {
+export async function getReportingFilterOptions(
+  opcoes: { comPertencaGrupos?: boolean } = {},
+): Promise<ReportingFilterOptions> {
   const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
     where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
@@ -166,6 +175,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
   // como sempre esteve.
   let fabricantesFinal = cleanSortUnique(fabricanteRows.map((r) => r.nome));
   let laboratorios: CatalogoFilterOptionLaboratorio[] | undefined;
+  let pertencaGrupos: PertencaGruposPorCnp | undefined;
   const tenantSlug = await resolveCurrentTenantSlug();
   if (gruposLaboratoriaisAtivos(tenantSlug)) {
     const [grupos, associacoesIntegrais] = await Promise.all([
@@ -178,6 +188,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
       ...fabricantesFinal.filter((nome) => !nomesIntegraisNumGrupo.has(nome)),
     ]);
     laboratorios = await carregarLaboratoriosGarantia(prisma);
+    if (opcoes.comPertencaGrupos) pertencaGrupos = await carregarPertencaGruposPorCnp(prisma);
   }
 
   // Categorias: SÓ canónicas (Classificacao NIVEL_1 estado=ATIVO). Sem UNION
@@ -247,6 +258,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     fornecedores: distribuidores, // alias deprecated — mesma lista
     fabricantes: fabricantesFinal,
     laboratorios,
+    pertencaGrupos,
     formas: await carregarOpcoesFormaFarmaceutica(prisma),
     categorias,
     subcategorias: subcategoriaRows

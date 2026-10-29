@@ -27,7 +27,7 @@ export default async function ExcessosPage({ searchParams }: Props) {
 
   const [farmaciasInfo, filterOptions, initialRows] = await Promise.all([
     getFarmaciasInfo(),
-    getReportingFilterOptions(),
+    getReportingFilterOptions({ comPertencaGrupos: true }),
     // Pré-carrega o relatório quando há ?days na URL — vem da dashboard com
     // o subconjunto exacto. Sem o param, mantém o comportamento original
     // (cliente carrega via "Gerar" com o threshold por defeito de 90 dias).

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function DevolucoesPage() {
   const [farmaciasInfo, filterOptions] = await Promise.all([
     getFarmaciasInfo(),
-    getReportingFilterOptions(),
+    getReportingFilterOptions({ comPertencaGrupos: true }),
   ]);
   return (
     <DevolucoesClient farmaciasInfo={farmaciasInfo} filterOptions={filterOptions} />
