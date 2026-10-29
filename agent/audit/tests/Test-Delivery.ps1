@@ -18,9 +18,13 @@ function Check([bool]$cond, [string]$nome, [string]$detalhe = '') {
   else { $script:falhas++; Write-Host "  [FALHA] $nome"; if ($detalhe) { Write-Host "            $detalhe" } }
 }
 function Invoke-Filho([string]$texto) {
-  $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("`$ErrorActionPreference='Continue'; $texto; exit `$LASTEXITCODE"))
-  $out = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $enc 2>&1 | Out-String
-  return @{ Exit = $LASTEXITCODE; Out = $out }
+  # Ficheiro temporario + -File (nao -EncodedCommand): evita o canal de erro CLIXML do powershell.exe filho.
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('filho-' + [guid]::NewGuid().ToString('N') + '.ps1')
+  [IO.File]::WriteAllText($tmp, "`$ErrorActionPreference='Continue'`r`n$texto`r`nexit `$LASTEXITCODE`r`n", (New-Object Text.UTF8Encoding($true)))
+  try {
+    $out = & cmd.exe /c "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$tmp`" 2>&1" | Out-String
+    return @{ Exit = $LASTEXITCODE; Out = $out }
+  } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
 }
 function Get-Impressao([string]$dir) {
   $raiz = (Resolve-Path -LiteralPath $dir).Path.TrimEnd('\')
@@ -130,7 +134,7 @@ try {
   $zipsRel = @(Get-ChildItem -LiteralPath $destColeta -Filter '*.zip')
   Check ($zipsRel.Count -eq 1) 'um ZIP de relatorio gerado'
   $nomesRel = Get-NomesZip $zipsRel[0].FullName
-  Check (($nomesRel -join '|') -eq (@('SHA256.txt', 'auditoria-classificacao.json', 'auditoria-classificacao.md') -join '|')) 'o ZIP do relatorio so tem .json, .md e SHA256.txt (sem config, logs, run, locks, outros)' ($nomesRel -join ', ')
+  Check (($nomesRel -join '|') -eq ((@('SHA256.txt', 'auditoria-classificacao.json', 'auditoria-classificacao.md') | Sort-Object) -join '|')) 'o ZIP do relatorio so tem .json, .md e SHA256.txt (sem config, logs, run, locks, outros)' ($nomesRel -join ', ')
   Check (Test-Path -LiteralPath "$($zipsRel[0].FullName).sha256") 'ficheiro .sha256 do relatorio criado'
   # Collect recusa relatorio com ar de credencial
   Set-Content -LiteralPath "$dest\output\auditoria-classificacao.md" -Value 'password = hunter2xyz' -Encoding ASCII
