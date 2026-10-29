@@ -257,7 +257,11 @@ export async function classificationAudit(parciais: Partial<DepsAuditoria> = {})
           queriesExecutadasTexto: () => registo,
         });
       },
-      { abrirPool: (c) => d.abrirPool(c, timeoutMs) },
+      {
+        abrirPool: (c) => d.abrirPool(c, timeoutMs),
+        // O `withPool` do agent fala de «dia pendente para retoma/catch-up»: não se aplica a um diagnóstico sem estado.
+        log: (linha) => d.erro(redigir(linha.replace(/ — o dia fica pendente para retoma\/catch-up\./, " — este diagnóstico não guarda estado nem agenda nada."), segredos)),
+      },
     );
 
     const escritos = escreverRelatorio(rel, saidas, segredos);

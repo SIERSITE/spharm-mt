@@ -275,6 +275,36 @@ async function main() {
       check(!t3.includes(SENTINELA.senha) && !t3.includes(SENTINELA.host) && !t3.includes(SENTINELA.user), "erro do SQL redigido: sem utilizador, anfitrião nem palavra-passe", t3.slice(0, 300));
     }
 
+    console.log("\n=== 5b. Falha de LIGAÇÃO: sem texto de retoma do pipeline e sem segredos ===");
+    {
+      const st = { tentativas: 0 };
+      const abrirFalha = () => {
+        st.tentativas++;
+        return {
+          connect: async () => { throw Object.assign(new Error(`Failed to connect to ${SENTINELA.host}:1433 - password=${SENTINELA.senha} user=${SENTINELA.user}`), { code: "ESOCKET" }); },
+          close: async () => undefined,
+          request: () => { throw new Error("não devia pedir nada"); },
+        } as never;
+      };
+      const erros4: string[] = [];
+      capturado.length = 0;
+      capturar();
+      let rc4: number;
+      try {
+        // sem esperas entre tentativas: SPHARMMT_SQL_RETRY_ESPERAS_MS=0 (lido pelo withPool real)
+        process.env.SPHARMMT_SQL_RETRY_ESPERAS_MS = "0";
+        rc4 = await cmd.classificationAudit({ argv: ["--out", path.join(pasta, "out3", "r.json")], cwd: pasta, abrirPool: abrirFalha, erro: (l) => erros4.push(l), log: () => undefined });
+      } finally {
+        delete process.env.SPHARMMT_SQL_RETRY_ESPERAS_MS;
+        repor();
+      }
+      const t4 = [...erros4, ...capturado].join("\n");
+      check(rc4 === 1 && t4.includes("Auditoria falhou"), "ligação falhada: exit 1 e «Auditoria falhou»", t4.slice(0, 200));
+      check(!/retoma|catch-up/i.test(t4), "nenhuma referência a «dia pendente / retoma / catch-up» do pipeline");
+      check(!t4.includes(SENTINELA.senha) && !t4.includes(SENTINELA.host) && !t4.includes(SENTINELA.user), "mensagens da ligação falhada redigidas");
+      check(!fs.existsSync(path.join(pasta, "out3")), "sem ligação não há relatório");
+    }
+
     // ═══ 6. Ligação read-only ═════════════════════════════════════════
     console.log("\n=== 6. Ligação: ApplicationIntent=ReadOnly, READ UNCOMMITTED, appName ===");
     const { loadConfig } = await import("./config.js");
