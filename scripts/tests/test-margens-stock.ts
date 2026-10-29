@@ -219,15 +219,126 @@ async function main() {
     check(!valores.some((v) => v === 0), "F4: nenhum 0 silencioso (o desconhecido não vira 0 no Excel)");
   }
 
-  // ══ G · relatório agregado: decisão documentada ═══════════════════════
-  secao("G · relatório agregado");
+  // ══ G · relatórios agregados (categoria / farmácia / grupo / fabricante) ═══
+  // Mudança de decisão (era: «agregados sem Stock»): cada linha do mapa (par produto × farmácia, única por período) cai
+  // em UM só agregado em cada dimensão — categoria, grupo e fabricante são atributos da própria linha, a farmácia é a
+  // do par — logo os agregados particionam as linhas e a soma de pares distintos é não ambígua. Ver notes/margens-stock-modos.md.
+  secao("G · relatórios agregados: um valor por modo, sem dupla contagem");
   {
-    const agg = buildMargensAggReport({
-      rows: [{ key: "A", label: "A", qtdVendida: 1, valorVendido: 1, valorVendidoSemIva: 1, custoEstimado: 1, margemEur: 1, margemPct: 1, coberturaCusto: 1, estado: "FIAVEL", stockTotal: 10, linhasSemStock: 0 }],
-      filters: {}, universe, organization: "Grupo", groupBy: "categoria",
-    });
-    check(!agg.columns.some((c) => c.key === "stockAtual" || c.key === "stockTotal"),
-      "G1: DECISÃO — os relatórios agregados NÃO levam coluna Stock (o universo do mapa são só os artigos COM VENDAS no período; um «stock da categoria» induziria em erro)");
+    type Dim = "categoria" | "farmacia" | "grupo" | "fabricante";
+    const F1 = { farmaciaId: "f1", farmacia: UNI[0] };
+    const F2 = { farmaciaId: "f2", farmacia: UNI[1] };
+    const F3 = { farmaciaId: "f3", farmacia: UNI[2] };
+    const base = (cnp: number, categoria: string, grupo: string, fabricante: string, f: typeof F1, stock: number | null, qtd = 10) =>
+      linha({ cnp, produtoId: `p${cnp}`, categoria, grupo, fabricante, ...f, stockAtual: stock, qtdVendida: qtd });
+    const conjunto = (qtd = 10) => [
+      base(1, "A", "G1", "F1", F1, 4, qtd), // MESMO produto (1) em duas farmácias: 4 + 6
+      base(1, "A", "G1", "F1", F2, 6, qtd),
+      base(2, "B", "G1", "F2", F1, 0, qtd), // zero
+      base(3, "B", "G2", "F2", F1, -3, qtd), // negativo
+      base(4, "B", "G2", "F1", F2, null, qtd), // desconhecido
+      base(5, "A", "G2", "F2", F3, 9, qtd),
+    ];
+    const chaveDe: Record<Dim, (r: MargemRow) => string> = {
+      categoria: (r) => r.categoria ?? "?", farmacia: (r) => r.farmacia, grupo: (r) => r.grupo ?? "?", fabricante: (r) => r.fabricante,
+    };
+    // esperado: [stockTotal, linhas, linhasSemStock] por chave
+    const esperado: Record<Dim, Record<string, [number, number, number]>> = {
+      categoria: { A: [19, 3, 0], B: [-3, 3, 1] },
+      farmacia: { [UNI[0]]: [1, 3, 0], [UNI[1]]: [6, 2, 1], [UNI[2]]: [9, 1, 0] },
+      grupo: { G1: [10, 3, 0], G2: [6, 3, 1] },
+      fabricante: { F1: [10, 3, 1], F2: [6, 3, 0] },
+    };
+    const relAgg = (rows: MargemRow[], dim: Dim) =>
+      buildMargensAggReport({ rows: aggregate(rows, chaveDe[dim]), filters: {}, universe, organization: "Grupo", groupBy: dim });
+    const totalDoHtml = (html: string) => html.match(/<tbody class="totals-tbody"><tr>([\s\S]*?)<\/tr>/)?.[1] ?? "";
+
+    eq(resumo(rel(conjunto()), "Stock total")?.value, 16, "G0: o mapa por produto soma 4+6+0−3+9 = 16 (o desconhecido fora)");
+
+    for (const dim of ["categoria", "farmacia", "grupo", "fabricante"] as const) {
+      const agg = aggregate(conjunto(), chaveDe[dim]);
+      for (const [k, [st, nl, ns]] of Object.entries(esperado[dim])) {
+        const a = agg.find((x) => x.key === k);
+        eq([a?.stockTotal, a?.linhas, a?.linhasSemStock], [st, nl, ns], `G1[${dim}]: «${k}» = ${st} (${nl} linhas, ${ns} sem stock)`);
+      }
+      eq(agg.reduce((s, x) => s + x.stockTotal, 0), 16, `G2[${dim}]: Σ dos agregados = 16 (os agregados particionam as linhas)`);
+      eq(agg.reduce((s, x) => s + x.linhas, 0), 6, `G3[${dim}]: Σ linhas = 6 pares (nenhum par em dois agregados)`);
+
+      const r = relAgg(conjunto(), dim);
+      const cols = r.columns.map((c) => c.key);
+      check(cols.indexOf("stockTotal") === cols.indexOf("qtdVendida") + 1, `G4[${dim}]: coluna Stock logo a seguir a Qtd`);
+      check(cols.includes("linhasSemStock"), `G5[${dim}]: com desconhecidos, existe a coluna «Sem stock conhecido»`);
+      const soma = r.columns.reduce((s, c) => s + (c.width ?? 0), 0);
+      check(Math.abs(soma - 100) < 0.001, `G6[${dim}]: larguras somam 100 (${soma.toFixed(3)})`);
+      for (const [k, [st, , ns]] of Object.entries(esperado[dim])) {
+        const linhaR = r.rows.find((x) => x.label === k)!;
+        eq([linhaR.stockTotal, linhaR.linhasSemStock], [st, ns > 0 ? ns : null], `G7[${dim}]: Report «${k}» → Stock ${st}, sem stock ${ns || "—"}`);
+      }
+      eq(resumo(r, "Stock total")?.value, 16, `G8[${dim}]: resumo «Stock total» = 16 = o do mapa por produto`);
+      eq(resumo(r, "Linhas sem stock conhecido (fora do stock total)")?.value, 1, `G9[${dim}]: 1 linha sem stock conhecido contada à parte`);
+      check((r.meta?.tableNote ?? "").includes("artigos com vendas no período") && (r.meta?.tableNote ?? "").includes("Stock PARCIAL: 1 linha(s)"), `G10[${dim}]: nota «stock dos artigos com vendas no período» + PARCIAL`);
+
+      // HTML (ecrã de impressão, PDF e email partilham este render)
+      const html = renderReportHtml(r);
+      check(html.includes("artigos com vendas no período"), `G11[${dim}]: a nota de stock aparece no HTML`);
+      check(/<strong>16<\/strong>/.test(totalDoHtml(html)), `G12[${dim}]: TOTAL GERAL do HTML (Stock) = 16`, totalDoHtml(html).slice(0, 300));
+      check(!/<strong>(32|22|38)<\/strong>/.test(totalDoHtml(html)), `G13[${dim}]: nunca o total duplicado`);
+
+      // Excel lido
+      const wb = buildReportWorkbook(r);
+      const g = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false }) as unknown[][];
+      const cab = g.findIndex((l) => l.some((c) => c === "Stock"));
+      check(cab >= 0, `G14[${dim}]: o Excel tem a coluna «Stock»`);
+      const col = g[cab].indexOf("Stock");
+      const dados = g.slice(cab + 1);
+      const porRotulo = new Map(dados.map((l) => [String(l[0]), l[col]]));
+      for (const [k, [st]] of Object.entries(esperado[dim])) {
+        eq(porRotulo.get(k), st, `G15[${dim}]: Excel «${k}» = ${st}`);
+      }
+      eq(dados[dados.length - 1][col], 16, `G16[${dim}]: linha de total do Excel = 16`);
+    }
+
+    // Vários períodos: o stock é UM valor por par; a quantidade (soma dos meses) não o multiplica.
+    for (const dim of ["categoria", "farmacia", "grupo", "fabricante"] as const) {
+      const um = aggregate(conjunto(10), chaveDe[dim]);
+      const doze = aggregate(conjunto(120), chaveDe[dim]);
+      eq(doze.map((x) => [x.key, x.stockTotal]), um.map((x) => [x.key, x.stockTotal]), `G17[${dim}]: 12 meses (qtd ×12) — o stock não muda`);
+    }
+
+    // Uma farmácia / tudo conhecido / agregado só com desconhecidos / zero / negativo.
+    {
+      const uma = relAgg([base(1, "A", "G1", "F1", F1, 7), base(2, "A", "G1", "F1", F1, 3)], "categoria");
+      eq([uma.rows[0].stockTotal, resumo(uma, "Stock total")?.value], [10, 10], "G18: uma farmácia, tudo conhecido — 7 + 3 = 10");
+      check(!uma.columns.some((c) => c.key === "linhasSemStock") && !resumo(uma, "Linhas sem stock conhecido (fora do stock total)"), "G19: sem desconhecidos — sem coluna nem item «sem stock conhecido»");
+      check(Math.abs(uma.columns.reduce((s, c) => s + (c.width ?? 0), 0) - 100) < 0.001, "G20: larguras somam 100 também sem a coluna extra");
+      const nenhum = relAgg([base(1, "A", "G1", "F1", F1, null), base(2, "B", "G1", "F1", F1, 4)], "categoria");
+      const a = nenhum.rows.find((x) => x.label === "A")!;
+      eq([a.stockTotal, a.linhasSemStock], [null, 1], "G21: agregado só com stock desconhecido → «—» (null), nunca 0");
+      eq(nenhum.rows.find((x) => x.label === "B")!.stockTotal, 4, "G22: o outro agregado mantém 4");
+      eq(resumo(nenhum, "Stock total")?.value, 4, "G23: total = 4 (o desconhecido não entra)");
+      const zero = relAgg([base(1, "A", "G1", "F1", F1, 0)], "categoria");
+      eq(zero.rows[0].stockTotal, 0, "G24: zero real é 0 (distinto de desconhecido)");
+      const neg = relAgg([base(1, "A", "G1", "F1", F1, -5), base(2, "A", "G1", "F1", F1, 2)], "categoria");
+      eq(neg.rows[0].stockTotal, -3, "G25: negativo desconta (−5 + 2 = −3)");
+    }
+
+    // Mesmo produto em várias farmácias: cada par conta uma vez.
+    {
+      const cat = aggregate([base(1, "A", "G", "F", F1, 4), base(1, "A", "G", "F", F2, 6), base(1, "A", "G", "F", F3, 10)], (r) => r.categoria ?? "?");
+      eq([cat[0].stockTotal, cat[0].linhas], [20, 3], "G26: mesmo produto em 3 farmácias — 4 + 6 + 10 = 20 (3 linhas), nem ×3 nem ×nº de meses");
+    }
+    // Mesmo que (hipoteticamente) duas linhas do mesmo produto tivessem categorias diferentes, cada PAR cairia numa só.
+    {
+      const cat = aggregate([base(1, "A", "G", "F", F1, 4), base(1, "B", "G", "F", F2, 6)], (r) => r.categoria ?? "?");
+      eq(cat.map((x) => [x.key, x.stockTotal]), [["A", 4], ["B", 6]], "G27: chaves diferentes para o mesmo produto — cada par só numa chave; Σ = 10");
+    }
+
+    // Estrutura: o ecrã usa as MESMAS regras; a expansão CNPEM nunca entra.
+    const cliente = lerLF("components/margens/margens-client.tsx");
+    const tabelaAgg = cliente.slice(cliente.indexOf("function TabelaAgg("));
+    check(/stockDaLinhaAgregada\(r\)/.test(tabelaAgg) && /stockTotalDosAgregados\(rows\)/.test(tabelaAgg), "G28: a tabela do ecrã dos modos usa as MESMAS regras do Report (stockDaLinhaAgregada / stockTotalDosAgregados)");
+    check(/>Stock<\/th>/.test(tabelaAgg) && /margens-agregada-nota-stock/.test(tabelaAgg), "G29: a tabela dos modos tem a coluna «Stock» e a nota «artigos com vendas no período»");
+    check(/linhasAgregadas\(result, nivel\)/.test(cliente) && !/comparacoes/.test(tabelaAgg), "G30: os modos lêem result.por* (nunca a comparação CNPEM)");
   }
 
   // ══ H · ecrã e expansão CNPEM (estrutural) ═══════════════════════════

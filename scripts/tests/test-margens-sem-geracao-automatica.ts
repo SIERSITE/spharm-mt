@@ -130,9 +130,9 @@ secao("D · inventario-client.tsx");
   check(chamadas === 1, `D1: runInventarioReport é chamado em UM só sítio (${chamadas})`);
   const ef = efeitos(src);
   check(ef.every((e) => !e.includes("runInventarioReport") && !e.includes("handleGerar")), `D2: nenhum useEffect (${ef.length}) gera o relatório`);
-  const build = corpo(src, "const buildReport = () =>");
-  check(!/\bfilters,\n/.test(build) && (build.match(/filters: filtrosResultado/g) ?? []).length >= 5, "D3: as saídas do Inventário usam os filtros APLICADOS");
-  check(/hasGenerated \? "Atualizar" : "Gerar"/.test(src) && /inventario-alteracoes-por-aplicar/.test(src), "D4: «Atualizar» e indicação de alterações por aplicar");
+  // O Inventário MANTÉM o comportamento do base (só gera em «Gerar»): sem draft/aplicado, sem «Atualizar», sem aviso.
+  // Ver notes/inventario-decisao.md e test-inventario-inalterado.ts.
+  check(!/filtrosResultado|inventario-alteracoes-por-aplicar|"Atualizar"/.test(src), "D3: o Inventário NÃO tem draft/aplicado, «Atualizar» nem aviso (comportamento do base)");
 }
 
 console.log(`\n${ok} ok, ${ko} falhas`);

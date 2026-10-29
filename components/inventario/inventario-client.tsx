@@ -20,8 +20,7 @@
  */
 
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
-import { useEffect, useMemo, useRef, useTransition } from "react";
-import { filtrosDiferem, geracaoAtual, iniciarGeracao } from "@/lib/reporting/filtros-aplicados";
+import { useEffect, useMemo, useTransition } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ArtigoLink } from "@/components/stock/artigo-link";
@@ -29,7 +28,7 @@ import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
-import { useEstadoSeparador, useIdSeparador } from "@/lib/workspace/estado-separador";
+import { useEstadoSeparador } from "@/lib/workspace/estado-separador";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
@@ -220,32 +219,15 @@ export function InventarioClient({
   const [error, setError] = useEstadoSeparador<string | null>("inventario:error", null);
   const [isPending, startTransition] = useTransition();
 
-  // Filtros EM EDIÇÃO (`filters`, o draft) vs APLICADOS (`filtrosResultado`, os com que `result` foi calculado, gravados
-  // no mesmo instante). Alterar um filtro nunca gera (só «Gerar/Atualizar»); as saídas (PDF/Excel/email) usam os aplicados.
-  // Mesma regra que Margens — ver lib/reporting/filtros-aplicados.ts.
-  const [filtrosResultado, setFiltrosResultado] = useEstadoSeparador<SharedReportFilters>("inventario:filtrosResultado", {});
-  const idSeparador = useIdSeparador() ?? "";
-  const emCursoRef = useRef(false);
-  const alteracoesPorAplicar = hasGenerated && filtrosDiferem(filters, filtrosResultado);
-
   const handleGerar = () => {
-    if (isPending || emCursoRef.current) return;
-    emCursoRef.current = true;
-    const aplicar = filters;
-    const minha = iniciarGeracao(idSeparador);
     setError(null);
     startTransition(async () => {
       try {
-        const r = await runInventarioReport(aplicar);
-        if (!geracaoAtual(idSeparador, minha)) return; // resposta antiga, fora de ordem
+        const r = await runInventarioReport(filters);
         setResult(r);
-        setFiltrosResultado(aplicar);
         setHasGenerated(true);
       } catch (err) {
-        if (!geracaoAtual(idSeparador, minha)) return;
         setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        emCursoRef.current = false;
       }
     });
   };
@@ -368,8 +350,7 @@ export function InventarioClient({
     return c;
   }, [result]);
 
-  // Saídas descrevem o relatório VISÍVEL: filtros aplicados, nunca o draft.
-  const organization = formatFarmaciaHeader(filtrosResultado.farmaciaNomes ?? [], farmaciasInfo);
+  const organization = formatFarmaciaHeader(filters.farmaciaNomes ?? [], farmaciasInfo);
 
   // Adapter para export reflecte VISTA actual
   const buildReport = () => {
@@ -384,7 +365,7 @@ export function InventarioClient({
     if (vista === "farmacia") {
       return buildInventarioPorFarmaciaReport({
         rows: result?.porFarmacia ?? [],
-        filters: filtrosResultado,
+        filters,
         universe: uni,
         organization,
       });
@@ -392,7 +373,7 @@ export function InventarioClient({
     if (vista === "grupo") {
       return buildInventarioPorGrupoReport({
         rows: result?.porGrupo ?? [],
-        filters: filtrosResultado,
+        filters,
         universe: uni,
         organization,
       });
@@ -400,7 +381,7 @@ export function InventarioClient({
     if (vista === "iva") {
       return buildInventarioPorIvaReport({
         rows: result?.porIva ?? [],
-        filters: filtrosResultado,
+        filters,
         universe: uni,
         organization,
       });
@@ -427,7 +408,7 @@ export function InventarioClient({
           semStock: a.semStock,
           normal: a.normal,
         })),
-        filters: filtrosResultado,
+        filters,
         universe: uni,
         organization,
       });
@@ -437,7 +418,7 @@ export function InventarioClient({
       // As MESMAS linhas que estão no ecrã, na MESMA ordem: quem ordena
       // a tabela e depois exporta espera o PDF pela ordem que viu.
       rows: rowsOrdenadas,
-      filters: filtrosResultado,
+      filters,
       universe: uni,
       organization,
     });
@@ -455,19 +436,13 @@ export function InventarioClient({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div aria-live="polite" className="text-right text-[11px] text-amber-700">
-              {alteracoesPorAplicar && (
-                <span data-testid="inventario-alteracoes-por-aplicar">Existem alterações por aplicar</span>
-              )}
-            </div>
             <button
               type="button"
               onClick={handleGerar}
               disabled={isPending}
-              aria-busy={isPending}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-500 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
+              {isPending ? "A gerar…" : "Gerar"}
             </button>
             {result && <ReportActions report={buildReport} />}
           </div>

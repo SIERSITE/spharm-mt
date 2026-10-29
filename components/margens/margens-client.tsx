@@ -45,6 +45,8 @@ import type {
 import {
   buildMargensProdutoReport,
   buildMargensAggReport,
+  stockDaLinhaAgregada,
+  stockTotalDosAgregados,
 } from "@/lib/reporting/adapters/margens";
 import type {
   ComparacaoCnpem,
@@ -1083,6 +1085,8 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
       </section>
     );
   }
+  // Stock (mesma regra do Report): soma dos pares artigo×farmácia DISTINTOS de cada linha; desconhecidos fora e contados.
+  const stock = stockTotalDosAgregados(rows);
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
       <div className="tabela-fixa" data-testid="tabela-margens-agregada">
@@ -1091,6 +1095,10 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
             <tr>
               <th className="py-2 pr-3">{header}</th>
               <th className="py-2 pr-3 text-right">Qtd</th>
+              <th className="py-2 pr-3 text-right" title="Stock atual dos artigos com vendas no período (não histórico)">Stock</th>
+              {stock.desconhecidas > 0 && (
+                <th className="py-2 pr-3 text-right" title="Linhas artigo/farmácia sem stock conhecido (fora da soma do Stock)">Sem stock conhecido</th>
+              )}
               <th className="py-2 pr-3 text-right">Vendas c/IVA</th>
               <th className="py-2 pr-3 text-right">Vendas s/IVA</th>
               <th className="py-2 pr-3 text-right">Custo est.</th>
@@ -1105,6 +1113,12 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
               <tr key={r.key}>
                 <td className="py-2 pr-3 font-medium text-slate-800">{r.label}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums" data-col="stock">{fmtInt(stockDaLinhaAgregada(r))}</td>
+                {stock.desconhecidas > 0 && (
+                  <td className="py-2 pr-3 text-right tabular-nums text-amber-700" data-col="sem-stock">
+                    {r.linhasSemStock > 0 ? fmtInt(r.linhasSemStock) : "—"}
+                  </td>
+                )}
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                   {fmtCurrency(r.valorVendidoSemIva)}
@@ -1131,6 +1145,10 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-[11px] text-slate-500" data-testid="margens-agregada-nota-stock">
+        Stock atual dos artigos com vendas no período (não é o stock integral): soma cada artigo/farmácia uma só vez.
+        {stock.desconhecidas > 0 ? ` Parcial — ${stock.desconhecidas} linha(s) sem stock conhecido ficam fora da soma.` : ""}
+      </p>
     </section>
   );
 }

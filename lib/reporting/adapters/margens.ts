@@ -445,10 +445,44 @@ export function buildMargensProdutoReport(input: {
 // Margens Por Produto/Transferências/Excessos/Encomendas, ver
 // column-widths.ts.
 const MARGENS_AGG_BASE_WIDTHS = {
-  label: 19, qtdVendida: 7, valorVendido: 11, valorVendidoSemIva: 11,
+  label: 19, qtdVendida: 7, stockTotal: 7, valorVendido: 11, valorVendidoSemIva: 11,
   custoEstimado: 11, margemEur: 10, margemPct: 7, coberturaPct: 7, estado: 7,
 };
-const MAW = normalizarLargura(MARGENS_AGG_BASE_WIDTHS);
+// A coluna «Sem stock conhecido» só existe com stock desconhecido: as larguras normalizam-se SEMPRE sobre as colunas
+// realmente presentes (somam 100 com ou sem ela).
+const MAW_SEM_DESCONHECIDOS = normalizarLargura(MARGENS_AGG_BASE_WIDTHS);
+const MAW_COM_DESCONHECIDOS = normalizarLargura({ ...MARGENS_AGG_BASE_WIDTHS, linhasSemStock: 7 });
+
+/**
+ * Stock da linha de um agregado: a soma dos stocks CONHECIDOS dos pares (produto × farmácia) distintos que entram
+ * nela; `null` («—») quando NENHUM par tem stock conhecido (nunca um 0 inventado).
+ */
+export function stockDaLinhaAgregada(r: Pick<MargensAgg, "stockTotal" | "linhas" | "linhasSemStock">): number | null {
+  return r.linhas > r.linhasSemStock ? r.stockTotal : null;
+}
+
+/**
+ * Stock total de um relatório agregado = soma dos agregados. Só é correto porque cada linha do mapa (par produto ×
+ * farmácia) cai em UM único agregado (categoria, farmácia, grupo e fabricante são atributos da própria linha), pelo
+ * que os agregados particionam as linhas: nenhum par é contado duas vezes. Desconhecidos ficam fora e contam-se à parte.
+ */
+export function stockTotalDosAgregados(rows: ReadonlyArray<Pick<MargensAgg, "stockTotal" | "linhasSemStock">>): { total: number; desconhecidas: number } {
+  let total = 0;
+  let desconhecidas = 0;
+  for (const r of rows) {
+    total += r.stockTotal;
+    desconhecidas += r.linhasSemStock;
+  }
+  return { total, desconhecidas };
+}
+
+/** Nota de rodapé do stock nos relatórios agregados (universo = artigos com vendas no período; total parcial). */
+function notaStockAgregado(desconhecidas: number): string {
+  return [
+    "Stock: stock atual à data de geração do relatório (não histórico) dos artigos com vendas no período — não é o stock integral. Soma o stock atual de cada artigo/farmácia uma só vez (não por mês nem por venda); negativos descontam.",
+    desconhecidas > 0 ? `Stock PARCIAL: ${desconhecidas} linha(s) artigo/farmácia sem stock conhecido ficam fora da soma (coluna «Sem stock conhecido»).` : "",
+  ].filter(Boolean).join(" ");
+}
 
 export function buildMargensAggReport(input: {
   rows: MargensAgg[];
@@ -471,6 +505,8 @@ export function buildMargensAggReport(input: {
       : input.rows;
 
   const isFarmacia = input.groupBy === "farmacia";
+  const stock = stockTotalDosAgregados(input.rows);
+  const MAW = stock.desconhecidas > 0 ? MAW_COM_DESCONHECIDOS : { ...MAW_SEM_DESCONHECIDOS, linhasSemStock: 0 };
   const columns: ReportColumn[] = [
     {
       key: "label",              label: headerLabel,    format: "text",     width: MAW.label,
@@ -480,6 +516,12 @@ export function buildMargensAggReport(input: {
       ...(isFarmacia ? { displayKey: "labelCurta" } : {}),
     },
     { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: MAW.qtdVendida,  showTotal: true },
+    // Stock ATUAL dos artigos com vendas no período: soma dos pares (produto × farmácia) distintos da linha.
+    // Sem indicador de tom: é uma soma (um 0 ou um negativo pode vir de parcelas que se compensam).
+    { key: "stockTotal",         label: "Stock",        format: "integer",  width: MAW.stockTotal,  noClip: true, showTotal: true },
+    ...(stock.desconhecidas > 0
+      ? [{ key: "linhasSemStock", label: "Sem stock\nconhecido", format: "integer" as const, width: MAW.linhasSemStock, showTotal: true }]
+      : []),
     { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: MAW.valorVendido, showTotal: true },
     { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: MAW.valorVendidoSemIva, showTotal: true },
     { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: MAW.custoEstimado, showTotal: true },
@@ -493,6 +535,8 @@ export function buildMargensAggReport(input: {
     label: r.label,
     labelCurta: isFarmacia ? nomeFarmaciaCurto(r.label) : r.label,
     qtdVendida: r.qtdVendida,
+    stockTotal: stockDaLinhaAgregada(r),
+    linhasSemStock: r.linhasSemStock > 0 ? r.linhasSemStock : null,
     valorVendido: r.valorVendido,
     valorVendidoSemIva: r.valorVendidoSemIva,
     custoEstimado: r.custoEstimado,
@@ -511,6 +555,10 @@ export function buildMargensAggReport(input: {
   const summary: ReportSummaryItem[] = [
     { label: headerLabel + "s", value: input.rows.length, format: "integer" },
     { label: "Unidades vendidas", value: Math.round(totalQty), format: "integer" },
+    { label: "Stock total", value: stock.total, format: "integer" },
+    ...(stock.desconhecidas > 0
+      ? [{ label: "Linhas sem stock conhecido (fora do stock total)", value: stock.desconhecidas, format: "integer" as const }]
+      : []),
     { label: "Vendas € (c/ IVA)", value: Math.round(totalComIva * 100) / 100, format: "currency" },
     { label: "Vendas € (s/ IVA)", value: Math.round(totalSemIva * 100) / 100, format: "currency" },
     { label: "Custo (s/ IVA)", value: Math.round(totalCusto * 100) / 100, format: "currency" },
@@ -544,6 +592,7 @@ export function buildMargensAggReport(input: {
       organization: input.organization,
       density: "compact",
       footer: "SPharm.MT · Margens executivo",
+      tableNote: notaStockAgregado(stock.desconhecidas),
     },
   };
 }

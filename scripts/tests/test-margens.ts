@@ -385,6 +385,7 @@ console.log("\nM · totalizadores e fabricante");
     estado: "FIAVEL",
     // Campos de stock do agregado (coluna Stock em Margens): este teste não os exercita.
     stockTotal: 0,
+    linhas: 1,
     linhasSemStock: 0,
   };
   const relAgg = buildMargensAggReport({

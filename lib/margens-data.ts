@@ -163,6 +163,8 @@ export type MargensAgg = {
    * integral da categoria/farmácia.
    */
   stockTotal: number;
+  /** Linhas (produto × farmácia) que entram neste agregado, com stock conhecido ou não. */
+  linhas: number;
   /** Linhas com stock desconhecido (fora de `stockTotal`). */
   linhasSemStock: number;
 };
@@ -664,6 +666,7 @@ export async function getMargensData(
     coberturaCusto: 0,
     estado: "IVA_POR_APURAR" as EstadoMargem,
     stockTotal: 0,
+    linhas: 0,
     linhasSemStock: 0,
   };
 
@@ -733,6 +736,7 @@ export function aggregate(
     custoEstimadoTotal: number;
     margemEurTotal: number;
     stockTotal: number;
+    linhas: number;
     linhasSemStock: number;
   };
   const map = new Map<string, Acc>();
@@ -748,11 +752,15 @@ export function aggregate(
         custoEstimadoTotal: 0,
         margemEurTotal: 0,
         stockTotal: 0,
+        linhas: 0,
         linhasSemStock: 0,
       });
     }
     const acc = map.get(k)!;
     // Stock: cada linha (produto × farmácia) conta UMA vez; desconhecido não é 0.
+    // Cada linha cai numa só chave (categoria, farmácia, grupo e fabricante são atributos de UMA linha), pelo que
+    // os agregados particionam as linhas e a soma dos agregados = o total, sem dupla contagem.
+    acc.linhas += 1;
     if (r.stockAtual === null) acc.linhasSemStock += 1;
     else acc.stockTotal += r.stockAtual;
     acc.qtdTotal += r.qtdVendida;
@@ -789,6 +797,7 @@ export function aggregate(
       coberturaCusto: Math.round(cobertura * 10000) / 10000,
       estado,
       stockTotal: acc.stockTotal,
+      linhas: acc.linhas,
       linhasSemStock: acc.linhasSemStock,
     };
   }).sort((a, b) => a.label.localeCompare(b.label, "pt-PT"));

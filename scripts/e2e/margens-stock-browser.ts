@@ -133,6 +133,59 @@ async function main() {
     const desc = (await stockDasLinhas(page)).filter((l) => l.estado !== "desconhecido").map((l) => numero(l.texto));
     check(desc.every((v, i) => i === 0 || desc[i - 1] >= v), `ordem descendente (${desc.slice(0, 4).join(", ")}…)`);
 
+    // ═══ modos agregados: categoria / farmácia / grupo / fabricante ═══
+    // Cada par artigo×farmácia cai num só agregado → Σ da coluna Stock = «Stock total» do mapa por produto, em TODOS os modos,
+    // no ecrã, na impressão, no PDF e no Excel; o desconhecido não vira 0 (o resumo avisa «Parcial» e a coluna «Sem stock conhecido» conta-o).
+    secao("modos agregados: coluna Stock coerente com o total do mapa por produto");
+    const kpiTexto = async () => (await page.locator("section.grid > div", { hasText: "Stock total" }).first().innerText()).replace(/\s+/g, " ");
+    const stockTotalKpi = numero((await kpiTexto()).replace(/Stock total/i, "").trim().split(" ")[0]);
+    const modos = [["categoria", "Totais por categoria"], ["farmacia", "Totais por farmácia"], ["grupo", "Totais por grupo"], ["fabricante", "Totais por fabricante"]] as const;
+    for (const [modo, rotulo] of modos) {
+      await page.getByRole("button", { name: rotulo, exact: true }).click();
+      const tabela = page.locator('[data-testid="tabela-margens-agregada"]');
+      await tabela.waitFor({ timeout: 20000 });
+      const cabs = (await tabela.locator("thead th").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+      const iStock = cabs.findIndex((t) => /^Stock$/i.test(t));
+      check(iStock === cabs.findIndex((t) => /^Qtd/i.test(t)) + 1 && iStock > 0, `${modo}: coluna «Stock» logo a seguir a «Qtd» (${cabs.slice(0, 4).join(" | ")})`);
+      const celulas = await tabela.locator('tbody td[data-col="stock"]').allInnerTexts();
+      const valores = celulas.map((t) => t.trim()).filter((t) => t !== "—").map(numero);
+      const somaModo = valores.reduce((s, v) => s + v, 0);
+      check(celulas.length > 0 && somaModo === stockTotalKpi, `${modo}: Σ da coluna Stock (${somaModo}) = «Stock total» do mapa por produto (${stockTotalKpi}) — sem dupla contagem`);
+      check((await page.locator('[data-testid="margens-agregada-nota-stock"]').innerText()).includes("artigos com vendas no período"), `${modo}: nota «stock dos artigos com vendas no período»`);
+      check(/Parcial/.test(await kpiTexto()) === ((await tabela.locator("thead th", { hasText: "Sem stock conhecido" }).count()) > 0), `${modo}: coluna «Sem stock conhecido» só existe com stock desconhecido (e o resumo avisa «Parcial»)`);
+      await page.screenshot({ path: path.join(EVID, `margens-stock-modo-${modo}.png`) });
+
+      // Impressão deste modo
+      const tImpModo = await imprimir(page);
+      check(/Stock/.test(tImpModo) && /artigos com vendas no período/.test(tImpModo) && /Stock total/.test(tImpModo), `${modo}: impressão traz a coluna Stock, o «Stock total» e a nota`);
+      // Excel deste modo: o total da coluna Stock = o do mapa por produto
+      const [dlM] = await Promise.all([page.waitForEvent("download", { timeout: 60000 }), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
+      const xpM = path.join(EVID, `margens-stock-${modo}.xlsx`);
+      await dlM.saveAs(xpM);
+      const wbM = XLSX.read(fs.readFileSync(xpM));
+      const gM = XLSX.utils.sheet_to_json<unknown[]>(wbM.Sheets[wbM.SheetNames[0]], { header: 1, blankrows: false }) as unknown[][];
+      const cabM = gM.findIndex((l) => l.includes("Stock"));
+      check(cabM >= 0, `${modo}: o Excel tem a coluna «Stock»`);
+      const colM = gM[cabM].indexOf("Stock");
+      const dadosM = gM.slice(cabM + 1);
+      const totalM = dadosM[dadosM.length - 1][colM];
+      const somaLinhasM = dadosM.slice(0, -1).map((l) => l[colM]).filter((v): v is number => typeof v === "number").reduce((s, v) => s + v, 0);
+      check(totalM === stockTotalKpi && somaLinhasM === stockTotalKpi, `${modo}: Excel — total da coluna Stock = ${stockTotalKpi} (linhas Σ ${somaLinhasM}; total ${String(totalM)})`);
+      fs.rmSync(xpM);
+      // PDF deste modo (corpo do pedido)
+      const [reqM] = await Promise.all([
+        page.waitForRequest((r) => r.url().includes("/api/reports/pdf"), { timeout: 120000 }),
+        page.getByRole("button", { name: /^PDF$/ }).first().click(),
+      ]);
+      const corpoM = reqM.postDataBuffer()!.toString("utf8");
+      check(/Stock/.test(corpoM) && /Stock total/.test(corpoM) && /artigos com vendas no período/.test(corpoM), `${modo}: o relatório do PDF tem a coluna, o resumo e a nota de Stock`);
+    }
+    // Email do último modo (fabricante): PDF e Excel RECEBIDOS trazem o Stock
+    const emModo = await emailReal(page, smtp, EVID, "margens-stock-fabricante");
+    check(emModo.enviado && !!emModo.pdf && !!emModo.xlsx && /Stock/.test(emModo.pdf) && /Stock/.test(emModo.xlsx), "modo agregado: email real com PDF e Excel que trazem a coluna Stock");
+    await page.getByRole("button", { name: "Detalhe por produto", exact: true }).click();
+    await page.locator(SEL).waitFor({ timeout: 20000 });
+
     // ═══ expansão CNPEM: mostra stock, não altera totais ═══
     secao("expansão CNPEM: stock visível no ecrã, totais intactos");
     await page.locator(".tabela-margens thead th button", { hasText: /^CNP/ }).first().click(); // ordena por CNP (só para sair da ordem por Stock)
