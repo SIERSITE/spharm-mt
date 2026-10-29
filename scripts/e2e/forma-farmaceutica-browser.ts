@@ -87,7 +87,16 @@ async function main() {
     const ctx = await abrirContexto(amb, browser, { userId: seed.userId } as never);
     await ctx.addInitScript(INIT_CAPTURA_IMPRESSAO); // captura da impressão (iframe) e window.__name
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => console.log("  [pageerror]", e.message));
+    // AVISO CONHECIDO: o React #418 (hidratação de lib/workspace/use-workspace-state.ts, que lê sessionStorage no 1.º render)
+    // é PRÉ-EXISTENTE no base (a69cbc5; corrigido noutra branch, fix/workspace-hidratacao-estado). Só se regista; qualquer OUTRO pageerror falha.
+    page.on("pageerror", (e) => {
+      if (/React error #418|Hydration failed|#418/.test(e.message)) {
+        console.log("  [AVISO conhecido] pageerror React #418 (hidratação do estado do workspace; bug pré-existente no base)");
+      } else {
+        console.log("  [pageerror]", e.message);
+        check(false, "pageerror inesperado", e.message);
+      }
+    });
     await page.setViewportSize({ width: 1600, height: 900 });
     const net = observar(page);
     const base = baseFor("silveira");
@@ -329,7 +338,7 @@ async function main() {
       check((await quieto(page, net, 1200)) === 0 && net.n() === d0, "Devoluções: mudar a forma = 0 pedidos (filtro no cliente)");
       td = await textoPagina(page);
       check(temCnp(td, A) && temCnp(td, B) && !temCnp(td, C) && !temCnp(td, D), "Devoluções com «Comprimido»: só A e B");
-      check(/Linhas\s*2\b/.test(td.replace(/\s+/g, " ")), "…as linhas/totais refletem o filtro (2 linhas)");
+      check(/Linhas\s*2\b/i.test(td.replace(/\s+/g, " ")), "…as linhas/totais refletem o filtro (2 linhas)");
       await opcao(page, RE_COMP).click();
       await opcao(page, RE_SEM).click();
       td = await textoPagina(page);
@@ -359,7 +368,13 @@ async function main() {
       await page.getByRole("button", { name: "Limpar filtros" }).first().click();
       await page.waitForTimeout(2500);
       tm = await textoPagina(page);
-      check((await chip(page, "Forma:").count()) === 0 && temCnp(tm, C), "Manutenção: «Limpar filtros» limpa a forma e voltam os restantes produtos");
+      // «Limpar filtros» repõe também a pesquisa: a grelha volta a todo o catálogo (paginado), por isso C não está na 1.ª página.
+      const nTodos = Number(/(\d+) produto\(s\) correspondem ao filtro/.exec(tm)?.[1] ?? 0);
+      check((await chip(page, "Forma:").count()) === 0 && nTodos > 4 && (await page.getByPlaceholder("Pesquisar por CNP ou descrição...").inputValue()) === "", `Manutenção: «Limpar filtros» limpa a forma e a pesquisa (${nTodos} produtos correspondem)`);
+      await page.getByPlaceholder("Pesquisar por CNP ou descrição...").fill("IBUPROFENO");
+      await page.waitForTimeout(2500);
+      tm = await textoPagina(page);
+      check(temCnp(tm, A) && temCnp(tm, B) && temCnp(tm, C), "Manutenção: sem a forma voltam os restantes produtos (A, B e C)");
       await page.screenshot({ path: path.join(EVID, "manutencao.png") });
     }
 

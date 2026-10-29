@@ -172,13 +172,12 @@ async function main() {
       const somaLinhasM = dadosM.slice(0, -1).map((l) => l[colM]).filter((v): v is number => typeof v === "number").reduce((s, v) => s + v, 0);
       check(totalM === stockTotalKpi && somaLinhasM === stockTotalKpi, `${modo}: Excel — total da coluna Stock = ${stockTotalKpi} (linhas Σ ${somaLinhasM}; total ${String(totalM)})`);
       fs.rmSync(xpM);
-      // PDF deste modo (corpo do pedido)
-      const [reqM] = await Promise.all([
-        page.waitForRequest((r) => r.url().includes("/api/reports/pdf"), { timeout: 120000 }),
-        page.getByRole("button", { name: /^PDF$/ }).first().click(),
-      ]);
-      const corpoM = reqM.postDataBuffer()!.toString("utf8");
-      check(/Stock/.test(corpoM) && /Stock total/.test(corpoM) && /artigos com vendas no período/.test(corpoM), `${modo}: o relatório do PDF tem a coluna, o resumo e a nota de Stock`);
+      // PDF real deste modo (o pedido do botão repetido fora do browser): texto e 1.ª página
+      const pdfM = await pdfReal(page, ctx, EVID, `margens-stock-modo-${modo}.pdf`);
+      check(/Stock/.test(pdfM.json) && /Stock total/.test(pdfM.json) && /artigos com vendas no período/.test(pdfM.json), `${modo}: o relatório do PDF tem a coluna, o resumo e a nota de Stock`);
+      check(/Stock/.test(pdfM.texto) && /Stock total/.test(pdfM.texto), `${modo}: PDF real com a coluna «Stock» e o «Stock total» (faixa de resumo)`);
+      renderizarPdf(pdfM.ficheiro, EVID, `margens-stock-modo-${modo}-pdf`, 1);
+      if (modo !== "fabricante") fs.rmSync(pdfM.ficheiro); // fica só um PDF (fabricante) como evidência; os PNG da 1.ª página ficam todos
     }
     // Email do último modo (fabricante): PDF e Excel RECEBIDOS trazem o Stock
     const emModo = await emailReal(page, smtp, EVID, "margens-stock-fabricante");
