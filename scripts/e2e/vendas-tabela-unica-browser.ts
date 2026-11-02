@@ -218,7 +218,7 @@ async function main() {
         await previa().locator("thead th").first().waitFor({ timeout: 30000 });
         const htmlPrev = await previa().locator("html").evaluate((h) => h.outerHTML);
         check((htmlPrev.match(/<table/g) ?? []).length === 1 && (htmlPrev.match(/<thead>/g) ?? []).length === 1, `${tag}: Relatório — UMA tabela, UM cabeçalho`);
-        check(/@page \{ size: A4 landscape; margin: 10mm 6\.5mm; \}/.test(htmlPrev) && !/A3/.test(htmlPrev), `${tag}: Relatório — @page A4 horizontal, margens de 6 mm, sem A3`);
+        check(/@page \{ size: A4 landscape; margin: 10mm 6mm; \}/.test(htmlPrev) && !/A3/.test(htmlPrev), `${tag}: Relatório — @page A4 horizontal, margens de 6 mm, sem A3`);
         const nMesesTh = await previa().locator("thead th.mes").count();
         check(nMesesTh === n, `${tag}: Relatório — ${nMesesTh} colunas de mês (esperadas ${n}), lado a lado`);
         const ths = (await previa().locator("thead th").allInnerTexts()).map((t) => norm(t).replace(/\s+/g, " ").trim());
