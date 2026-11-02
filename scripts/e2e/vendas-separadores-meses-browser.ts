@@ -53,7 +53,7 @@ function pyRender(f: string, prefixo: string, paginas: string, dpi: string) {
 const CSS_MESES = `(() => {
   const w = (el, lado) => parseFloat(getComputedStyle(el)['border' + lado + 'Width']);
   const ths = [...document.querySelectorAll('thead th.mes')];
-  const linhas = [...document.querySelectorAll('tbody tr')].filter((tr) => !tr.classList.contains('nota-tr') && tr.querySelector('td'));
+  const linhas = [...document.querySelectorAll('tbody tr')].filter((tr) => !tr.classList.contains('nota-tr') && !tr.classList.contains('resumo-tr') && tr.querySelector('td'));
   const porLinha = linhas.map((tr) => [...tr.querySelectorAll('td.mes')]);
   const desalinhado = [];
   ths.forEach((th, i) => { const x = th.getBoundingClientRect().left; porLinha.forEach((tds, li) => { const td = tds[i]; if (td && Math.abs(td.getBoundingClientRect().left - x) > 0.6) desalinhado.push([li, i]); }); });

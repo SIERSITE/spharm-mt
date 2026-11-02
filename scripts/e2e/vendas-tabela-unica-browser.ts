@@ -274,7 +274,7 @@ async function main() {
         const fx = path.join(EVID, `vendas-${n}m-${v ? 1 : 0}${c ? 1 : 0}.xlsx`);
         await dl.saveAs(fx);
         const g = XLSX.utils.sheet_to_json<unknown[]>(XLSX.readFile(fx).Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
-        const cab = ((g.find((r) => r[0] === "CNP") ?? []) as string[]).map((h) => norm(String(h)));
+        const cab = ((g.find((r) => r[0] === "CNP") ?? []) as string[]).map((h) => norm(String(h)).replace(/\s+/g, " "));
         check(cab.filter((h) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)\s\d\d$/.test(h)).length === n && !cab.some((h) => /bloco|Parte/i.test(h)), `${tag}: Excel — ${n} colunas de mês, sem colunas de bloco`);
         check(cab.some((h) => /custo total/i.test(h)) === c && cab.some((h) => /valor\s*vendas/i.test(h)) === v, `${tag}: Excel — «Custo total est.» e «Valor Vendas (s/IVA)» continuam no Excel conforme as opções (o Excel não mudou)`);
 

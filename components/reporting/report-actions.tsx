@@ -12,7 +12,7 @@
  * cliente, não o snapshot do primeiro render.
  */
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { FileSpreadsheet, FileText, Mail, Printer, X } from "lucide-react";
 import type { Report } from "@/lib/reporting/report-types";
@@ -69,6 +69,12 @@ export function ReportActions({ report, className, hide, excelHref }: Props) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // Mapa de Vendas: período que não cabe numa página A4 legível → mensagem em vez de PDF/impressão truncados (o Excel nunca é limitado).
   const [aviso, setAviso] = useState<string | null>(null);
+  // O aviso não pode bloquear a UI: desaparece sozinho ao fim de 8 s (e o contentor não intercepta cliques, ver abaixo).
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 8000);
+    return () => clearTimeout(t);
+  }, [aviso]);
 
   return (
     <>
@@ -150,11 +156,11 @@ export function ReportActions({ report, className, hide, excelHref }: Props) {
         <div
           role="alert"
           data-testid="relatorio-nao-cabe-a4"
-          className="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg"
+          className="pointer-events-none fixed bottom-4 right-4 z-50 max-w-md rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg"
         >
           <div className="flex items-start gap-3">
             <p className="flex-1">{aviso}</p>
-            <button type="button" aria-label="Fechar aviso" className="text-amber-700 hover:text-amber-900" onClick={() => setAviso(null)}>
+            <button type="button" aria-label="Fechar aviso" className="pointer-events-auto text-amber-700 hover:text-amber-900" onClick={() => setAviso(null)}>
               <X className="h-4 w-4" />
             </button>
           </div>

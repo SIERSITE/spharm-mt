@@ -1178,7 +1178,7 @@ const STYLES = `
   .page.density-compact:not(.hierarchy-clean) .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .page.density-compact:not(.hierarchy-clean) .resumo-faixa strong { color: #111827; font-weight: 700; }
 
-  /* TIPOGRAFIA A4 (2026-11): corpo da tabela a 8,25 pt (11 px, como os números da solução A3 rejeitada) e cabeçalhos a negrito a 8 pt — nunca abaixo de 8 pt (a largura poupa-se noutros sítios: meses «Out/25»,
+  /* TIPOGRAFIA A4 (2026-11): corpo da tabela a 8,25 pt (11 px, como os números da solução anterior) e cabeçalhos a negrito a 8 pt — nunca abaixo de 8 pt (a largura poupa-se noutros sítios: meses «Out/25»,
      margens de 6,5 mm, padding horizontal (--pad) 5→2 px, larguras pelos dados; ver layout-largura.ts). Tipo de letra fixo, com
      larguras de glifo conhecidas (Arial = Liberation Sans no contentor), para a largura das colunas se calcular a partir dos dados. */
   .page.density-compact.hierarchy-clean { font-family: Arial, "Liberation Sans", Helvetica, sans-serif; }

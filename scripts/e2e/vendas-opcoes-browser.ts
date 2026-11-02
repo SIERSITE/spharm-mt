@@ -361,7 +361,8 @@ async function main() {
         const total = document.querySelector(".totals-tbody td.num");
         return { texto: px(texto), num: px(num), stock: px(stock), total: px(total) };
       });
-      check(Math.abs(f.num - f.texto - 1) < 0.2 && Math.abs(f.total - f.texto - 1) < 0.2 && Math.abs(f.stock - f.texto - 1) < 0.2, `${w}×${h} (Relatório): números/stock/totais ${f.num}/${f.stock}/${f.total}px = texto ${f.texto}px + 1`);
+      // 2026-11: A4 a 8,25 pt — a regra «números = texto + 1 px» foi removida; CNP/Descrição ≥ valores mensais, tudo a 11 px (8,25 pt ≥ 8 pt).
+      check(Math.abs(f.num - f.texto) < 0.2 && Math.abs(f.total - f.texto) < 0.2 && Math.abs(f.stock - f.texto) < 0.2 && f.texto >= 10.66, `${w}×${h} (Relatório): números/stock/totais ${f.num}/${f.stock}/${f.total}px = texto ${f.texto}px (todos ≥ 8 pt)`);
       await page.getByRole("button", { name: /^Tabela$/ }).click();
       await page.locator('[data-testid="vendas-tabela"]').waitFor();
       const e = await page.locator('table[data-testid="vendas-tabela"]').evaluate(() => {
