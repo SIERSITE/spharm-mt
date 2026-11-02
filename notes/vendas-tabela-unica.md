@@ -21,30 +21,53 @@ O PDF de `a012428` repartia o período em «blocos temporais» (Parte 1 de 2 / P
 ## 2. Decisões (o que mudou face ao 1.º desenho)
 
 - **Formato**: A4 horizontal (297×210 mm) SEMPRE — PDF, impressão, PDF do email, pré-visualização. Sem A3, sem escala, sem blocos.
-- **Tipografia** (`lib/reporting/layout-largura.ts`): corpo da tabela (CNP, Descrição, Farmácia, PVP, custo, **meses**, total, stock) **8,25 pt** (11 px;
-  o mesmo que os números da solução A3 rejeitada); cabeçalhos a negrito **8 pt**; CNP e Descrição = valores mensais. Nunca abaixo de 8 pt. Tipo de letra
-  fixo `Arial, "Liberation Sans"` (métricas Arial; o contentor tem `fonts-liberation`), por isso a largura calcula-se com larguras reais de glifo
-  (`metricas-fonte.ts`, validado contra o PDF: «Nov/26» 34,96 px medido vs 35,0 calculado).
-- **Colunas da tabela**: CNP · Descrição · Farmácia · PVP* · Custo unit. est.* · N meses «Out/25» (uma linha) · **Total unid.** · **Stock** (*opções de preços).
-- **Totais financeiros fora da tabela**: «Custo total est.» e «Valor Vendas (s/IVA)» passam a `excelOnly` (semântica confirmada: só no Excel, nunca em
-  HTML/PDF/impressão) e os seus totais vão para o **RESUMO FINANCEIRO** no fim (`meta.resumoFinal`, uma só vez): Unidades vendidas, Stock total, Custo total
-  estimado (só com preços de compra; «PARCIAL: N linha(s) sem custo conhecido» — a lógica de `custoTotalDoRelatorio`), Valor total de vendas s/IVA (só com
-  preços de venda). Sem preços → título «Resumo» só com unidades e stock. `aplicarPrivacidade` retira os itens sensíveis (também no servidor).
-- **TOTAL ARTIGO**: só com > 1 farmácia; só totais mensais, total de unidades e stock; PVP/custo unit. **vazios** no HTML/PDF (`ReportColumn.vazioNoSubtotal`);
-  no Excel a linha mantém-se como estava.
-- **Excel idêntico a a012428** (comparação célula a célula, ver §5): para > 13 meses `a012428` trazia «Período: …» e os totais depois do Stock; essa folha mantém-se
-  exatamente (posições e rótulos), só no Excel (`label`; o HTML usa `htmlLabel`).
-- **Larguras (ordem de prioridade)**: meses abreviados «Out/25» → margens laterais **6,5 mm** (≥ 5 mm de segurança) → padding horizontal 5→4→3→2,5→2 px **antes**
-  de tocar na letra → mês com a largura do seu maior texto (dados: dígitos, sinal, separador) → Descrição com quebra (mín. 32 mm, preferida 48 mm) →
-  PVP/custo compactos → totais financeiros fora. Nunca truncar nem reticências.
-- **Excesso**: `capacidadeA4(dados, opcoes)` (função pura) → `{cabe, mesesMax, padPx, pct…, mensagem}`; `capacidadeDoRelatorio(report)` (lib/reporting/layout-vendas.ts) usa-a
-  no adapter, no servidor e na UI. Se não cabe: **não há PDF/impressão/PDF de email/pré-visualização**; mensagem
-  **«O período de N meses não cabe numa página A4 legível (máximo M meses com estas opções). Reduza o período, retire preços ou use o Excel.»**;
-  `/api/reports/pdf` e `/api/reports/email` (com PDF) → **HTTP 422** com o mesmo texto; o Excel e a tabela do ecrã continuam sem limite. Onde: `ReportActions`
-  (aviso ao clicar Imprimir/PDF, aviso no diálogo de email), `printReport`, `renderReportHtml` (devolve só a mensagem — é o que a pré-visualização «Relatório» mostra),
-  `buildReportPdfBuffer` (erro tipado `RelatorioNaoCabeA4Error`). `components/vendas/vendas-client.tsx` **não foi alterado**.
-- Período > capacidade: **análise e proposta** (trimestres, por farmácia, etc.) em `notes/vendas-periodos-longos-proposta.md` — sem decisão.
+- **Tipografia**: TUDO na tabela (corpo e cabeçalhos) a **10,7 px = 8,025 pt** (o PDF mede 8,02 pt; ≥ 8,0 pt). CNP e Descrição = valores mensais. Tipo de letra fixo
+  `Arial, "Liberation Sans"` (métricas Arial; o contentor tem `fonts-liberation`), por isso a largura calcula-se com larguras reais de glifo (`metricas-fonte.ts`).
+  (Decisão revista: o corpo esteve a 8,25 pt; baixou-se a 8,025 pt para garantir os 14 meses nos limites abaixo. Os meses ficam 0,23 pt abaixo dos 8,25 pt da solução A3 rejeitada.)
+- **Colunas da tabela**: CNP · Descrição · Farmácia · PVP €* · Custo unit. €* · N meses «Out/25» (uma linha) · **Total unid.** · **Stock** (*opções de preços).
+- **«€» no cabeçalho**: as células de PVP e custo unitário mostram «9999,99» sem « €»; o símbolo está no cabeçalho («PVP €», «Custo unit. €»). Só HTML/PDF/impressão
+  (`ReportColumn.semSimbolo` + `htmlLabel`); o Excel continua com o formato monetário e os rótulos de sempre.
+- **Totais financeiros fora da tabela**: «Custo total est.» e «Valor Vendas (s/IVA)» são `excelOnly` e os seus totais vão para o **RESUMO FINANCEIRO** no fim (`meta.resumoFinal`, uma só
+  vez): Unidades vendidas, Stock total, Custo total estimado (só com preços de compra; «PARCIAL: N linha(s) sem custo conhecido»), Valor total de vendas s/IVA (só com preços de venda).
+  Sem preços → título «Resumo» só com unidades e stock. `aplicarPrivacidade` retira os itens sensíveis (também no servidor).
+- **TOTAL ARTIGO**: só com > 1 farmácia; só totais mensais, total de unidades e stock; PVP/custo vazios no HTML/PDF; o rótulo quebra em duas linhas («TOTAL / ARTIGO»).
+- **Farmácia**: coluna elástica que quebra linha (`ReportColumn.quebra`): conteúdo ≤ 54 px (cabe «Silveirense»); nomes longos (até 32 caracteres testados) quebram entre palavras e dentro da palavra.
+- **Excel idêntico a a012428** (12 cenários, célula a célula). Para > 13 meses `a012428` trazia «Período: …» e os totais depois do Stock; essa folha mantém-se exatamente.
+- **Excesso e GARANTIA DOS 14 MESES** (`lib/reporting/layout-largura.ts`, função pura `capacidadeA4`):
+  - **Até 14 meses** a decisão NÃO depende de heurística sobre os dados: dentro dos **limites numéricos fixos** abaixo, 14 meses (e menos) CABEM SEMPRE, com preços de venda E de compra,
+    corpo ≥ 8 pt, Descrição ≥ 45 mm e sem cortar nada. A prova é o orçamento de largura do pior caso simultâneo (`orcamentoPiorCaso`, teste «PROVA POR CÁLCULO») e uma grelha de 13 824 combinações.
+  - **Só se recusa (HTTP 422)** quando algum valor ultrapassa um limite; a mensagem diz o valor e o limite concretos, p.ex.
+    «PVP de 12 345,67 € excede o limite de 9 999,99 € do PDF A4 legível. Reduza a seleção, retire preços ou use o Excel.» (idem custo unitário, valor mensal, total de unidades, stock).
+    Com «Incluir preços de venda/compra» desligado o respetivo limite não se aplica.
+  - **Acima de 14 meses** a capacidade depende dos DADOS (largura do maior texto de cada coluna) e a mensagem é
+    **«O período de N meses não cabe numa página A4 legível (máximo M meses com estas opções). Reduza o período, retire preços ou use o Excel.»**
+  - Onde: `ReportActions` (aviso ao clicar Imprimir/PDF e no diálogo de email; o aviso é `pointer-events-none` e desaparece em 8 s), `printReport`, `renderReportHtml` (só a mensagem — é o que a pré-visualização
+    mostra), `buildReportPdfBuffer` (`RelatorioNaoCabeA4Error`), rotas `/api/reports/pdf` e `/api/reports/email` (422). `components/vendas/vendas-client.tsx` **não foi alterado**.
+- Períodos de 24/27 meses: **análise e proposta** em `notes/vendas-periodos-longos-proposta.md` — sem decisão.
 
+### Limites numéricos fixos (valores em módulo)
+| Valor | Limite |
+|---|---|
+| PVP e custo unitário | **9 999,99 €** |
+| Qualquer valor mensal (célula, TOTAL ARTIGO, TOTAL GERAL), positivo ou negativo | **99 999** (inclui «−99 999») |
+| Total unid. e Stock (linhas, TOTAL ARTIGO, TOTAL GERAL) | **999 999** (inclui negativos) |
+| Descrição | qualquer comprimento (quebra); largura garantida **≥ 45 mm** |
+| Farmácia | qualquer nome (quebra); 2 e 3 farmácias por artigo |
+| Meses garantidos | **14** |
+
+### Orçamento de largura do pior caso (mm; 14 meses; padding 1,5 px; margens laterais de 6 mm ⇒ útil 285 mm)
+Larguras de glifo reais (Arial Bold 10,7 px, +1 % e +1 px de segurança); pior caso simultâneo: PVP/custo «9999,99», mensal «-99 999», total/stock «-999 999», CNP de 7 dígitos, «Silveirense».
+
+| venda | compra | CNP | Farmácia | PVP € | Custo € | Total unid. | Stock | 14 × mês (11,28 cada) | fixos + meses | sobra para a Descrição |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sim | sim | 12,2 | 15,1 | 11,4 | 11,4 | 12,9 | 13,9 | 158,0 | 234,8 | **50,2** |
+| sim | não | 12,2 | 15,1 | 11,4 | — | 12,9 | 13,9 | 158,0 | 223,5 | 61,5 |
+| não | sim | 12,2 | 15,1 | — | 11,4 | 12,9 | 13,9 | 158,0 | 223,5 | 61,5 |
+| não | não | 12,2 | 15,1 | — | — | 12,9 | 13,9 | 158,0 | 212,1 | 72,9 |
+
+Poupanças de largura aplicadas por esta ordem (sem baixar de 8 pt): cabeçalhos compactos («PVP €», «Custo unit. €», «Out/25»), «€» fora das células, margens de 6 mm, padding 5 → 1,5 px
+(quando os dados reais deixam espaço o padding sobe; com o pior caso fica em 1,5 px), Farmácia a quebrar linha, larguras por dígitos máximos dos limites, Descrição como coluna elástica.
+Mês: «-99 999» = 37,3 px vs «Nov/26» a negrito = 35 px.
 ## 3. Regra final de paginação (só vertical)
 - Cada artigo (farmácias + TOTAL ARTIGO) é um `<tbody class="row-group">` com `break-inside: avoid`: **nunca dividido** (verificado em PDFs de 12-56 artigos e no PDF de 31 páginas).
 - `thead { display: table-header-group }` repete o cabeçalho completo (os 14 meses…) em todas as páginas; sem `<tfoot>`.
@@ -53,85 +76,44 @@ O PDF de `a012428` repartia o período em «blocos temporais» (Parte 1 de 2 / P
   só com totais (varrimento de 12 a 56 artigos, `test-vendas-tabela-unica` C5). Filete de 2 px entre artigos (borda inferior da última linha) e separadores verticais
   de mês de 1 px mantêm-se.
 
-## 4. Capacidade (nº máximo de meses numa página A4 horizontal, corpo 8,25 pt)
+## 4. Capacidade acima de 14 meses (depende dos dados; margens de 6 mm, útil 285 mm)
 
-Largura útil 284 mm. Larguras mínimas com os dados do cliente (pad 2 px): CNP 12,8 · Farmácia 23,4 · PVP 11,1 · Custo unit. 13,0 · Total unid. 10,8 · Stock 10,0 mm · **mês 11,4 mm** · Descrição ≥ 32 mm.
-
-| Preços de venda | Preços de compra | dados moderados (totais mensais até 4 dígitos, PVP ≤ 91,80 €) | extremos (123 456 un., −12 345, 12 345,67 €, 1 234 567 total) |
+| Preços de venda | Preços de compra | dados moderados (≤ 1 077 por mês; PVP ≤ 91,80 €) | pior caso dos limites |
 |---|---|---|---|
-| sim | sim | **14** | 10 |
-| sim | não | 16 | 11 |
-| não | sim | 15 | 11 |
-| não | não | 17 | 12 |
+| sim | sim | 15 | 14 |
+| sim | não | 16 | 15 |
+| não | sim | 16 | 15 |
+| não | não | 17 | 16 |
 
-(O requisito de 14 meses cumpre-se, com folga mínima, só com todos os preços ligados e dados moderados; com os dados do cliente: 14 meses, Descrição 43,9 mm.) 24 e 27 meses
-**não cabem em nenhuma combinação** → mensagem.
-
+Até 14 meses: **sempre cabe** dentro dos limites (ver §2). 24 e 27 meses não cabem em nenhuma combinação → mensagem.
 ## 5. Testes (comandos e resultados)
 
-`TEST_PG_ADMIN_URL=postgresql://postgres:test@localhost:15433/postgres npx tsx scripts/tests/<teste>.ts`
+`export TEST_PG_ADMIN_URL=postgresql://postgres:test@localhost:15433/postgres; npx tsx scripts/tests/<teste>.ts` — resultados finais no relatório de entrega (SHA final).
 
-| Teste | Resultado |
-|---|---|
-| `test-vendas-tabela-unica` (reescrito: capacidade pura, estrutura, ~45 PDFs reais, impressão, Excel vs a012428, 24/27 meses, rotas HTTP reais 200/422, outros relatórios, controlo negativo) | **189 OK, 0 falhas** |
-| `test-vendas-mapa-visual` | 316 OK |
-| `test-vendas-pdf-layout` | 42 OK |
-| `test-vendas-impressao-hierarquia` | 26 OK |
-| `test-vendas-separadores-meses` | 55 OK |
-| `test-vendas-precos-pvp-stock` | 134 OK |
-| `test-reporting-redesign` | 133 OK |
-| `test-reporting-uniformizacao` | 107 OK |
-| `test-margens` / `test-margens-pdf-modos` / `test-margens-stock` | 118 / 382 / 159 OK |
-| `test-workspace-separadores` / `test-export-cabecalho-laboratorio` / `test-export-mesma-ordem-do-ecra` | 37 / 27 / 28 OK |
-| `test-vendas-loader-pvp-stock-db` (Postgres descartável) | 24 OK |
-| `tsc --noEmit`, `eslint` (lib/reporting, components/reporting, app/api/reports, testes novos) | 0 erros |
+`test-vendas-tabela-unica` cobre: capacidade pura (limites, orçamento do pior caso, grelha de 13 824 combinações, mensagens com o limite concreto, capacidade > 14 meses); estrutura (colunas,
+«€» no cabeçalho, resumo financeiro por combinação, TOTAL ARTIGO, Excel); PDFs reais (Chromium → PyMuPDF + geometria no DOM) de 1/3/6/12/13/14 meses, capacidade máxima, 1/2/3 farmácias,
+**«PDF real ×1 e ×10»** (326 artigos, 326 CNP distintos = 326 ocorrências, 1 TOTAL GERAL, 1 resumo, 14 cabeçalhos de mês por página), PVP/custo de 9,99 / 99,99 / 999,99 / 9 999,99 €,
+valores mensais de 9 … 99 999 (±), total/stock até 999 000, **pior caso simultâneo** com 2 e 3 farmácias e as 4 combinações de preços, varrimento de paginação, impressão = PDF, Excel idêntico a a012428,
+24/27 meses → mensagem, rotas HTTP reais (200/422), HTML/CSS de outros relatórios idênticos a a012428, controlo negativo.
+Em cada PDF: A4 horizontal, 14 meses na mesma tabela, corpo ≥ 8 pt, nenhuma célula a transbordar (Range vs caixa), nenhum token fora da sua coluna, nenhum CNP repetido, nenhum artigo dividido, um TOTAL GERAL e um resumo.
 
-Falhas pré-existentes (idênticas em `a012428`, não relacionadas): `test-fase1-economia-ordenacao` (3), `test-excessos-transferencias` (2).
+Testes antigos alterados (afirmavam o desenho anterior; comentário «2026-11»): `test-vendas-pdf-layout`, `test-vendas-precos-pvp-stock` (sentinelas ≤ 9 999,99 €: os de 11 111,11 € ultrapassam o limite), `test-reporting-redesign`,
+`test-vendas-mapa-visual` (idem; «TOTAL ARTIGO» em duas linhas), `test-vendas-separadores-meses`. E2E: `vendas-tabela-unica-browser`, `vendas-mapa-visual-browser` (custos de teste ≤ 9 999,99 €), `vendas-opcoes-browser`,
+`vendas-separador-browser`, `vendas-separadores-meses-browser`.
 
-O que o `test-vendas-tabela-unica` prova (sobre PDFs REAIS lidos com PyMuPDF e a geometria das colunas no DOM em mídia print): A4 horizontal em todas as páginas (841,9×595 pt); 14 meses
-«Out/25…Nov/26» na MESMA tabela e página; cada CNP uma só vez, em sequência; cada valor por linha = o do relatório (PVP, custo, meses, total, stock); PVP/custo vazios no TOTAL ARTIGO;
-letra do corpo 8,25 pt (7,99 pt os cabeçalhos = 8 pt, arredondamento do Chromium), CNP/Descrição ≥ meses; nenhuma célula a transbordar (Range vs caixa de conteúdo) nem token fora da sua coluna;
-um só «Total unid.», um só «Stock», um só TOTAL GERAL e um só resumo, no fim e com artigos; artigo nunca dividido; sem «Parte/bloco/Período:»; separadores verticais dos meses (15 por página); impressão = PDF
-do endpoint (mesmo texto página a página); pré-visualização = impressão = PDF = email (mesmo HTML); Excel **idêntico** a `a012428` em 12 cenários (todas as células, tipos, formatos, larguras, fusões, filtro;
-1/3/6/12/13/14/24/27 meses, 4 combinações de preços, valores extremos, agrupar por farmácia); 1, 3, 6, 12, 13, 14 meses e capacidade máxima por combinação, 1/2/3 farmácias, valores elevados/negativos;
-24 e 27 meses: mensagem exata, sem tabela, Excel completo, rotas reais 422; HTML e CSS de outros relatórios byte a byte iguais aos de a012428; controlo negativo (a análise acusa letra de 7 pt e colunas erradas).
-
-Testes antigos alterados (afirmavam o desenho anterior; cada alteração tem comentário «2026-11»): `test-vendas-pdf-layout` (meses «Jan/26» numa linha, «Total unid.»), `test-vendas-precos-pvp-stock`
-(cabeçalhos sem «Valor Vendas»/«Custo total», resumo financeiro por combinação, 27 meses lidos nas colunas), `test-reporting-redesign` (sem densidade; TOTAL ARTIGO com células vazias em vez de «—»),
-`test-vendas-mapa-visual` (custo total por linha só no Excel; totais no resumo; sem «+1 px»; tom de mês sólido; 27 meses → mensagem), `test-vendas-separadores-meses` (27 meses → capacidade máxima).
-E2E escritos e **não executados**: `vendas-tabela-unica-browser` (reescrito), `vendas-mapa-visual-browser`, `vendas-opcoes-browser`, `vendas-separador-browser`, `vendas-separadores-meses-browser`.
-
-## 6. Evidência (`docs/validacao-visual/2026-11-vendas-tabela-unica/`)
-
-Dados sintéticos calibrados (`scripts/tests/_cliente-real.ts`): 326 artigos, Segurado + Silveirense, 14 meses, TOTAL GERAL 980…15 por mês (máx. 1 077), 13 613 unidades (o real: 14 350 — inconciliável com
-máx. 1 077/mês), stock 1 492 (máx. 133), PVP ≤ 91,80 €, custo ≤ 48,18 €.
-
-| Ficheiro | Conteúdo |
-|---|---|
-| `montagem-comparacao-escala-fisica.png` | linha 1: 1.ª página de A (a012428, 57 pág.), B (A3 rejeitado, 20 pág.) e C (nova, 31 pág.) ao mesmo DPI; linha 2: recorte de 297×210 mm do mesmo canto de cada, a 100 dpi |
-| `medidas-comparacao.md` | tamanhos de letra e altura de algarismo medidos nas spans (A, B, C) |
-| `comparacao-A-…-p1.png`, `comparacao-B-A3-p1.png`, `comparacao-C-A4-p1.png` | 1.ª página de cada um |
-| `depois-A4-14m-p1.png`, `-pmid.png`, `-ultima.png` | A4 horizontal, 14 meses numa tabela; última página com o fim do último artigo, TOTAL GERAL e resumo financeiro |
-| `depois-excesso-27m-mensagem.png` | pré-visualização/PDF para 27 meses: só a mensagem |
-| `antes-vendas-14m-*`, `antes-vendas-27m-*`, `antes-vendas-14m-24-artigos.pdf` | mantidos (a012428: blocos) |
-
-Medidas (PyMuPDF; mm = pt × 0,3528; algarismo = tamanho × 0,716):
-
-| | papel | pág. | CNP | Descrição | valores mensais | cabeçalhos |
-|---|---|---|---|---|---|---|
-| A · a012428 | A4 | 57 | 6,75 pt (1,71 mm) | 6,75 pt | 7,5 pt (1,89 mm) | 6,0 pt (1,52 mm) |
-| B · A3 rejeitado | **A3** | 20 | 7,5 pt (1,89 mm) | 7,5 pt | 8,25 pt (2,08 mm) | 6,75 pt (1,71 mm) |
-| C · nova | A4 | 31 | **8,25 pt (2,08 mm)** | 8,25 pt | **8,25 pt (2,08 mm)** | **8,0 pt (2,02 mm)** |
-
-Logo, fisicamente a letra de C ≥ B (mesmo A3) e > A em todas as categorias, e a tabela cabe num único A4.
-
+**Falhas pré-existentes** (idênticas em `a012428`): `test-fase1-economia-ordenacao` (3), `test-excessos-transferencias` (2).
+## 6. Evidência
+- **No Git** (`docs/validacao-visual/2026-11-vendas-tabela-unica/`, só dados SINTÉTICOS): `montagem-comparacao-escala-fisica.png` (A: a012428, B: A3 rejeitado, C: nova, mesma escala), `medidas-comparacao.md`,
+  `depois-A4-x10-p1/-pmid/-ultima.png` (cenário «real ×10»), `depois-A4-pior-caso-3f-p1.png` (pior caso, 3 farmácias), `depois-excesso-27m-mensagem.png`, `antes-*` (a012428).
+- **Fora do Git** (`C:\projetos\_entregas\vendas-a4-evidencia\`): páginas do PDF REAL (1, 29, 57) e do novo (1, intermédia, última) a 100 dpi (= escala física 100 %: 1 px = 0,254 mm; A4 horizontal = 1169 × 827 px),
+  `montagem-real-vs-novo.png`, `medidas-e-provas.md` (fontes, 326 = 326 CNP, 1 TOTAL GERAL, 1 resumo, 14 cabeçalhos por página). Análise agregada do PDF real: `notes/vendas-pdf-real-analise.md`.
+- Medidas A/B/C sintéticas: A (a012428) CNP/Descrição 6,75 pt, meses 7,5 pt, cabeçalhos 6,0 pt; B (A3) 7,5 / 8,25 / 6,75 pt; C (nova) **8,02 pt em tudo**.
 ## 7. Riscos
-- Capacidade com folga mínima: 14 meses com todos os preços e dados moderados cabem (Descrição 43,9 mm no caso do cliente), mas valores muito largos (PVP ≥ 100 €, 6 dígitos num mês) reduzem a capacidade para 10-13 meses → mensagem. É deliberado (nunca letra < 8 pt).
-- A capacidade (e o «máximo M») depende dos dados do resultado selecionado, não só do período.
-- Larguras assumem Arial/Liberation Sans. Num browser sem nenhuma das duas, a pré-visualização/impressão pode quebrar; o PDF do servidor usa o Chromium do contentor (fonts-liberation instalado — `deploy/docker/Dockerfile`).
-- O Excel de > 13 meses conserva as etiquetas «Período: …» de a012428 (decisão para não mudar o Excel).
-- PDF: o Chromium gera PDFs «tagged» (~200 KB/página); inalterado (opção do endpoint).
-- E2E de browser não executados; ver §8.
+- Os 14 meses só são garantidos DENTRO dos limites (PVP/custo ≤ 9 999,99 €, mensal ≤ 99 999, total/stock ≤ 999 999); acima, 422 com o limite concreto.
+- Padding de 1,5 px nos casos extremos: valores adjacentes («9999,99 9999,99») ficam separados só pelo padding (legíveis, ver `depois-A4-pior-caso-3f-p1.png`).
+- Acima de 14 meses a capacidade depende dos dados do resultado selecionado.
+- Larguras assumem Arial/Liberation Sans; num browser sem nenhuma das duas a pré-visualização/impressão pode quebrar; o PDF do servidor usa o Chromium do contentor (`fonts-liberation`).
+- O Excel de > 13 meses conserva as etiquetas «Período: …» de a012428. PDF «tagged» (~200 KB/página) inalterado.
 
 ## 8. A validar no clone limpo (coordenador)
 1. `npx tsc --noEmit`; `npx eslint lib/reporting components/reporting app/api/reports scripts/tests scripts/e2e/vendas-*.ts`.

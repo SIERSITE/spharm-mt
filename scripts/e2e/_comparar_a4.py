@@ -20,7 +20,7 @@ import pymupdf
 from PIL import Image, ImageDraw, ImageFont
 
 a_pdf, b_pdf, c_pdf, out = sys.argv[1:5]
-ROT = [("A", "A · PDF atual (a012428): blocos temporais, A4", a_pdf), ("B", "B · solução A3 automática (4d4ef19) — rejeitada", b_pdf), ("C", "C · NOVA: A4 horizontal, tabela única (corpo 8,25 pt, cabeçalhos 8 pt)", c_pdf)]
+ROT = [("A", "A · PDF atual (a012428): blocos temporais, A4", a_pdf), ("B", "B · solução A3 automática (4d4ef19) — rejeitada", b_pdf), ("C", "C · NOVA: A4 horizontal, tabela única (corpo e cabeçalhos 8,025 pt)", c_pdf)]
 MM = 25.4 / 72
 try:
     FONTE = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
