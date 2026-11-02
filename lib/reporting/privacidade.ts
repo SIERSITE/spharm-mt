@@ -71,18 +71,12 @@ export function aplicarPrivacidade(report: Report): Report {
     for (const k of Object.keys(r)) if (!chaves.has(k)) nova[k] = r[k];
     return nova;
   });
-  const colunasRestantes = new Set(columns.map((c) => c.key));
   return {
     ...report,
     columns,
     rows,
     summary: report.summary?.filter((s) => !resumoSai(s)),
-    meta: report.meta
-      ? {
-          ...report.meta,
-          columnBlocks: report.meta.columnBlocks?.map((b) => ({ ...b, omitir: b.omitir.filter((k) => colunasRestantes.has(k)) })),
-        }
-      : report.meta,
+    meta: report.meta,
   };
 }
 

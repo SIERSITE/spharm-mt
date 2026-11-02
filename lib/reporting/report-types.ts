@@ -57,7 +57,7 @@ export type ReportColumn = {
    * também: `hidden` esconde de TUDO, incluindo Excel.
    */
   excelOnly?: boolean;
-  /** Só existe em HTML/PDF/print — nunca no Excel (ex.: totais por bloco temporal; o Excel mostra todos os meses numa folha). */
+  /** Só existe em HTML/PDF/print — nunca no Excel (o Excel mostra todos os meses numa folha). */
   htmlOnly?: boolean;
   /**
    * Sublinha discreta sob esta célula, só em HTML/PDF/print — nunca no
@@ -97,7 +97,7 @@ export type ReportColumn = {
    */
   stockIndicator?: boolean;
   /**
-   * Marca esta coluna como mensal (mesmo conjunto que `ReportMeta.columnBlocks` reparte) e dá-lhe um fundo
+   * Marca esta coluna como mensal (todas as colunas mensais ficam lado a lado na mesma tabela) e dá-lhe um fundo
    * alternado MUITO discreto (meses pares/ímpares) — só HTML/PDF/print.
    */
   monthAlt?: boolean;
@@ -224,6 +224,28 @@ export type ReportMeta = {
   /** Usado para filename e subject de email. Default = slug(title). */
   slug?: string;
   orientation?: "portrait" | "landscape";
+  /**
+   * Papel do documento (HTML `@page`, PDF, impressão e pré-visualização). Omitido = A4. O Mapa de Vendas decide-o pela largura
+   * das colunas (lib/reporting/layout-largura.ts): A4 horizontal se couber, senão A3 horizontal. Nunca se resolve a falta de
+   * largura repartindo o período em blocos/páginas.
+   */
+  paperSize?: "A4" | "A3";
+  /** Margem lateral da página em mm (omitido = 8). */
+  pageMarginMm?: number;
+  /**
+   * Escala (< 1) do conteúdo — SÓ no limite absoluto (período acima do que o A3 comporta), para nenhum número ser cortado.
+   * Omitido = 1.
+   */
+  contentZoom?: number;
+  /**
+   * Degradação controlada de um período muito longo (acima do que o A3 comporta com a tipografia normal): células dos meses
+   * compactas (padding 1,5 px, números a 8,5 px) e meses abreviados. Só HTML/PDF/print. Ver layout-largura.ts.
+   */
+  compactMonths?: boolean;
+  /** Informativo: largura mínima legível (mm) de todas as colunas que justificou o papel — ver `decidirLayout`. */
+  layoutMinWidthMm?: number;
+  /** Informativo: as colunas cabem em A4 horizontal (com a tipografia normal)? `false` ⇔ `paperSize: "A3"`. */
+  layoutFitsA4?: boolean;
   /** Rodapé livre (ex: "SPharm.MT — Uso interno") */
   footer?: string;
   /** Nome da empresa/farmácia no cabeçalho */
@@ -286,12 +308,6 @@ export type ReportMeta = {
    *     «Total artigo» em cinzento muito claro, sem blocos escuros (Mapa de Vendas, 2026-10). Lê-se em cinzentos.
    */
   hierarchy?: "normal" | "strong" | "clean";
-  /**
-   * Reparte as colunas em BLOCOS TEMPORAIS (páginas) quando há demasiadas para uma página A4 legível — HTML/PDF/print
-   * apenas (o Excel e o ecrã mostram sempre todas). Cada bloco omite as colunas listadas em `omitir` (as dos outros
-   * blocos); as restantes (identificação, totais…) repetem-se em todos. O TOTAL GERAL só aparece no ÚLTIMO bloco.
-   */
-  columnBlocks?: { titulo: string; omitir: string[] }[];
   /** Texto sob a tabela em HTML/PDF/print (default «N linhas»). Ex.: «12 artigos · 31 linhas». */
   tableNote?: string;
   /** Rótulo da linha de totais no Excel (default «Total»). */

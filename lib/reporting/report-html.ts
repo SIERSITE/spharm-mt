@@ -45,6 +45,7 @@ import type { Report, ReportAlign, ReportCell, ReportColumn, ReportRow } from ".
 import { agruparPorGroupKey, ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
 import { formatCell, formatDate, formatDateTime } from "./report-formatters";
 import { aplicarPrivacidade } from "./privacidade";
+import { MARGEM_LATERAL_MM, PAPEL_HORIZONTAL_MM, PAPEL_VERTICAL_MM } from "./layout-largura";
 
 function escapeHtml(s: string): string {
   return s
@@ -330,8 +331,8 @@ function renderTable(report: Report): string {
     return `<section class="table-wrap"><div class="empty">Sem dados a apresentar.</div></section>`;
   }
 
-  // Blocos temporais (ver ReportMeta.columnBlocks): sem blocos = um só, com todas as colunas — HTML idêntico ao de sempre.
-  const blocos = report.meta?.columnBlocks && report.meta.columnBlocks.length > 1 ? report.meta.columnBlocks : null;
+  // UMA só tabela, com todas as colunas (todos os meses lado a lado). A falta de largura resolve-se com o papel (meta.paperSize,
+  // ver layout-largura.ts), nunca repartindo o período em blocos/páginas.
 
   // Grupos por GROUP_KEY (runs contíguos) — ver report-types.ts. Uma
   // linha sem grupo (a maioria dos relatórios, hoje) forma sempre um
@@ -349,22 +350,22 @@ function renderTable(report: Report): string {
   const semGrupos = grupos.every((g) => g.groupKey === undefined);
   const limpo = report.meta?.hierarchy === "clean";
 
-  const renderBloco = (colsB: ReportColumn[], ultimo: boolean, fator: number): string => {
+  const renderTabela = (colsB: ReportColumn[]): string => {
     // <colgroup> com larguras explícitas — combinado com table-layout:fixed
     // garante que as colunas respeitam os tamanhos definidos pelo adapter.
     const colgroup = colsB
       .map((c) => {
-        const w = widthToCss(c.width && fator !== 1 && c.width <= 100 ? c.width * fator : c.width);
+        const w = widthToCss(c.width);
         return `<col${w ? ` style="width:${w}"` : ""} />`;
       })
       .join("");
 
-    // Paridade dos meses DENTRO do bloco (fundo alternado discreto).
+    // Paridade dos meses (fundo alternado discreto).
     const mesAlt = new Set<string>();
     colsB.filter((c) => c.monthAlt).forEach((c, i) => { if (i % 2 === 1) mesAlt.add(c.key); });
 
-    // SEPARADORES VERTICAIS DOS MESES (só no relatório limpo): cada mês leva uma borda esquerda muito fina; o 1.º mês do bloco e o
-    // último levam o limite do bloco. São BORDAS (imprimem-se mesmo com «gráficos de fundo» desligado) e vêm das mesmas classes no
+    // SEPARADORES VERTICAIS DOS MESES (só no relatório limpo): cada mês leva uma borda esquerda muito fina; o 1.º mês e o
+    // último levam o limite do conjunto dos meses. São BORDAS (imprimem-se mesmo com «gráficos de fundo» desligado) e vêm das mesmas classes no
     // cabeçalho, no corpo, no «TOTAL ARTIGO» e no «TOTAL GERAL» — por isso coincidem e são contínuas de cima a baixo. Se a coluna a
     // seguir ao último mês é de totais (`tint`), o limite desenha-o essa coluna (um só filete, nunca dois lado a lado).
     const colunasMes = colsB.filter((c) => c.monthAlt);
@@ -476,7 +477,7 @@ function renderTable(report: Report): string {
     // TOTAIS SOBRE O DETALHE, e não sobre `report.rows`: com os subtotais
     // dentro, cada artigo contava duas vezes.
     const totals = computeTotals(colsB, linhasDeDetalhe(report.rows));
-    const hasTotals = Object.keys(totals).length > 0 && ultimo;
+    const hasTotals = Object.keys(totals).length > 0;
     // Ponto 6 (quebra de página): NUNCA `<tfoot>` — `display:table-footer-
     // group` repete o conteúdo no fim de TODAS as páginas do PDF/impressão
     // de uma tabela multi-página (comportamento standard do motor de
@@ -517,13 +518,14 @@ function renderTable(report: Report): string {
     }
 
     const tableDensity = report.meta?.tableDensity;
-    const tableClass = tableDensity && tableDensity !== "cozy" ? ` class="table-density-${tableDensity}"` : "";
+    const classesTabela = [tableDensity && tableDensity !== "cozy" ? `table-density-${tableDensity}` : "", report.meta?.compactMonths ? "meses-compactos" : ""].filter(Boolean);
+    const tableClass = classesTabela.length > 0 ? ` class="${classesTabela.join(" ")}"` : "";
 
     // Hierarquia «clean»: a contagem e as notas do relatório vão numa linha FINAL DA PRÓPRIA TABELA. Fora dela (como
     // `.report-footer`) podiam cair sozinhas numa página nova, sem o cabeçalho da tabela; dentro, se não couberem, a
     // página seguinte repete o cabeçalho.
     const notaFinal =
-      ultimo && report.meta?.hierarchy === "clean"
+      report.meta?.hierarchy === "clean"
         ? `<tr class="nota-tr"><td colspan="${colsB.length}"><div class="nota-count">${escapeHtml(
             report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`,
           )}</div><div class="nota-final"><span class="footer-note">${escapeHtml(report.meta?.footer ?? "SPharm.MT")}</span><span class="footer-brand">SPharm.MT · www.spharm.pt</span></div></td></tr>`
@@ -541,27 +543,11 @@ function renderTable(report: Report): string {
   const nota = report.meta?.tableNote ?? `${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}`;
   const rodapeTabela = report.meta?.hierarchy === "clean" ? "" : `<div class="row-count">${escapeHtml(nota)}</div>`;
 
-  if (!blocos) {
-    return `
-    <section class="table-wrap">${renderBloco(cols, true, 1)}
+  return `
+    <section class="table-wrap">${renderTabela(cols)}
       ${rodapeTabela}
     </section>
   `;
-  }
-
-  // Blocos temporais: cada um é uma tabela completa (cabeçalho próprio, repetido em cada página pelo motor).
-  const partes = blocos.map((b, i) => {
-    const colsB = cols.filter((c) => !b.omitir.includes(c.key));
-    const soma = colsB.reduce((s, c) => s + (c.width && c.width <= 100 ? c.width : 0), 0);
-    const fator = soma > 0 && soma < 100 ? 100 / soma : 1;
-    const ultimo = i === blocos.length - 1;
-    return `
-    <section class="table-wrap bloco-temporal${i > 0 ? " bloco-novo" : ""}">
-      <div class="bloco-titulo"><strong>Parte ${i + 1} de ${blocos.length}</strong> · ${escapeHtml(b.titulo)}</div>${renderBloco(colsB, ultimo, fator)}
-      ${ultimo ? rodapeTabela : ""}
-    </section>`;
-  });
-  return partes.join("\n");
 }
 
 function renderFooter(report: Report): string {
@@ -989,7 +975,7 @@ const STYLES = `
 
   /* ═══════════════════════════════════════════════════════════════════
      MAPA DE VENDAS (2026-10) — valores completos, stock legível a P&B,
-     meses alternados discretos, blocos temporais.
+     meses alternados discretos.
      ═══════════════════════════════════════════════════════════════════ */
 
   /* Valores monetários: NUNCA cortados (a largura da coluna é calculada pelo adapter para o texto caber). */
@@ -1018,12 +1004,6 @@ const STYLES = `
   /* A célula de stock já não leva o tom de fundo do bloco "cheio": o indicador é o próprio número. */
   .page.density-compact.hierarchy-strong tbody td.stk-zero { background: #fbe4e4 !important; }
   .page.density-compact.hierarchy-strong tbody td.stk-neg { background: #f3c9c9 !important; }
-
-  /* Blocos temporais (períodos longos): cada parte numa página nova, com legenda própria. */
-  .bloco-titulo {
-    font-size: 9px; color: #1f2937; margin: 4px 0 4px 0; padding: 2px 6px;
-    border-left: 4px solid #111827; background: #f3f4f6;
-  }
 
   /* ═══════════════════════════════════════════════════════════════════
      HIERARQUIA LIMPA — meta.hierarchy:"clean" (Mapa de Vendas, 2026-10)
@@ -1117,8 +1097,6 @@ const STYLES = `
     min-width: 1.4em; padding: 0 2px; background: #374151 !important; color: #ffffff !important; border-radius: 2px; font-weight: 700;
   }
 
-  /* blocos temporais: legenda discreta */
-  .page.density-compact.hierarchy-clean .bloco-titulo { background: #f8fafc; border-left: 3px solid #94a3b8; color: #374151; margin-top: 6px; }
   .page.density-compact.hierarchy-clean .row-count { color: #6b7280; }
   .page.density-compact.hierarchy-clean .totals-tbody tr.nota-tr td { border: 0 !important; background: #ffffff !important; padding: 8px 0 0 0; font-size: 8px; line-height: 1.35; color: #6b7280; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
   .page.density-compact.hierarchy-clean .totals-tbody { break-inside: avoid; page-break-inside: avoid; }
@@ -1138,7 +1116,7 @@ const STYLES = `
   .page.density-compact.hierarchy-clean .totals-tbody td.tint-total { background: #c8daf0 !important; border-left: 1px solid #8396ad; border-right: 1px solid #8396ad; }
 
   /* SEPARADORES VERTICAIS DOS MESES — para ler em papel (a preto e branco, com «gráficos de fundo» desligado) a que mês pertence cada
-     valor. Só nas colunas mensais: 1px (0,75pt) cinzento claro entre meses; 1px um pouco mais escuro nos limites do bloco (antes do
+     valor. Só nas colunas mensais: 1px (0,75pt) cinzento claro entre meses; 1px um pouco mais escuro nos limites do conjunto dos meses (antes do
      1.º mês e depois do último). Mais leves do que o separador entre artigos (2px). São bordas das células: contínuas do cabeçalho ao
      TOTAL GERAL, sem fundos, sem grelha nas outras colunas. Os seletores têm especificidade acima das regras de «TOTAL ARTIGO»
      (border:0) e do TOTAL GERAL para não serem anulados. */
@@ -1159,8 +1137,6 @@ const STYLES = `
   .page.density-compact.hierarchy-clean tbody td.apos-mes,
   .page.density-compact.hierarchy-clean tbody.row-group tr.subtotal-row td.apos-mes,
   .page.density-compact.hierarchy-clean .totals-tbody td.apos-mes { border-left: 1px solid #9aa4b2; }
-  /* duas colunas de totais seguidas («Total unid. do bloco» + «Período: Total unid.»): um só filete entre elas */
-  .page.density-compact.hierarchy-clean .tint-total + .tint-total { border-left-width: 0; }
 
   /* faixa de resumo (unidades vendidas · stock total): uma linha, sob os filtros */
   .page.density-compact.hierarchy-clean .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
@@ -1187,10 +1163,16 @@ const STYLES = `
   .page.density-compact.hierarchy-clean table.table-density-ultratight thead th { font-size: 7.5px; padding-left: 3px; padding-right: 3px; }
   .page.density-compact.hierarchy-clean table.table-density-ultratight tbody td { padding: 2.5px 3px; }
   .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { padding-top: 8px; }
+  /* Degradação de um período muito longo (meta.compactMonths, ver layout-largura.ts): células dos meses mais justas e números a 8,5 px
+     (o piso do texto) — só aqui; abaixo desse limite o conteúdo é escalado em vez de cortado. */
+  .page.density-compact.hierarchy-clean table.meses-compactos thead th.mes,
+  .page.density-compact.hierarchy-clean table.meses-compactos tbody td.mes,
+  .page.density-compact.hierarchy-clean table.meses-compactos .totals-tbody td.mes { padding-left: 1.5px; padding-right: 1.5px; }
+  .page.density-compact.hierarchy-clean table.meses-compactos tbody td.mes.num,
+  .page.density-compact.hierarchy-clean table.meses-compactos .totals-tbody td.mes.num { font-size: 1em; }
 
   @media print {
     html, body { width: 100%; }
-    .bloco-novo { break-before: page; page-break-before: always; }
     /* Um artigo nunca se separa do seu TOTAL ARTIGO (quando o motor o permite). */
     tr.subtotal-row { break-before: avoid; page-break-before: avoid; }
     .page { padding: 0; }
@@ -1208,14 +1190,38 @@ const STYLES = `
 `;
 
 /**
+ * Largura do conteúdo no ECRÃ (pré-visualização «Relatório», iframe): a MESMA do papel (área útil + o padding do `.page`), com scroll
+ * horizontal se a janela for mais estreita — nunca colunas espremidas nem texto cortado. No papel (`@media print`) isto não se
+ * aplica. Só para relatórios que declaram `meta.paperSize` (Mapa de Vendas); os restantes ficam como estavam.
+ * `contentZoom` (só no limite absoluto, ver layout-largura.ts) escala o conteúdo para caber.
+ */
+function estilosPapel(report: Report, papel: "A4" | "A3", margem: number): string {
+  if (!report.meta?.paperSize) return "";
+  const dim = report.meta.orientation === "landscape" ? PAPEL_HORIZONTAL_MM[papel] : PAPEL_VERTICAL_MM[papel];
+  const util = dim.largura - 2 * margem;
+  const zoom = report.meta.contentZoom && report.meta.contentZoom < 1 ? report.meta.contentZoom : 1;
+  // `@page` seguinte substitui a margem lateral por omissão (8 mm) — só quando é outra (degradação: 6 mm)
+  const pagina = margem !== MARGEM_LATERAL_MM ? `@page { size: ${papel} ${report.meta.orientation === "landscape" ? "landscape" : "portrait"}; margin: 10mm ${margem}mm; }` : "";
+  return `
+  ${pagina}
+  @media screen { .page { min-width: ${util + 12}mm; } }
+  ${zoom < 1 ? `.page { zoom: ${zoom.toFixed(4)}; }` : ""}`;
+}
+
+/**
  * Gera o HTML completo do relatório (doctype + head + body).
  * Pronto para ser escrito num iframe e impresso.
  */
 export function renderReportHtml(entrada: Report): string {
   // Informação comercial que o utilizador não quis partilhar: retirada AQUI (e não só no browser/CSS) — ver privacidade.ts.
   const report = aplicarPrivacidade(entrada);
-  const orientation = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
-  const styles = STYLES.replace("__ORIENTATION__", orientation);
+  const orientationA4 = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
+  // Papel (Mapa de Vendas: A3 quando as colunas não cabem em A4) e margem lateral: só mudam se o relatório os declara — todos os
+  // outros relatórios ficam com o `@page` de sempre (A4, 10mm 8mm).
+  const papel = report.meta?.paperSize === "A3" ? "A3" : "A4";
+  const orientation = papel === "A3" ? orientationA4.replace("A4", "A3") : orientationA4;
+  const margem = report.meta?.pageMarginMm ?? MARGEM_LATERAL_MM;
+  const styles = STYLES.replace("__ORIENTATION__", orientation) + estilosPapel(report, papel, margem);
   const pageClass = isCompact(report)
     ? `page density-compact${report.meta?.hierarchy === "strong" ? " hierarchy-strong" : report.meta?.hierarchy === "clean" ? " hierarchy-clean" : ""}`
     : "page";
