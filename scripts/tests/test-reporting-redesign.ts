@@ -44,7 +44,7 @@ import { renderReportHtml } from "../../lib/reporting/report-html";
 import { formatCurrency } from "../../lib/reporting/report-formatters";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import * as XLSX from "xlsx";
-import { buildVendasReport, repartirMeses, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
+import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
 import { readFileSync } from "node:fs";
 
 let pass = 0;
@@ -276,18 +276,14 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   // sempre presentes independentemente dos dados desta chamada.
   const bodyHtml = html.slice(html.indexOf("<body>"));
   const cols = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
-  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em BLOCOS (uma página cada) — a soma ≤ 100 vale
-  // por bloco (cada bloco é uma tabela completa), não para o conjunto de todas as colunas de todos os blocos.
-  const blocosCols = rel.meta?.columnBlocks
-    ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key)))
-    : [cols];
-  const somaLarguras = Math.max(...blocosCols.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0)));
+  // Mapa de Vendas 2026-11: o período é SEMPRE uma só tabela (sem blocos): a soma das larguras visíveis é 100 para qualquer
+  // nº de meses; se as colunas não cabem em A4 o papel passa a A3 (ver lib/reporting/layout-largura.ts).
+  const somaLarguras = cols.reduce((s, c) => s + (c.width ?? 0), 0);
 
-  ok(`${nf}f/${nm}m: soma das larguras visíveis ≤ 100 por página/bloco (${somaLarguras.toFixed(1)})`, somaLarguras <= 100.05);
+  ok(`${nf}f/${nm}m: soma das larguras visíveis = 100 numa só tabela (${somaLarguras.toFixed(1)}), sem blocos, papel ${rel.meta?.paperSize}`, Math.abs(somaLarguras - 100) <= 0.05 && !("columnBlocks" in (rel.meta ?? {})));
   ok(`${nf}f/${nm}m: meta.density é "compact"`, rel.meta?.density === "compact");
-  const mesesPorBloco = Math.max(...repartirMeses(nm));
-  const tableDensityEsperada = mesesPorBloco <= 6 ? "cozy" : mesesPorBloco <= 10 ? "tight" : "ultratight";
-  eq(`${nf}f/${nm}m: tableDensity = "${tableDensityEsperada}"`, rel.meta?.tableDensity, tableDensityEsperada);
+  // a densidade depende agora do nº de meses E do papel (A3 permite tipografia mais arejada): até 6 meses é sempre «cozy»
+  ok(`${nf}f/${nm}m: tableDensity = "${rel.meta?.tableDensity}" (válida${nm <= 6 ? "; ≤ 6 meses ⇒ cozy" : ""}; papel ${rel.meta?.paperSize})`, ["cozy", "tight", "ultratight"].includes(String(rel.meta?.tableDensity)) && (nm > 6 || rel.meta?.tableDensity === "cozy") && ["A4", "A3"].includes(String(rel.meta?.paperSize)));
 
   if (nf > 1) {
     ok(`${nf}f/${nm}m: existe TOTAL ARTIGO (mais de uma farmácia)`, bodyHtml.includes("TOTAL ARTIGO"));
@@ -604,10 +600,13 @@ console.log("\n=== K. Ordem das farmácias — estável e igual em todos os arti
 // ═════════════════════════════════════════════════════════════════════
 console.log("\n=== H. report-pdf-server.ts pede paginação ao Chromium ===");
 {
-  const src = readFileSync("lib/reporting/report-pdf-server.ts", "utf8");
+  // 2026-11: as opções do page.pdf() (papel A4/A3, margens, cabeçalho «Pág. X / Y») vivem em pdf-opcoes.ts, partilhadas com os testes;
+  // report-pdf-server.ts continua a usá-las (verificado abaixo).
+  const src = readFileSync("lib/reporting/pdf-opcoes.ts", "utf8");
+  ok("report-pdf-server.ts usa as opções partilhadas (opcoesPdfDoRelatorio)", /opcoesPdfDoRelatorio\(report\)/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")));
   ok("displayHeaderFooter activo", /displayHeaderFooter:\s*true/.test(src));
   ok("headerTemplate usa pageNumber/totalPages (só o Chromium sabe o total)", /pageNumber/.test(src) && /totalPages/.test(src));
-  ok("page.close()/finally continuam intactos (não regrediu o launcher)", /page\.close\(\)/.test(src) && /finally/.test(src));
+  ok("page.close()/finally continuam intactos (não regrediu o launcher)", /page\.close\(\)/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")) && /finally/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")));
 }
 
 // ═════════════════════════════════════════════════════════════════════

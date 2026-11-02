@@ -1,7 +1,7 @@
 /**
  * scripts/tests/test-vendas-mapa-visual.ts
  *
- * Mapa de Vendas (2026-10): valores monetários COMPLETOS, regra de períodos longos (blocos), hierarquia do
+ * Mapa de Vendas (2026-10): valores monetários COMPLETOS, períodos longos (2026-11: sempre uma só tabela, sem blocos), hierarquia do
  * artigo, stock legível a preto e branco, ausência de controlos nas saídas, cálculos/totais, texto do âmbito,
  * Excel. Inclui um PDF REAL (Chromium via puppeteer, as mesmas opções de `buildReportPdfBuffer`) lido com
  * PyMuPDF — nada aqui é só «olhar para o HTML».
@@ -17,12 +17,11 @@ import * as XLSX from "xlsx";
 import {
   buildVendasReport,
   custoTotalDoRelatorio,
-  MAX_MESES_POR_BLOCO,
-  repartirMeses,
   type VendasAdapterRow,
 } from "../../lib/reporting/adapters/vendas";
 import { renderReportHtml } from "../../lib/reporting/report-html";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
+import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import type { Report } from "../../lib/reporting/report-types";
 
 let pass = 0;
@@ -70,11 +69,8 @@ async function pdfDe(rel: Report, nome: string): Promise<string> {
   try {
     await page.emulateMediaType("print");
     await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
-    const bytes = await page.pdf({
-      format: "A4", landscape: true, printBackground: true, preferCSSPageSize: true,
-      margin: { top: "10mm", right: "8mm", bottom: "10mm", left: "8mm" },
-      displayHeaderFooter: true, headerTemplate: `<div style="font-size:7px;width:100%;text-align:right;padding-right:8mm">Pág. <span class="pageNumber"></span> / <span class="totalPages"></span></div>`, footerTemplate: `<div></div>`,
-    });
+    // mesmas opções do endpoint real (papel A4/A3 de meta.paperSize): lib/reporting/pdf-opcoes.ts
+    const bytes = await page.pdf(opcoesPdfDoRelatorio(rel));
     const f = path.join(dir, `${nome}.pdf`);
     writeFileSync(f, bytes);
     return f;
@@ -103,37 +99,19 @@ function linhasDe(p: PdfPalavras["paginas"][number]): string[] {
 async function main() {
   browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
 
-  // ═══ A. Regra de períodos longos ════════════════════════════════════════
-  console.log("\n=== A. Regra dos meses: até 13 numa só tabela; acima, blocos balanceados (nunca cortar/esconder) ===");
+  // ═══ A. Períodos longos: UMA só tabela (sem blocos) ═════════════════════
+  // 2026-11: a regra antiga («até 13 meses numa tabela; acima, blocos balanceados de ≤ 13 meses, com artigos repetidos») foi
+  // SUBSTITUÍDA — qualquer nº de meses fica numa só tabela; a falta de largura resolve-se com o papel A3 (ver layout-largura.ts).
+  console.log("\n=== A. Regra dos meses: SEMPRE uma só tabela com todos os meses (nunca blocos; A3 quando não cabe em A4) ===");
   {
-    ok(`MAX_MESES_POR_BLOCO = 13`, MAX_MESES_POR_BLOCO === 13);
-    let propriedade = true;
-    for (let n = 1; n <= 80; n++) {
-      const partes = repartirMeses(n);
-      const soma = partes.reduce((a, b) => a + b, 0);
-      if (soma !== n || Math.max(...partes) > 13 || Math.max(...partes) - Math.min(...partes) > 1 || partes.length !== Math.ceil(n / 13)) propriedade = false;
-    }
-    ok("para 1..80 meses: soma = n, cada parte ≤ 13, partes balanceadas (±1), nº de partes = ⌈n/13⌉", propriedade);
-    ok("14 meses → 7+7; 24 → 12+12; 26 → 13+13; 28 → 10+9+9", JSON.stringify([repartirMeses(14), repartirMeses(24), repartirMeses(26), repartirMeses(28)]) === JSON.stringify([[7, 7], [12, 12], [13, 13], [10, 9, 9]]));
-
-    for (const n of [1, 12, 13]) {
+    for (const n of [1, 12, 13, 14, 27, 40]) {
       const bks = buckets(n);
       const rel = gerar([linha({ codigo: "1000001" }, bks)], bks);
-      ok(`${n} mês(es): uma só tabela, sem blocos`, !rel.meta?.columnBlocks && rel.columns.filter((c) => c.key.startsWith("m_")).length === n);
-    }
-    for (const n of [14, 27, 40]) {
-      const bks = buckets(n);
-      const rel = gerar([linha({ codigo: "1000001" }, bks)], bks);
-      const blocos = rel.meta?.columnBlocks ?? [];
       const meses = rel.columns.filter((c) => c.key.startsWith("m_")).map((c) => c.key);
-      // cada mês aparece em EXACTAMENTE um bloco; nenhum bloco tem mais de 13 meses
-      const contagem = meses.map((k) => blocos.filter((b) => !b.omitir.includes(k)).length);
-      ok(`${n} meses: ${blocos.length} blocos; cada mês em exactamente um bloco (nenhum cortado nem duplicado)`, blocos.length === Math.ceil(n / 13) && contagem.every((c) => c === 1));
-      ok(`${n} meses: nenhum bloco com mais de 13 meses`, blocos.every((b) => meses.length - b.omitir.length <= 13));
-      ok(`${n} meses: o rodapé explica a divisão em partes`, /em \d+ blocos de, no máximo, 13 meses/.test(rel.meta?.footer ?? ""));
+      ok(`${n} mês(es): uma só tabela com os ${n} meses lado a lado, sem blocos (papel ${rel.meta?.paperSize})`, !("columnBlocks" in (rel.meta ?? {})) && meses.length === n && new Set(meses).size === n);
+      ok(`${n} mês(es): o rodapé não fala de blocos/partes`, !/bloco|Parte \d/i.test(rel.meta?.footer ?? ""));
       const html = renderReportHtml(rel);
-      ok(`${n} meses: o HTML tem ${blocos.length} tabelas e TOTAL GERAL apenas no último bloco`,
-        (html.match(/<table/g) ?? []).length === blocos.length && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+      ok(`${n} mês(es): o HTML tem UMA tabela e um só TOTAL GERAL`, (html.match(/<table/g) ?? []).length === 1 && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
     }
   }
 
@@ -221,8 +199,10 @@ async function main() {
     ok("stock positivo: fundo claro (> 170)", pos.length > 0 && pos.every((w) => w[5] > 170));
   }
 
-  // ═══ D. Blocos temporais em PDF real, cada bloco com VÁRIAS páginas ═════════════════════
-  console.log("\n=== D. PDF real: 14 e 27 meses com muitos artigos — cada bloco ocupa várias páginas; totais inequívocos ===");
+  // ═══ D. 14 e 27 meses em PDF real: UMA só tabela, várias páginas só na vertical ═════════
+  // 2026-11: antes os 14 e 27 meses repartiam-se em 2 e 3 «partes» (cada artigo repetido por bloco, «Total unid. do bloco», colunas
+  // «Período:»). Agora afirma-se o contrário: cada artigo UMA vez, todos os meses no mesmo cabeçalho, um só «Total Unid.».
+  console.log("\n=== D. PDF real: 14 e 27 meses com muitos artigos — uma só tabela, várias páginas na vertical, totais inequívocos ===");
   for (const nMeses of [14, 27]) {
     const bks = buckets(nMeses);
     const rows: VendasAdapterRow[] = [];
@@ -232,49 +212,39 @@ async function main() {
       for (const f of farms) rows.push(linha({ codigo: cod, descricao: `Artigo de teste ${i} com descrição razoavelmente longa`, farmacia: f, qtd: bks.map((_, k) => ((i + k) % 5) - (k === 2 && i % 7 === 0 ? 3 : 0)), custoUnit: 4.25 + (i % 6), stock: i % 8 === 0 ? 0 : 7, valor: 100 + i }, bks));
     }
     const rel = gerar(rows, bks);
-    const nBlocos = Math.ceil(nMeses / 13);
-    const blocos = rel.meta!.columnBlocks!;
     const p = palavras(await pdfDe(rel, `${nMeses}-meses`));
     const txtPag = p.paginas.map(textoPag);
     const todo = txtPag.join("\n");
     const linhasTodas = p.paginas.flatMap(linhasDe);
-    // página inicial de cada bloco = a que tem «Parte i de n»
-    const inicio = Array.from({ length: nBlocos }, (_, i) => txtPag.findIndex((t) => t.includes(`Parte ${i + 1} de ${nBlocos}`)));
-    ok(`${nMeses} meses: ${nBlocos} blocos identificados («Parte i de ${nBlocos}»)`, inicio.every((i) => i >= 0) && inicio.every((v, i) => i === 0 || v > inicio[i - 1]));
-    const fins = inicio.map((v, i) => (i + 1 < nBlocos ? inicio[i + 1] : p.paginas.length));
-    ok(`${nMeses} meses: CADA bloco ocupa várias páginas (${inicio.map((v, i) => fins[i] - v).join("+")})`, inicio.every((v, i) => fins[i] - v >= 2));
-    ok(`${nMeses} meses: o cabeçalho repete-se em TODAS as páginas de TODOS os blocos`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")), txtPag.map((t, i) => `${i + 1}:${t.includes("CNP")}/${t.includes("Descrição")}/${t.includes("Stock")}`).join(" "));
-    // nenhum artigo desaparece nem se repete dentro do mesmo bloco
-    const cnpsPorBloco = inicio.map((v, i) => new Set([...txtPag.slice(v, fins[i]).join(" ").matchAll(/\b70\d{5}\b/g)].map((m) => m[0])));
-    ok(`${nMeses} meses: os 90 artigos aparecem em CADA bloco (nenhum desaparece ou fica cortado)`, cnpsPorBloco.every((c) => c.size === 90));
+    ok(`${nMeses} meses: sem «Parte i de n», «do bloco», «Período:» nem explicação de divisão temporal`, !/Parte \d+ de \d+|do bloco|Período: (custo|valor|Total)|em \d+ blocos/.test(todo));
+    ok(`${nMeses} meses: várias páginas (${p.paginas.length}) só na vertical e o papel é ${rel.meta?.paperSize} (todas as páginas com a mesma dimensão)`, p.paginas.length >= 2 && p.paginas.every((pg) => pg.w === p.paginas[0].w && pg.h === p.paginas[0].h && pg.w > pg.h));
+    ok(`${nMeses} meses: o cabeçalho (CNP, Descrição, Stock) repete-se em TODAS as páginas, uma vez por página`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")) && p.paginas.every((pg) => pg.palavras.filter((w) => w[4] === "CNP").length === 1));
+    // cada artigo exatamente UMA vez no documento (antes: uma vez por bloco)
+    const contagemCnp = new Map<string, number>();
+    for (const m of todo.matchAll(/\b70\d{5}\b/g)) contagemCnp.set(m[0], (contagemCnp.get(m[0]) ?? 0) + 1);
+    ok(`${nMeses} meses: os 90 artigos aparecem exatamente UMA vez cada (nenhum repetido por meses)`, contagemCnp.size === 90 && [...contagemCnp.values()].every((c) => c === 1));
     // linha TOTAL GERAL: uma só, na última página, depois do último artigo
     const nTG = linhasTodas.filter((l) => l.startsWith("TOTAL GERAL")).length;
-    ok(`${nMeses} meses: «TOTAL GERAL» uma única vez, no fim do último bloco`, nTG === 1 && txtPag[p.paginas.length - 1].includes("TOTAL GERAL"), `nTG=${nTG} ultima=${txtPag[p.paginas.length - 1].slice(0, 200)}`);
-    // regra inequívoca dos totais
-    const ultimoTxt = txtPag.slice(inicio[nBlocos - 1], fins[nBlocos - 1]).join(" ");
-    ok(`${nMeses} meses: colunas «Total unid. do bloco» em todos os blocos`, inicio.every((v, i) => txtPag.slice(v, fins[i]).join(" ").includes("do bloco")));
-    ok(`${nMeses} meses: colunas «Período:» (unidades, custo, valor) SÓ no último bloco`, /Período/.test(ultimoTxt) && inicio.slice(0, -1).every((v, i) => !/Período:/.test(txtPag.slice(v, fins[i]).join(" ").replace(/colunas «Período:»/g, ""))));
-    ok(`${nMeses} meses: o título de cada bloco diz que «Total unid. do bloco» soma só os seus meses`, blocos.every((b) => /soma apenas estes meses/.test(b.titulo)) && blocos[nBlocos - 1].titulo.includes("período completo"));
-    // valores: soma dos totais de bloco = total do período (TOTAL GERAL)
+    ok(`${nMeses} meses: «TOTAL GERAL» uma única vez, no fim do documento`, nTG === 1 && txtPag[p.paginas.length - 1].includes("TOTAL GERAL"), `nTG=${nTG} ultima=${txtPag[p.paginas.length - 1].slice(0, 200)}`);
+    // valores: o TOTAL GERAL mostra o total do período completo
     const detalhe = rel.rows.filter((r) => r.__rowKind !== "subtotal");
     const totPeriodo = detalhe.reduce((a, r) => a + Number(r.totalVendas), 0);
-    const somaBlocos = blocos.reduce((a, _, i) => a + detalhe.reduce((b, r) => b + Number(r[`tb_${i}`]), 0), 0);
-    ok(`${nMeses} meses: Σ totais dos blocos (${somaBlocos}) = total do período (${totPeriodo})`, somaBlocos === totPeriodo);
+    const somaMeses = rel.columns.filter((c) => c.key.startsWith("m_")).reduce((a, c) => a + detalhe.reduce((b, r) => b + Number(r[c.key]), 0), 0);
+    ok(`${nMeses} meses: Σ de todos os meses (${somaMeses}) = total do período (${totPeriodo})`, somaMeses === totPeriodo);
     const lTG = linhasTodas.find((l) => l.startsWith("TOTAL GERAL")) ?? "";
-    ok(`${nMeses} meses: TOTAL GERAL mostra o total do período (${totPeriodo}) e o custo/valor completos`, lTG.includes(String(totPeriodo).replace(/(\d)(?=(\d{3})+$)/, "$1 ")) || lTG.split(" ").includes(String(totPeriodo)));
-    const tbUlt = detalhe.reduce((a, r) => a + Number(r[`tb_${nBlocos - 1}`]), 0);
-    ok(`${nMeses} meses: …e o «Total unid. do bloco» do último bloco (${tbUlt}) na mesma linha`, lTG.split(" ").includes(String(tbUlt)));
-    // cada mês exactamente uma vez por bloco → 14/27 rótulos distintos no total
-    const rotulos = new Set<string>();
-    for (const pg of p.paginas) {
+    ok(`${nMeses} meses: TOTAL GERAL mostra o total do período (${totPeriodo})`, lTG.includes(String(totPeriodo).replace(/(\d)(?=(\d{3})+$)/, "$1 ")) || lTG.split(" ").includes(String(totPeriodo)));
+    // todos os meses do período nos cabeçalhos, cada um uma vez por página
+    const rotulosPorPagina = p.paginas.map((pg) => {
+      const rotulos: string[] = [];
       const ws = pg.palavras.filter((w) => w[1] < 130).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-      for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)$/.test(w[4]))) {
+      for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)$/.test(w[4]) || /^[JFMASOND]$/.test(w[4]))) {
         const ano = ws.find((w) => /^\d{2}$/.test(w[4]) && Math.abs(w[0] - m[0]) < 12 && w[1] > m[1] && w[1] - m[1] < 14);
-        if (ano) rotulos.add(`${m[4]}/${ano[4]}`);
+        if (ano) rotulos.push(`${m[4]}/${ano[4]}`);
       }
-    }
-    ok(`${nMeses} meses: todos os meses do período aparecem nos cabeçalhos (obtidos ${rotulos.size})`, rotulos.size === nMeses);
-    // Excel: uma folha com TODOS os meses, sem colunas de bloco; totais do período
+      return rotulos;
+    });
+    ok(`${nMeses} meses: em CADA página os ${nMeses} meses aparecem uma vez cada, lado a lado (${rotulosPorPagina.map((r) => r.length).join("/")})`, rotulosPorPagina.every((r) => r.length === nMeses && new Set(r).size === nMeses));
+    // Excel: uma folha com TODOS os meses; totais do período
     const wb = buildReportWorkbook(rel);
     const ws = wb.Sheets["Relatório"];
     const grelha = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false }) as unknown[][];
@@ -474,19 +444,15 @@ async function main() {
         ok(`${tag}: mantém CNP, Descrição, Farmácia, meses, unidades e stock`, ["codigo", "descricao", "farmacia", "totalVendas", "existencia"].every((k) => chavesSem.includes(k)) && chavesSem.filter((k) => k.startsWith("m_")).length === nMeses);
         const ths = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
         ok(`${tag}: nenhum cabeçalho vazio (sem colunas vazias)`, ths.length > 0 && ths.every((t) => t.length > 0));
-        const blocos = sem.meta?.columnBlocks;
-        const larg = (r: Report, omitir: string[] = []) => r.columns.filter((c) => !c.hidden && !c.excelOnly && !omitir.includes(c.key)).reduce((a, c) => a + (c.width ?? 0), 0);
-        const maxSem = Math.max(...(blocos ? blocos.map((b) => larg(sem, b.omitir)) : [larg(sem)]));
-        ok(`${tag}: as larguras recalculadas somam ≤ 100 por página (${maxSem.toFixed(1)})`, maxSem <= 100.05);
+        // 2026-11: sem blocos — as larguras visíveis somam 100 numa só tabela (antes: ≤ 100 por bloco)
+        const larg = (r: Report) => r.columns.filter((c) => !c.hidden && !c.excelOnly).reduce((a, c) => a + (c.width ?? 0), 0);
+        const maxSem = larg(sem);
+        ok(`${tag}: as larguras recalculadas somam 100 numa só tabela (${maxSem.toFixed(1)})`, Math.abs(maxSem - 100) < 0.05 && !("columnBlocks" in (sem.meta ?? {})));
         const dSem = sem.columns.find((c) => c.key === "descricao")!.width!;
         const dCom = com.columns.find((c) => c.key === "descricao")!.width!;
-        ok(`${tag}: a Descrição aproveita o espaço libertado (${dCom.toFixed(1)}% → ${dSem.toFixed(1)}%)`, dSem > dCom);
-        if (nMeses > 13) {
-          const ultimo = blocos![blocos!.length - 1];
-          const periodoSem = sem.columns.filter((c) => /Período/.test(c.label)).map((c) => c.key);
-          ok(`${tag}: nos blocos sem preços a única coluna «Período:» é a de unidades`, periodoSem.join() === "totalVendas" && !ultimo.omitir.includes("totalVendas"));
-          ok(`${tag}: TOTAL GERAL uma só vez no fim do último bloco`, (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
-        }
+        ok(`${tag}: a Descrição aproveita o espaço libertado (${dCom.toFixed(1)}% → ${dSem.toFixed(1)}%)`, dSem >= dCom);
+        // sem blocos: nunca existem colunas «Período:» nem «do bloco»; o único «Total Unid.» é o do período completo
+        ok(`${tag}: uma só coluna «Total Unid.» (período completo), sem «Período:» nem «do bloco», TOTAL GERAL uma só vez`, sem.columns.filter((c) => c.key === "totalVendas").length === 1 && !sem.columns.some((c) => /Período|bloco/.test(c.label)) && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
       }
     }
     // O Excel segue as MESMAS opções que o PDF (regra de 2026-10): sem preços não há PVP, custos nem valor de vendas na folha.
@@ -562,10 +528,10 @@ async function main() {
         ok(`PDF real ${tag}: «€» ${venda || compra ? "presente" : "AUSENTE"}; cabeçalhos PVP/Valor Vendas ↔ venda, Custo ↔ compra`,
           txt.includes("€") === (venda || compra) && /PVP/.test(txt) === venda && /Valor Vendas|Período: valor/.test(txt) === venda && /Custo/.test(txt) === compra);
         ok(`PDF real ${tag}: identificação, meses, total de unidades e stock sempre presentes`, /7000001/.test(txt) && /Produto Sentinela A/.test(txt) && /Stock/.test(txt) && /unid\./i.test(txt));
-        ok(`PDF real ${tag}: A4 horizontal e nada cortado à direita`, p.paginas.every((pg) => pg.w > pg.h && pg.palavras.every((w) => w[2] <= pg.w - 8)));
+        ok(`PDF real ${tag}: horizontal (${rel.meta?.paperSize}) e nada cortado à direita`, p.paginas.every((pg) => pg.w > pg.h && pg.palavras.every((w) => w[2] <= pg.w - 8)));
         const tg = p.paginas.flatMap(linhasDe).filter((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
         ok(`PDF real ${tag}: TOTAL GERAL uma vez, com total de unidades (2) e Stock total (7) lado a lado`, tg.length === 1 && /\b2 7\b/.test(tg[0]), tg.join(" | "));
-        if (nMeses === 27) ok(`PDF real ${tag}: 27 meses em 3 blocos (A4 horizontal), sem perder a estrutura`, (rel.meta?.columnBlocks?.length ?? 0) === 3 && p.paginas.length >= 3);
+        if (nMeses === 27) ok(`PDF real ${tag}: 27 meses numa só tabela (${rel.meta?.paperSize} horizontal), sem blocos, sem perder a estrutura`, !("columnBlocks" in (rel.meta ?? {})) && rel.columns.filter((c) => c.key.startsWith("m_")).length === 27 && p.paginas.every((pg) => pg.palavras.filter((w) => w[4] === "CNP").length === 1));
       }
     }
 
@@ -664,15 +630,15 @@ async function main() {
       return out;
     }
 
-    /** O que tem de ser verdade em CADA página de um PDF do mapa. `ultimaDeCadaPagina`: relatórios em blocos (cada bloco acaba na sua página). */
-    function verificar(tag: string, paginas: PagPdf[], opc: { ultimaDeCadaPagina?: boolean; minPaginas?: number } = {}) {
+    /** O que tem de ser verdade em CADA página de um PDF do mapa (2026-11: sem blocos — o TOTAL GERAL só na última página). */
+    function verificar(tag: string, paginas: PagPdf[], opc: { minPaginas?: number } = {}) {
       const nCnps = paginas.reduce((a, p) => a + p.cnps.length, 0);
-      ok(`${tag}: A4 horizontal, nada cortado à direita, ${nCnps} artigos em ${paginas.length} página(s)`, paginas.every((p) => p.largura > p.altura && p.maxX1 <= p.largura - 8) && nCnps > 0 && paginas.length >= (opc.minPaginas ?? 1));
+      ok(`${tag}: horizontal, nada cortado à direita, ${nCnps} artigos em ${paginas.length} página(s)`, paginas.every((p) => p.largura > p.altura && p.maxX1 <= p.largura - 8) && nCnps > 0 && paginas.length >= (opc.minPaginas ?? 1));
       let todosOk = true; const falhas: string[] = [];
       paginas.forEach((p, pi) => {
         if (p.cnps.length === 0) return;
-        const ultima = opc.ultimaDeCadaPagina ? true : pi === paginas.length - 1;
-        // o «TOTAL GERAL» da tabela é o que vem DEPOIS do último artigo (o texto «TOTAL GERAL» da legenda dos blocos fica por cima)
+        const ultima = pi === paginas.length - 1;
+        // o «TOTAL GERAL» da tabela é o que vem DEPOIS do último artigo (a nota final também diz «TOTAL GERAL» mais abaixo)
         const tgY = p.totais.filter((t) => t.texto === "GERAL" && t.y0 > p.cnps[p.cnps.length - 1].y0).map((t) => t.y0).sort((a, b) => a - b)[0] ?? Infinity;
         // só os filetes espessos (≥ 0.9pt) e da cor do separador, entre o cabeçalho e o TOTAL GERAL
         const cabY1 = Math.max(...p.cabecalho.filter((c) => c.y1 <= p.cnps[0].y0).map((c) => c.y1), 0);
@@ -741,7 +707,7 @@ async function main() {
     // ── PDF real: 3, 13, 14 e 27 meses, com e sem preços; documentos de várias páginas ───────────────────────────────────────────
     const colunas = [
       { n: 3, v: true, c: true }, { n: 13, v: true, c: true }, { n: 3, v: false, c: true }, { n: 3, v: true, c: false }, { n: 3, v: false, c: false }, { n: 13, v: false, c: false },
-      { n: 14, v: true, c: true, blocos: true }, { n: 27, v: true, c: true, blocos: true },
+      { n: 14, v: true, c: true }, { n: 27, v: true, c: true },
     ];
     for (const k of colunas) {
       const b = buckets(k.n);
@@ -750,7 +716,7 @@ async function main() {
       const f = await pdfDe(rel, `sep-${k.n}-${k.v ? 1 : 0}${k.c ? 1 : 0}`);
       const tag = `PDF real ${k.n} meses · venda=${k.v ? "sim" : "não"} · compra=${k.c ? "sim" : "não"}`;
       const pags = analisar(f);
-      verificar(tag, pags, { ultimaDeCadaPagina: !!k.blocos });
+      verificar(tag, pags);
       // cálculos e totais não mudaram: o TOTAL GERAL do PDF é a soma dos dados
       const unidades = rows.reduce((a, r) => a + r.totalVendas, 0);
       const stock = rows.filter((r) => r.existenciaConhecida !== false).reduce((a, r) => a + r.existencia, 0);

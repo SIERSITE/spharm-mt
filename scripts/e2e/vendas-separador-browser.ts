@@ -56,7 +56,7 @@ const analisar = (f: string) => JSON.parse(py("_separadores_pdf.py", f)) as PagP
 
 function verificarPdf(tag: string, paginas: PagPdf[], minPaginas = 1) {
   const nCnps = paginas.reduce((a, p) => a + p.cnps.length, 0);
-  check(paginas.length >= minPaginas && paginas.every((p) => p.largura > p.altura && p.maxX1 <= p.largura - 8) && nCnps > 0, `${tag}: A4 horizontal, nada cortado, ${nCnps} artigos em ${paginas.length} página(s)`);
+  check(paginas.length >= minPaginas && paginas.every((p) => p.largura > p.altura && p.maxX1 <= p.largura - 8) && nCnps > 0, `${tag}: horizontal (A4 ou A3), nada cortado, ${nCnps} artigos em ${paginas.length} página(s)`);
   const falhasP: string[] = [];
   paginas.forEach((p, pi) => {
     if (p.cnps.length === 0) return;

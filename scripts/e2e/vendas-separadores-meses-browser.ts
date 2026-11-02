@@ -91,7 +91,7 @@ async function main() {
     const prod = (cnp: number, designacao: string) => prisma.produto.create({ data: { cnp, designacao, fabricanteId: fab.id, estado: "VALIDADO" } });
     const ficha = (produtoId: string, farmaciaId: string, d: { pvp: number; stock: number | null }) =>
       prisma.produtoFarmacia.create({ data: { produtoId, farmaciaId, pvp: d.pvp, pmc: 4, stockAtual: d.stock, stockMinimo: 1, stockMaximo: 9, taxaIvaPercent: 23 } });
-    // vendas espalhadas pelos últimos 28 meses (para os blocos de 14 e 27 meses terem valores em vários meses)
+    // vendas espalhadas pelos últimos 28 meses (para os 14 e 27 meses terem valores em vários meses)
     const venda = async (produtoId: string, farmaciaId: string, q: number, atras: number) => {
       const d = new Date(hoje.getFullYear(), hoje.getMonth() - atras, 1);
       await prisma.vendaMensal.create({ data: { produtoId, farmaciaId, ano: d.getFullYear(), mes: d.getMonth() + 1, quantidade: q, quantidadeLiquida: q, valorTotal: q * 10, valorBruto: q * 10 } });
@@ -147,7 +147,7 @@ async function main() {
         await p2.setContent(html, { waitUntil: "networkidle" });
         if (!fundos) await p2.addStyleTag({ content: SEM_FUNDOS });
         const f = path.join(EVID, nome);
-        await p2.pdf({ path: f, format: "A4", landscape: true, printBackground: fundos, preferCSSPageSize: true, margin: { top: "10mm", right: "8mm", bottom: "10mm", left: "8mm" } });
+        await p2.pdf({ path: f, preferCSSPageSize: true, printBackground: fundos }); // o @page do HTML manda (A4 ou A3 conforme o relatório)
         return f;
       } finally { await p2.close(); }
     };
@@ -190,8 +190,8 @@ async function main() {
         await p3.setContent(html, { waitUntil: "networkidle" });
         await p3.evaluate("window.__name = (f) => f;");
         const r = await p3.evaluate(CSS_MESES) as MesesCss;
-        // em blocos (14 e 27 meses) o HTML tem uma tabela por bloco: cada uma com o seu 1.º/último mês (o alinhamento mede-se no PDF)
-        const blocos = n > 13 ? Math.ceil(n / 13) : 1;
+        // 2026-11: sempre uma só tabela (sem blocos): um 1.º e um último mês
+        const blocos = 1;
         check(r.nMesesTh === n && r.ini === blocos && r.fim === blocos && (blocos > 1 || r.desalinhado === 0) && r.vertOutras === 0 && r.maxVertical <= 1 && r.sepArtigo === 2, `impressão ${n} meses: HTML com os mesmos filetes (${r.nMesesTh} meses, ${blocos} bloco(s) com limites próprios), só nos meses, ≤ 1px`, JSON.stringify(r));
         await p3.close();
       }

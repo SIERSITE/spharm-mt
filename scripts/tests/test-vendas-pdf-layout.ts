@@ -83,11 +83,12 @@ function buckets(n: number): { ano: number; mes: number }[] {
 const colunasVisiveis = (cols: ReturnType<typeof buildVendasReport>["columns"]) =>
   cols.filter((c) => !c.hidden && !c.excelOnly);
 
-/** Soma das larguras visíveis de cada página/bloco (um só quando o período cabe numa página). */
+/**
+ * Soma das larguras visíveis da tabela. 2026-11: o período é SEMPRE uma só tabela (sem blocos temporais) — a função devolve uma só
+ * soma (antes: uma por bloco, para períodos acima de 13 meses).
+ */
 function somasPorBloco(rel: ReturnType<typeof buildVendasReport>): number[] {
-  const cols = colunasVisiveis(rel.columns);
-  const blocos = rel.meta?.columnBlocks ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key))) : [cols];
-  return blocos.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0));
+  return [colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0)];
 }
 
 console.log("\n=== A. buildColumns: a tabela nunca \"esmaga\" — soma ≤ 100 sempre ===");
@@ -99,10 +100,10 @@ for (const n of [0, 1, 3, 6, 9, 10, 12, 18, 24, 36]) {
     universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
     organization: "Grupo",
   });
-  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em blocos (uma página cada); a soma ≤ 100 vale por bloco.
+  // 2026-11: uma só tabela para qualquer nº de meses (o papel passa a A3 quando não cabe em A4).
   const somaLarguras = Math.max(...somasPorBloco(rel));
   ok(
-    `${n} meses: soma das larguras visíveis ≤ 100 por página/bloco (obtido ${somaLarguras.toFixed(1)})`,
+    `${n} meses: soma das larguras visíveis ≤ 100 numa só tabela (obtido ${somaLarguras.toFixed(1)})`,
     somaLarguras <= 100 + 0.05, // folga de arredondamento
     `colunas: ${JSON.stringify(colunasVisiveis(rel.columns).map((c) => c.width))}`,
   );
@@ -141,7 +142,7 @@ console.log("\n=== C. As colunas fixas nunca desaparecem, mesmo em relatórios m
   const fixas = colunasVisiveis(rel.columns).filter((c) => !c.key.startsWith("m_"));
   ok("mesmo com 36 meses, nenhuma coluna fixa fica com largura 0 ou negativa", fixas.every((c) => (c.width ?? 0) > 0));
   const somaLarguras = Math.max(...somasPorBloco(rel));
-  ok("…e a soma continua ≤ 100 em cada bloco/página", somaLarguras <= 100.05, `${somaLarguras}`);
+  ok("…e a soma continua ≤ 100 numa só tabela (36 meses: A3)", somaLarguras <= 100.05, `${somaLarguras}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

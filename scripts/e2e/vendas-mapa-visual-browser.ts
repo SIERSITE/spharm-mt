@@ -10,7 +10,7 @@
  *   3 · seleção de artigos (todos por omissão, parcial, zero, «selecionar todos») e o seu efeito nas 4 saídas;
  *   4 · PDF real multi-página: cabeçalho repetido, artigo+total na mesma página, sem controlos, a cinzento;
  *   5 · impressão (iframe), Excel (download real) e Email (pedido interceptado, sem enviar nada): MESMO relatório;
- *   6 · 13 meses (1 tabela) e 27 meses (3 partes);
+ *   6 · 13 meses e 27 meses: SEMPRE uma só tabela (2026-11: sem blocos; A3 quando não cabe em A4);
  *   7 · texto do âmbito (vendas + stock sem vendas).
  *
  * Pré-requisito: `npx next build` com SERVER_ACTIONS_ALLOWED_ORIGINS="localhost:3100,127.0.0.1:3100,*.localhost:3100".
@@ -321,7 +321,7 @@ async function main() {
     const linhasT = pT.paginas.flatMap(linhasPag);
     const todoT = linhasT.join("\n");
     check(pT.paginas.length >= 3 && pT.paginas.length === nPag, `PDF multi-página (${pT.paginas.length} páginas)`);
-    check(pT.paginas[0].w > pT.paginas[0].h, "A4 horizontal");
+    check(pT.paginas[0].w > pT.paginas[0].h, "papel horizontal (A4, ou A3 se as colunas não couberem em A4)");
     check(pT.paginas.every((pg) => { const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("Valor Vendas"); }), "cabeçalho da tabela repetido em TODAS as páginas");
     check(cnpsDoRelatorio(sTodos.relatorio).length === nArtigos, `o relatório tem os ${nArtigos} artigos do ecrã`);
     const cnpsPdf = new Set([...todoT.matchAll(/\b(81000\d\d|71000\d\d)\b/g)].map((m) => m[0]));
@@ -371,7 +371,7 @@ async function main() {
       check(a === b, "impressão: o conteúdo da tabela é IDÊNTICO ao do HTML que gerou o PDF", `difere em ${i}: «${a.slice(i - 40, i + 60)}» vs «${b.slice(i - 40, i + 60)}»`);
     }
     check(!/<(input|button|select)\b|type="checkbox"/.test(htmlImp), "impressão: sem checkboxes, botões ou controlos");
-    check(/@page \{ size: A4 landscape/.test(htmlImp) && /thead \{ display: table-header-group/.test(htmlImp), "impressão: A4 horizontal e cabeçalho repetido por página");
+    check(/@page \{ size: A[34] landscape/.test(htmlImp) && /thead \{ display: table-header-group/.test(htmlImp), "impressão: papel horizontal (o do relatório: A4 ou A3) e cabeçalho repetido por página");
 
     const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 60000 }), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
     const fx = path.join(EVID, "vendas-13-meses-todos.xlsx");
@@ -476,8 +476,9 @@ async function main() {
     check(/Artigos incluídos:\s*apenas com vendas no período/.test(tV), "PDF: «apenas com vendas no período»");
     await page.getByRole("switch", { name: "Incluir stock sem vendas", exact: true }).click();
 
-    // ═══ 7 · 27 meses (3 partes) ═══════════════════════════════════
-    secao("7 · Período acima do limite visual: 27 meses → 3 partes de 9");
+    // ═══ 7 · 27 meses: UMA só tabela ═══════════════════════════════
+    // 2026-11: antes «3 partes de 9» (cada artigo ×3, «Total unid. do bloco», «Período:»); agora uma tabela só, em A3 se preciso.
+    secao("7 · Período acima do limite do A4: 27 meses → UMA só tabela (A3 se não couber em A4), sem partes");
     const p27 = periodo(27);
     await gerar(page, p27.from, p27.to);
     const cab27 = await page.locator('table[data-testid="vendas-tabela"] thead th').evaluateAll((ths) => ths.length);
@@ -486,38 +487,31 @@ async function main() {
     const p27w = palavrasPdf(s27.ficheiro);
     renderizar(s27.ficheiro, "pdf-27-meses", 3);
     const t27 = p27w.paginas.map(textoPag).join("\n");
-    check(["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => t27.includes(t)), "PDF: as 3 partes identificadas");
-    check(p27w.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1, "PDF: linha TOTAL GERAL uma única vez (fim do último bloco)");
-    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /em 3 blocos de, no máximo, 13 meses/.test(t27), "PDF: nota explicativa da divisão em partes");
-    check(p27w.paginas.every((pg) => textoPag(pg).includes("CNP")), "PDF: cabeçalho em todas as páginas de todas as partes");
+    check(!/Parte \d+ de \d+|do bloco|Período:\s*(Total|custo|valor)|em \d+ blocos/.test(t27), "PDF: sem «Parte i de n», «Total unid. do bloco», «Período:» nem nota de divisão em blocos");
+    check(p27w.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1, "PDF: linha TOTAL GERAL uma única vez (fim do documento)");
+    check(!("columnBlocks" in (s27.relatorio.meta ?? {})) && s27.relatorio.columns.filter((c) => c.monthAlt).length === 27, "relatório: 27 colunas de mês numa só tabela, sem blocos");
+    check(p27w.paginas.every((pg) => textoPag(pg).includes("CNP") && pg.palavras.filter((w) => w[4] === "CNP").length === 1), "PDF: cabeçalho completo, uma vez, em todas as páginas");
     const n27 = nDetalhe(s27.relatorio);
     check(n27 > 0, `relatório de 27 meses com ${n27} linhas de detalhe`);
+    const cnps27 = new Map<string, number>();
+    for (const m of t27.matchAll(/\b\d{7}\b/g)) cnps27.set(m[0], (cnps27.get(m[0]) ?? 0) + 1);
+    check([...cnps27.values()].every((c) => c === 1), "PDF: cada CNP aparece UMA vez em todo o documento (nunca repetido por meses)");
+    check(p27w.paginas.every((pg) => pg.w === p27w.paginas[0].w) && p27w.paginas[0].w > p27w.paginas[0].h, `PDF: ${s27.relatorio.meta?.paperSize ?? "A4"} horizontal em todas as páginas (paginação só na vertical)`);
     const [dl3] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
     await dl3.saveAs(path.join(EVID, "vendas-27-meses.xlsx"));
     const g3 = XLSX.utils.sheet_to_json<unknown[]>(XLSX.readFile(path.join(EVID, "vendas-27-meses.xlsx")).Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
     const cab3 = g3.find((r) => r[0] === "CNP") as string[];
     check(cab3.length === 6 + 27 + 3 + 1, `Excel de 27 meses: todos os meses numa folha só (${cab3.length} colunas, incl. «Tipo de linha»)`);
-    // cada bloco com várias páginas e totais inequívocos (27 meses)
-    const txt27 = p27w.paginas.map(textoPag);
-    const ini27 = [1, 2, 3].map((i) => txt27.findIndex((t) => t.includes(`Parte ${i} de 3`)));
-    const fim27 = [ini27[1], ini27[2], p27w.paginas.length];
-    check(ini27.every((v, i) => v >= 0 && fim27[i] - v >= 2), `27 meses: cada bloco ocupa várias páginas (${ini27.map((v, i) => fim27[i] - v).join("+")})`);
-    check(txt27.slice(ini27[0], fim27[0]).concat(txt27.slice(ini27[1], fim27[1])).every((t) => !/Período:\s*(Total|custo|valor)/.test(t.replace(/colunas «Período:»/g, ""))), "27 meses: colunas «Período:» só no último bloco");
-    check(txt27.slice(ini27[2], fim27[2]).join(" ").includes("Período:") && txt27.every((t) => t.includes("do bloco")), "27 meses: «Total unid. do bloco» em todos os blocos; «Período:» no último");
-    const dets = s27.relatorio.rows.filter((r) => r.__rowKind !== "subtotal");
-    const somaB = [0, 1, 2].reduce((a, i) => a + dets.reduce((b, r) => b + Number(r[`tb_${i}`]), 0), 0);
-    check(somaB === dets.reduce((a, r) => a + Number(r.totalVendas), 0), `27 meses: Σ «Total unid. do bloco» (${somaB}) = total do período`);
-    renderizar(s27.ficheiro, "pdf-27-meses-blocos", 8);
+    renderizar(s27.ficheiro, "pdf-27-meses-tabela-unica", 8);
 
-    // 14 meses: 2 blocos, cada um com várias páginas
-    secao("7b · 14 meses → 2 blocos de 7");
+    // 14 meses: uma só tabela
+    secao("7b · 14 meses → UMA só tabela");
     const p14 = periodo(14);
     await gerar(page, p14.from, p14.to);
     const s14 = await pedirPdf(page, ctx, "vendas-14-meses.pdf");
     const w14 = palavrasPdf(s14.ficheiro);
     const t14 = w14.paginas.map(textoPag);
-    const i14 = [1, 2].map((i) => t14.findIndex((t) => t.includes(`Parte ${i} de 2`)));
-    check(i14.every((v) => v >= 0) && i14[1] - i14[0] >= 2 && w14.paginas.length - i14[1] >= 2, `14 meses: 2 blocos, cada um com várias páginas (${i14[1] - i14[0]}+${w14.paginas.length - i14[1]})`);
+    check(!t14.some((t) => /Parte \d+ de \d+|do bloco/.test(t)), "14 meses: sem «Parte i de n» nem «do bloco»");
     check(w14.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1 && t14.every((t) => t.includes("CNP")), "14 meses: TOTAL GERAL uma vez; cabeçalho em todas as páginas");
     renderizar(s14.ficheiro, "pdf-14-meses", 4);
     await page.screenshot({ path: path.join(EVID, "ecra-27-meses.png") });

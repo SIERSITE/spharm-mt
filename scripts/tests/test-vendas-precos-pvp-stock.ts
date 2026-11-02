@@ -243,12 +243,13 @@ console.log("\n=== C. Total unid. destacado · Stock por artigo e Stock total ==
   const nTd = (html.match(/<td[^>]*class="[^"]*tint-total[^"]*"/g) ?? []).length;
   ok("todas as células da coluna (linhas, subtotais e TOTAL GERAL) levam o destaque", nTd === rel.rows.length + 1, `${nTd} vs ${rel.rows.length + 1}`);
   ok("o destaque não existe no Excel (sem estilos) e a coluna mantém o nome", !/tint/.test(JSON.stringify(buildReportWorkbook(rel).Sheets["Relatório"])) && cab.some((h) => /Total\s*Unid/.test(h)));
-  // blocos temporais: «Total unid. do bloco» e «Período: Total unid.» também destacados
+  // 2026-11: sem blocos temporais — com 27 meses continua a haver UMA só coluna «Total Unid.» (período completo), destacada,
+  // entre os meses e o stock (antes: «Total unid. do bloco» + «Período: Total unid.»)
   const rel27 = gerar([linha({ codigo: "8200001", qtd: [1, 2, 3], stock: 2 }, buckets(27))], buckets(27));
   const ths27 = [...renderReportHtml(rel27).matchAll(/<th\b([^>]*)>(.*?)<\/th>/g)].filter((t) => /tint-total/.test(t[1])).map((t) => t[2].replace(/<br\/>/g, " "));
-  ok("27 meses: «Total unid. do bloco» e «Período: Total unid.» têm o mesmo destaque", ths27.some((t) => /do bloco/.test(t)) && ths27.some((t) => /Período:/.test(t)), JSON.stringify(ths27));
+  ok("27 meses: uma só coluna destacada, «Total Unid.» (sem «do bloco» nem «Período:»)", ths27.length === 1 && /^Total Unid\.$/.test(ths27[0]), JSON.stringify(ths27));
   const ordem = rel27.columns.filter((c) => !c.excelOnly).map((c) => c.key);
-  ok("27 meses: sequência meses → total do bloco → total do período → stock", ordem.indexOf("totalVendas") > ordem.indexOf("tb_2") && ordem.indexOf("existencia") === ordem.indexOf("totalVendas") + 1);
+  ok("27 meses: sequência meses → total do período → stock (sem colunas de bloco)", ordem.indexOf("totalVendas") > ordem.indexOf("m_202606") && ordem.indexOf("existencia") === ordem.indexOf("totalVendas") + 1 && !ordem.some((k) => /^tb_/.test(k)));
 }
 
 console.log("\n=== D. Filtro «PVP diferente entre farmácias» (regra pura) ===");
