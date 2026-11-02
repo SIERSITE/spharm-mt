@@ -37,6 +37,8 @@ const secao = (t: string) => console.log(`\n── ${t}`);
 const EVID = path.resolve("docs/validacao-visual/2026-10-vendas-mapa");
 const norm = (t: string) => t.replace(/[  ]/g, " ");
 const eur = (n: number) => norm(new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n));
+// 2026-11: nas células de PVP/custo unitário do PDF/Relatório o «€» está no cabeçalho («Custo unit. €»): o valor aparece sem símbolo
+const semEuro = (n: number) => eur(n).replace(/\s?€/, "");
 
 // ─── dados sintéticos ──────────────────────────────────────────────────────
 const CNP = { C1: 8100001, C2: 8100002, C3: 8100003, C4: 8100004, NEG: 8100005, SC: 8100006, SP: 8100007, Z0: 8100008, ZN: 8100009, SV: 8100010, SVSS: 8100011, LONG: 8100012, ABC: 8100013, ARNICA: 8100014 };
@@ -326,7 +328,7 @@ async function main() {
     const cnpsPdf = new Set([...todoT.matchAll(/\b(81000\d\d|71000\d\d)\b/g)].map((m) => m[0]));
     check(cnpsPdf.size === nArtigos, `o PDF mostra ${cnpsPdf.size} artigos (esperado ${nArtigos})`);
     for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
-      check(todoT.includes(eur(v)), `PDF: custo ${eur(v)} completo (${cnp})`);
+      check(todoT.includes(semEuro(v)), `PDF: custo unit. ${semEuro(v)} completo (${cnp})`);
     }
     // 2026-11: «Custo total est.» e «Valor Vendas» saíram da tabela do PDF (só Excel): o custo total e o valor de vendas vão para o resumo financeiro
     const custoTotalPdf = (sTodos.relatorio.summary ?? []).find((s) => /Custo total estimado/.test(s.label))?.value as number;
@@ -426,7 +428,7 @@ async function main() {
     check(!/<(input|button|select)\b|type="checkbox"/.test(htmlPrev), "«Relatório»: sem controlos");
     const txtPrev = norm(await fr.locator("body").innerText());
     for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
-      check(txtPrev.includes(eur(v)), `«Relatório»: custo ${eur(v)} completo (${cnp})`);
+      check(txtPrev.includes(semEuro(v)), `«Relatório»: custo unit. ${semEuro(v)} completo (${cnp})`);
     }
     check(txtPrev.includes("TOTAL GERAL") && txtPrev.includes(eur(custoTotalPdf)), `«Relatório»: TOTAL GERAL e resumo financeiro com o custo ${eur(custoTotalPdf)} completo`);
     check(!/Página 1 de 1|SoftReis Informática/.test(txtPrev), "«Relatório»: o layout antigo desapareceu");
@@ -448,7 +450,7 @@ async function main() {
     const pS = palavrasPdf(sSel.ficheiro);
     const todoS = pS.paginas.flatMap(linhasPag).join("\n");
     check(cnpsDoRelatorio(sSel.relatorio).length === nArtigos - 2 && !todoS.includes(String(CNP.C1)) && !todoS.includes(String(CNP.C4)), "PDF: só os artigos selecionados");
-    check(!todoS.includes(eur(9876.54)) && todoS.includes(eur(7777.77)), "PDF: totais recalculados para a seleção");
+    check(!todoS.includes(semEuro(9876.54)) && todoS.includes(semEuro(7777.77)), "PDF: totais recalculados para a seleção");
     check(/Artigos:\s*\d+ de \d+ selecionados/.test(todoS.replace(/\n/g, " ")), "PDF: «Artigos: N de M selecionados» indica a seleção parcial");
     await page.getByRole("button", { name: /^Excel$/ }).first().waitFor();
     const [dl2] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
