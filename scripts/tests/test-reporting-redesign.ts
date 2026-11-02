@@ -283,7 +283,7 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   ok(`${nf}f/${nm}m: soma das larguras visíveis = 100 numa só tabela (${somaLarguras.toFixed(1)}), sem blocos, sem papel A3`, Math.abs(somaLarguras - 100) <= 0.05 && !("columnBlocks" in (rel.meta ?? {})) && !("paperSize" in (rel.meta ?? {})));
   ok(`${nf}f/${nm}m: meta.density é "compact"`, rel.meta?.density === "compact");
   // A4 horizontal sempre: a letra é fixa (8 pt), por isso já não há densidade tipográfica por nº de meses — poupa-se largura com o padding (meta.paddingCelulaPx)
-  ok(`${nf}f/${nm}m: sem tableDensity (letra fixa de 8 pt); padding das células ${rel.meta?.paddingCelulaPx} px (2…5)`, rel.meta?.tableDensity === undefined && [2, 2.5, 3, 4, 5].includes(Number(rel.meta?.paddingCelulaPx)));
+  ok(`${nf}f/${nm}m: sem tableDensity (letra fixa de 8 pt); padding das células ${rel.meta?.paddingCelulaPx} px (1,5…5)`, rel.meta?.tableDensity === undefined && [1.5, 2, 2.5, 3, 4, 5].includes(Number(rel.meta?.paddingCelulaPx)));
 
   if (nf > 1) {
     ok(`${nf}f/${nm}m: existe TOTAL ARTIGO (mais de uma farmácia)`, bodyHtml.includes("TOTAL ARTIGO"));
@@ -386,8 +386,9 @@ console.log("\n=== G5. custoUnitarioEstimado e valorBruto — bug antigo corrigi
   // Só no <body> — "PVP:" também aparece num comentário CSS (a explicar
   // a regra .cell-note), sempre presente independentemente dos dados.
   const bodyHtmlG5 = html.slice(html.indexOf("<body>"));
-  ok("o PVP aparece como coluna (não sublinha)", bodyHtmlG5.includes(">PVP<"));
-  ok("o Custo unit. est. aparece com o valor certo (12,34 €)", bodyHtmlG5.includes(`>${formatCurrency(12.34)}<`));
+  // 2026-11: o «€» vai para o cabeçalho («PVP €», «Custo unit. €») e as células mostram «12,34» sem símbolo (o Excel não muda)
+  ok("o PVP aparece como coluna (não sublinha)", bodyHtmlG5.includes(">PVP €<"));
+  ok("o Custo unit. aparece com o valor certo (12,34, sem «€» na célula)", bodyHtmlG5.includes(">12,34<"));
   ok("o Valor Vendas aparece no HTML (40,00 €)", bodyHtmlG5.includes("40,00"));
 }
 
@@ -419,8 +420,8 @@ console.log("\n=== G6. Excel e HTML/PDF mostram as mesmas colunas, na mesma orde
 
   const html = renderReportHtml(rel);
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
-  ok("o HTML/PDF TAMBÉM desenha PVP como coluna própria", theadHtml.includes(">PVP<"));
-  ok("…e Custo unit. est. também", theadHtml.includes("Custo") && theadHtml.includes("unit. est."));
+  ok("o HTML/PDF TAMBÉM desenha PVP como coluna própria", theadHtml.includes(">PVP €<"));
+  ok("…e Custo unit. est. também", theadHtml.includes("Custo") && theadHtml.includes("unit. €"));
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -655,21 +656,21 @@ console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por arti
 
   const html2f = renderReportHtml(rel2f);
   const body2f = html2f.slice(html2f.indexOf("<body>"));
-  ok("PDF/HTML mostra o PVP do Segurado (6,66 €)", body2f.includes(`>${formatCurrency(6.66)}<`));
-  ok("…e o do Silveirense (6,50 €), NUNCA os dois iguais", body2f.includes(`>${formatCurrency(6.5)}<`));
-  ok("PDF/HTML mostra o custo do Segurado (4,46 €)", body2f.includes(`>${formatCurrency(4.46)}<`));
-  ok("…e o do Silveirense (3,75 €)", body2f.includes(`>${formatCurrency(3.75)}<`));
+  ok("PDF/HTML mostra o PVP do Segurado (6,66 €)", body2f.includes(`>${"6,66"}<`));
+  ok("…e o do Silveirense (6,50 €), NUNCA os dois iguais", body2f.includes(`>${"6,50"}<`));
+  ok("PDF/HTML mostra o custo do Segurado (4,46 €)", body2f.includes(`>${"4,46"}<`));
+  ok("…e o do Silveirense (3,75 €)", body2f.includes(`>${"3,75"}<`));
   // A célula da 2ª sublinha (Silveirense) tem de ser uma célula própria,
   // não coberta por rowspan — é exactamente o que o bug fazia desaparecer.
   const linhasTr2f = body2f.match(/<tr[^>]*>.*?<\/tr>/g) ?? [];
   const trSilveirense = linhasTr2f.find((tr) => tr.includes(">Silveirense<"));
-  ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${formatCurrency(6.5)}<`));
+  ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${"6,50"}<`));
   // 2026-11: a linha TOTAL ARTIGO mostra APENAS totais mensais, total de unidades e stock — as células de PVP e de Custo unit. ficam
   // VAZIAS no HTML/PDF (antes «—»); nunca uma média nem um valor escolhido. O Excel mantém o valor da linha (nulo) como estava.
   const trTotal2f = linhasTr2f.find((tr) => tr.includes("TOTAL ARTIGO"));
   const numTracos = (trTotal2f?.match(/>—</g) ?? []).length;
   const celulasVazias = (trTotal2f?.match(/<td[^>]*><\/td>/g) ?? []).length;
-  ok('TOTAL ARTIGO: PVP e Custo unit. com células VAZIAS (nenhum "—", nenhum valor)', numTracos === 0 && celulasVazias >= 2 && !trTotal2f?.includes(formatCurrency(6.66)) && !trTotal2f?.includes(formatCurrency(6.5)));
+  ok('TOTAL ARTIGO: PVP e Custo unit. com células VAZIAS (nenhum "—", nenhum valor)', numTracos === 0 && celulasVazias >= 2 && !trTotal2f?.includes("6,66") && !trTotal2f?.includes("6,50"));
 
   // 1 farmácia — sem grupo/rowspan, continua a mostrar o valor certo.
   const rows1f = [
@@ -704,7 +705,7 @@ console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por arti
   const html5f = renderReportHtml(rel5f);
   const body5f = html5f.slice(html5f.indexOf("<body>"));
   for (let i = 0; i < 5; i++) {
-    ok(`5f: PVP da farmácia ${i + 1} (${formatCurrency(10 + i)}) aparece no PDF/HTML`, body5f.includes(`>${formatCurrency(10 + i)}<`));
+    ok(`5f: PVP da farmácia ${i + 1} (${formatCurrency(10 + i)}) aparece no PDF/HTML`, body5f.includes(`>${formatCurrency(10 + i).replace(/\s?€/, "")}<`));
   }
 }
 

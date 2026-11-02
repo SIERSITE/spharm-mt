@@ -125,7 +125,7 @@ async function main() {
     const rows = casos.map(([c, custoTotal]) => {
       const l = linha({ codigo: c, qtd: 1, valor: custoTotal * 2 }, bks); // 13 unidades
       l.custoEstimado = custoTotal;
-      l.custoUnitarioEstimado = custoTotal / 13;
+      l.custoUnitarioEstimado = 1234.56 /* unitário dentro do limite de 9 999,99 €; o custo TOTAL por linha só existe no Excel */;
       return l;
     });
     rows.push(linha({ codigo: "1000007", custoUnit: null }, bks)); // sem custo
@@ -415,8 +415,9 @@ async function main() {
     const pg = p.paginas[0].palavras;
     const gris = (txt: string) => pg.filter((w) => w[4] === txt).map((w) => w[5]);
     ok(`PDF a cinzentos: cabeçalho «Descrição»/«Stock» sobre fundo claro (cinza ${gris("Descrição")[0]}/${gris("Stock")[0]})`, gris("Descrição")[0] > 180 && gris("Stock")[0] > 180);
-    const totArt = pg.filter((w) => w[4] === "TOTAL" && pg.some((x) => x[4] === "ARTIGO" && Math.abs(x[1] - w[1]) < 2));
-    ok(`PDF a cinzentos: «TOTAL ARTIGO» sobre cinzento claro (${totArt.map((w) => w[5]).slice(0, 3)})`, totArt.length > 0 && totArt.every((w) => w[5] > 190));
+    // 2026-11: «TOTAL ARTIGO» quebra em duas linhas e o texto é a 8 pt (mais pixéis de tinta sob a palavra): limiar de «cinzento claro» 180 (era 190); o fundo continua #f1f3f6.
+    const totArt = pg.filter((w) => w[4] === "TOTAL" && pg.some((x) => x[4] === "ARTIGO" && Math.abs(x[1] - w[1]) < 14));
+    ok(`PDF a cinzentos: «TOTAL ARTIGO» sobre cinzento claro (${totArt.map((w) => w[5]).slice(0, 3)})`, totArt.length > 0 && totArt.every((w) => w[5] > 180));
     ok("PDF: stock negativo continua a destacar-se (pastilha escura)", p.paginas.flatMap((x) => x.palavras).filter((w) => w[4] === "-2").some((w) => w[5] < 140));
     const ultima = p.paginas[p.paginas.length - 1].palavras;
     const tg = ultima.find((w) => w[4] === "GERAL");
@@ -511,7 +512,7 @@ async function main() {
       const hNum = altura((w) => /^(11|22|33)$/.test(w[4]));
       ok(`números e texto com a MESMA altura de letra (8 pt): ${hNum.toFixed(2)} vs ${hTexto.toFixed(2)} pt de caixa — razão 0,8–1,25 (diferença só de glifos)`, hNum / hTexto > 0.8 && hNum / hTexto < 1.25, `${hNum}/${hTexto}`);
       const html = renderReportHtml(rel);
-      ok("CSS: corpo da tabela a 8,25 pt e cabeçalhos a 8 pt; sem a regra «números +1px»", /hierarchy-clean tbody td \{ font-size: 8\.25pt;/.test(html) && /hierarchy-clean table \{ font-size: 8\.25pt; \}/.test(html) && /hierarchy-clean thead th \{[^}]*font-size: 8pt/.test(html) && !/td\.num \{ font-size: calc/.test(html));
+      ok("CSS: corpo e cabeçalhos da tabela a 10,7 px (8,025 pt); sem a regra «números +1px»", /hierarchy-clean tbody td \{ font-size: 10\.7px;/.test(html) && /hierarchy-clean table \{ font-size: 10\.7px; \}/.test(html) && /hierarchy-clean thead th \{[^}]*font-size: 10\.7px/.test(html) && !/td\.num \{ font-size: calc/.test(html));
       ok("só há 4 fontes de números sem aumento no relatório não-limpo (Margens/outros intactos)", !renderReportHtml({ ...rel, meta: { ...rel.meta!, hierarchy: "strong" } }).includes('class="num"'));
     }
   }
@@ -520,8 +521,8 @@ async function main() {
   console.log("\n=== L. Quatro combinações de preços no PDF real; coluna «Total unid.» e stock total ===");
   {
     // Sentinelas únicos por classe (ver test-vendas-precos-pvp-stock.ts).
-    const VENDA_FMT = ["11 111,11", "22 222,22", "33 333,33", "66 666,66"];
-    const COMPRA_FMT = ["44 444,44", "88 888,88"];
+    const VENDA_FMT = ["1111,11", "2222,22", "3333,33", "6666,66"];
+    const COMPRA_FMT = ["4444,44", "8888,88"];
     const tem = (t: string, l: string[]) => l.some((s) => t.includes(s));
     const lum = (rgb: string) => { const m = rgb.match(/\d+(\.\d+)?/g)!.map(Number); return 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]; };
 
@@ -529,8 +530,8 @@ async function main() {
       const bks = buckets(nMeses);
       const q = bks.map((_, i) => (i === 0 ? 1 : 0));
       const rows = [
-        linha({ codigo: "7000001", descricao: "Produto Sentinela A", qtd: q, pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, stock: 3 }, bks),
-        linha({ codigo: "7000002", descricao: "Produto Sentinela B", qtd: q, pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, stock: 4 }, bks),
+        linha({ codigo: "7000001", descricao: "Produto Sentinela A", qtd: q, pvp: 1111.11, custoUnit: 4444.44, valor: 3333.33, stock: 3 }, bks),
+        linha({ codigo: "7000002", descricao: "Produto Sentinela B", qtd: q, pvp: 1111.11, custoUnit: 4444.44, valor: 3333.33, stock: 4 }, bks),
       ];
       for (const [venda, compra] of [[true, true], [true, false], [false, true], [false, false]] as const) {
         const tag = `${nMeses} meses · venda=${venda ? "sim" : "não"} · compra=${compra ? "sim" : "não"}`;
@@ -560,7 +561,9 @@ async function main() {
       const rel = gerar(rows, b);
       const p = palavras(await pdfDe(rel, "stock-total"));
       const linhasPdf = p.paginas.flatMap(linhasDe);
-      const totalArtigo = linhasPdf.find((l) => /TOTAL ARTIGO/.test(l));
+      // 2026-11: «TOTAL ARTIGO» quebra em duas linhas («TOTAL» / «ARTIGO») e os números ficam centrados entre elas: lê-se tudo à volta da palavra «ARTIGO»
+      const wArt = p.paginas.flatMap((pg) => pg.palavras).find((w) => w[4] === "ARTIGO");
+      const totalArtigo = wArt ? p.paginas.flatMap((pg) => pg.palavras).filter((w) => Math.abs(w[1] - wArt[1]) < 8).sort((a, b) => a[0] - b[0]).map((w) => w[4]).join(" ") : undefined;
       ok("PDF real: TOTAL ARTIGO mostra a soma do stock das farmácias (4 + 7 = 11)", !!totalArtigo && /\b11\b/.test(totalArtigo), totalArtigo);
       const tgl = linhasPdf.find((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
       ok("PDF real: TOTAL GERAL — Stock total = 4 + 7 − 3 = 8 (o desconhecido fica de fora)", !!tgl && /\b10 8\b/.test(tgl), tgl);

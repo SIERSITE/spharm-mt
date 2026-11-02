@@ -87,8 +87,21 @@ export function relatorioCliente(o: { meses?: number; artigos?: number; venda?: 
 export const novaPasta = (prefixo: string) => mkdtempSync(path.join(tmpdir(), prefixo));
 export const apagarPasta = (d: string) => { try { rmSync(d, { recursive: true, force: true }); } catch { /* ignora */ } };
 
+/**
+ * Chromium para os testes. TODAS as páginas abertas com `browser.newPage()` ficam com timeouts de 180 s: o 30 s por omissão do puppeteer
+ * (`Navigation timeout of 30000 ms exceeded` em `setContent`) falhava quando a máquina estava carregada — p.ex. logo a seguir a um `next build`,
+ * com o disco quase cheio — e fazia o teste sair com rc=1 sem chegar ao resumo (causa do falhanço em lote, ver notes/vendas-tabela-unica.md).
+ */
 export async function abrirBrowser(): Promise<Browser> {
-  return puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], protocolTimeout: 600_000 });
+  const novaPagina = browser.newPage.bind(browser);
+  browser.newPage = async (...a: Parameters<Browser["newPage"]>) => {
+    const page = await novaPagina(...a);
+    page.setDefaultNavigationTimeout(180_000);
+    page.setDefaultTimeout(180_000);
+    return page;
+  };
+  return browser;
 }
 
 /** PDF do endpoint real (mesmas opções) — `pdf-opcoes.ts`. */
@@ -133,8 +146,8 @@ export type MedicaoDom = {
 export async function medirDom(browser: Browser, rel: Report): Promise<MedicaoDom> {
   const page = await browser.newPage();
   try {
-    // a largura de layout em impressão é a ÁREA ÚTIL da página (297 mm − 2 × margem de 6,5 mm), não a do papel
-    await page.setViewport({ width: Math.round((297 - 2 * 6.5) * 96 / 25.4), height: Math.round(190 * 96 / 25.4) });
+    // a largura de layout em impressão é a ÁREA ÚTIL da página (297 mm − 2 × margem de 6 mm), não a do papel
+    await page.setViewport({ width: Math.round((297 - 2 * 6) * 96 / 25.4), height: Math.round(190 * 96 / 25.4) });
     await page.emulateMediaType("print");
     await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
     await page.evaluate("window.__name = (f) => f"); // o esbuild do tsx injeta __name nas funções serializadas
@@ -175,4 +188,12 @@ export function lerPdf(f: string): PaginaPdf[] {
   const r = spawnSync("python", [path.resolve("scripts/e2e/_tabela_unica_pdf.py"), f], { encoding: "utf8", maxBuffer: 512 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`python _tabela_unica_pdf.py: ${r.stderr}`);
   return JSON.parse(r.stdout.trim().split("\n").pop() ?? "{}").paginas;
+}
+
+/** Relatório do Mapa de Vendas a partir de linhas já construídas (cenários «PDF real ×N» e «pior caso»). */
+export function relatorioLinhas(rows: VendasAdapterRow[], meses: number, farmacias: string[], venda = true, compra = true, agruparPor = "artigo"): Report {
+  return buildVendasReport({
+    rows, buckets: bucketsCliente(meses), filters: { agruparPor, dataInicio: "2025-10-01", dataFim: "2026-11-02" },
+    universe: { farmacias, fornecedores: [], fabricantes: [], categorias: [] }, organization: "Grupo Teste (dados sintéticos)", incluirPrecosVenda: venda, incluirPrecosCompra: compra,
+  });
 }

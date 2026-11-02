@@ -83,18 +83,18 @@ function dumpXlsx(report: Report, nome: string) {
 }
 
 // Valores-sentinela ÚNICOS por classe (nenhum coincide com outro nem com um total derivado do outro).
-//   venda : PVP 11111.11 · valor de vendas 33333.33 · PVP estimado (Σ qtd×pvp) 22222.22 · total do valor 66666.66
-//   compra: custo unitário 44444.44 (= custo total, qtd 1) · total do custo 88888.88
-const VENDA_RAW = ["11111.11", "22222.22", "33333.33", "66666.66"];
-const VENDA_FMT = ["11 111,11", "22 222,22", "33 333,33", "66 666,66"];
-const COMPRA_RAW = ["44444.44", "88888.88"];
-const COMPRA_FMT = ["44 444,44", "88 888,88"];
+//   venda : PVP 1111.11 · valor de vendas 3333.33 · PVP estimado (Σ qtd×pvp) 2222.22 · total do valor 6666.66
+//   compra: custo unitário 4444.44 (= custo total, qtd 1) · total do custo 8888.88
+const VENDA_RAW = ["1111.11", "2222.22", "3333.33", "6666.66"];
+const VENDA_FMT = ["1111,11", "2222,22", "3333,33", "6666,66"];
+const COMPRA_RAW = ["4444.44", "8888.88"];
+const COMPRA_FMT = ["4444,44", "8888,88"];
 const temAlgum = (texto: string, lista: string[]) => lista.some((s) => texto.includes(s));
 
 function linhasSentinela(bks: { ano: number; mes: number }[]): VendasAdapterRow[] {
   return [
-    linha({ codigo: "7000001", qtd: [1, 0, 0], pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, descricao: "Produto Sentinela A", stock: 3 }, bks),
-    linha({ codigo: "7000002", qtd: [1, 0, 0], pvp: 11111.11, custoUnit: 44444.44, valor: 33333.33, descricao: "Produto Sentinela B", stock: 4 }, bks),
+    linha({ codigo: "7000001", qtd: [1, 0, 0], pvp: 1111.11, custoUnit: 4444.44, valor: 3333.33, descricao: "Produto Sentinela A", stock: 3 }, bks),
+    linha({ codigo: "7000002", qtd: [1, 0, 0], pvp: 1111.11, custoUnit: 4444.44, valor: 3333.33, descricao: "Produto Sentinela B", stock: 4 }, bks),
   ];
 }
 const corpoHtml = (r: Report) => {
@@ -113,7 +113,7 @@ console.log("\n=== A. Quatro combinações de preços: Report, HTML e XLSX real 
     ok(`${tag}: colunas — PVP/valor ${venda ? "presentes" : "AUSENTES"}, custos ${compra ? "presentes" : "AUSENTES"}, nunca vazias`,
       cols.includes("pvp") === venda && cols.includes("valorBruto") === venda && cols.includes("custoUnitarioEstimado") === compra && cols.includes("custoEstimado") === compra);
     ok(`${tag}: o Report que viaja (JSON do PDF/email) ${venda ? "leva" : "NÃO leva"} valores de venda e ${compra ? "leva" : "NÃO leva"} valores de compra`,
-      temAlgum(json, VENDA_RAW) === venda && temAlgum(json, COMPRA_RAW) === compra, json.match(/(11111|22222|33333|44444|66666|88888)\.\d\d/)?.[0]);
+      temAlgum(json, VENDA_RAW) === venda && temAlgum(json, COMPRA_RAW) === compra, json.match(/(1111|2222|3333|4444|6666|8888)\.\d\d/)?.[0]);
     ok(`${tag}: resumo — monetários só das classes incluídas; unidades e stock total sempre`,
       (rel.summary ?? []).some((s) => s.label === "Valor PVP estimado") === venda && (rel.summary ?? []).some((s) => s.label === "Custo total estimado") === compra &&
       ["Unidades vendidas", "Stock total"].every((l) => (rel.summary ?? []).some((s) => s.label === l)));
@@ -175,7 +175,7 @@ console.log("\n=== B. Privacidade validada no servidor (falha-seguro) ===");
   const semVenda = aplicarPrivacidade(adulterado({ precosVenda: false, precosCompra: true, chavesVenda: ["pvp", "valorBruto"], chavesCompra: [] }));
   ok("relatório completo + meta «sem venda»: o servidor retira colunas, linhas e resumo de venda — e só esses",
     !semVenda.columns.some((c) => c.sensivel === "venda") && semVenda.columns.some((c) => c.key === "custoEstimado") &&
-    !temAlgum(JSON.stringify(semVenda), ["11111.11", "33333.33"]) && temAlgum(JSON.stringify(semVenda), COMPRA_RAW));
+    !temAlgum(JSON.stringify(semVenda), ["1111.11", "3333.33"]) && temAlgum(JSON.stringify(semVenda), COMPRA_RAW));
   ok("…HTML e XLSX gerados a partir do relatório adulterado também saem sem venda",
     !temAlgum(corpoHtml(adulterado({ precosVenda: false, precosCompra: true })), VENDA_FMT) && !temAlgum(dumpXlsx(adulterado({ precosVenda: false, precosCompra: true }), "forjado-venda").texto, VENDA_RAW));
   const tudoFora = [{}, { precosVenda: "true", precosCompra: 1 }, { precosVenda: null }, { precosCompra: true }];

@@ -59,6 +59,10 @@ export type ReportColumn = {
   excelOnly?: boolean;
   /** Só existe em HTML/PDF/print — nunca no Excel (o Excel mostra todos os meses numa folha). */
   htmlOnly?: boolean;
+  /** Moeda SEM « €» nas células de HTML/PDF/print (o símbolo vai no cabeçalho, `htmlLabel`); o Excel continua com o formato monetário. */
+  semSimbolo?: boolean;
+  /** A célula quebra linha (inclusive no meio de uma palavra muito longa) em vez de alargar a coluna — HTML/PDF/print. */
+  quebra?: boolean;
   /** Rótulo do cabeçalho em HTML/PDF/print, se diferente de `label` (o Excel usa sempre `label`). Ex.: «Out/25» numa linha. */
   htmlLabel?: string;
   /** Na linha de subtotal («TOTAL ARTIGO») a célula fica VAZIA em HTML/PDF/print (o Excel mantém o valor da linha). */

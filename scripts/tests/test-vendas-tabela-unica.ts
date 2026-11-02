@@ -24,11 +24,12 @@ import * as XLSX from "xlsx";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import { renderReportHtml } from "../../lib/reporting/report-html";
 import { aplicarPrivacidade } from "../../lib/reporting/privacidade";
-import { capacidadeA4, DESCRICAO_MIN_MM, LARGURA_UTIL_MM, MARGEM_LATERAL_VENDAS_MM, PADDINGS_PX, mensagemExcesso, type TextosDasColunas } from "../../lib/reporting/layout-largura";
+import { capacidadeA4, DESCRICAO_MIN_MM, FOLGA_MM, FONTE_PT, LARGURA_UTIL_MM, LIMITES, MARGEM_LATERAL_VENDAS_MM, MESES_GARANTIDOS, orcamentoPiorCaso, PAD_GARANTIA_PX, PADDINGS_PX, mensagemExcesso, type Maximos, type TextosDasColunas } from "../../lib/reporting/layout-largura";
 import { bloqueadoPorA4, capacidadeDoRelatorio, colunasVisiveis } from "../../lib/reporting/layout-vendas";
 import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import { analisar } from "./_analise-tabela-unica";
-import { abrirBrowser, apagarPasta, dados, lerPdf, medirDom, novaPasta, pdfDe, pdfImpressao, relatorio, relatorioCliente } from "./_tabela-unica";
+import { abrirBrowser, apagarPasta, dados, FARMACIAS_CLIENTE, lerPdf, medirDom, novaPasta, pdfDe, pdfImpressao, relatorio, relatorioCliente, relatorioLinhas } from "./_tabela-unica";
+import { dadosPiorCaso, dadosRealMult, FARMACIAS_3 } from "./_cliente-real";
 import { medirMeses } from "./_verticais-meses";
 
 let passed = 0, failed = 0;
@@ -44,42 +45,95 @@ const COMBOS = [[true, true], [true, false], [false, true], [false, false]] as c
 const nomeCombo = (v: boolean, c: boolean) => `venda=${v ? "sim" : "não"} compra=${c ? "sim" : "não"}`;
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-// A. capacidadeA4: a regra de largura (função pura, determinística)
+// A. capacidadeA4: LIMITES numéricos fixos ⇒ 14 meses cabem SEMPRE (função pura, determinística)
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-console.log("\n=== A. capacidadeA4: A4 horizontal ≥ 8 pt (função pura) ===");
+console.log("\n=== A. capacidadeA4: limites fixos garantem os 14 meses em A4 horizontal ≥ 8 pt (função pura) ===");
 
-/** Textos «moderados» (artigo corrente, totais mensais até 4 dígitos) e «extremos» (123 456 unidades, 12 345,67 €, negativos). */
-const MODERADO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["91,80 €"], custoUnitario: ["48,18 €"], totalUnid: ["999", "14 350"], stock: ["133", "1492"], mes: ["·", "12", "123", "1077"], rotulosMes: ["Out/25", "Nov/26", "Mai/26", "Ago/26"] };
-const EXTREMO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["12 345,67 €"], custoUnitario: ["12 345,67 €"], totalUnid: ["123 456", "1 234 567"], stock: ["12 345", "-12 345"], mes: ["-12 345", "123 456", "1 234 567"], rotulosMes: ["Out/25", "Nov/26", "Mai/26", "Ago/26"] };
-const cap = (n: number, v: boolean, c: boolean, t: TextosDasColunas = MODERADO) => capacidadeA4({ nMeses: n, textos: t }, { incluirVenda: v, incluirCompra: c });
+const fmtInt = (v: number) => new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 0 }).format(v);
+const fmtMoeda = (v: number) => new Intl.NumberFormat("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+/** Textos (como a tabela os desenha) de um conjunto de valores: PVP/custo sem «€» (o símbolo está no cabeçalho), inteiros com separador de milhares. */
+function textosDeValores(v: { pvp: number; custo: number; mes: number; total: number; stock: number }): { textos: TextosDasColunas; maximos: Maximos } {
+  return {
+    textos: {
+      codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: [fmtMoeda(v.pvp)], custoUnitario: [fmtMoeda(v.custo)],
+      totalUnid: [fmtInt(v.total), fmtInt(-v.total)], stock: [fmtInt(v.stock), fmtInt(-v.stock)], mes: ["·", fmtInt(v.mes), fmtInt(-v.mes)], rotulosMes: ["Out/25", "Nov/26", "Mai/26", "Ago/26"],
+    },
+    maximos: { pvp: v.pvp, custoUnitario: v.custo, mes: v.mes, totalUnid: v.total, stock: v.stock },
+  };
+}
+const NOS_LIMITES = textosDeValores({ pvp: LIMITES.preco, custo: LIMITES.preco, mes: LIMITES.mes, total: LIMITES.total, stock: LIMITES.stock });
+const capL = (n: number, v: boolean, c: boolean, d = NOS_LIMITES) => capacidadeA4({ nMeses: n, textos: d.textos, maximos: d.maximos }, { incluirVenda: v, incluirCompra: c });
+/** Dados moderados para a capacidade ACIMA de 14 meses (depende dos dados): totais mensais até 4 dígitos, PVP ≤ 91,80 €. */
+const MODERADO = textosDeValores({ pvp: 91.8, custo: 48.18, mes: 1077, total: 14350, stock: 1492 });
 const TABELA: Record<string, number> = {};
 {
   ok(`área útil: A4 horizontal 297 − 2×${MARGEM_LATERAL_VENDAS_MM} = ${LARGURA_UTIL_MM} mm; margens laterais ≥ 5 mm (impressoras)`, LARGURA_UTIL_MM === 297 - 2 * MARGEM_LATERAL_VENDAS_MM && MARGEM_LATERAL_VENDAS_MM >= 5 && MARGEM_LATERAL_VENDAS_MM <= 7);
-  ok("determinística: a mesma entrada dá exatamente a mesma decisão", JSON.stringify(cap(14, true, true)) === JSON.stringify(cap(14, true, true)));
-  ok("padding horizontal só desce (5 → 2 px) — a letra nunca", PADDINGS_PX[0] === 5 && PADDINGS_PX[PADDINGS_PX.length - 1] === 2 && PADDINGS_PX.every((p, i) => i === 0 || p < PADDINGS_PX[i - 1]));
+  ok("limites documentados: PVP/custo 9 999,99 €; mensal 99 999; Total unid. e Stock 999 999; Descrição ≥ 45 mm; 14 meses", LIMITES.preco === 9999.99 && LIMITES.mes === 99999 && LIMITES.total === 999999 && LIMITES.stock === 999999 && DESCRICAO_MIN_MM >= 45 && MESES_GARANTIDOS === 14);
+  ok("determinística: a mesma entrada dá exatamente a mesma decisão", JSON.stringify(capL(14, true, true)) === JSON.stringify(capL(14, true, true)));
+  ok("padding horizontal só desce (5 → 1,5 px) — a letra nunca (10,7 px = 8,025 pt)", PADDINGS_PX[0] === 5 && PADDINGS_PX[PADDINGS_PX.length - 1] === PAD_GARANTIA_PX && PADDINGS_PX.every((p, i) => i === 0 || p < PADDINGS_PX[i - 1]) && FONTE_PT >= 8);
 
-  for (const [nome, t] of [["moderados", MODERADO], ["extremos", EXTREMO]] as const) {
+  // ORÇAMENTO DE LARGURA DO PIOR CASO (mm), coluna a coluna, com 14 meses, ao padding da garantia — impresso para as notas
+  console.log("\n  — Orçamento de largura do pior caso (mm; 14 meses; padding 1,5 px; útil 285 mm) —");
+  console.log("  | venda | compra | CNP | Farmácia | PVP € | Custo € | Total unid. | Stock | 14 × mês | fixos+meses | sobra p/ Descrição |");
+  for (const [v, c] of COMBOS) {
+    const o = orcamentoPiorCaso({ incluirVenda: v, incluirCompra: c });
+    const k = o.colunas;
+    console.log(`  | ${v ? "sim" : "não"} | ${c ? "sim" : "não"} | ${k.codigo.toFixed(1)} | ${k.farmacia.toFixed(1)} | ${k.pvp.toFixed(1)} | ${k.custoUnitario.toFixed(1)} | ${k.totalUnid.toFixed(1)} | ${k.stock.toFixed(1)} | ${o.meses.toFixed(1)} (${k.mes.toFixed(2)}/mês) | ${o.total.toFixed(1)} | ${o.sobraDescricao.toFixed(1)} |`);
+    ok(`PROVA POR CÁLCULO (${nomeCombo(v, c)}): no pior caso simultâneo, 14 meses + colunas fixas deixam ${o.sobraDescricao.toFixed(1)} mm ≥ ${DESCRICAO_MIN_MM} mm (+ ${FOLGA_MM} mm de folga) para a Descrição`, o.sobraDescricao >= DESCRICAO_MIN_MM + FOLGA_MM);
+  }
+
+  // 14 meses (e menos) dentro dos limites: SEMPRE cabem — varrimento de uma grelha de combinações (nunca 422)
+  const PRECOS = [9.99, 99.99, 999.99, 9999.99], MESES_V = [0, 9, 99, 999, 9999, 99999], TOTAIS = [9, 99999, 999999];
+  let n = 0, falhas = 0, minDesc = Infinity;
+  for (const [v, c] of COMBOS) for (const pvp of PRECOS) for (const custo of PRECOS) for (const mes of MESES_V) for (const tot of TOTAIS) for (const stk of TOTAIS) for (const nm of [1, 3, 12, 14]) {
+    const d = textosDeValores({ pvp, custo, mes, total: tot, stock: stk });
+    const r = capL(nm, v, c, d);
+    n++;
+    if (!r.cabe || r.mensagem || r.excessos.length > 0 || r.descricaoMm < DESCRICAO_MIN_MM - 1e-6) falhas++;
+    minDesc = Math.min(minDesc, r.descricaoMm);
+  }
+  ok(`GRELHA: ${n} combinações (PVP × custo × mensal × total × stock × 4 combinações de preços × 1/3/12/14 meses) dentro dos limites ⇒ SEMPRE «cabe», sem mensagem, Descrição ≥ ${DESCRICAO_MIN_MM} mm (mín. ${minDesc.toFixed(1)} mm)`, falhas === 0, `${falhas} falhas`);
+  for (const [v, c] of COMBOS) {
+    const seq = Array.from({ length: 14 }, (_, i) => capL(i + 1, v, c));
+    ok(`pior caso simultâneo (${nomeCombo(v, c)}): 1…14 meses cabem; larguras somam 100 %; Descrição ≥ ${DESCRICAO_MIN_MM} mm; padding só diminui com os meses`, seq.every((d, i, a) => {
+      const p = d.pct;
+      const soma = p.codigo + p.farmacia + p.pvp + p.custoUnitario + p.totalUnid + p.stock + p.descricao + p.mes * d.nMeses;
+      return d.cabe && Math.abs(soma - 100) < 1e-6 && d.descricaoMm >= DESCRICAO_MIN_MM - 1e-6 && (i === 0 || d.padPx <= a[i - 1].padPx) && (v || d.pct.pvp === 0) && (c || d.pct.custoUnitario === 0);
+    }));
+    ok(`pior caso (${nomeCombo(v, c)}): mesesMax ≥ 14`, capL(14, v, c).mesesMax >= 14);
+  }
+
+  // Limites ultrapassados: mensagem com o limite concreto (e só aí se recusa 14 meses)
+  const exc = (o: Partial<{ pvp: number; custo: number; mes: number; total: number; stock: number }>) => capL(14, true, true, textosDeValores({ pvp: 100, custo: 100, mes: 100, total: 100, stock: 100, ...o }));
+  const casos: [string, ReturnType<typeof exc>, RegExp][] = [
+    ["PVP 12 345,67 €", exc({ pvp: 12345.67 }), /^PVP de 12 345,67 € excede o limite de 9 999,99 € do PDF A4 legível\./],
+    ["custo 10 000,00 €", exc({ custo: 10000 }), /^Custo unitário de 10 000,00 € excede o limite de 9 999,99 € do PDF A4 legível\./],
+    ["mensal 100 000", exc({ mes: 100000 }), /^Valor mensal de 100 000 unidades excede o limite de 99 999 do PDF A4 legível\./],
+    ["total 1 000 000", exc({ total: 1000000 }), /^Total de unidades de 1 000 000 excede o limite de 999 999 do PDF A4 legível\./],
+    ["stock 1 234 567", exc({ stock: 1234567 }), /^Stock de 1 234 567 excede o limite de 999 999 do PDF A4 legível\./],
+  ];
+  for (const [nome, r, re] of casos) {
+    const msg = (r.mensagem ?? "").replace(/ /g, " ");
+    ok(`acima do limite (${nome}): não cabe e a mensagem diz o limite concreto — «${msg.slice(0, 80)}…»`, !r.cabe && re.test(msg) && /Reduza a seleção, retire preços ou use o Excel\.$/.test(msg));
+  }
+  ok("exatamente NO limite (9 999,99 €; 99 999; 999 999) cabe; um passo acima não", capL(14, true, true).cabe && !exc({ pvp: 10000 }).cabe && !exc({ mes: 100000 }).cabe);
+  ok("PVP acima do limite com «Incluir preços de venda» desligado NÃO recusa (a coluna não existe)", capacidadeA4({ nMeses: 14, ...textosDeValores({ pvp: 50000, custo: 5, mes: 5, total: 5, stock: 5 }) }, { incluirVenda: false, incluirCompra: true }).cabe);
+
+  // ACIMA de 14 meses a capacidade depende dos dados (documentada)
+  for (const [nome, d] of [["moderados", MODERADO], ["limites (pior caso)", NOS_LIMITES]] as const) {
     for (const [v, c] of COMBOS) {
-      const max = cap(1, v, c, t).mesesMax;
+      const max = capL(15, v, c, d).mesesMax;
       TABELA[`${nome}|${v}|${c}`] = max;
-      const seq = Array.from({ length: 40 }, (_, i) => cap(i + 1, v, c, t));
-      ok(`${nome} · ${nomeCombo(v, c)}: cabe ⇔ n ≤ mesesMax (${max}); todos os n coerentes (1…40)`, seq.every((d, i) => d.cabe === (i + 1 <= max) && d.mesesMax === max));
-      ok(`${nome} · ${nomeCombo(v, c)}: no limite — ${max} meses cabem, ${max + 1} não`, max >= 1 && cap(max, v, c, t).cabe && !cap(max + 1, v, c, t).cabe);
-      ok(`${nome} · ${nomeCombo(v, c)}: quando cabe, as larguras somam 100 %, Descrição ≥ ${DESCRICAO_MIN_MM} mm e o padding só diminui com os meses`, seq.filter((d) => d.cabe).every((d, i, a) => {
-        const p = d.pct;
-        const soma = p.codigo + p.farmacia + p.pvp + p.custoUnitario + p.totalUnid + p.stock + p.descricao + p.mes * d.nMeses;
-        return Math.abs(soma - 100) < 1e-6 && d.descricaoMm >= DESCRICAO_MIN_MM - 1e-6 && (i === 0 || d.padPx <= a[i - 1].padPx);
-      }));
-      ok(`${nome} · ${nomeCombo(v, c)}: sem a classe de preços não há a coluna (largura 0)`, seq.every((d) => (v || d.pct.pvp === 0) && (c || d.pct.custoUnitario === 0)));
-      ok(`${nome} · ${nomeCombo(v, c)}: 24 e 27 meses NÃO cabem`, !cap(24, v, c, t).cabe && !cap(27, v, c, t).cabe);
+      const seq = Array.from({ length: 40 }, (_, i) => capL(i + 15, v, c, d));
+      ok(`${nome} · ${nomeCombo(v, c)}: acima de 14 meses cabe ⇔ n ≤ mesesMax (${max})`, seq.every((r, i) => r.cabe === (i + 15 <= max)) && max >= 14);
+      ok(`${nome} · ${nomeCombo(v, c)}: 24 e 27 meses NÃO cabem`, !capL(24, v, c, d).cabe && !capL(27, v, c, d).cabe);
     }
   }
-  for (const [v, c] of COMBOS) ok(`REQUISITO: 14 meses cabem numa só página A4 (dados moderados · ${nomeCombo(v, c)})`, cap(14, v, c).cabe);
-  const d24 = cap(24, true, true);
-  ok("mensagem de excesso exata (24 meses, todos os preços)", d24.mensagem === `O período de 24 meses não cabe numa página A4 legível (máximo ${d24.mesesMax} meses com estas opções). Reduza o período, retire preços ou use o Excel.` && d24.mensagem === mensagemExcesso(24, d24.mesesMax));
-  console.log("\n  — Capacidade (nº máximo de meses numa página A4 horizontal a 8 pt) —");
-  console.log("  | preços de venda | preços de compra | moderados | extremos (123 456 un.; −12 345; 12 345,67 €) |");
-  for (const [v, c] of COMBOS) console.log(`  | ${v ? "sim" : "não"} | ${c ? "sim" : "não"} | ${TABELA[`moderados|${v}|${c}`]} | ${TABELA[`extremos|${v}|${c}`]} |`);
+  const d24 = capL(24, true, true, MODERADO);
+  ok("mensagem de excesso de meses exata (24 meses, todos os preços)", d24.mensagem === `O período de 24 meses não cabe numa página A4 legível (máximo ${d24.mesesMax} meses com estas opções). Reduza o período, retire preços ou use o Excel.` && d24.mensagem === mensagemExcesso(24, d24.mesesMax));
+  console.log("\n  — Capacidade acima de 14 meses (nº máximo de meses; depende dos dados) —");
+  console.log("  | venda | compra | dados moderados (≤ 1 077 por mês; PVP ≤ 91,80 €) | pior caso dos limites |");
+  for (const [v, c] of COMBOS) console.log(`  | ${v ? "sim" : "não"} | ${c ? "sim" : "não"} | ${TABELA[`moderados|${v}|${c}`]} | ${TABELA[`limites (pior caso)|${v}|${c}`]} |`);
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -96,9 +150,11 @@ const rel14 = relatorioCliente({ meses: 14 });
   const html = corpoDe(htmlTotal); // sem o <style> (os comentários do CSS falam de «TOTAL GERAL», «TOTAL ARTIGO»…)
   const thead = (html.match(/<thead>[\s\S]*?<\/thead>/) ?? [""])[0];
   ok("cabeçalho HTML: meses «Out/25»…«Nov/26» numa linha; «Total unid.»; sem «Custo total», «Valor Vendas», «Parte», «bloco», «Período:»", /Out\/25/.test(thead) && /Nov\/26/.test(thead) && /Total<br\/>unid\./.test(thead) && !/Custo total|Valor Vendas|Parte|bloco|Período:/.test(thead));
+  const corpoTabela = html.slice(html.indexOf('<tbody class="row-group'), html.indexOf('<tbody class="totals-tbody"'));
+  ok("PVP e custo unitário: «€» só no cabeçalho («PVP €», «Custo unit. €»); as células mostram «9999,99» sem símbolo (o Excel mantém o formato monetário)", /PVP €/.test(thead) && /Custo<br\/>unit\. €/.test(thead) && !/\d(\s|&nbsp;| )€/.test(corpoTabela) && !/€/.test(corpoTabela));
   ok("HTML: uma tabela, um <thead>, um TOTAL GERAL, um resumo financeiro, sem «Parte i de n»/«bloco»", (html.match(/<table/g) ?? []).length === 1 && (html.match(/<thead>/g) ?? []).length === 1 && (html.match(/TOTAL GERAL/g) ?? []).length === 1 && (html.match(/data-testid="resumo-financeiro"/g) ?? []).length === 1 && !/Parte \d+ de|bloco-temporal|Total unid\. do bloco/.test(html));
-  ok("HTML: @page A4 horizontal com margem lateral de 6,5 mm; nunca A3", /@page \{ size: A4 landscape; margin: 10mm 6\.5mm; \}/.test(htmlTotal) && !/A3/.test(htmlTotal.replace(/\/\*[\s\S]*?\*\//g, "")));
-  ok("HTML: corpo da tabela a 8,25 pt (11 px), cabeçalhos a negrito a 8 pt e Arial/Liberation Sans", /hierarchy-clean table \{ font-size: 8\.25pt; \}/.test(htmlTotal) && /hierarchy-clean thead th \{[^}]*font-size: 8pt/.test(htmlTotal) && /hierarchy-clean tbody td \{ font-size: 8\.25pt/.test(htmlTotal) && /font-family: Arial, "Liberation Sans"/.test(htmlTotal));
+  ok("HTML: @page A4 horizontal com margem lateral de 6 mm; nunca A3", /@page \{ size: A4 landscape; margin: 10mm 6mm; \}/.test(htmlTotal) && !/A3/.test(htmlTotal.replace(/\/\*[\s\S]*?\*\//g, "")));
+  ok("HTML: corpo e cabeçalhos da tabela a 10,7 px (8,025 pt) e Arial/Liberation Sans", /hierarchy-clean table \{ font-size: 10\.7px; \}/.test(htmlTotal) && /hierarchy-clean thead th \{[^}]*font-size: 10\.7px/.test(htmlTotal) && /hierarchy-clean tbody td \{ font-size: 10\.7px/.test(htmlTotal) && /font-family: Arial, "Liberation Sans"/.test(htmlTotal));
   // TOTAL ARTIGO: só com > 1 farmácia; PVP/custo vazios no HTML
   const sub = rel14.rows.filter((r) => r.tipoLinha === "Total artigo");
   let okSub = sub.length > 0;
@@ -137,7 +193,7 @@ const rel14 = relatorioCliente({ meses: 14 });
   ok("uma só farmácia no universo: nenhum TOTAL ARTIGO (nem no HTML nem nas linhas)", !r1.rows.some((r) => r.tipoLinha === "Total artigo") && !/TOTAL ARTIGO/.test(corpoDe(renderReportHtml(r1))));
   // opções de PDF
   const op = opcoesPdfDoRelatorio(rel14);
-  ok("opções do PDF do endpoint: format A4, horizontal, margens 10 mm / 6,5 mm, cabeçalho de página «Pág. X / Y»", op.format === "A4" && op.landscape === true && op.margin.left === "6.5mm" && op.margin.right === "6.5mm" && op.margin.top === "10mm" && /pageNumber/.test(op.headerTemplate));
+  ok("opções do PDF do endpoint: format A4, horizontal, margens 10 mm / 6 mm, cabeçalho de página «Pág. X / Y»", op.format === "A4" && op.landscape === true && op.margin.left === "6mm" && op.margin.right === "6mm" && op.margin.top === "10mm" && /pageNumber/.test(op.headerTemplate));
   // Excel: os cabeçalhos e o TOTAL GERAL
   const hdr = wbHeaders(rel14);
   ok("Excel: continua com «Custo total est.», «Valor Vendas (s/IVA)» e «Tipo de linha» (as mesmas colunas)", hdr.some((h) => /custo total/i.test(h)) && hdr.some((h) => /valor\s*vendas/i.test(h)) && hdr.includes("Tipo de linha"));
@@ -229,17 +285,48 @@ async function main() {
     console.log("\n  — C4. 1 e 3 farmácias; 123 456 unidades, −12 345 e 12 345,67 € —");
     await cenario("1 farmácia 14m 60 artigos", relatorio(dados({ artigos: 60, meses: 14, nFarm: 1 }), 14, 1), { venda: true, compra: true, nMeses: 14, esperaVarias: true });
     await cenario("3 farmácias 12m 60 artigos", relatorio(dados({ artigos: 60, meses: 12, nFarm: 3 }), 12, 3), { venda: true, compra: true, nMeses: 12, esperaVarias: true });
-    for (const [v, c] of COMBOS) {
+    // C6. LIMITES: o PDF real ×1 e ×10, as grandezas de PVP/custo/mensal/total/stock e o PIOR CASO SIMULTÂNEO — sempre 14 meses numa só tabela A4
+    console.log("\n  — C6. 14 meses dentro dos LIMITES: «PDF real ×1/×10», PVP/custo, valores mensais, totais, stock, pior caso (2 e 3 farmácias) —");
+    for (const mult of RAPIDO ? [10] : [1, 10]) {
+      const rows = dadosRealMult(mult);
+      const r = relatorioLinhas(rows, 14, FARMACIAS_CLIENTE);
+      const x = await cenario(`PDF real ×${mult}: 326 artigos, 2 farmácias, 14 meses, descrições até 100 caracteres`, r, { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+      const cnps = x.pag.flatMap((p) => p.tokens.filter((t) => /^\d{7}$/.test(t[5]) && t[0] < p.w * 0.12).map((t) => t[5]));
+      ok(`PDF real ×${mult}: 326 CNP distintos = 326 ocorrências na coluna CNP (nenhum repetido por divisão temporal)`, new Set(cnps).size === 326 && cnps.length === 326, `${new Set(cnps).size} distintos / ${cnps.length}`);
+      ok(`PDF real ×${mult}: 1 TOTAL GERAL, 1 resumo financeiro, 14 cabeçalhos de mês em CADA página`, x.pag.flatMap((p) => p.tokens).filter((t) => t[5] === "GERAL").length === 1 && x.pag.flatMap((p) => p.tokens).filter((t) => t[5] === "RESUMO").length === 1 && x.pag.every((p) => p.tokens.filter((t) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)\/\d\d$/.test(t[5])).length === 14));
+    }
+    for (const preco of RAPIDO ? [9999.99] : [9.99, 99.99, 999.99, 9999.99]) {
+      await cenario(`PVP e custo unitário ${fmtMoeda(preco)} €: 14 meses, 2 farmácias`, relatorioLinhas(dadosPiorCaso({ pvp: preco, custo: preco }), 14, FARMACIAS_CLIENTE), { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+    }
+    for (const mes of RAPIDO ? [99999] : [9, 99, 999, 9999, 99999]) {
+      await cenario(`valor mensal +${fmtInt(mes)} e −${fmtInt(mes)}: 14 meses, 3 farmácias`, relatorioLinhas(dadosPiorCaso({ nFarm: 3, mesGrande: mes }), 14, FARMACIAS_3), { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+    }
+    for (const tot of RAPIDO ? [999000] : [99999, 999000]) {
+      await cenario(`Total unid. e Stock até ${fmtInt(tot)} (positivos e negativos): 14 meses, 2 farmácias`, relatorioLinhas(dadosPiorCaso({ total: tot, stock: tot }), 14, FARMACIAS_CLIENTE), { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+    }
+    for (const nf of [2, 3] as const) for (const [v, c] of COMBOS) {
       if (RAPIDO && !(v && c)) continue;
-      const rEx = relatorio(dados({ artigos: 60, meses: 6, nFarm: 2, extremos: true }), 6, 2, v, c);
-      const exCap = capacidadeDoRelatorio(rEx);
-      ok(`extremos (${nomeCombo(v, c)}): 6 meses cabem; capacidade com estes dados = ${exCap.mesesMax} meses`, exCap.cabe && exCap.mesesMax >= 6);
-      const rExMax = relatorio(dados({ artigos: 60, meses: exCap.mesesMax, nFarm: 2, extremos: true }), exCap.mesesMax, 2, v, c);
-      ok(`extremos (${nomeCombo(v, c)}): ${exCap.mesesMax} meses (capacidade máx.) continuam a caber com os valores elevados`, bloqueadoPorA4(rExMax) === null);
-      const ex = await cenario(`extremos 6m (${nomeCombo(v, c)})`, rEx, { venda: v, compra: c, nMeses: 6, esperaVarias: true });
-      const t = ex.pag.flatMap((p) => p.tokens.map((x) => x[5])).join(" ");
-      ok(`extremos (${nomeCombo(v, c)}): 123 456, −12 345 e −987 aparecem inteiros no PDF`, /123.456/.test(t) && /-12.345/.test(t) && /-987/.test(t));
-      if (v && c) await cenario(`extremos ${exCap.mesesMax}m (capacidade máx., ${nomeCombo(v, c)})`, rExMax, { venda: v, compra: c, nMeses: exCap.mesesMax, esperaVarias: true });
+      const farms = nf === 3 ? FARMACIAS_3 : FARMACIAS_CLIENTE;
+      const r = relatorioLinhas(dadosPiorCaso({ nFarm: nf, mesGrande: 99999, total: 999000, stock: 999000 }), 14, farms, v, c);
+      const x = await cenario(`PIOR CASO simultâneo, ${nf} farmácias, ${nomeCombo(v, c)}: 9 999,99 € · ±99 999 · 999 000 · nome de farmácia de 32 caracteres · descrições de 100 caracteres`, r, { venda: v, compra: c, nMeses: 14, esperaVarias: true });
+      const t = x.pag.flatMap((p) => p.tokens.map((q) => q[5])).join(" ");
+      ok(`pior caso (${nf} farmácias, ${nomeCombo(v, c)}): 99 999 e −99 999 mensais e ±899 100 aparecem inteiros no PDF${v ? " (PVP 9999,99)" : ""}`, /99 ?999/.test(t) && /-99 ?999/.test(t) && /899 ?100/.test(t) && (!v || /9999,99/.test(t)));
+    }
+    // 14 meses dentro dos limites NUNCA são recusados (grelha de relatórios completos) e acima dos limites a mensagem diz o limite concreto
+    {
+      let n = 0, recusados = 0;
+      for (const nf of [2, 3] as const) for (const [v, c] of COMBOS) for (const preco of [9.99, 99.99, 999.99, 9999.99]) for (const mes of [9, 999, 99999]) {
+        const r = relatorioLinhas(dadosPiorCaso({ nFarm: nf, pvp: preco, custo: preco, mesGrande: mes, artigos: 6 }), 14, nf === 3 ? FARMACIAS_3 : FARMACIAS_CLIENTE, v, c);
+        n++;
+        if (bloqueadoPorA4(r) !== null) recusados++;
+      }
+      ok(`GRELHA de relatórios completos: ${n} combinações de 14 meses dentro dos limites ⇒ ${recusados} recusas (nunca 422)`, recusados === 0);
+      const re = relatorioLinhas(dadosPiorCaso({ pvp: 12345.67, custo: 20, artigos: 6 }), 14, FARMACIAS_CLIENTE);
+      ok("PVP de 12 345,67 € (14 meses) é recusado com o limite concreto na mensagem", (bloqueadoPorA4(re)?.mensagem ?? "").replace(/ /g, " ") === "PVP de 12 345,67 € excede o limite de 9 999,99 € do PDF A4 legível. Reduza a seleção, retire preços ou use o Excel.", bloqueadoPorA4(re)?.mensagem);
+      const html = renderReportHtml(re);
+      ok("…e a pré-visualização/PDF mostram essa mensagem (nunca uma tabela truncada)", !/<table/.test(html) && html.replace(/ /g, " ").includes("excede o limite de 9 999,99 €"));
+      const rv = relatorioLinhas(dadosPiorCaso({ pvp: 12345.67, custo: 20, artigos: 6 }), 14, FARMACIAS_CLIENTE, false, true);
+      ok("o mesmo PVP com «Incluir preços de venda» desligado já não é recusado (a coluna não existe)", bloqueadoPorA4(rv) === null);
     }
 
     // C5. paginação: varrimento do nº de artigos (o fim do último artigo ao lado do TOTAL GERAL e do resumo, nunca órfãos)
@@ -269,7 +356,7 @@ async function main() {
       viaJson.generatedAt = new Date(viaJson.generatedAt);
       ok("pré-visualização = impressão = PDF = PDF do email: renderReportHtml dá exatamente o mesmo HTML ao Report original e ao Report que viaja em JSON para o servidor", renderReportHtml(rel14) === renderReportHtml(viaJson) && renderReportHtml(aplicarPrivacidade(viaJson)) === renderReportHtml(rel14));
       const html = renderReportHtml(rel14);
-      ok("pré-visualização (ecrã): largura mínima de 296 mm (área útil do A4 + padding) com scroll — nunca colunas espremidas", /@media screen \{ \.page \{ min-width: 296mm; \} \}/.test(html));
+      ok("pré-visualização (ecrã): largura mínima de 297 mm (área útil do A4 + padding) com scroll — nunca colunas espremidas", /@media screen \{ \.page \{ min-width: 297mm; \} \}/.test(html));
       // separadores verticais dos meses e filete de 2 px entre artigos (PDF A4 real)
       const med = medirMeses(real.f, () => 14);
       ok(`separadores verticais dos meses: 15 filetes por página (14 meses), contínuos do cabeçalho ao fim, em todas as ${med.nPaginas} páginas`, med.falhas.length === 0 && med.nLimites.every((n) => n === 15), med.falhas.slice(0, 2).join(" | "));
@@ -282,7 +369,7 @@ async function main() {
       const page = await browser.newPage();
       try {
         await page.emulateMediaType("print");
-        const h7 = renderReportHtml(rNeg).replace(/font-size: 8(.25)?pt/g, "font-size: 7pt");
+        const h7 = renderReportHtml(rNeg).replace(/font-size: 10\.7px/g, "font-size: 7pt");
         await page.setContent(h7, { waitUntil: "networkidle0" });
         const f7 = path.join(dir, "neg7.pdf");
         writeFileSync(f7, await page.pdf(opcoesPdfDoRelatorio(rNeg)));

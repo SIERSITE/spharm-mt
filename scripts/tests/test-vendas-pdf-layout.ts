@@ -283,8 +283,8 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     theadHtml.includes("Jan/26") && !theadHtml.includes("Jan<br/>26") && !theadHtml.includes("Total Unid."),
   );
   ok(
-    "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. est.)",
-    theadHtml.includes("Custo<br/>unit. est."),
+    "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. €)",
+    theadHtml.includes("Custo<br/>unit. €"),
   );
 }
 

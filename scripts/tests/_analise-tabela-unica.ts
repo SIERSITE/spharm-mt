@@ -40,7 +40,7 @@ const mediana = (v: number[]) => { const o = [...v].sort((a, b) => a - b); retur
 function esperado(row: ReportRow, c: ReportColumn): string {
   const bruto = c.displayKey ? row[c.displayKey] : row[c.key];
   if (c.zeroAsDash && typeof bruto === "number" && bruto === 0) return norm(c.zeroText ?? "–");
-  return norm(formatCell(bruto as never, c.format));
+  return norm(formatCell(bruto as never, c.format, c.semSimbolo));
 }
 
 export type Resultado = { falhas: string[]; metricas: Metricas };
@@ -112,17 +112,6 @@ export function analisar(paginas: PaginaPdf[], dom: MedicaoDom, rel: Report, o: 
       if (/^Pág\./.test(txt(x))) continue;
       fonteMinTabela = Math.min(fonteMinTabela, x[4]);
     }
-    // linhas de dados: ancoradas na coluna «Farmácia»
-    const iFarm = idxCol("farmacia");
-    const farmToks = corpo.filter((x) => colDe(x) === iFarm);
-    const ancoras: { y: number; farm: string }[] = [];
-    for (let k = 0; k < farmToks.length; k++) {
-      const x = farmToks[k];
-      const s = txt(x);
-      if (s === "TOTAL" && farmToks[k + 1] && txt(farmToks[k + 1]) === "ARTIGO") { ancoras.push({ y: cy(x), farm: "TOTAL ARTIGO" }); k++; continue; }
-      if (s === "TOTAL" && farmToks[k + 1] && txt(farmToks[k + 1]) === "GERAL") continue;
-      if (/^(Segurado|Silveirense|Norte)$/.test(s)) ancoras.push({ y: cy(x), farm: s });
-    }
     // TOTAL GERAL: «TOTAL» «GERAL» na 1.ª coluna ou na coluna de CNP/Descrição (colspan)
     const tg = corpo.filter((x) => txt(x) === "GERAL" && corpo.some((y) => txt(y) === "TOTAL" && Math.abs(cy(y) - cy(x)) < 2 && y[0] < x[0]));
     // a nota final também menciona «TOTAL GERAL»? Só conta o que está na 1.ª coluna da tabela (x < 100 pt)
@@ -133,9 +122,18 @@ export function analisar(paginas: PaginaPdf[], dom: MedicaoDom, rel: Report, o: 
     const rf = corpo.filter((x) => /^RESUMO$/.test(txt(x)) && (!(o.venda || o.compra) || corpo.some((y) => /^FINANCEIRO$/.test(txt(y)) && Math.abs(cy(y) - cy(x)) < 2)));
     resumoFin += rf.length;
     if (rf.length) { resumoPagina = pi; resumoY = cy(rf[0]); }
-    for (const a of ancoras) {
-      const linha = corpo.filter((x) => Math.abs(cy(x) - a.y) <= 3.2);
-      dataRows.push({ pagina: pi, y: a.y, tokens: linha, farm: a.farm });
+    // linhas de dados: ancoradas nos tokens da coluna «Total unid.» (uma só linha em cada linha de dados, mesmo com Farmácia/Descrição a quebrar)
+    {
+      const iFarm = idxCol("farmacia"), iTotU = idxCol("totalVendas");
+      const yLimite = tgReal.length ? cy(tgReal[0]) - 3 : Infinity;
+      const toks = corpo.filter((x) => colDe(x) === iTotU && cy(x) < yLimite).sort((a, b) => cy(a) - cy(b));
+      const ys: number[] = [];
+      for (const x of toks) { if (ys.length === 0 || cy(x) - ys[ys.length - 1] > 2.5) ys.push(cy(x)); }
+      ys.forEach((y, k) => {
+        const lo = k === 0 ? y - 40 : (ys[k - 1] + y) / 2, hi = k === ys.length - 1 ? Math.min(y + 40, yLimite) : (y + ys[k + 1]) / 2;
+        const farm = corpo.filter((x) => colDe(x) === iFarm && cy(x) >= lo && cy(x) < hi).sort((a, b) => Math.round(cy(a) / 3) - Math.round(cy(b) / 3) || a[0] - b[0]).map(txt).join(" ");
+        dataRows.push({ pagina: pi, y, tokens: corpo.filter((x) => Math.abs(cy(x) - y) <= 3.2), farm });
+      });
     }
     // CNPs (1.ª coluna, 7 dígitos) — um por artigo, no seu início
     const iCnp = idxCol("codigo");

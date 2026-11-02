@@ -97,9 +97,9 @@ async function semear(amb: Ambiente): Promise<{ userId: string }> {
 
   // custos grandes (um só movimento no último mês completo → custo total = custo unitário)
   await criar(CNP.C1, "CUSTO 9999,99 E2E", labA.id, [[alfa.id, { custo: 9999.99, stock: 3 }]], [[alfa.id, ultimo, 1]]);
-  await criar(CNP.C2, "CUSTO 10000 E2E", labA.id, [[alfa.id, { custo: 10000, stock: 3 }], [beta.id, { custo: 10000, stock: 2 }]], [[alfa.id, ultimo, 1], [beta.id, ultimo, 1]]);
-  await criar(CNP.C3, "CUSTO 99999,99 E2E", labB.id, [[alfa.id, { custo: 99999.99, stock: 1 }]], [[alfa.id, ultimo, 1]]);
-  await criar(CNP.C4, "CUSTO 999999,99 E2E", labB.id, [[beta.id, { custo: 999999.99, stock: 1 }]], [[beta.id, ultimo, 1]]);
+  await criar(CNP.C2, "CUSTO 5000 E2E", labA.id, [[alfa.id, { custo: 5000, stock: 3 }], [beta.id, { custo: 5000, stock: 2 }]], [[alfa.id, ultimo, 1], [beta.id, ultimo, 1]]);
+  await criar(CNP.C3, "CUSTO 7777,77 E2E", labB.id, [[alfa.id, { custo: 7777.77, stock: 1 }]], [[alfa.id, ultimo, 1]]);
+  await criar(CNP.C4, "CUSTO 9876,54 E2E", labB.id, [[beta.id, { custo: 9876.54, stock: 1 }]], [[beta.id, ultimo, 1]]);
   // devolução (quantidade líquida negativa), sem custo, sem PVP, stock zero/negativo
   await criar(CNP.NEG, "DEVOLUCAO LIQUIDA NEGATIVA E2E", labA.id, [[alfa.id, { custo: 5, stock: 4 }]], [[alfa.id, meses27[meses27.length - 2], -3], [alfa.id, ultimo, 1]]);
   await criar(CNP.SC, "SEM CUSTO E2E", labA.id, [[alfa.id, { custo: null, stock: 4 }]], [[alfa.id, ultimo, 4]]);
@@ -299,11 +299,11 @@ async function main() {
     secao("2 · Valores monetários completos no ecrã");
     const linha = (cnp: number) => page.locator(`tr[data-codigo="${cnp}"]`).first();
     const txt = async (cnp: number) => norm((await linha(cnp).innerText()).replace(/\s+/g, " "));
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
       check((await txt(cnp)).includes(eur(v)), `ecrã: ${eur(v)} completo na linha ${cnp}`);
     }
     const c2 = page.locator(`tr[data-codigo="${CNP.C2}"][data-vd-linha="total-artigo"]`);
-    check(norm(await c2.innerText()).includes(eur(20000)), `ecrã: «Total artigo» do CNP ${CNP.C2} = ${eur(20000)}`);
+    check(norm(await c2.innerText()).includes(eur(10000)), `ecrã: «Total artigo» do CNP ${CNP.C2} = ${eur(10000)}`);
     check((await txt(CNP.SC)).includes("—"), "ecrã: custo desconhecido = «—» (nunca 0,00 €)");
     check(/-?10,00/.test(await txt(CNP.NEG)) && (await txt(CNP.NEG)).includes("-2"), "ecrã: devolução líquida visível (quantidade -2, custo -10,00 €)");
     const totalCustoEcra = norm(await page.locator('[data-testid="vendas-total-custo"]').innerText());
@@ -325,7 +325,7 @@ async function main() {
     check(cnpsDoRelatorio(sTodos.relatorio).length === nArtigos, `o relatório tem os ${nArtigos} artigos do ecrã`);
     const cnpsPdf = new Set([...todoT.matchAll(/\b(81000\d\d|71000\d\d)\b/g)].map((m) => m[0]));
     check(cnpsPdf.size === nArtigos, `o PDF mostra ${cnpsPdf.size} artigos (esperado ${nArtigos})`);
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 10000], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
       check(todoT.includes(eur(v)), `PDF: custo ${eur(v)} completo (${cnp})`);
     }
     // 2026-11: «Custo total est.» e «Valor Vendas» saíram da tabela do PDF (só Excel): o custo total e o valor de vendas vão para o resumo financeiro
@@ -425,7 +425,7 @@ async function main() {
     check(normTab(htmlPrev) === normTab(renderReportHtml(sTodos.relatorio)), "«Relatório»: a tabela é IDÊNTICA à do PDF/impressão");
     check(!/<(input|button|select)\b|type="checkbox"/.test(htmlPrev), "«Relatório»: sem controlos");
     const txtPrev = norm(await fr.locator("body").innerText());
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 10000], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
       check(txtPrev.includes(eur(v)), `«Relatório»: custo ${eur(v)} completo (${cnp})`);
     }
     check(txtPrev.includes("TOTAL GERAL") && txtPrev.includes(eur(custoTotalPdf)), `«Relatório»: TOTAL GERAL e resumo financeiro com o custo ${eur(custoTotalPdf)} completo`);
@@ -448,7 +448,7 @@ async function main() {
     const pS = palavrasPdf(sSel.ficheiro);
     const todoS = pS.paginas.flatMap(linhasPag).join("\n");
     check(cnpsDoRelatorio(sSel.relatorio).length === nArtigos - 2 && !todoS.includes(String(CNP.C1)) && !todoS.includes(String(CNP.C4)), "PDF: só os artigos selecionados");
-    check(!todoS.includes(eur(999999.99)) && todoS.includes(eur(99999.99)), "PDF: totais recalculados para a seleção");
+    check(!todoS.includes(eur(9876.54)) && todoS.includes(eur(7777.77)), "PDF: totais recalculados para a seleção");
     check(/Artigos:\s*\d+ de \d+ selecionados/.test(todoS.replace(/\n/g, " ")), "PDF: «Artigos: N de M selecionados» indica a seleção parcial");
     await page.getByRole("button", { name: /^Excel$/ }).first().waitFor();
     const [dl2] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);

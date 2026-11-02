@@ -307,7 +307,7 @@ function cellText(row: ReportRow, col: ReportColumn): string {
     const n = numericValue(raw);
     if (n === 0) return col.zeroText ?? "–";
   }
-  return formatCell(raw, col.format);
+  return formatCell(raw, col.format, col.semSimbolo);
 }
 
 /**
@@ -440,6 +440,7 @@ function renderTable(report: Report): string {
           const tone = cellToneClass(valor, c);
           if (tone) classes.push(tone);
           if (c.noClip) classes.push("nc");
+          if (c.quebra) classes.push("wrap");
           if (c.spanGroup) classes.push("sg");
           // Colunas numéricas (valores, quantidades, stock, totais): +1 px no relatório limpo (ver .num).
           if (limpo && (c.format === "currency" || c.format === "integer" || c.format === "number" || c.format === "decimal1" || c.format === "percent")) classes.push("num");
@@ -1178,16 +1179,18 @@ const STYLES = `
   .page.density-compact:not(.hierarchy-clean) .resumo-faixa { font-size: 9.5px; color: #374151; margin: 3px 0 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .page.density-compact:not(.hierarchy-clean) .resumo-faixa strong { color: #111827; font-weight: 700; }
 
-  /* TIPOGRAFIA A4 (2026-11): corpo da tabela a 8,25 pt (11 px, como os números da solução anterior) e cabeçalhos a negrito a 8 pt — nunca abaixo de 8 pt (a largura poupa-se noutros sítios: meses «Out/25»,
+  /* TIPOGRAFIA A4 (2026-11): corpo E cabeçalhos da tabela a 10,7 px = 8,025 pt (o PDF mede ≥ 8,0 pt) — nunca abaixo de 8 pt (a largura poupa-se noutros sítios: meses «Out/25»,
      margens de 6,5 mm, padding horizontal (--pad) 5→2 px, larguras pelos dados; ver layout-largura.ts). Tipo de letra fixo, com
      larguras de glifo conhecidas (Arial = Liberation Sans no contentor), para a largura das colunas se calcular a partir dos dados. */
   .page.density-compact.hierarchy-clean { font-family: Arial, "Liberation Sans", Helvetica, sans-serif; }
-  .page.density-compact.hierarchy-clean table { font-size: 8.25pt; }
+  .page.density-compact.hierarchy-clean table { font-size: 10.7px; }
   .page.density-compact.hierarchy-clean thead th {
-    font-size: 8pt; font-weight: 700; padding-left: var(--pad, 5px); padding-right: var(--pad, 5px);
+    font-size: 10.7px; font-weight: 700; padding-left: var(--pad, 5px); padding-right: var(--pad, 5px);
     overflow: visible; text-overflow: clip; letter-spacing: 0;
   }
-  .page.density-compact.hierarchy-clean tbody td { font-size: 8.25pt; padding: 3px var(--pad, 5px); }
+  .page.density-compact.hierarchy-clean tbody td { font-size: 10.7px; padding: 3px var(--pad, 5px); }
+  /* Colunas que quebram linha (Farmácia: nomes longos e «TOTAL ARTIGO» em duas linhas): a largura da coluna não depende do texto. */
+  .page.density-compact.hierarchy-clean tbody td.wrap { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
   .page.density-compact.hierarchy-clean tbody.row-group > tr:first-child > td { padding-top: 7px; }
 
   /* A faixa «Unidades vendidas · Stock total» do Mapa de Vendas também a 8 pt (a regra de cima, igual à de Margens, não se toca). */

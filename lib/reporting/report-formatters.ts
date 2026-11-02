@@ -17,6 +17,9 @@ const currencyFmt = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 2,
 });
 
+/** Moeda SEM símbolo (HTML/PDF compacto: o «€» vai para o cabeçalho da coluna): «9999,99». O Excel não usa isto. */
+const moedaSemSimboloFmt = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const numberFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
@@ -109,10 +112,14 @@ export function formatDateTime(v: unknown): string {
  * Dispatcher central — todo o render textual de células passa por aqui.
  * Valores null/undefined/"" viram "—" uniformemente.
  */
-export function formatCell(value: ReportCell, format?: ReportFormat): string {
+export function formatCell(value: ReportCell, format?: ReportFormat, semSimbolo = false): string {
   if (value === null || value === undefined || value === "") return "—";
   switch (format) {
-    case "currency": return formatCurrency(value);
+    case "currency": {
+      if (!semSimbolo) return formatCurrency(value);
+      const n = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(n) ? moedaSemSimboloFmt.format(n) : String(value);
+    }
     case "number":   return formatNumber(value);
     case "decimal1": return formatDecimal1(value);
     case "integer":  return formatInteger(value);

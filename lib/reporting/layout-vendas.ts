@@ -10,7 +10,7 @@ import type { Report, ReportColumn, ReportRow } from "./report-types";
 import { ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
 import { formatCell } from "./report-formatters";
 import { aplicarPrivacidade } from "./privacidade";
-import { capacidadeA4, type CapacidadeA4, type TextosDasColunas } from "./layout-largura";
+import { capacidadeA4, type CapacidadeA4, type Maximos, type TextosDasColunas } from "./layout-largura";
 
 /** Chaves das colunas do Mapa de Vendas (adapters/vendas.ts). */
 export const CHAVE = {
@@ -34,17 +34,19 @@ export class RelatorioNaoCabeA4Error extends Error {
 }
 
 /** As colunas desenhadas em HTML/PDF/print (as `excelOnly` e as `hidden` não contam). */
+type ColunaOuNada = ReportColumn | undefined;
+
 export function colunasVisiveis(report: Pick<Report, "columns">): ReportColumn[] {
   return report.columns.filter((c) => !c.hidden && !c.excelOnly);
 }
 
 function texto(row: ReportRow, c: ReportColumn): string {
   const bruto = c.displayKey ? row[c.displayKey] : row[c.key];
-  return formatCell(bruto as never, c.format);
+  return formatCell(bruto as never, c.format, c.semSimbolo);
 }
 
 /** Textos (já formatados, como a tabela os desenha) de cada coluna do relatório, para medir as larguras. */
-export function textosDoRelatorio(report: Pick<Report, "columns" | "rows">): { nMeses: number; textos: TextosDasColunas } {
+export function textosDoRelatorio(report: Pick<Report, "columns" | "rows">): { nMeses: number; textos: TextosDasColunas; maximos: Maximos } {
   const cols = colunasVisiveis(report);
   const porChave = (k: string) => cols.find((c) => c.key === k);
   const meses = cols.filter((c) => c.monthAlt);
@@ -60,12 +62,28 @@ export function textosDoRelatorio(report: Pick<Report, "columns" | "rows">): { n
     if (c.showTotal) {
       let soma = 0;
       for (const r of detalhe) { const v = r[c.key]; if (typeof v === "number" && Number.isFinite(v)) soma += v; }
-      out.push(formatCell(soma, c.format));
+      out.push(formatCell(soma, c.format, c.semSimbolo));
     }
     return out;
   };
+  // Maiores valores em módulo (linhas, TOTAL ARTIGO e TOTAL GERAL): para verificar os LIMITES numéricos (layout-largura.ts).
+  const absMax = (c: ColunaOuNada, incluirSubtotal = true): number => {
+    if (!c) return 0;
+    let m = 0, soma = 0;
+    for (const r of report.rows) {
+      const v = r[c.key];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      if (ehLinhaSubtotal(r)) { if (incluirSubtotal) m = Math.max(m, Math.abs(v)); } else { m = Math.max(m, Math.abs(v)); soma += v; }
+    }
+    return c.showTotal ? Math.max(m, Math.abs(soma)) : m;
+  };
+  const maximos: Maximos = {
+    pvp: absMax(porChave(CHAVE.pvp), false), custoUnitario: absMax(porChave(CHAVE.custoUnitario), false),
+    mes: Math.max(0, ...meses.map((c) => absMax(c))), totalUnid: absMax(porChave(CHAVE.totalUnid)), stock: absMax(porChave(CHAVE.stock)),
+  };
   return {
     nMeses: meses.length,
+    maximos,
     textos: {
       codigo: doCampo(porChave(CHAVE.codigo)),
       farmacia: doCampo(porChave(CHAVE.farmacia)),
@@ -84,9 +102,9 @@ export function textosDoRelatorio(report: Pick<Report, "columns" | "rows">): { n
 export function capacidadeDoRelatorio(entrada: Report): CapacidadeA4 {
   const report = aplicarPrivacidade(entrada);
   const cols = colunasVisiveis(report);
-  const { nMeses, textos } = textosDoRelatorio(report);
+  const { nMeses, textos, maximos } = textosDoRelatorio(report);
   return capacidadeA4(
-    { nMeses, textos },
+    { nMeses, textos, maximos },
     { incluirVenda: cols.some((c) => c.key === CHAVE.pvp), incluirCompra: cols.some((c) => c.key === CHAVE.custoUnitario) },
   );
 }

@@ -262,14 +262,14 @@ function buildColumns(
   };
   const cDescricao: ReportColumn = { key: "descricao", label: "Descrição", format: "text", spanGroup: true };
   const cFarmacia: ReportColumn = {
-    key: "farmacia", label: "Farmácia", format: "text", noClip: true,
+    key: "farmacia", label: "Farmácia", format: "text", quebra: true,
     // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação; o Excel lê `farmacia` (nome completo).
     displayKey: "farmaciaCurta",
   };
   // PVP e Custo unit. est.: por FARMÁCIA (cada uma tem o seu), nunca uma média; no TOTAL ARTIGO a célula fica VAZIA no HTML/PDF
   // (o Excel mantém o valor da linha, como estava).
-  const cPvp: ReportColumn = { key: "pvp", label: "PVP", format: "currency", noClip: true, sensivel: "venda", vazioNoSubtotal: true };
-  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", noClip: true, sensivel: "compra", vazioNoSubtotal: true };
+  const cPvp: ReportColumn = { key: "pvp", label: "PVP", htmlLabel: "PVP €", semSimbolo: true, format: "currency", noClip: true, sensivel: "venda", vazioNoSubtotal: true };
+  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", htmlLabel: "Custo\nunit. €", semSimbolo: true, format: "currency", noClip: true, sensivel: "compra", vazioNoSubtotal: true };
   // Custo TOTAL estimado = custo unit. est. × quantidade líquida. SÓ EXCEL: o total vai para o resumo financeiro do fim do relatório.
   const cCustoTotal: ReportColumn = { key: "custoEstimado", label: "Custo total\nest.", format: "currency", showTotal: true, noClip: true, sensivel: "compra", excelOnly: true };
   // «Total unid.» = unidades VENDIDAS no período COMPLETO: fundo próprio (`tint`), entre os meses e o stock atual.

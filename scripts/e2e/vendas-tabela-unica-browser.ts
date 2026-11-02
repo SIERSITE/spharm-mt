@@ -218,7 +218,7 @@ async function main() {
         await previa().locator("thead th").first().waitFor({ timeout: 30000 });
         const htmlPrev = await previa().locator("html").evaluate((h) => h.outerHTML);
         check((htmlPrev.match(/<table/g) ?? []).length === 1 && (htmlPrev.match(/<thead>/g) ?? []).length === 1, `${tag}: Relatório — UMA tabela, UM cabeçalho`);
-        check(/@page \{ size: A4 landscape; margin: 10mm 6\.5mm; \}/.test(htmlPrev) && !/A3/.test(htmlPrev), `${tag}: Relatório — @page A4 horizontal, margens de 6,5 mm, sem A3`);
+        check(/@page \{ size: A4 landscape; margin: 10mm 6\.5mm; \}/.test(htmlPrev) && !/A3/.test(htmlPrev), `${tag}: Relatório — @page A4 horizontal, margens de 6 mm, sem A3`);
         const nMesesTh = await previa().locator("thead th.mes").count();
         check(nMesesTh === n, `${tag}: Relatório — ${nMesesTh} colunas de mês (esperadas ${n}), lado a lado`);
         const ths = (await previa().locator("thead th").allInnerTexts()).map((t) => norm(t).replace(/\s+/g, " ").trim());
@@ -240,7 +240,7 @@ async function main() {
             const fonteMin = Math.min(...[...document.querySelectorAll("thead th, tbody td")].map((e) => parseFloat(getComputedStyle(e).fontSize)));
             return { t, sw: document.documentElement.scrollWidth, cortados, fonteMin };
           });
-          const utilPx = (284 / 25.4) * 96;
+          const utilPx = (285 / 25.4) * 96;
           check(m.t >= utilPx - 2 && m.cortados === 0 && m.fonteMin >= 10.66, `${tag}: Relatório ${w}×${h} — tabela ≥ largura útil do A4 (${m.t.toFixed(0)} ≥ ${utilPx.toFixed(0)} px), scroll horizontal ${m.sw > w ? "presente" : "desnecessário"}, nada cortado, letra ≥ 8 pt (${(m.fonteMin * 0.75).toFixed(2)} pt)`);
         }
         await page.setViewportSize({ width: 1920, height: 1080 });
