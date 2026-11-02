@@ -9,7 +9,8 @@
  * Detalhes críticos:
  *   - Usa `srcdoc` em vez de `document.write()` — load dispara
  *     fiavelmente em Chromium/Firefox modernos.
- *   - Iframe tem tamanho REAL (A4 landscape, 297mm × 210mm). Iframes
+ *   - Iframe tem tamanho REAL do papel do relatório (`meta.paperSize`: A4 landscape 297mm × 210mm, ou A3 420mm × 297mm
+ *     quando o Mapa de Vendas não cabe em A4 — o `@page` do HTML pede o mesmo papel ao diálogo). Iframes
  *     com width/height 0 fazem Chrome imprimir páginas em branco em
  *     alguns casos, e impedem o layout do CSS de ser calculado.
  *   - Esconde via posição off-screen (`left:-10000px`), não via
@@ -25,6 +26,7 @@
 
 import type { Report } from "./report-types";
 import { renderReportHtml } from "./report-html";
+import { PAPEL_HORIZONTAL_MM } from "./layout-largura";
 
 export function printReport(report: Report): void {
   if (typeof document === "undefined") {
@@ -48,13 +50,16 @@ export function printReport(report: Report): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.setAttribute("title", "Print preview");
-  // Tamanho REAL (landscape) + off-screen. Não usar width:0/height:0.
+  // Tamanho REAL do papel + off-screen. Não usar width:0/height:0.
+  // Sem `paperSize` (todos os outros relatórios) o iframe é, como sempre, A4 horizontal.
+  const papel = report.meta?.paperSize === "A3" ? "A3" : "A4";
+  const dim = PAPEL_HORIZONTAL_MM[papel];
   iframe.style.cssText = [
     "position:fixed",
     "left:-10000px",
     "top:0",
-    "width:297mm",
-    "height:210mm",
+    `width:${dim.largura}mm`,
+    `height:${dim.altura}mm`,
     "border:0",
     "opacity:0",
     "pointer-events:none",
