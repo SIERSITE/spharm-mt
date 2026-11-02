@@ -21,6 +21,7 @@ import { exportPdf } from "@/lib/reporting/report-pdf";
 import { exportExcel } from "@/lib/reporting/report-excel";
 import { sendReportByEmail } from "@/lib/reporting/report-email";
 import { descreverPrivacidade } from "@/lib/reporting/privacidade";
+import { bloqueadoPorA4 } from "@/lib/reporting/layout-vendas";
 
 type ReportSource = Report | (() => Report);
 
@@ -66,6 +67,8 @@ const btn =
 export function ReportActions({ report, className, hide, excelHref }: Props) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  // Mapa de Vendas: período que não cabe numa página A4 legível → mensagem em vez de PDF/impressão truncados (o Excel nunca é limitado).
+  const [aviso, setAviso] = useState<string | null>(null);
 
   return (
     <>
@@ -77,7 +80,11 @@ export function ReportActions({ report, className, hide, excelHref }: Props) {
             onClick={() =>
               safeRun("print", () => {
                 const r = resolve(report);
-                if (r) printReport(r);
+                if (!r) return;
+                const bloqueio = bloqueadoPorA4(r);
+                if (bloqueio) { setAviso(bloqueio.mensagem ?? null); return; }
+                setAviso(null);
+                printReport(r);
               })
             }
           >
@@ -94,6 +101,9 @@ export function ReportActions({ report, className, hide, excelHref }: Props) {
               safeRun("pdf", async () => {
                 const r = resolve(report);
                 if (!r) return;
+                const bloqueio = bloqueadoPorA4(r);
+                if (bloqueio) { setAviso(bloqueio.mensagem ?? null); return; }
+                setAviso(null);
                 setPdfBusy(true);
                 try {
                   await exportPdf(r);
@@ -136,6 +146,21 @@ export function ReportActions({ report, className, hide, excelHref }: Props) {
         )}
       </div>
 
+      {aviso && (
+        <div
+          role="alert"
+          data-testid="relatorio-nao-cabe-a4"
+          className="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg"
+        >
+          <div className="flex items-start gap-3">
+            <p className="flex-1">{aviso}</p>
+            <button type="button" aria-label="Fechar aviso" className="text-amber-700 hover:text-amber-900" onClick={() => setAviso(null)}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {emailOpen && (
         <EmailDialog reportSource={report} onClose={() => setEmailOpen(false)} />
       )}
@@ -156,6 +181,11 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
     const r = resolve(reportSource);
     return r ? descreverPrivacidade(r) : null;
   }, [reportSource]);
+  // PDF que não pode ser gerado (Mapa de Vendas, período longo): o email só pode levar o Excel.
+  const bloqueioPdf = useMemo(() => {
+    const r = resolve(reportSource);
+    return r ? bloqueadoPorA4(r) : null;
+  }, [reportSource]);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -172,6 +202,10 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
       .filter(Boolean);
     if (recipients.length === 0) {
       setFeedback({ kind: "err", text: "Indique pelo menos um destinatário." });
+      return;
+    }
+    if (includePdf && bloqueioPdf) {
+      setFeedback({ kind: "err", text: `${bloqueioPdf.mensagem ?? ""} Desmarque «Anexar PDF» para enviar só o Excel.` });
       return;
     }
     const formats: Array<"pdf" | "excel"> = [];
@@ -287,6 +321,12 @@ function EmailDialog({ reportSource, onClose }: DialogProps) {
               Anexar Excel
             </label>
           </div>
+
+          {includePdf && bloqueioPdf && (
+            <div role="alert" data-testid="email-pdf-nao-cabe-a4" className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {bloqueioPdf.mensagem} Desmarque «Anexar PDF» para enviar só o Excel.
+            </div>
+          )}
 
           {privacidade && (
             <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="email-aviso-privacidade">

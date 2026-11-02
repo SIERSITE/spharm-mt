@@ -43,6 +43,7 @@ import type { Report } from "./report-types";
 import { renderReportHtml } from "./report-html";
 import { makeReportFilename } from "./report-filename";
 import { opcoesPdfDoRelatorio } from "./pdf-opcoes";
+import { bloqueadoPorA4, RelatorioNaoCabeA4Error } from "./layout-vendas";
 
 // ─── Ambiente do Chromium ─────────────────────────────────────────────────────
 
@@ -188,6 +189,9 @@ export type PdfResult = {
 };
 
 export async function buildReportPdfBuffer(report: Report): Promise<PdfResult> {
+  // Mapa de Vendas: período que não cabe numa página A4 legível → NUNCA um PDF truncado/ilegível; erro tipado (a API responde 422).
+  const bloqueio = bloqueadoPorA4(report);
+  if (bloqueio) throw new RelatorioNaoCabeA4Error(bloqueio);
   const html = renderReportHtml(report);
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -195,7 +199,7 @@ export async function buildReportPdfBuffer(report: Report): Promise<PdfResult> {
     await page.emulateMediaType("print");
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
 
-    // As opções (papel A4/A3 incluído) vivem em pdf-opcoes.ts, partilhadas com os testes.
+    // As opções (A4, margens) vivem em pdf-opcoes.ts, partilhadas com os testes.
     const pdfBytes = await page.pdf(opcoesPdfDoRelatorio(report));
 
     // puppeteer devolve Uint8Array em versões recentes — normalizar para Buffer

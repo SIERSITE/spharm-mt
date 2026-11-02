@@ -12,7 +12,7 @@
  *    divulgar.
  *  · Idempotente e sem efeitos: devolve um novo objeto, e o mesmo objeto se não houver nada a retirar.
  */
-import type { Report, ReportColumn, ReportRow, ReportSummaryItem } from "./report-types";
+import type { Report, ReportColumn, ReportRow } from "./report-types";
 
 export type Privacidade = {
   precosVenda: boolean;
@@ -48,7 +48,7 @@ export function aplicarPrivacidade(report: Report): Report {
   if (!p) return report;
 
   const retiradas = report.columns.filter((c) => classeRetirada(c.sensivel, p));
-  const resumoSai = (s: ReportSummaryItem) => classeRetirada(s.sensivel, p);
+  const resumoSai = (s: { sensivel?: "venda" | "compra" }) => classeRetirada(s.sensivel, p);
 
   // Campos das linhas a retirar: os das colunas retiradas e os declarados da classe desligada (mesmo sem coluna).
   const chaves = new Set<string>();
@@ -62,7 +62,9 @@ export function aplicarPrivacidade(report: Report): Report {
 
   const linhasComChaves = chaves.size > 0 && report.rows.some((r) => Object.keys(r).some((k) => chaves.has(k)));
   const temResumoSensivel = (report.summary ?? []).some(resumoSai);
-  if (retiradas.length === 0 && !temResumoSensivel && !linhasComChaves) return report;
+  const resumoFinal = report.meta?.resumoFinal;
+  const temResumoFinalSensivel = (resumoFinal ?? []).some(resumoSai);
+  if (retiradas.length === 0 && !temResumoSensivel && !linhasComChaves && !temResumoFinalSensivel) return report;
 
   const retirar = new Set(retiradas);
   const columns: ReportColumn[] = report.columns.filter((c) => !retirar.has(c));
@@ -76,7 +78,8 @@ export function aplicarPrivacidade(report: Report): Report {
     columns,
     rows,
     summary: report.summary?.filter((s) => !resumoSai(s)),
-    meta: report.meta,
+    // O resumo do fim do relatório também perde os itens da classe desligada (custo sem preços de compra, vendas sem preços de venda).
+    meta: report.meta && resumoFinal ? { ...report.meta, resumoFinal: resumoFinal.filter((s) => !resumoSai(s)) } : report.meta,
   };
 }
 

@@ -59,6 +59,10 @@ export type ReportColumn = {
   excelOnly?: boolean;
   /** Só existe em HTML/PDF/print — nunca no Excel (o Excel mostra todos os meses numa folha). */
   htmlOnly?: boolean;
+  /** Rótulo do cabeçalho em HTML/PDF/print, se diferente de `label` (o Excel usa sempre `label`). Ex.: «Out/25» numa linha. */
+  htmlLabel?: string;
+  /** Na linha de subtotal («TOTAL ARTIGO») a célula fica VAZIA em HTML/PDF/print (o Excel mantém o valor da linha). */
+  vazioNoSubtotal?: boolean;
   /**
    * Sublinha discreta sob esta célula, só em HTML/PDF/print — nunca no
    * Excel, que fica com o valor plano da coluna. Aponta para OUTRA
@@ -214,6 +218,16 @@ export type ReportSummaryItem = {
   sensivel?: "venda" | "compra";
 };
 
+/** Item do resumo no fim do relatório (ver `ReportMeta.resumoFinal`). */
+export type ResumoFinalItem = {
+  label: string;
+  value: ReportCell;
+  format?: ReportFormat;
+  sensivel?: "venda" | "compra";
+  /** Indicação a mostrar junto do valor (ex.: «PARCIAL: 3 linhas sem custo conhecido ficam fora do total»). */
+  nota?: string;
+};
+
 export type ReportFilter = {
   label: string;
   /** Já renderizado em texto pelo produtor do relatório */
@@ -224,28 +238,21 @@ export type ReportMeta = {
   /** Usado para filename e subject de email. Default = slug(title). */
   slug?: string;
   orientation?: "portrait" | "landscape";
-  /**
-   * Papel do documento (HTML `@page`, PDF, impressão e pré-visualização). Omitido = A4. O Mapa de Vendas decide-o pela largura
-   * das colunas (lib/reporting/layout-largura.ts): A4 horizontal se couber, senão A3 horizontal. Nunca se resolve a falta de
-   * largura repartindo o período em blocos/páginas.
-   */
-  paperSize?: "A4" | "A3";
-  /** Margem lateral da página em mm (omitido = 8). */
+  /** Margem lateral da página em mm (omitido = 8). O Mapa de Vendas usa 6,5 mm (A4 horizontal, ver layout-largura.ts). */
   pageMarginMm?: number;
   /**
-   * Escala (< 1) do conteúdo — SÓ no limite absoluto (período acima do que o A3 comporta), para nenhum número ser cortado.
-   * Omitido = 1.
+   * Relatório que TEM de ser legível impresso em A4 horizontal sem ampliação (Mapa de Vendas): tabela única a 8 pt. Presente ⇒ o
+   * PDF, a impressão, a pré-visualização e o PDF do email só se geram se as colunas couberem (`capacidadeDoRelatorio`,
+   * lib/reporting/layout-vendas.ts); senão o servidor responde 422 e a UI mostra a mensagem. O Excel nunca é limitado.
    */
-  contentZoom?: number;
+  legibilidadeA4?: boolean;
+  /** Padding horizontal (px) das células da tabela, escolhido pela regra de largura (layout-largura.ts). Só HTML/PDF/print. */
+  paddingCelulaPx?: number;
   /**
-   * Degradação controlada de um período muito longo (acima do que o A3 comporta com a tipografia normal): células dos meses
-   * compactas (padding 1,5 px, números a 8,5 px) e meses abreviados. Só HTML/PDF/print. Ver layout-largura.ts.
+   * Resumo no FIM do relatório (HTML/PDF/impressão/pré-visualização, uma só vez, depois do TOTAL GERAL) — nunca no Excel nem repetido
+   * por artigo. Os itens `sensivel` saem quando essa classe de preços está desligada (privacidade.ts).
    */
-  compactMonths?: boolean;
-  /** Informativo: largura mínima legível (mm) de todas as colunas que justificou o papel — ver `decidirLayout`. */
-  layoutMinWidthMm?: number;
-  /** Informativo: as colunas cabem em A4 horizontal (com a tipografia normal)? `false` ⇔ `paperSize: "A3"`. */
-  layoutFitsA4?: boolean;
+  resumoFinal?: ResumoFinalItem[];
   /** Rodapé livre (ex: "SPharm.MT — Uso interno") */
   footer?: string;
   /** Nome da empresa/farmácia no cabeçalho */

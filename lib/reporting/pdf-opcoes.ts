@@ -2,18 +2,17 @@
  * lib/reporting/pdf-opcoes.ts
  *
  * Opções do `page.pdf()` do puppeteer para um relatório — PURO (sem puppeteer, sem `server-only`) para que o endpoint real
- * (report-pdf-server.ts) e os testes gerem o PDF com EXACTAMENTE as mesmas opções. O papel (A4/A3) vem de `meta.paperSize`
- * (regra de largura em layout-largura.ts); o `@page` do HTML diz o mesmo e, com `preferCSSPageSize`, é ele que manda.
+ * (report-pdf-server.ts) e os testes gerem o PDF com EXACTAMENTE as mesmas opções. Formato A4 SEMPRE (horizontal ou vertical
+ * conforme o relatório); a margem lateral vem de `meta.pageMarginMm` (o Mapa de Vendas usa 6,5 mm, ver layout-largura.ts).
  */
 import type { Report } from "./report-types";
 import { MARGEM_LATERAL_MM, MARGEM_VERTICAL_MM } from "./layout-largura";
 
 export function opcoesPdfDoRelatorio(report: Report) {
   const landscape = report.meta?.orientation === "landscape";
-  const formato = report.meta?.paperSize === "A3" ? ("A3" as const) : ("A4" as const);
   const margemLateral = `${report.meta?.pageMarginMm ?? MARGEM_LATERAL_MM}mm`;
   return {
-    format: formato,
+    format: "A4" as const,
     landscape,
     printBackground: true,
     preferCSSPageSize: true,

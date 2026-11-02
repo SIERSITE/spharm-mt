@@ -82,6 +82,7 @@
 import type {
   Report,
   ReportColumn,
+  ResumoFinalItem,
   ReportFilter,
   ReportRow,
   ReportSummaryItem,
@@ -91,9 +92,9 @@ import { filtroListaImportada } from "../filters-shared";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
-import { formatCell } from "../report-formatters";
 import { aplicarPrivacidade } from "../privacidade";
-import { decidirLayout, type DecisaoLayout, type TextosDasColunas } from "../layout-largura";
+import { capacidadeDoRelatorio, comLarguras } from "../layout-vendas";
+import { MARGEM_LATERAL_VENDAS_MM } from "../layout-largura";
 import { rotuloNaturezas } from "../natureza-venda";
 import {
   agruparPorArtigo,
@@ -111,19 +112,16 @@ function bucketColumnKey(b: { ano: number; mes: number }): string {
   return `m_${b.ano}${String(b.mes).padStart(2, "0")}`;
 }
 
-function bucketColumnLabel(b: { ano: number; mes: number }, abreviado = false): string {
-  // Duas linhas ("JAN" + "26") em vez de "JAN/26" numa linha só: com o
-  // "/" o rótulo tem 6 caracteres em maiúsculas + letter-spacing, e não
-  // cabia na largura mínima da coluna (MIN_WIDTH_MES) — transbordava e
-  // ficava cortado em "JAN/…" mesmo com a coluna dentro do orçamento de
-  // largura. Partido em duas linhas, cada uma tem no máximo 3
-  // caracteres e sobra largura de sobra para qualquer contagem de
-  // meses. Ver renderReportHtml() em report-html.ts, que traduz "\n"
-  // no rótulo em <br/> no cabeçalho da tabela.
+function bucketColumnLabel(b: { ano: number; mes: number }): string {
+  // Excel: duas linhas ("Out" + "25"), como sempre foi (o Excel não muda).
   const yy = String(b.ano).slice(-2);
-  // Degradação controlada (períodos acima do limite do A3, ver layout-largura.ts): só a inicial do mês («J\n26»).
-  const mes = abreviado ? MONTH_LABELS_PT[b.mes - 1][0] : MONTH_LABELS_PT[b.mes - 1];
-  return `${mes}\n${yy}`;
+  return `${MONTH_LABELS_PT[b.mes - 1]}
+${yy}`;
+}
+
+/** HTML/PDF/impressão: «Out/25» numa linha só (abreviado) — poupa largura sem reduzir a letra. */
+function bucketColumnHtmlLabel(b: { ano: number; mes: number }): string {
+  return `${MONTH_LABELS_PT[b.mes - 1]}/${String(b.ano).slice(-2)}`;
 }
 
 /** Bucket mensal — mesma shape que `SalesMonthBucket` no loader. */
@@ -219,69 +217,65 @@ const ROTULO_ORDENAR: Record<string, string> = {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * LARGURAS CALCULADAS PELO CONTEÚDO (2026-10) E PAPEL AUTOMÁTICO (2026-11)
+ * TABELA ÚNICA EM A4 HORIZONTAL (2026-11, segundo desenho)
  *
- * Causa do defeito «Custo total est. cortado acima de 9 999,99 €»: as colunas tinham percentagens FIXAS (7 % …) e as
- * células têm `overflow:hidden`. «10 000,00 €» (11 caracteres) já não cabia em 7 % de uma página com 13 meses, e o PDF
- * mostrava «10 000,0»; o «TOTAL GERAL» (1.ª coluna, CNP) aparecia como «TOTA». Agora cada coluna monetária/numérica
- * recebe a largura do SEU texto mais largo (linhas, subtotais e total geral incluídos), medida com uma métrica
- * conservadora (a de uma fonte larga, DejaVu — a que o Chromium do contentor usa se não houver Arial). A Descrição fica
- * com o resto; é a única coluna que pode quebrar linha.
- *
- * O período é SEMPRE uma só tabela com todos os meses lado a lado (já não há blocos temporais). Quando as colunas não
- * cabem com leitura aceitável em A4 horizontal, o papel passa a A3 horizontal — ver `decidirLayout`
- * (lib/reporting/layout-largura.ts), que é a regra única de larguras, densidade e papel.
+ * O Mapa de Vendas é UMA só tabela, A4 horizontal, a 8 pt (corpo e cabeçalhos), com todos os meses lado a lado. Colunas do
+ * HTML/PDF/impressão: CNP · Descrição · Farmácia · PVP* · Custo unit. est.* · N meses «Out/25» · Total unid. · Stock
+ * (*conforme «Incluir preços de venda/compra»). «Custo total est.» e «Valor Vendas (s/IVA)» deixaram de ser colunas da tabela:
+ * são `excelOnly` (o Excel fica EXACTAMENTE como estava) e os seus totais vão para o RESUMO FINANCEIRO do fim do relatório
+ * (`meta.resumoFinal`, uma só vez). As larguras vêm dos DADOS (layout-largura.ts / layout-vendas.ts) e o período que não cabe em
+ * A4 legível não gera PDF/impressão (mensagem + HTTP 422): nunca A3, nunca blocos, nunca letra pequena.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/** Largura mínima da Descrição (em % do A4 horizontal) — mantido para os testes; a regra vive em `layout-largura.ts`. */
-export const DESCRICAO_MIN_PCT = 11;
+/** Até este nº de meses o Excel mantém a ordem «clássica» das colunas; acima, a ordem que a012428 tinha com períodos longos. */
+const MAX_MESES_EXCEL_ORDEM_CLASSICA = 13;
 
-export type { TextosDasColunas } from "../layout-largura";
+/** Largura mínima da Descrição (mm) — a regra vive em `layout-largura.ts`; reexportado para os testes. */
+export { DESCRICAO_MIN_MM } from "../layout-largura";
 
 function buildColumns(
   buckets: { ano: number; mes: number }[],
-  textos: TextosDasColunas,
   /** Preços de venda (PVP, valor de vendas) e de compra (custos): colunas que não existem quando a classe está desligada. */
   incluirVenda: boolean,
   incluirCompra: boolean,
-): { columns: ReportColumn[]; layout: DecisaoLayout } {
-  const layout = decidirLayout({ nMeses: buckets.length, incluirVenda, incluirCompra, textos });
-  const w = layout.pct;
-
+): ReportColumn[] {
   const monthColumns: ReportColumn[] = buckets.map((b) => ({
     key: bucketColumnKey(b),
-    label: bucketColumnLabel(b, layout.mesesAbreviados),
+    label: bucketColumnLabel(b),
+    htmlLabel: bucketColumnHtmlLabel(b),
     format: "integer" as const,
-    width: w.mes,
     showTotal: true,
     // Mês sem venda = «·» (um ponto médio discreto); negativos (devoluções) aparecem com o sinal.
     zeroAsDash: true,
     zeroText: "·",
+    // Os números dos meses nunca são cortados (a largura vem dos dados).
+    noClip: true,
     // Fundo alternado muito discreto por mês (sem tom «info» nas células com venda).
     monthAlt: true,
   }));
 
   const cCodigo: ReportColumn = {
-    key: "codigo", label: "CNP", format: "text", width: w.codigo,
+    key: "codigo", label: "CNP", format: "text", noClip: true,
     // Só desenha na 1ª linha de cada artigo — as sublinhas por farmácia (e a linha TOTAL ARTIGO) ficam cobertas pelo rowspan.
     spanGroup: true,
   };
-  const cDescricao: ReportColumn = { key: "descricao", label: "Descrição", format: "text", width: w.descricao, spanGroup: true };
+  const cDescricao: ReportColumn = { key: "descricao", label: "Descrição", format: "text", spanGroup: true };
   const cFarmacia: ReportColumn = {
-    key: "farmacia", label: "Farmácia", format: "text", width: w.farmacia, noClip: true,
+    key: "farmacia", label: "Farmácia", format: "text", noClip: true,
     // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação; o Excel lê `farmacia` (nome completo).
     displayKey: "farmaciaCurta",
   };
-  // PVP e Custo unit. est.: por FARMÁCIA (cada uma tem o seu), nunca uma média; na linha TOTAL ARTIGO ficam «—».
-  const cPvp: ReportColumn = { key: "pvp", label: "PVP", format: "currency", width: w.pvp, noClip: true, sensivel: "venda" };
-  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", width: w.custoUnitario, noClip: true, sensivel: "compra" };
-  // Custo TOTAL estimado = custo unit. est. × quantidade líquida. Soma-se; linhas sem custo ficam «—» e fora da soma.
-  const cCustoTotal: ReportColumn = { key: "custoEstimado", label: "Custo total\nest.", format: "currency", width: w.custoTotal, showTotal: true, noClip: true, sensivel: "compra" };
+  // PVP e Custo unit. est.: por FARMÁCIA (cada uma tem o seu), nunca uma média; no TOTAL ARTIGO a célula fica VAZIA no HTML/PDF
+  // (o Excel mantém o valor da linha, como estava).
+  const cPvp: ReportColumn = { key: "pvp", label: "PVP", format: "currency", noClip: true, sensivel: "venda", vazioNoSubtotal: true };
+  const cCustoUnit: ReportColumn = { key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency", noClip: true, sensivel: "compra", vazioNoSubtotal: true };
+  // Custo TOTAL estimado = custo unit. est. × quantidade líquida. SÓ EXCEL: o total vai para o resumo financeiro do fim do relatório.
+  const cCustoTotal: ReportColumn = { key: "custoEstimado", label: "Custo total\nest.", format: "currency", showTotal: true, noClip: true, sensivel: "compra", excelOnly: true };
   // «Total unid.» = unidades VENDIDAS no período COMPLETO: fundo próprio (`tint`), entre os meses e o stock atual.
-  const cTotalUnid: ReportColumn = { key: "totalVendas", label: "Total\nUnid.", format: "integer", width: w.totalUnid, showTotal: true, noClip: true, tint: "total" };
+  const cTotalUnid: ReportColumn = { key: "totalVendas", label: "Total\nUnid.", htmlLabel: "Total\nunid.", format: "integer", showTotal: true, noClip: true, tint: "total" };
   const cStock: ReportColumn = {
-    key: "existencia", label: "Stock", format: "integer", width: w.stock, noClip: true,
+    key: "existencia", label: "Stock", format: "integer", noClip: true,
     // «Stock total» no TOTAL GERAL: soma do stock ATUAL das combinações produto/farmácia (nunca somado por mês).
     showTotal: true,
     // Com stock / sem stock (0) / negativo — legível a preto e branco (ver `stockIndicator`).
@@ -290,17 +284,29 @@ function buildColumns(
     toneWhenZero: "danger",
     toneWhenPositive: "success",
   };
-  const cValor: ReportColumn = { key: "valorBruto", label: "Valor Vendas\n(s/IVA)", format: "currency", width: w.valor, showTotal: true, noClip: true, sensivel: "venda" };
+  // Valor de vendas (s/IVA): SÓ EXCEL (o total vai para o resumo financeiro do fim do relatório).
+  const cValor: ReportColumn = { key: "valorBruto", label: "Valor Vendas\n(s/IVA)", format: "currency", showTotal: true, noClip: true, sensivel: "venda", excelOnly: true };
   // Só no Excel: distingue linhas de detalhe de «Total artigo» para filtrar/somar sem contar duas vezes.
   const cTipo: ReportColumn = { key: "tipoLinha", label: "Tipo de linha", format: "text", excelOnly: true };
 
   // Classe de preços desligada: SEM nenhuma coluna dessa classe (nem vazia, nem reservada) — a Descrição ganha o espaço.
   const precosEsq = [...(incluirVenda ? [cPvp] : []), ...(incluirCompra ? [cCustoUnit] : [])];
-  const columns = [
+  // A ORDEM é a de sempre (o Excel não muda). Até 13 meses: custo total antes dos meses, valor depois do stock. Acima de 13 meses
+  // o Excel de a012428 (que repartia o HTML/PDF em blocos) trazia os totais do período depois do stock e com o prefixo «Período:»;
+  // mantém-se EXATAMENTE essa folha (posições e rótulos), para quem tem macros/folhas ligadas a ela — só o Excel (`excelOnly`/`label`).
+  if (buckets.length > MAX_MESES_EXCEL_ORDEM_CLASSICA) {
+    cTotalUnid.label = "Período:\nTotal unid.";
+    cCustoTotal.label = "Período: custo\ntotal est.";
+    cValor.label = "Período: valor\nvendas (s/IVA)";
+    return [
+      cCodigo, cDescricao, cFarmacia, ...precosEsq,
+      ...monthColumns, cTotalUnid, cStock, ...(incluirCompra ? [cCustoTotal] : []), ...(incluirVenda ? [cValor] : []), cTipo,
+    ];
+  }
+  return [
     cCodigo, cDescricao, cFarmacia, ...precosEsq, ...(incluirCompra ? [cCustoTotal] : []),
     ...monthColumns, cTotalUnid, cStock, ...(incluirVenda ? [cValor] : []), cTipo,
   ];
-  return { columns, layout };
 }
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
@@ -617,31 +623,12 @@ export function buildVendasReport(input: {
       ? `Período ${input.filters.dataInicio} a ${input.filters.dataFim}`
       : undefined;
 
-  // ── Larguras pelo conteúdo + papel (uma só tabela, todos os meses) ───
-  const detalhe = rowsForReport.filter((r) => r[ROW_KIND_KEY] !== "subtotal");
-  const somaDe = (k: string) => detalhe.reduce((acc, r) => acc + (typeof r[k] === "number" ? (r[k] as number) : 0), 0);
-  const fmt = (v: unknown, f: "currency" | "integer") => formatCell(v as number | null, f);
-  const strs = (k: string, f: "currency" | "integer") => rowsForReport.map((r) => fmt(r[k], f));
-  const custoGeral = custoTotalDoRelatorio(input.rows);
-  const textos: TextosDasColunas = {
-    codigo: rowsForReport.map((r) => String(r.codigo ?? "")),
-    farmacia: rowsForReport.map((r) => String(r.farmaciaCurta ?? "")),
-    pvp: strs("pvp", "currency"),
-    custoUnitario: strs("custoUnitarioEstimado", "currency"),
-    custoTotal: [...strs("custoEstimado", "currency"), fmt(custoGeral.total, "currency")],
-    valor: [...strs("valorBruto", "currency"), fmt(somaDe("valorBruto"), "currency")],
-    totalUnid: [...strs("totalVendas", "integer"), fmt(somaDe("totalVendas"), "integer")],
-    stock: [...strs("existencia", "integer"), fmt(stockTotalDoRelatorio(input.rows).total, "integer")],
-    mes: input.buckets.flatMap((b) => {
-      const k = bucketColumnKey(b);
-      return [...rowsForReport.map((r) => fmt(r[k], "integer")), fmt(somaDe(k), "integer")];
-    }),
-  };
   const incluirVenda = input.incluirPrecosVenda !== false;
   const incluirCompra = input.incluirPrecosCompra !== false;
-  const { columns, layout } = buildColumns(input.buckets, textos, incluirVenda, incluirCompra);
+  const colunas = buildColumns(input.buckets, incluirVenda, incluirCompra);
 
   const artigos = new Set(input.rows.map((r) => r.codigo)).size;
+  const custoGeral = custoTotalDoRelatorio(input.rows);
   const semCusto = custoGeral.semCusto;
   const stockGeral = stockTotalDoRelatorio(input.rows);
   const nota = [
@@ -650,16 +637,31 @@ export function buildVendasReport(input: {
       ? `Stock total PARCIAL: ${stockGeral.desconhecidas} linha(s) sem stock conhecido ficam fora do total (aparecem «—»).`
       : "",
     incluirCompra
-      ? "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; Custo total est. = custo unit. est. × quantidade líquida."
+      ? "Custo unit. est. pelo PMC/PUC atual da ficha — não é o custo à data da venda; o custo total estimado (resumo no fim) = custo unit. est. × quantidade líquida."
       : "",
     incluirVenda ? "Valor de vendas sem IVA." : "",
     "«·» = sem vendas no mês; valores negativos = devoluções/anulações acima das vendas.",
     incluirCompra && semCusto > 0
       ? `Custo total PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total (aparecem «—»).`
       : "",
-    // Só no limite absoluto (período acima do que o A3 comporta): diz-se, sem nunca dividir o período em blocos.
-    layout.excedeLimite ? layout.aviso ?? "" : "",
   ].filter(Boolean).join(" ");
+
+  // RESUMO FINANCEIRO (fim do relatório, uma só vez; nunca repete artigos). Itens sensíveis saem com a respetiva classe de preços
+  // desligada (aplicarPrivacidade). Os totais são os MESMOS do Excel (soma do detalhe).
+  const unidadesTotal = input.rows.reduce((a, r) => a + (r.totalVendas ?? 0), 0);
+  const valorVendasTotal = input.rows.reduce((a, r) => a + (r.valorBruto ?? 0), 0);
+  const resumoFinal: ResumoFinalItem[] = [
+    { label: "Unidades vendidas", value: unidadesTotal, format: "integer" },
+    {
+      label: "Stock total", value: stockGeral.total, format: "integer",
+      nota: stockGeral.desconhecidas > 0 ? `PARCIAL: ${stockGeral.desconhecidas} linha(s) sem stock conhecido ficam fora do total` : undefined,
+    },
+    {
+      label: "Custo total estimado", value: custoGeral.total, format: "currency", sensivel: "compra",
+      nota: semCusto > 0 ? `PARCIAL: ${semCusto} linha(s) sem custo conhecido ficam fora do total` : undefined,
+    },
+    { label: "Valor total de vendas (s/IVA)", value: valorVendasTotal, format: "currency", sensivel: "venda" },
+  ];
 
   const relatorio: Report = {
     title: "Relatório de Vendas",
@@ -667,18 +669,14 @@ export function buildVendasReport(input: {
     generatedAt: new Date(),
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
-    columns,
+    columns: colunas,
     rows: rowsForReport,
     meta: {
       slug: "vendas",
       orientation: "landscape",
-      // Papel decidido pela regra de largura (A4 horizontal; A3 horizontal se as colunas não couberem com leitura aceitável).
-      paperSize: layout.papel,
-      pageMarginMm: layout.margemLateralMm,
-      contentZoom: layout.zoom < 1 ? layout.zoom : undefined,
-      compactMonths: layout.mesesAbreviados || undefined,
-      layoutMinWidthMm: layout.larguraMinimaMm,
-      layoutFitsA4: layout.cabeEmA4,
+      // A4 horizontal SEMPRE (nunca A3): margens laterais pequenas mas seguras e padding das células pela regra de largura.
+      pageMarginMm: MARGEM_LATERAL_VENDAS_MM,
+      legibilidadeA4: true,
       organization: input.organization,
       // Primeiro relatório a adoptar a linguagem visual compacta — ver
       // report-html.ts. Os restantes ficam no default ("comfortable")
@@ -687,7 +685,6 @@ export function buildVendasReport(input: {
       // Impressão/PDF: hierarquia que sobrevive a papel e a preto e branco
       // (borda forte por artigo, blocos alternados, TOTAL ARTIGO escuro).
       hierarchy: "clean",
-      tableDensity: layout.densidade,
       tableNote: `${artigos} artigo${artigos === 1 ? "" : "s"} · ${input.rows.length} linha${input.rows.length === 1 ? "" : "s"} de detalhe`,
       totalLabel: "TOTAL GERAL",
       excelFilterable: true,
@@ -696,12 +693,17 @@ export function buildVendasReport(input: {
       privacidade: { precosVenda: incluirVenda, precosCompra: incluirCompra, chavesVenda: CHAVES_VENDA, chavesCompra: CHAVES_COMPRA },
       // Faixa de uma linha sob os filtros (HTML/PDF/impressão): unidades vendidas e stock atual, lado a lado — não se confundem.
       resumoFaixa: ["Unidades vendidas", "Stock total", "Linhas sem stock conhecido (fora do stock total)"],
+      resumoFinal,
       // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
       // um mês não tem como saber que a coluna de custo é um snapshot
       // de hoje. O rodapé é texto livre que quebra normalmente.
       footer: nota,
     },
   };
-  // Sem preços de venda/compra o `Report` que viaja (JSON do PDF/email) já não contém os valores retirados.
-  return aplicarPrivacidade(relatorio);
+  // Larguras e padding vêm dos DADOS (os textos que a tabela vai desenhar), já com a privacidade aplicada.
+  const privado = aplicarPrivacidade(relatorio);
+  const cap = capacidadeDoRelatorio(privado);
+  privado.columns = comLarguras(privado.columns, cap);
+  privado.meta = { ...privado.meta, paddingCelulaPx: cap.padPx };
+  return privado;
 }

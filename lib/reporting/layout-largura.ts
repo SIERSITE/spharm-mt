@@ -1,300 +1,221 @@
 /**
  * lib/reporting/layout-largura.ts
  *
- * REGRA DE LARGURA E PAPEL do Mapa de Vendas numa SÓ tabela contínua (2026-11).
+ * REGRA DE LARGURA do Mapa de Vendas: UMA só tabela, A4 horizontal (297 × 210 mm) SEMPRE (PDF, impressão, PDF do email e
+ * pré-visualização), legível impresso diretamente em A4, sem ampliação. (2026-11, segundo desenho — o primeiro usava A3
+ * automático e tipografia reduzida: REJEITADO pelo utilizador; foi removido.)
  *
- * Antes, um período acima de 13 meses repartia-se em «blocos temporais» (Parte 1 de 2, Parte 2 de 2…): cada artigo repetia-se
- * em cada bloco. Isso acabou. Agora a falta de largura resolve-se SEMPRE com o papel e a tipografia — nunca repetindo artigos
- * nem separando meses por páginas. Esta função é PURA (sem DOM, sem I/O): dados os textos já formatados de cada coluna
- * (o maior número de dígitos, valores negativos e elevados incluídos), decide
+ * Esta função é PURA (sem DOM, sem I/O). Dado o que a tabela vai mostrar (textos já formatados de cada coluna, o nº de meses e
+ * as opções de preços), `capacidadeA4` diz se cabe numa página A4 legível e, se não, quantos meses caberiam.
  *
- *   1. papel: A4 horizontal (297 × 210 mm) se couber com folga, senão A3 horizontal (420 × 297 mm);
- *   2. densidade tipográfica (cozy → tight → ultratight, ver METRICAS);
- *   3. se nem o A3 chegar (período MUITO longo): degradação controlada — meses abreviados («J\n26»), margens de 6 mm e, no
- *      limite absoluto, um factor de escala (`zoom`) com aviso. Nunca blocos, nunca cortar um número.
- *
- * ── VALORES (todos em mm, salvo indicação; 1 px CSS = 25,4/96 mm) ────────────────────────────────────────────────────────
- *   Área útil A4 horizontal ........ 297 − 2×8 = 281 mm      Área útil A3 horizontal ........ 420 − 2×8 = 404 mm
- *   Margens laterais ............... 8 mm (6 mm só na degradação)   Margens verticais: 10 mm (inalteradas)
- *   Tipografia mínima (px CSS) ..... números 9,5 px = 7,1 pt (texto 8,5 px + 1 px dos números), texto 8,5 px = 6,4 pt,
- *                                    cabeçalhos 7,5 px = 5,6 pt (densidade ultratight — o piso; nunca abaixo, salvo o zoom do limite)
- *   Coluna de mês .................. mínimo 7,5 mm e a largura do SEU texto mais largo (até ao total do mês, com sinal e
- *                                    separador de milhares); confortável 11,8 mm (17,4 mm até 6 meses) se sobrar espaço
- *   Descrição ...................... mínimo legível 34 mm (≈ 12 % do A4) — abaixo disso passa-se ao A3; 31 mm na degradação
- *   Folga ........................... o mínimo de tudo tem de caber com 2 mm de sobra para se escolher um papel
- *
- * Cada medida de texto usa uma métrica CONSERVADORA (fonte larga, DejaVu, a que o Chromium do contentor usa se faltar Arial)
- * e +4 % de segurança: um número nunca fica «…» nem sobreposto.
+ * ── REGRAS (todas medidas em mm, salvo indicação; 1 px CSS = 25,4/96 mm; 1 pt = 4/3 px) ───────────────────────────────────
+ *   Papel .......................... A4 horizontal, nunca A3, nunca escala. Margens: 6,5 mm laterais (seguras para impressoras
+ *                                     de escritório, ≥ 5 mm), 10 mm em cima/baixo ⇒ largura útil 297 − 2×6,5 = 284 mm.
+ *   Tipografia ..................... corpo da tabela (CNP, Descrição, Farmácia, PVP, custo, MESES, total, stock) 8 pt;
+ *                                     cabeçalhos 8 pt NEGRITO. NUNCA abaixo de 8 pt. CNP e Descrição ≥ valores mensais (iguais).
+ *   Ordem de poupança de largura ... 1. meses abreviados «Out/25» numa linha só (cabeçalho a negrito);
+ *                                     2. margens pequenas mas seguras (6,5 mm);
+ *                                     3. padding horizontal das células: 5 → 4 → 3 → 2,5 → 2 px, ANTES de tocar na letra;
+ *                                     4. cada mês só com a largura do SEU maior texto (nº de dígitos do maior valor mensal,
+ *                                        negativos e separador de milhares incluídos), medida com larguras reais de glifo
+ *                                        (metricas-fonte.ts — Arial/Liberation Sans);
+ *                                     5. Descrição com quebra de linha (mínimo legível 32 mm; preferida 48 mm);
+ *                                     6. PVP e custo unitário compactos; totais financeiros acumulados FORA da tabela
+ *                                        (resumo financeiro no fim do relatório);
+ *                                     7. nunca truncar um número, nunca reticências num valor.
+ *   Se mesmo assim as colunas não cabem (período muito longo) o relatório NÃO é gerado em PDF/impressão/pré-visualização:
+ *   `cabe = false` e a mensagem de `mensagemExcesso` é mostrada (a API devolve 422). O Excel e a tabela do ecrã não têm limite.
  */
-
-export type PapelRelatorio = "A4" | "A3";
-export type DensidadeTabela = "cozy" | "tight" | "ultratight";
-
-/** Dimensões do papel em orientação horizontal (mm). */
-export const PAPEL_HORIZONTAL_MM: Record<PapelRelatorio, { largura: number; altura: number }> = {
-  A4: { largura: 297, altura: 210 },
-  A3: { largura: 420, altura: 297 },
-};
-
-/** Dimensões do papel em orientação vertical (mm). */
-export const PAPEL_VERTICAL_MM: Record<PapelRelatorio, { largura: number; altura: number }> = {
-  A4: { largura: 210, altura: 297 },
-  A3: { largura: 297, altura: 420 },
-};
+import { larguraTextoPx } from "./metricas-fonte";
 
 export const PX_POR_MM = 96 / 25.4;
+/** A4 horizontal. */
+export const A4_HORIZONTAL_MM = { largura: 297, altura: 210 } as const;
 export const MARGEM_LATERAL_MM = 8;
-export const MARGEM_LATERAL_DEGRADADA_MM = 6;
+/** Margem lateral do Mapa de Vendas (A4 horizontal): pequena mas segura (≥ 5 mm de qualquer impressora de escritório). */
+export const MARGEM_LATERAL_VENDAS_MM = 6.5;
 export const MARGEM_VERTICAL_MM = 10;
-export const FOLGA_MM = 2;
+/** Largura útil (mm) do A4 horizontal com as margens do Mapa de Vendas. */
+export const LARGURA_UTIL_MM = A4_HORIZONTAL_MM.largura - 2 * MARGEM_LATERAL_VENDAS_MM;
 
-export const MES_MINIMO_MM = 7.5;
-/** Mínimo do mês na degradação (3 dígitos a 8,5 px). */
-export const MES_MINIMO_COMPACTO_MM = 6.5;
-export const MES_CONFORTO_MM = 11.8;
-export const MES_CONFORTO_POUCOS_MM = 17.4;
-/** Até este nº de meses os meses são «arejados» (cozy). */
+/** Tipografia: pisos documentados (pt). O corpo e os cabeçalhos da tabela usam exatamente 8 pt. */
+export const FONTE_TABELA_PT = 8;
+export const FONTE_TABELA_PX = (FONTE_TABELA_PT * 4) / 3;
+export const MIN_FONTE_TABELA_PT = 8;
+
+/** Paddings horizontais (px) tentados, do mais arejado ao mais apertado: reduz-se o padding ANTES de reduzir a letra. */
+export const PADDINGS_PX = [5, 4, 3, 2.5, 2] as const;
+/** Folga mínima (mm) exigida à soma das colunas mínimas para dar o relatório como «cabe». */
+export const FOLGA_MM = 1;
+/** Descrição: mínimo legível e largura preferida (mm). */
+export const DESCRICAO_MIN_MM = 32;
+export const DESCRICAO_PREFERIDA_MM = 48;
+/** Largura «confortável» de um mês (mm) quando sobra espaço: arejada com poucos meses. */
+export const MES_CONFORTO_MM = 11;
+export const MES_CONFORTO_POUCOS_MM = 16;
 export const POUCOS_MESES = 6;
-export const DESCRICAO_MIN_MM = 34;
-export const DESCRICAO_MIN_DEGRADADA_MM = 31;
-/** Alvo de descrição quando sobra espaço (≈ 14 % do A4) e, com poucos meses, uma descrição mais larga. */
-export const DESCRICAO_PREFERIDA_MM = 40;
-export const DESCRICAO_PREFERIDA_POUCOS_MESES_MM = 62;
 
-/** Aumento dos NÚMEROS (valores, quantidades, stock, totais) face ao texto da tabela, em px — ver `.num` em report-html.ts. */
-export const AUMENTO_NUMEROS_PX = 1;
-/** Mais 2 px (as duas bordas finas) na coluna «Total unid.», que tem fundo e filetes próprios. */
-export const EXTRA_COLUNA_DESTACADA_PX = 2;
-/** +8 px: a caixa/inversão do indicador de stock (padding + moldura). */
-export const EXTRA_COLUNA_STOCK_PX = 8;
+/** Bordas (px) que ocupam largura dentro da coluna: filete esquerdo (e o direito do último) do mês; os dois da «Total unid.». */
+const BORDA_MES_PX = 2;
+const BORDA_TOTAL_PX = 2;
+/** Caixa/pastilha do indicador de stock (padding + moldura). */
+const EXTRA_STOCK_PX = 8;
+/** Margem de segurança sobre a largura medida (arredondamentos do motor de texto): +1 % e +1 px. */
+const SEGURANCA_REL = 1.01;
+const SEGURANCA_PX = 1;
 
-/** Tipografia MÍNIMA documentada (px CSS) — os testes medem o PDF real contra estes pisos (× 0,75 = pt). */
-export const MIN_FONTE_NUMERO_PX = 9;
-export const MIN_FONTE_TEXTO_PX = 8.5;
-export const MIN_FONTE_CABECALHO_PX = 7.5;
+/** Rótulos dos cabeçalhos (negrito, 8 pt); «\n» = cabeçalho em duas linhas. */
+export const ROTULOS_CABECALHO = {
+  codigo: "CNP",
+  descricao: "Descrição",
+  farmacia: "Farmácia",
+  pvp: "PVP",
+  custoUnitario: "Custo\nunit. est.",
+  totalUnid: "Total\nunid.",
+  stock: "Stock",
+} as const;
 
-/** Fontes/paddings reais do CSS (report-html.ts, `.hierarchy-clean .table-density-*`). */
-export const METRICAS: Record<DensidadeTabela, { td: number; th: number; pad: number }> = {
-  cozy: { td: 10, th: 9, pad: 5 },
-  tight: { td: 9, th: 8, pad: 4 },
-  ultratight: { td: 8.5, th: 7.5, pad: 3 },
-};
-
-const ORDEM_DENSIDADE: DensidadeTabela[] = ["cozy", "tight", "ultratight"];
-
-/** Densidade «natural» pelo nº de meses (a de sempre para ≤ 13 meses). */
-export function densidadePreferida(nMeses: number): DensidadeTabela {
-  if (nMeses <= POUCOS_MESES) return "cozy";
-  if (nMeses <= 10) return "tight";
-  return "ultratight";
-}
-
-/** Textos já formatados (como o HTML/PDF os vai desenhar) de cada coluna, para medir a largura. */
+/** Textos já formatados (como o HTML/PDF os vai desenhar) de cada coluna da tabela principal, para medir a largura. */
 export type TextosDasColunas = {
   codigo: string[];
   farmacia: string[];
   pvp: string[];
   custoUnitario: string[];
-  custoTotal: string[];
-  valor: string[];
   totalUnid: string[];
   stock: string[];
+  /** Todos os textos das células dos meses (linhas, TOTAL ARTIGO e TOTAL GERAL). */
   mes: string[];
+  /** Rótulos de cabeçalho dos meses, abreviados numa linha («Out/25»). */
+  rotulosMes: string[];
 };
 
-/** Largura estimada, em px, de um texto — por excesso (dígito de uma fonte larga ≈ 0.64 em). */
-export function larguraTextoPx(texto: string, fontPx: number, negrito: boolean): number {
-  let em = 0;
-  for (const ch of texto) {
-    if (/[0-9€]/.test(ch)) em += 0.64;
-    else if (/[\s.,  ·–—'-]/.test(ch)) em += 0.34;
-    else if (/[A-Z]/.test(ch)) em += 0.72;
-    else em += 0.62;
-  }
-  return em * fontPx * (negrito ? 1.1 : 1);
-}
-
-/** Largura, em mm, de uma coluna que tem de mostrar TODOS estes textos e este cabeçalho (linhas separadas por «\n») sem cortar. */
-export function larguraColunaMm(textos: string[], cabecalho: string, d: DensidadeTabela, extraPx = 0, numerico = true, padPx?: number): number {
-  const m = { ...METRICAS[d], ...(padPx !== undefined ? { pad: padPx } : {}) };
-  let max = 0;
-  const tdPx = m.td + (numerico ? AUMENTO_NUMEROS_PX : 0);
-  // negrito por excesso: as linhas de subtotal/total partilham a coluna.
-  for (const t of textos) max = Math.max(max, larguraTextoPx(t, tdPx, true));
-  max += extraPx;
-  for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, m.th, true));
-  const px = max + 2 * m.pad + 3; // padding + bordas
-  return (px / PX_POR_MM) * 1.04;
-}
-
-export type EntradaLayout = {
-  nMeses: number;
-  /** Preços de venda (PVP, valor de vendas) e de compra (custos): colunas que não existem quando a classe está desligada. */
+export type OpcoesCapacidade = {
+  /** «Incluir preços de venda»: existe a coluna PVP. */
   incluirVenda: boolean;
+  /** «Incluir preços de compra»: existe a coluna Custo unitário. */
   incluirCompra: boolean;
-  textos: TextosDasColunas;
-  /** Opcional: força o papel (testes); omitido = decide a regra. */
-  papelForcado?: PapelRelatorio;
 };
 
-/** Largura MÍNIMA (mm) de cada coluna fixa e do mês, na densidade escolhida. */
+export type DadosCapacidade = { nMeses: number; textos: TextosDasColunas };
+
+/** Largura MÍNIMA (mm) de cada coluna fixa e do mês, ao padding escolhido. */
 export type LarguraColunasMm = {
   codigo: number;
   farmacia: number;
   pvp: number;
   custoUnitario: number;
-  custoTotal: number;
   totalUnid: number;
   stock: number;
-  valor: number;
   mes: number;
 };
 
-export type DecisaoLayout = {
-  papel: PapelRelatorio;
-  densidade: DensidadeTabela;
-  margemLateralMm: number;
-  /** Largura útil do papel horizontal menos as margens (mm). */
+export type CapacidadeA4 = {
+  /** O período (nº de meses) cabe numa página A4 horizontal legível (≥ 8 pt)? */
+  cabe: boolean;
+  nMeses: number;
+  /** Nº máximo de meses que caberiam em A4 ≥ 8 pt com ESTES dados e opções (0 se nem as colunas fixas cabem). */
+  mesesMax: number;
+  /** Padding horizontal (px) das células. */
+  padPx: number;
   larguraUtilMm: number;
-  /** Largura mínima legível de todas as colunas (fixas + N meses + descrição mínima), em mm. */
+  /** Largura mínima das colunas (fixas + N meses + Descrição mínima), mm. */
   larguraMinimaMm: number;
-  /** Larguras mínimas por coluna (mm). */
   minimos: LarguraColunasMm;
-  /** Larguras finais, em % da largura da tabela (a soma é 100). */
+  descricaoMm: number;
+  /** Larguras finais, em % da largura da tabela (soma 100). Descrição e mês incluídos (`mes` = por coluna de mês). */
   pct: LarguraColunasMm & { descricao: number };
-  /** Rótulos de mês abreviados («J\n26»): só na degradação. */
-  mesesAbreviados: boolean;
-  /** Factor de escala (< 1) só no limite absoluto (nem o A3 degradado chega); 1 = sem escala. */
-  zoom: number;
-  /** `true` se foi preciso abreviar meses / reduzir margens / escalar. */
-  degradado: boolean;
-  /** Alguma densidade normal (sem degradar) cabe em A4 horizontal com folga? (`papel` é «A3» exatamente quando é `false`.) */
-  cabeEmA4: boolean;
-  /** Nenhum papel chega ao piso tipográfico: aplicado o zoom e registado o aviso. */
-  excedeLimite: boolean;
-  aviso?: string;
+  /** Mensagem em português quando `cabe` é falso. */
+  mensagem?: string;
 };
 
-type Candidato = { papel: PapelRelatorio; densidade: DensidadeTabela; margem: number; abreviado: boolean; descMin: number };
+/** Texto da mensagem de excesso (UI e HTTP 422). */
+export function mensagemExcesso(nMeses: number, mesesMax: number): string {
+  return `O período de ${nMeses} meses não cabe numa página A4 legível (máximo ${mesesMax} meses com estas opções). Reduza o período, retire preços ou use o Excel.`;
+}
 
-/** Degradação: células dos meses com 1,5 px de padding lateral e números SEM o +1 px (piso: texto 8,5 px). */
-export const PAD_MES_COMPACTO_PX = 1.5;
+const mm = (px: number) => px / PX_POR_MM;
 
-function minimosPara(e: EntradaLayout, d: DensidadeTabela, abreviado: boolean): LarguraColunasMm {
-  const t = e.textos;
+/**
+ * Largura (px) de uma coluna: o maior texto do corpo (negrito, por excesso; + `extraCorpoPx` da caixa do stock) ou do cabeçalho,
+ * + padding + bordas (`bordasPx`, que contam para o corpo E para o cabeçalho).
+ */
+function larguraColunaPx(textos: string[], cabecalho: string, pad: number, extraCorpoPx = 0, bordasPx = 0): number {
+  let max = 0;
+  for (const t of textos) max = Math.max(max, larguraTextoPx(t, FONTE_TABELA_PX, true) + extraCorpoPx);
+  for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, FONTE_TABELA_PX, true));
+  return max * SEGURANCA_REL + SEGURANCA_PX + 2 * pad + bordasPx;
+}
+
+/** Larguras mínimas (mm) de todas as colunas para um padding. */
+export function minimosPara(t: TextosDasColunas, o: OpcoesCapacidade, pad: number): LarguraColunasMm {
+  const rotuloMes = t.rotulosMes.length > 0 ? t.rotulosMes : ["Out/25"];
   return {
-    codigo: larguraColunaMm(t.codigo, "CNP", d, 0, false),
-    farmacia: larguraColunaMm([...t.farmacia, "TOTAL ARTIGO"], "Farmácia", d, 0, false),
-    pvp: e.incluirVenda ? larguraColunaMm(t.pvp, "PVP", d) : 0,
-    custoUnitario: e.incluirCompra ? larguraColunaMm(t.custoUnitario, "Custo\nunit. est.", d) : 0,
-    custoTotal: e.incluirCompra ? larguraColunaMm(t.custoTotal, "Custo total\nest.", d) : 0,
-    totalUnid: larguraColunaMm(t.totalUnid, "Total\nUnid.", d, EXTRA_COLUNA_DESTACADA_PX),
-    stock: larguraColunaMm(t.stock, "Stock", d, EXTRA_COLUNA_STOCK_PX),
-    valor: e.incluirVenda ? larguraColunaMm(t.valor, "Valor Vendas\n(s/IVA)", d) : 0,
-    mes: abreviado
-      ? Math.max(MES_MINIMO_COMPACTO_MM, larguraColunaMm(t.mes, "M\n00", d, 0, false, PAD_MES_COMPACTO_PX))
-      : Math.max(MES_MINIMO_MM, larguraColunaMm(t.mes, "Mmm\n00", d)),
+    codigo: mm(larguraColunaPx(t.codigo, ROTULOS_CABECALHO.codigo, pad)),
+    farmacia: mm(larguraColunaPx(t.farmacia, ROTULOS_CABECALHO.farmacia, pad)),
+    pvp: o.incluirVenda ? mm(larguraColunaPx(t.pvp, ROTULOS_CABECALHO.pvp, pad)) : 0,
+    custoUnitario: o.incluirCompra ? mm(larguraColunaPx(t.custoUnitario, ROTULOS_CABECALHO.custoUnitario, pad)) : 0,
+    totalUnid: mm(larguraColunaPx(t.totalUnid, ROTULOS_CABECALHO.totalUnid, pad, 0, BORDA_TOTAL_PX)),
+    stock: mm(larguraColunaPx(t.stock, ROTULOS_CABECALHO.stock, pad, EXTRA_STOCK_PX)),
+    // o mês: o maior entre o número mais largo e o rótulo «Mmm/AA» mais largo, + filetes verticais
+    mes: mm(larguraColunaPx([...t.mes, ...rotuloMes], "", pad, 0, BORDA_MES_PX)),
   };
 }
 
-const somaFixos = (m: LarguraColunasMm) => m.codigo + m.farmacia + m.pvp + m.custoUnitario + m.custoTotal + m.totalUnid + m.stock + m.valor;
-
-/** Descrição preferida (mm) para o nº de meses (arejado com poucos meses). */
-function descricaoPreferida(nMeses: number): number {
-  return nMeses <= POUCOS_MESES ? DESCRICAO_PREFERIDA_POUCOS_MESES_MM : DESCRICAO_PREFERIDA_MM;
-}
-
-/** Sequência de candidatos, do mais confortável (A4, densidade natural) ao mais apertado (A3 degradado). */
-function candidatos(nMeses: number, papelForcado?: PapelRelatorio): Candidato[] {
-  const out: Candidato[] = [];
-  const pref = ORDEM_DENSIDADE.indexOf(densidadePreferida(nMeses));
-  const papeis: PapelRelatorio[] = papelForcado ? [papelForcado] : ["A4", "A3"];
-  for (const papel of papeis) {
-    // A4: parte da densidade natural dos meses e aperta; A3: parte da mais confortável (o papel maior paga o conforto).
-    const desde = papel === "A4" ? pref : 0;
-    for (let i = desde; i < ORDEM_DENSIDADE.length; i++) {
-      out.push({ papel, densidade: ORDEM_DENSIDADE[i], margem: MARGEM_LATERAL_MM, abreviado: false, descMin: DESCRICAO_MIN_MM });
-    }
-  }
-  const ultimo = papelForcado ?? "A3";
-  out.push({ papel: ultimo, densidade: "ultratight", margem: MARGEM_LATERAL_DEGRADADA_MM, abreviado: true, descMin: DESCRICAO_MIN_DEGRADADA_MM });
-  return out;
-}
+const somaFixos = (m: LarguraColunasMm) => m.codigo + m.farmacia + m.pvp + m.custoUnitario + m.totalUnid + m.stock;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export function decidirLayout(e: EntradaLayout): DecisaoLayout {
-  const cands = candidatos(e.nMeses, e.papelForcado);
-  let escolhido: Candidato | null = null;
-  let minimos!: LarguraColunasMm;
-  let minimo = 0;
-  let util = 0;
-  for (const c of cands) {
-    const m = minimosPara(e, c.densidade, c.abreviado);
-    const necessario = somaFixos(m) + e.nMeses * m.mes + c.descMin;
-    const u = PAPEL_HORIZONTAL_MM[c.papel].largura - 2 * c.margem;
-    // última tentativa (degradada): fica com ela mesmo que não caiba (ver `excedeLimite`)
-    const ultima = c === cands[cands.length - 1];
-    if (necessario + FOLGA_MM <= u || ultima) {
-      escolhido = c; minimos = m; minimo = necessario; util = u;
-      if (necessario + FOLGA_MM <= u) break;
-    }
+/**
+ * Capacidade do A4 horizontal (≥ 8 pt) para estes dados e opções. Determinística e pura. Escolhe o MAIOR padding (5…2 px) com que
+ * a Descrição ainda fica na largura preferida; se nenhum chega, o menor padding que mantém a Descrição ≥ 32 mm; se nem esse chega,
+ * `cabe = false` (e `mesesMax` diz até quantos meses se poderia ir).
+ */
+export function capacidadeA4(dados: DadosCapacidade, opcoes: OpcoesCapacidade): CapacidadeA4 {
+  const n = Math.max(0, dados.nMeses);
+  const util = LARGURA_UTIL_MM;
+  const utilUsavel = util - FOLGA_MM;
+
+  const maximoMeses = (pad: number): number => {
+    const m = minimosPara(dados.textos, opcoes, pad);
+    return Math.max(0, Math.floor((utilUsavel - somaFixos(m) - DESCRICAO_MIN_MM) / m.mes + 1e-9));
+  };
+  // maior nº de meses possível: com o padding mais pequeno
+  const padMin = PADDINGS_PX[PADDINGS_PX.length - 1];
+  const mesesMax = maximoMeses(padMin);
+
+  // padding: o maior com que a Descrição preferida ainda cabe com os meses ao mínimo
+  let pad: number = padMin;
+  for (const p of PADDINGS_PX) {
+    const m = minimosPara(dados.textos, opcoes, p);
+    if (utilUsavel - somaFixos(m) - n * m.mes >= DESCRICAO_PREFERIDA_MM) { pad = p; break; }
   }
-  const c = escolhido!;
-  const cabe = minimo + FOLGA_MM <= util;
-  const degradado = c.abreviado;
-  const excedeLimite = !cabe;
-  // Largura sobre a qual se repartem as percentagens: a útil, ou — se nada chega — a necessária (o zoom devolve-a à útil).
-  const base = excedeLimite ? minimo : util;
-  const zoom = excedeLimite ? util / minimo : 1;
-
+  const minimos = minimosPara(dados.textos, opcoes, pad);
   const fixos = somaFixos(minimos);
-  const disponivel = base - fixos;
-  const n = e.nMeses;
-  const conforto = n <= POUCOS_MESES ? MES_CONFORTO_POUCOS_MM : MES_CONFORTO_MM;
-  const descAlvo = Math.max(c.descMin, descricaoPreferida(n));
-  let porMes = n > 0 ? Math.max(minimos.mes, conforto) : 0;
-  if (n > 0 && disponivel - porMes * n < descAlvo) porMes = Math.max(minimos.mes, (disponivel - descAlvo) / n);
-  const descricao = Math.max(0, disponivel - porMes * n);
-  const pc = (mm: number) => (mm / base) * 100;
+  const minimo = fixos + n * minimos.mes + DESCRICAO_MIN_MM;
+  const cabe = n <= mesesMax && minimo <= utilUsavel + 1e-9;
 
-  const aviso = excedeLimite
-    ? `Período de ${n} meses acima do limite legível do ${c.papel} horizontal: tipografia escalada a ${Math.round(zoom * 100)} % para caber numa só tabela (abaixo do piso de leitura).`
-    : degradado
-      ? `Período de ${n} meses: meses abreviados e margens de ${c.margem} mm para caber numa só tabela em ${c.papel} horizontal.`
-      : undefined;
+  // Repartição: meses ao mínimo (+ conforto se sobrar), Descrição com o resto. Se nada cabe, o mínimo (mensagem, sem PDF).
+  const base = Math.max(util, cabe ? util : fixos + n * minimos.mes + DESCRICAO_MIN_MM);
+  const disponivel = base - fixos;
+  const conforto = n <= POUCOS_MESES ? MES_CONFORTO_POUCOS_MM : MES_CONFORTO_MM;
+  let porMes = n > 0 ? Math.max(minimos.mes, conforto) : 0;
+  if (n > 0 && disponivel - porMes * n < DESCRICAO_PREFERIDA_MM) porMes = Math.max(minimos.mes, (disponivel - DESCRICAO_PREFERIDA_MM) / n);
+  const descricao = Math.max(0, disponivel - porMes * n);
+  const pc = (v: number) => (v / base) * 100;
 
   return {
-    papel: c.papel,
-    densidade: c.densidade,
-    margemLateralMm: c.margem,
+    cabe,
+    nMeses: n,
+    mesesMax,
+    padPx: pad,
     larguraUtilMm: util,
     larguraMinimaMm: r2(minimo),
     minimos,
+    descricaoMm: r2(descricao),
     pct: {
       codigo: pc(minimos.codigo), farmacia: pc(minimos.farmacia), pvp: pc(minimos.pvp), custoUnitario: pc(minimos.custoUnitario),
-      custoTotal: pc(minimos.custoTotal), totalUnid: pc(minimos.totalUnid), stock: pc(minimos.stock), valor: pc(minimos.valor),
-      mes: pc(porMes), descricao: pc(descricao),
+      totalUnid: pc(minimos.totalUnid), stock: pc(minimos.stock), mes: pc(porMes), descricao: pc(descricao),
     },
-    mesesAbreviados: c.abreviado,
-    zoom,
-    degradado,
-    cabeEmA4: c.papel === "A4" && cabe,
-    excedeLimite,
-    aviso,
+    mensagem: cabe ? undefined : mensagemExcesso(n, mesesMax),
   };
-}
-
-/**
- * Nº máximo de meses que cabem SEM degradar (A3, densidade ultratight, margens de 8 mm) para estes textos de coluna — o limite
- * «confortável» documentado. Acima dele entra a degradação controlada; ver `decidirLayout`.
- */
-export function maximoMesesSemDegradar(base: Omit<EntradaLayout, "nMeses">, limite = 240): number {
-  let ultimo = 0;
-  for (let n = 1; n <= limite; n++) {
-    const d = decidirLayout({ ...base, nMeses: n });
-    if (d.degradado || d.excedeLimite) break;
-    ultimo = n;
-  }
-  return ultimo;
 }
