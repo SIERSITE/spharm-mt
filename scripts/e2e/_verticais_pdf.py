@@ -23,8 +23,8 @@ LIMIAR = 226
 ALTURA_MIN_PX = int(58 * Z)  # ≥ 58pt: exclui qualquer glifo
 TABELA = bytes(1 if v <= LIMIAR else 0 for v in range(256))
 MESES = {"Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"}
-# Degradação de períodos muito longos (meses abreviados à inicial): «J F M A M J J A S O N D» no cabeçalho
-LETRAS = {"J", "F", "M", "A", "S", "O", "N", "D"}
+# Cabeçalho dos meses: «Out/25» numa linha (A4, 2026-11); a versão antiga partia-o em «Out» + «25»
+MES_AA = re.compile(r"(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)/\d\d")
 
 
 def analisar(caminho):
@@ -73,7 +73,7 @@ def analisar(caminho):
             verticais.append({"x0": g["x0p"] / Z, "x1": (g["x1p"] + 1) / Z, "largura": (g["x1p"] - g["x0p"] + 1) / Z, "y0": ini / Z, "y1": fim / Z, "cinzento": g["mn"], "integral": integral / Z})
         palavras = page.get_text("words")
         largura = page.rect.width
-        cabecalho = [{"texto": p[4], "x0": p[0], "x1": p[2], "y0": p[1], "y1": p[3]} for p in palavras if (p[4] in MESES or p[4] in LETRAS) and p[1] < page.rect.height * 0.35]
+        cabecalho = [{"texto": p[4], "x0": p[0], "x1": p[2], "y0": p[1], "y1": p[3]} for p in palavras if (p[4] in MESES or MES_AA.fullmatch(p[4])) and p[1] < page.rect.height * 0.35]
         cnps = [{"y0": p[1], "y1": p[3], "texto": p[4]} for p in palavras if len(p[4]) == 7 and p[4].isdigit() and p[0] < largura * 0.2]
         cnps.sort(key=lambda c: c["y0"])
         ancora_cnp = [{"y0": p[1], "y1": p[3]} for p in palavras if p[4] == "CNP" and p[0] < largura * 0.2 and p[1] < page.rect.height * 0.35]

@@ -245,14 +245,17 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     organization: "Grupo",
   });
   const mesesCols = rel.columns.filter((c) => c.key.startsWith("m_"));
+  // A4 SEMPRE (2026-11): o cabeçalho do mês no HTML/PDF/impressão é «Out/25» NUMA linha (htmlLabel; a largura da coluna vem do texto
+  // medido, ver layout-largura.ts, e o cabeçalho é a negrito a 8 pt). O Excel (`label`) mantém as duas linhas de sempre — não muda.
   ok(
-    "cada rótulo de mês tem exactamente duas linhas (mês + ano de 2 dígitos)",
+    "Excel: o rótulo de cada mês (label) continua com duas linhas (mês + ano de 2 dígitos) — o Excel não muda",
     mesesCols.every((c) => /^[A-Za-zà-üÀ-Ü]{3}\n\d{2}$/.test(c.label)),
     JSON.stringify(mesesCols.map((c) => c.label)),
   );
   ok(
-    "…e nenhuma linha do rótulo de mês passa de 3 caracteres (nunca mais \"JAN/26\" numa linha só)",
-    mesesCols.every((c) => c.label.split("\n").every((linha) => linha.length <= 3)),
+    "HTML/PDF: o cabeçalho de cada mês (htmlLabel) é «Mmm/AA» numa só linha (meses abreviados; 14 cabem em A4)",
+    mesesCols.every((c) => /^[A-Za-zà-üÀ-Ü]{3}\/\d{2}$/.test(c.htmlLabel ?? "")),
+    JSON.stringify(mesesCols.map((c) => c.htmlLabel)),
   );
 
   // Correcção (2026-09): Custo unit. est. voltou a ser uma coluna do
@@ -266,17 +269,18 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
   eq("…e o rótulo está partido em duas linhas (coluna estreita)", custo?.label, "Custo\nunit. est.");
 
   const totalUnid = rel.columns.find((c) => c.key === "totalVendas");
-  eq("\"Total Unid.\" também partido em duas linhas", totalUnid?.label, "Total\nUnid.");
+  eq("Excel: \"Total Unid.\" continua partido em duas linhas (label)", totalUnid?.label, "Total\nUnid.");
+  eq("HTML/PDF: o cabeçalho é «Total unid.» em duas linhas (htmlLabel) — uma só coluna de total do período", totalUnid?.htmlLabel, "Total\nunid.");
 
   const html = renderReportHtml(rel);
   ok(
-    "o HTML gerado traduz \"\\n\" do rótulo em <br/> dentro do cabeçalho",
-    html.includes("Jan<br/>26") && html.includes("Total<br/>Unid."),
+    "o HTML gerado traduz \"\\n\" do rótulo em <br/> (Total<br/>unid.) e põe o mês numa linha (Jan/26)",
+    html.includes("Jan/26") && html.includes("Total<br/>unid."),
   );
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
   ok(
-    "…e o <thead> já não tem o formato antigo de uma linha só \"Jan/26\"",
-    !theadHtml.includes("Jan/26") && !theadHtml.includes("Total Unid."),
+    "…e o <thead> já não tem o formato antigo de duas linhas «Jan<br/>26» nem «Total Unid.»",
+    theadHtml.includes("Jan/26") && !theadHtml.includes("Jan<br/>26") && !theadHtml.includes("Total Unid."),
   );
   ok(
     "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. est.)",

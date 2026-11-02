@@ -276,14 +276,14 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   // sempre presentes independentemente dos dados desta chamada.
   const bodyHtml = html.slice(html.indexOf("<body>"));
   const cols = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
-  // Mapa de Vendas 2026-11: o período é SEMPRE uma só tabela (sem blocos): a soma das larguras visíveis é 100 para qualquer
-  // nº de meses; se as colunas não cabem em A4 o papel passa a A3 (ver lib/reporting/layout-largura.ts).
+  // Mapa de Vendas 2026-11 (A4 horizontal sempre): o período é SEMPRE uma só tabela (sem blocos): a soma das larguras visíveis é 100 para qualquer
+  // nº de meses (se as colunas não cabem em A4 ≥ 8 pt, o PDF não é gerado — ver lib/reporting/layout-largura.ts; nunca A3 nem letra pequena).
   const somaLarguras = cols.reduce((s, c) => s + (c.width ?? 0), 0);
 
-  ok(`${nf}f/${nm}m: soma das larguras visíveis = 100 numa só tabela (${somaLarguras.toFixed(1)}), sem blocos, papel ${rel.meta?.paperSize}`, Math.abs(somaLarguras - 100) <= 0.05 && !("columnBlocks" in (rel.meta ?? {})));
+  ok(`${nf}f/${nm}m: soma das larguras visíveis = 100 numa só tabela (${somaLarguras.toFixed(1)}), sem blocos, sem papel A3`, Math.abs(somaLarguras - 100) <= 0.05 && !("columnBlocks" in (rel.meta ?? {})) && !("paperSize" in (rel.meta ?? {})));
   ok(`${nf}f/${nm}m: meta.density é "compact"`, rel.meta?.density === "compact");
-  // a densidade depende agora do nº de meses E do papel (A3 permite tipografia mais arejada): até 6 meses é sempre «cozy»
-  ok(`${nf}f/${nm}m: tableDensity = "${rel.meta?.tableDensity}" (válida${nm <= 6 ? "; ≤ 6 meses ⇒ cozy" : ""}; papel ${rel.meta?.paperSize})`, ["cozy", "tight", "ultratight"].includes(String(rel.meta?.tableDensity)) && (nm > 6 || rel.meta?.tableDensity === "cozy") && ["A4", "A3"].includes(String(rel.meta?.paperSize)));
+  // A4 horizontal sempre: a letra é fixa (8 pt), por isso já não há densidade tipográfica por nº de meses — poupa-se largura com o padding (meta.paddingCelulaPx)
+  ok(`${nf}f/${nm}m: sem tableDensity (letra fixa de 8 pt); padding das células ${rel.meta?.paddingCelulaPx} px (2…5)`, rel.meta?.tableDensity === undefined && [2, 2.5, 3, 4, 5].includes(Number(rel.meta?.paddingCelulaPx)));
 
   if (nf > 1) {
     ok(`${nf}f/${nm}m: existe TOTAL ARTIGO (mais de uma farmácia)`, bodyHtml.includes("TOTAL ARTIGO"));
@@ -664,12 +664,12 @@ console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por arti
   const linhasTr2f = body2f.match(/<tr[^>]*>.*?<\/tr>/g) ?? [];
   const trSilveirense = linhasTr2f.find((tr) => tr.includes(">Silveirense<"));
   ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${formatCurrency(6.5)}<`));
-  // TOTAL ARTIGO mostra "—" (em dash — valor null via formatCell, não o
-  // "–" en dash de zeroAsDash) para PVP/Custo — nunca uma média, nunca
-  // em branco por acaso.
+  // 2026-11: a linha TOTAL ARTIGO mostra APENAS totais mensais, total de unidades e stock — as células de PVP e de Custo unit. ficam
+  // VAZIAS no HTML/PDF (antes «—»); nunca uma média nem um valor escolhido. O Excel mantém o valor da linha (nulo) como estava.
   const trTotal2f = linhasTr2f.find((tr) => tr.includes("TOTAL ARTIGO"));
   const numTracos = (trTotal2f?.match(/>—</g) ?? []).length;
-  ok('TOTAL ARTIGO mostra pelo menos dois "—" (PVP e Custo, sem valor único)', numTracos >= 2);
+  const celulasVazias = (trTotal2f?.match(/<td[^>]*><\/td>/g) ?? []).length;
+  ok('TOTAL ARTIGO: PVP e Custo unit. com células VAZIAS (nenhum "—", nenhum valor)', numTracos === 0 && celulasVazias >= 2 && !trTotal2f?.includes(formatCurrency(6.66)) && !trTotal2f?.includes(formatCurrency(6.5)));
 
   // 1 farmácia — sem grupo/rowspan, continua a mostrar o valor certo.
   const rows1f = [

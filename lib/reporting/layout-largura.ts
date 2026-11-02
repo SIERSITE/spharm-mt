@@ -11,7 +11,7 @@
  * ── REGRAS (todas medidas em mm, salvo indicação; 1 px CSS = 25,4/96 mm; 1 pt = 4/3 px) ───────────────────────────────────
  *   Papel .......................... A4 horizontal, nunca A3, nunca escala. Margens: 6,5 mm laterais (seguras para impressoras
  *                                     de escritório, ≥ 5 mm), 10 mm em cima/baixo ⇒ largura útil 297 − 2×6,5 = 284 mm.
- *   Tipografia ..................... corpo da tabela (CNP, Descrição, Farmácia, PVP, custo, MESES, total, stock) 8 pt;
+ *   Tipografia ..................... corpo da tabela (CNP, Descrição, Farmácia, PVP, custo, MESES, total, stock) 8,25 pt (11 px);
  *                                     cabeçalhos 8 pt NEGRITO. NUNCA abaixo de 8 pt. CNP e Descrição ≥ valores mensais (iguais).
  *   Ordem de poupança de largura ... 1. meses abreviados «Out/25» numa linha só (cabeçalho a negrito);
  *                                     2. margens pequenas mas seguras (6,5 mm);
@@ -38,9 +38,15 @@ export const MARGEM_VERTICAL_MM = 10;
 /** Largura útil (mm) do A4 horizontal com as margens do Mapa de Vendas. */
 export const LARGURA_UTIL_MM = A4_HORIZONTAL_MM.largura - 2 * MARGEM_LATERAL_VENDAS_MM;
 
-/** Tipografia: pisos documentados (pt). O corpo e os cabeçalhos da tabela usam exatamente 8 pt. */
-export const FONTE_TABELA_PT = 8;
-export const FONTE_TABELA_PX = (FONTE_TABELA_PT * 4) / 3;
+/**
+ * Tipografia (pt): piso de 8 pt para TUDO o que está na tabela. Corpo (CNP, Descrição, Farmácia, PVP, custo, MESES, totais, stock) a
+ * 8,25 pt (= 11 px CSS — o mesmo tamanho dos números da solução A3 rejeitada, para a letra impressa nunca ser menor do que era) e
+ * cabeçalhos a negrito a 8 pt. CNP e Descrição têm o mesmo tamanho dos valores mensais.
+ */
+export const FONTE_CORPO_PT = 8.25;
+export const FONTE_CABECALHO_PT = 8;
+export const FONTE_CORPO_PX = (FONTE_CORPO_PT * 4) / 3;
+export const FONTE_CABECALHO_PX = (FONTE_CABECALHO_PT * 4) / 3;
 export const MIN_FONTE_TABELA_PT = 8;
 
 /** Paddings horizontais (px) tentados, do mais arejado ao mais apertado: reduz-se o padding ANTES de reduzir a letra. */
@@ -136,15 +142,19 @@ export function mensagemExcesso(nMeses: number, mesesMax: number): string {
 const mm = (px: number) => px / PX_POR_MM;
 
 /**
- * Largura (px) de uma coluna: o maior texto do corpo (negrito, por excesso; + `extraCorpoPx` da caixa do stock) ou do cabeçalho,
- * + padding + bordas (`bordasPx`, que contam para o corpo E para o cabeçalho).
+ * Largura (px) de uma coluna: o maior texto do corpo (a 8,25 pt, negrito, por excesso; + `extraCorpoPx` da caixa do stock) ou do
+ * cabeçalho (a 8 pt, negrito; as linhas separadas por «\n»), + padding + bordas (`bordasPx`, que contam para o corpo E para o cabeçalho).
  */
 function larguraColunaPx(textos: string[], cabecalho: string, pad: number, extraCorpoPx = 0, bordasPx = 0): number {
   let max = 0;
-  for (const t of textos) max = Math.max(max, larguraTextoPx(t, FONTE_TABELA_PX, true) + extraCorpoPx);
-  for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, FONTE_TABELA_PX, true));
+  for (const t of textos) max = Math.max(max, larguraTextoPx(t, FONTE_CORPO_PX, true) + extraCorpoPx);
+  for (const linha of cabecalho.split("\n")) max = Math.max(max, larguraTextoPx(linha, FONTE_CABECALHO_PX, true));
   return max * SEGURANCA_REL + SEGURANCA_PX + 2 * pad + bordasPx;
 }
+
+/** O rótulo de cabeçalho mais largo (a 8 pt, negrito). */
+const rotuloMaisLargo = (rotulos: string[]): string =>
+  rotulos.reduce((m, r) => (larguraTextoPx(r, FONTE_CABECALHO_PX, true) > larguraTextoPx(m, FONTE_CABECALHO_PX, true) ? r : m), rotulos[0] ?? "");
 
 /** Larguras mínimas (mm) de todas as colunas para um padding. */
 export function minimosPara(t: TextosDasColunas, o: OpcoesCapacidade, pad: number): LarguraColunasMm {
@@ -156,8 +166,8 @@ export function minimosPara(t: TextosDasColunas, o: OpcoesCapacidade, pad: numbe
     custoUnitario: o.incluirCompra ? mm(larguraColunaPx(t.custoUnitario, ROTULOS_CABECALHO.custoUnitario, pad)) : 0,
     totalUnid: mm(larguraColunaPx(t.totalUnid, ROTULOS_CABECALHO.totalUnid, pad, 0, BORDA_TOTAL_PX)),
     stock: mm(larguraColunaPx(t.stock, ROTULOS_CABECALHO.stock, pad, EXTRA_STOCK_PX)),
-    // o mês: o maior entre o número mais largo e o rótulo «Mmm/AA» mais largo, + filetes verticais
-    mes: mm(larguraColunaPx([...t.mes, ...rotuloMes], "", pad, 0, BORDA_MES_PX)),
+    // o mês: o maior entre o número mais largo (corpo, 8,25 pt) e o rótulo «Mmm/AA» mais largo (cabeçalho, 8 pt), + filetes verticais
+    mes: mm(larguraColunaPx(t.mes, rotuloMaisLargo(rotuloMes), pad, 0, BORDA_MES_PX)),
   };
 }
 

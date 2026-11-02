@@ -123,8 +123,12 @@ console.log("\n=== A. Quatro combinações de preços: Report, HTML e XLSX real 
     ok(`${tag}: HTML — valores de venda ${venda ? "presentes" : "AUSENTES"} (formatados e crus)`, temAlgum(corpo, VENDA_FMT) === venda && temAlgum(corpo, VENDA_RAW) === false || (venda && temAlgum(corpo, VENDA_FMT)));
     ok(`${tag}: HTML — valores de compra ${compra ? "presentes" : "AUSENTES"}`, temAlgum(corpo, COMPRA_FMT) === compra);
     const ths = [...corpo.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
-    ok(`${tag}: HTML — cabeçalhos: PVP/Valor Vendas ${venda ? "sim" : "não"}, Custo ${compra ? "sim" : "não"}, nenhum vazio`,
-      ths.some((t) => /PVP/.test(t)) === venda && ths.some((t) => /Valor Vendas/.test(t)) === venda && ths.some((t) => /Custo/.test(t)) === compra && ths.every((t) => t.length > 0));
+    // A4 (2026-11): «Custo total est.» e «Valor Vendas (s/IVA)» deixaram de ser colunas da tabela (só Excel); os totais vão para o RESUMO FINANCEIRO.
+    ok(`${tag}: HTML — cabeçalhos: PVP ${venda ? "sim" : "não"}, Custo unit. ${compra ? "sim" : "não"}, nunca «Valor Vendas»/«Custo total» na tabela, nenhum vazio`,
+      ths.some((t) => /PVP/.test(t)) === venda && !ths.some((t) => /Valor Vendas/.test(t)) && ths.some((t) => /Custo unit/.test(t)) === compra && !ths.some((t) => /Custo total/.test(t)) && ths.every((t) => t.length > 0));
+    const resumoFin = (corpo.match(/<div class="resumo-final"[^]*?<\/div><\/div><\/td>/) ?? [""])[0];
+    ok(`${tag}: HTML — resumo financeiro no fim: unidades e stock sempre; valor de vendas só com venda (${venda}); custo total só com compra (${compra})`,
+      /Unidades vendidas/.test(resumoFin) && /Stock total/.test(resumoFin) && /Valor total de vendas/.test(resumoFin) === venda && /Custo total estimado/.test(resumoFin) === compra);
     ok(`${tag}: HTML — símbolo «€» ${venda || compra ? "presente" : "AUSENTE"}`, corpo.includes("€") === (venda || compra));
     const notas = rel.meta?.footer ?? "";
     ok(`${tag}: rodapé — fala de custos só com compra (${compra}), de valor de vendas só com venda (${venda})`, /Custo unit\. est\./.test(notas) === compra && /Valor de vendas/.test(notas) === venda);
@@ -239,15 +243,16 @@ console.log("\n=== C. Total unid. destacado · Stock por artigo e Stock total ==
   // Coluna «Total unid.» destacada (HTML)
   const ths = [...html.matchAll(/<th\b([^>]*)>(.*?)<\/th>/g)].map((m) => ({ attrs: m[1], texto: m[2] }));
   const tintTh = ths.filter((t) => /tint-total/.test(t.attrs));
-  ok("só o cabeçalho «Total Unid.» leva o destaque", tintTh.length === 1 && /Total<br\/>Unid\./.test(tintTh[0].texto));
+  ok("só o cabeçalho «Total unid.» leva o destaque", tintTh.length === 1 && /Total<br\/>unid\./.test(tintTh[0].texto));
   const nTd = (html.match(/<td[^>]*class="[^"]*tint-total[^"]*"/g) ?? []).length;
   ok("todas as células da coluna (linhas, subtotais e TOTAL GERAL) levam o destaque", nTd === rel.rows.length + 1, `${nTd} vs ${rel.rows.length + 1}`);
   ok("o destaque não existe no Excel (sem estilos) e a coluna mantém o nome", !/tint/.test(JSON.stringify(buildReportWorkbook(rel).Sheets["Relatório"])) && cab.some((h) => /Total\s*Unid/.test(h)));
   // 2026-11: sem blocos temporais — com 27 meses continua a haver UMA só coluna «Total Unid.» (período completo), destacada,
   // entre os meses e o stock (antes: «Total unid. do bloco» + «Período: Total unid.»)
   const rel27 = gerar([linha({ codigo: "8200001", qtd: [1, 2, 3], stock: 2 }, buckets(27))], buckets(27));
-  const ths27 = [...renderReportHtml(rel27).matchAll(/<th\b([^>]*)>(.*?)<\/th>/g)].filter((t) => /tint-total/.test(t[1])).map((t) => t[2].replace(/<br\/>/g, " "));
-  ok("27 meses: uma só coluna destacada, «Total Unid.» (sem «do bloco» nem «Período:»)", ths27.length === 1 && /^Total Unid\.$/.test(ths27[0]), JSON.stringify(ths27));
+  // (27 meses não cabem numa página A4 legível: a pré-visualização/PDF mostram só a mensagem — a estrutura verifica-se nas colunas do Report)
+  const ths27 = rel27.columns.filter((c) => !c.hidden && !c.excelOnly && c.tint === "total").map((c) => (c.htmlLabel ?? c.label).replace(/\n/g, " "));
+  ok("27 meses: uma só coluna destacada, «Total unid.» (sem «do bloco» nem «Período:»)", ths27.length === 1 && /^Total unid\.$/.test(ths27[0]), JSON.stringify(ths27));
   const ordem = rel27.columns.filter((c) => !c.excelOnly).map((c) => c.key);
   ok("27 meses: sequência meses → total do período → stock (sem colunas de bloco)", ordem.indexOf("totalVendas") > ordem.indexOf("m_202606") && ordem.indexOf("existencia") === ordem.indexOf("totalVendas") + 1 && !ordem.some((k) => /^tb_/.test(k)));
 }

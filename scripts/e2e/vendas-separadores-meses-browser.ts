@@ -3,7 +3,7 @@
  *
  * Browser REAL (Chromium) contra o build de PRODUÇÃO (control plane + PostgreSQL descartáveis, dados sintéticos): separadores
  * verticais finos entre as colunas dos meses do mapa de Vendas — Relatório (3 resoluções), impressão, PDF real do endpoint (com
- * fundos) e PDF da impressão SEM fundos (simula «Imprimir gráficos de fundo» desligado), 3/13/14/27 meses, quatro combinações de
+ * fundos) e PDF da impressão SEM fundos (simula «Imprimir gráficos de fundo» desligado), 3/13/14 meses (27 meses não cabem em A4 legível: mensagem, ver vendas-tabela-unica-browser.ts), quatro combinações de
  * preços e documento de várias páginas. Pixéis medidos com PyMuPDF (scripts/tests/_verticais-meses.ts).
  *
  *   SO_CAPTURA=antes  → só capturas (antes-*.png/pdf), sem asserções (corre-se no SHA anterior, para o antes/depois).
@@ -147,7 +147,7 @@ async function main() {
         await p2.setContent(html, { waitUntil: "networkidle" });
         if (!fundos) await p2.addStyleTag({ content: SEM_FUNDOS });
         const f = path.join(EVID, nome);
-        await p2.pdf({ path: f, preferCSSPageSize: true, printBackground: fundos }); // o @page do HTML manda (A4 ou A3 conforme o relatório)
+        await p2.pdf({ path: f, preferCSSPageSize: true, printBackground: fundos }); // o @page do HTML manda (A4 horizontal)
         return f;
       } finally { await p2.close(); }
     };
@@ -162,7 +162,7 @@ async function main() {
       check(r.nMesesTh === n && r.ini === 1 && r.fim === 1, `${tag}: ${n} cabeçalhos de mês, 1.º e último marcados como limites`, JSON.stringify(r));
       check(r.linhas > 0 && r.linhasComTodosMeses === r.linhas && r.totalGeral && r.totalArtigo >= 2 * n, `${tag}: as ${r.linhas} linhas do corpo (incl. TOTAL ARTIGO e TOTAL GERAL) têm as ${n} colunas de mês com filete`, JSON.stringify(r));
       check(r.desalinhado === 0, `${tag}: filetes do cabeçalho e do corpo coincidem horizontalmente`);
-      check(r.vertOutras === 0, `${tag}: nenhuma linha vertical nas colunas que não são de meses (CNP, Descrição, Farmácia, PVP, custos, Stock, Valor Vendas)`);
+      check(r.vertOutras === 0, `${tag}: nenhuma linha vertical nas colunas que não são de meses (CNP, Descrição, Farmácia, PVP, custo unit., Stock)`);
       check(r.maxVertical <= 1 && r.sepArtigo === 2 && r.maxVertical < r.sepArtigo, `${tag}: filetes verticais ≤ 1px; separador entre artigos continua a 2px`, JSON.stringify(r));
     };
 
@@ -180,8 +180,8 @@ async function main() {
     await page.setViewportSize({ width: 1920, height: 1080 });
 
     // ═══ Impressão (iframe) → PDF com e sem fundos ═══════════════════════════════════════════════════════════════════════
-    secao("Impressão do browser — com e sem fundos, 3/13/14/27 meses");
-    for (const n of [3, 13, 14, 27]) {
+    secao("Impressão do browser — com e sem fundos, 3/13/14 meses");
+    for (const n of [3, 13, 14]) {
       await gerar(n);
       const html = await impressao();
       if (!ANTES) {
@@ -203,8 +203,8 @@ async function main() {
     }
 
     // ═══ PDF real do endpoint ═════════════════════════════════════════════════════════════════════════════════════════════
-    secao("PDF real (endpoint) — 3, 13, 14 e 27 meses");
-    for (const n of [3, 13, 14, 27]) {
+    secao("PDF real (endpoint) — 3, 13 e 14 meses");
+    for (const n of [3, 13, 14]) {
       await gerar(n);
       const f = await pdfReal(`${PREFIXO}-vendas-${n}m.pdf`);
       pyRender(f, `${PREFIXO}-pdf-${n}m`, "1", "90");

@@ -1,7 +1,7 @@
 /**
  * scripts/tests/test-vendas-mapa-visual.ts
  *
- * Mapa de Vendas (2026-10): valores monetários COMPLETOS, períodos longos (2026-11: sempre uma só tabela, sem blocos), hierarquia do
+ * Mapa de Vendas (2026-10): valores monetários COMPLETOS, períodos longos (2026-11: sempre uma só tabela A4 horizontal, sem blocos nem A3), hierarquia do
  * artigo, stock legível a preto e branco, ausência de controlos nas saídas, cálculos/totais, texto do âmbito,
  * Excel. Inclui um PDF REAL (Chromium via puppeteer, as mesmas opções de `buildReportPdfBuffer`) lido com
  * PyMuPDF — nada aqui é só «olhar para o HTML».
@@ -22,6 +22,7 @@ import {
 import { renderReportHtml } from "../../lib/reporting/report-html";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
+import { bloqueadoPorA4, capacidadeDoRelatorio } from "../../lib/reporting/layout-vendas";
 import type { Report } from "../../lib/reporting/report-types";
 
 let pass = 0;
@@ -69,7 +70,7 @@ async function pdfDe(rel: Report, nome: string): Promise<string> {
   try {
     await page.emulateMediaType("print");
     await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
-    // mesmas opções do endpoint real (papel A4/A3 de meta.paperSize): lib/reporting/pdf-opcoes.ts
+    // mesmas opções do endpoint real (A4 horizontal, margem de meta.pageMarginMm): lib/reporting/pdf-opcoes.ts
     const bytes = await page.pdf(opcoesPdfDoRelatorio(rel));
     const f = path.join(dir, `${nome}.pdf`);
     writeFileSync(f, bytes);
@@ -101,17 +102,18 @@ async function main() {
 
   // ═══ A. Períodos longos: UMA só tabela (sem blocos) ═════════════════════
   // 2026-11: a regra antiga («até 13 meses numa tabela; acima, blocos balanceados de ≤ 13 meses, com artigos repetidos») foi
-  // SUBSTITUÍDA — qualquer nº de meses fica numa só tabela; a falta de largura resolve-se com o papel A3 (ver layout-largura.ts).
-  console.log("\n=== A. Regra dos meses: SEMPRE uma só tabela com todos os meses (nunca blocos; A3 quando não cabe em A4) ===");
+  // SUBSTITUÍDA — os meses ficam numa só tabela em A4 horizontal; se não cabem a 8 pt NÃO há PDF/impressão/pré-visualização: mensagem (layout-largura.ts).
+  console.log("\n=== A. Regra dos meses: SEMPRE uma só tabela com todos os meses (nunca blocos nem A3; sem capacidade → mensagem) ===");
   {
     for (const n of [1, 12, 13, 14, 27, 40]) {
       const bks = buckets(n);
       const rel = gerar([linha({ codigo: "1000001" }, bks)], bks);
       const meses = rel.columns.filter((c) => c.key.startsWith("m_")).map((c) => c.key);
-      ok(`${n} mês(es): uma só tabela com os ${n} meses lado a lado, sem blocos (papel ${rel.meta?.paperSize})`, !("columnBlocks" in (rel.meta ?? {})) && meses.length === n && new Set(meses).size === n);
+      ok(`${n} mês(es): uma só tabela com os ${n} meses lado a lado, sem blocos nem papel A3`, !("columnBlocks" in (rel.meta ?? {})) && !("paperSize" in (rel.meta ?? {})) && meses.length === n && new Set(meses).size === n);
       ok(`${n} mês(es): o rodapé não fala de blocos/partes`, !/bloco|Parte \d/i.test(rel.meta?.footer ?? ""));
       const html = renderReportHtml(rel);
-      ok(`${n} mês(es): o HTML tem UMA tabela e um só TOTAL GERAL`, (html.match(/<table/g) ?? []).length === 1 && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+      if (bloqueadoPorA4(rel) === null) ok(`${n} mês(es): cabe em A4 — o HTML tem UMA tabela e um só TOTAL GERAL`, (html.match(/<table/g) ?? []).length === 1 && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+      else ok(`${n} mês(es): não cabe em A4 legível — o HTML é só a mensagem (sem tabela truncada)`, !/<table/.test(html) && /relatorio-nao-cabe-a4/.test(html) && n > 14);
     }
   }
 
@@ -133,15 +135,21 @@ async function main() {
     const linhasTxt = p.paginas.flatMap(linhasDe);
     const todo = linhasTxt.join("\n");
     const fmt = (n: number) => norm(new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n));
+    // 2026-11: «Custo total est.» e «Valor Vendas» já NÃO são colunas da tabela do PDF (só Excel): o valor por linha está inteiro no Excel e
+    // o PDF não o mostra por linha; os TOTAIS vão inteiros para o resumo financeiro no fim.
+    const xlTotais = XLSX.utils.sheet_to_json<unknown[]>(buildReportWorkbook(rel).Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
+    const hdrXl = (xlTotais.find((r) => r[0] === "CNP") ?? []) as string[];
+    const iCustoXl = hdrXl.findIndex((h) => /Custo total/.test(String(h)));
     for (const [c, v] of casos) {
-      ok(`Custo total ${fmt(v)} aparece completo`, todo.includes(fmt(v)), `linha do artigo: ${linhasTxt.find((l) => l.includes(c))}`);
+      const linhaXl = xlTotais.find((r) => r[0] === c);
+      ok(`Custo total ${fmt(v)}: inteiro no Excel e fora da tabela do PDF`, Number(linhaXl?.[iCustoXl]) === v && !todo.includes(fmt(v)), `Excel: ${linhaXl?.[iCustoXl]}`);
     }
     const custo = custoTotalDoRelatorio(rows);
-    ok(`TOTAL GERAL do custo (${fmt(custo.total)}) completo`, todo.includes(fmt(custo.total)));
+    ok(`TOTAL do custo (${fmt(custo.total)}) completo no resumo financeiro do PDF`, todo.includes(fmt(custo.total)));
     const totalValor = rows.reduce((a, r) => a + (r.valorBruto ?? 0), 0);
-    ok(`TOTAL GERAL do valor de vendas (${fmt(totalValor)}) completo`, todo.includes(fmt(totalValor)));
+    ok(`TOTAL do valor de vendas (${fmt(totalValor)}) completo no resumo financeiro do PDF`, todo.includes(fmt(totalValor)));
     ok("«TOTAL GERAL» completo (antes aparecia «TOTA»)", /TOTAL GERAL/.test(todo));
-    ok("linha sem custo mostra «—» (nunca 0,00 €)", linhasTxt.some((l) => l.includes("1000007") && l.includes("—")));
+    ok("linha sem custo unitário mostra «—» (nunca 0,00 €)", linhasTxt.some((l) => l.includes("1000007") && l.includes("—")));
     ok("custo PARCIAL assinalado no rodapé (1 linha sem custo)", /Custo total PARCIAL: 1 linha/.test(textoTodo(p)));
     ok("valor nulo/indisponível de PVP aparece «—» e não «0,00»", true);
     const pagina1 = p.paginas[0];
@@ -170,8 +178,8 @@ async function main() {
     const f = await pdfDe(rel, "multi-pagina");
     const p = palavras(f);
     ok(`o PDF tem várias páginas (${p.paginas.length})`, p.paginas.length >= 3);
-    ok("o cabeçalho da tabela (CNP … Stock … Valor Vendas) repete-se em TODAS as páginas", p.paginas.every((pg) => {
-      const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("Valor Vendas");
+    ok("o cabeçalho da tabela (CNP … Total unid. … Stock) repete-se em TODAS as páginas", p.paginas.every((pg) => {
+      const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("unid.") && !t.includes("Valor Vendas");
     }));
     const todo = textoTodo(p);
     const cnpsNoPdf = new Set([...todo.matchAll(/\b6\d{6}\b/g)].map((m) => m[0]));
@@ -202,8 +210,9 @@ async function main() {
   // ═══ D. 14 e 27 meses em PDF real: UMA só tabela, várias páginas só na vertical ═════════
   // 2026-11: antes os 14 e 27 meses repartiam-se em 2 e 3 «partes» (cada artigo repetido por bloco, «Total unid. do bloco», colunas
   // «Período:»). Agora afirma-se o contrário: cada artigo UMA vez, todos os meses no mesmo cabeçalho, um só «Total Unid.».
-  console.log("\n=== D. PDF real: 14 e 27 meses com muitos artigos — uma só tabela, várias páginas na vertical, totais inequívocos ===");
-  for (const nMeses of [14, 27]) {
+  console.log("\n=== D. PDF real: 14 meses e a capacidade máxima com muitos artigos — uma só tabela, várias páginas na vertical, totais inequívocos ===");
+  const maxD = (() => { const b = buckets(14); const r: VendasAdapterRow[] = []; for (let i = 0; i < 90; i++) for (const f of i % 3 === 0 ? [FARM[1]] : FARM) r.push(linha({ codigo: String(7000000 + i), qtd: b.map((_, k) => ((i + k) % 5) - (k === 2 && i % 7 === 0 ? 3 : 0)), farmacia: f, valor: 100 + i }, b)); return capacidadeDoRelatorio(gerar(r, b)).mesesMax; })();
+  for (const nMeses of [...new Set([14, maxD])]) {
     const bks = buckets(nMeses);
     const rows: VendasAdapterRow[] = [];
     for (let i = 0; i < 90; i++) {
@@ -217,7 +226,7 @@ async function main() {
     const todo = txtPag.join("\n");
     const linhasTodas = p.paginas.flatMap(linhasDe);
     ok(`${nMeses} meses: sem «Parte i de n», «do bloco», «Período:» nem explicação de divisão temporal`, !/Parte \d+ de \d+|do bloco|Período: (custo|valor|Total)|em \d+ blocos/.test(todo));
-    ok(`${nMeses} meses: várias páginas (${p.paginas.length}) só na vertical e o papel é ${rel.meta?.paperSize} (todas as páginas com a mesma dimensão)`, p.paginas.length >= 2 && p.paginas.every((pg) => pg.w === p.paginas[0].w && pg.h === p.paginas[0].h && pg.w > pg.h));
+    ok(`${nMeses} meses: várias páginas (${p.paginas.length}) só na vertical, sempre A4 horizontal (todas as páginas com a mesma dimensão 841,9 × 595)`, p.paginas.length >= 2 && p.paginas.every((pg) => pg.w === p.paginas[0].w && pg.h === p.paginas[0].h && pg.w > pg.h && Math.abs(pg.w - 841.9) < 1.2 && Math.abs(pg.h - 595.3) < 1.2));
     ok(`${nMeses} meses: o cabeçalho (CNP, Descrição, Stock) repete-se em TODAS as páginas, uma vez por página`, txtPag.every((t) => t.includes("CNP") && t.includes("Descrição") && t.includes("Stock")) && p.paginas.every((pg) => pg.palavras.filter((w) => w[4] === "CNP").length === 1));
     // cada artigo exatamente UMA vez no documento (antes: uma vez por bloco)
     const contagemCnp = new Map<string, number>();
@@ -237,10 +246,8 @@ async function main() {
     const rotulosPorPagina = p.paginas.map((pg) => {
       const rotulos: string[] = [];
       const ws = pg.palavras.filter((w) => w[1] < 130).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-      for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)$/.test(w[4]) || /^[JFMASOND]$/.test(w[4]))) {
-        const ano = ws.find((w) => /^\d{2}$/.test(w[4]) && Math.abs(w[0] - m[0]) < 12 && w[1] > m[1] && w[1] - m[1] < 14);
-        if (ano) rotulos.push(`${m[4]}/${ano[4]}`);
-      }
+      // 2026-11: o cabeçalho do mês é «Out/25» numa só linha (meses abreviados)
+      for (const m of ws.filter((w) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)\/\d{2}$/.test(w[4]))) rotulos.push(m[4]);
       return rotulos;
     });
     ok(`${nMeses} meses: em CADA página os ${nMeses} meses aparecem uma vez cada, lado a lado (${rotulosPorPagina.map((r) => r.length).join("/")})`, rotulosPorPagina.every((r) => r.length === nMeses && new Set(r).size === nMeses));
@@ -396,7 +403,10 @@ async function main() {
     ok("«TOTAL GERAL»: nível acima do subtotal (bold, fundo #e5e8ed), sem bloco escuro", /\.totals-tbody td \{\s*background: #e5e8ed !important;[^}]*font-weight: 700/.test(clean));
     const fundos = [...cleanSemTint.matchAll(/background: #([0-9a-f]{6})/gi)].map((m) => m[1]).filter((h) => parseInt(h.slice(0, 2), 16) < 0xd0);
     ok(`único fundo escuro no relatório limpo: a pastilha do stock negativo (${fundos.join(",")})`, fundos.length === 1 && fundos[0] === "374151");
-    ok("os meses não têm linhas verticais nem fundo forte (película ≤ 3 %)", /rgba\(15, 23, 42, 0\.028\)/.test(clean) && !/mes-alt[^{]*\{[^}]*border/.test(clean));
+    // 2026-11: o tom alternado dos meses é SÓLIDO (antes um linear-gradient por célula, que inflava o PDF para 12 MB e o tornava lento): #f8f9fa
+    // sobre branco e #ebedf0 sobre o cinzento do TOTAL ARTIGO — equivalentes à película de 2,8 % de tinta de antes (≤ 3 % mais escuro que o fundo).
+    const tomMes = clean.match(/tbody\.row-group td\.mes-alt \{ background-color: #([0-9a-f]{6}) !important; \}/i)?.[1] ?? "";
+    ok("os meses não têm fundo forte: tom alternado sólido ≤ 3,5 % mais escuro que o branco, sem bordas próprias e sem gradientes", tomMes !== "" && (255 - parseInt(tomMes.slice(0, 2), 16)) / 255 <= 0.035 && !/mes-alt[^{]*\{[^}]*border/.test(clean) && !/linear-gradient/.test(clean), tomMes);
     ok("nota/legenda final dentro da tabela (nunca órfã numa página sem cabeçalho)", /<tr class="nota-tr">/.test(html) && !/<footer class="report-footer/.test(html));
     ok("Margens (hierarchy-strong) mantém o seu desenho: regras strong intactas", /hierarchy-strong thead th \{[^}]*background: #1f2937/.test(css));
 
@@ -436,6 +446,7 @@ async function main() {
         const chavesSem = sem.columns.map((c) => c.key);
         ok(`${tag}: com preços mantém as colunas monetárias de sempre`, MONETARIAS.every((k) => com.columns.some((c) => c.key === k)));
         ok(`${tag}: sem preços NENHUMA coluna monetária (nem vazia nem reservada)`, MONETARIAS.every((k) => !chavesSem.includes(k)) && sem.columns.every((c) => !/PVP|Custo|Valor|€/i.test(c.label)));
+        const cabeA4 = bloqueadoPorA4(sem) === null; // 27 meses: a pré-visualização/PDF mostram só a mensagem
         const html = renderReportHtml(sem);
         const corpo = html.slice(html.indexOf("<body>"));
         ok(`${tag}: sem preços o HTML (relatório/impressão/PDF/email) não tem «€», PVP, Custo, Valor, PARCIAL, s/IVA`, semDinheiro(corpo.replace(/<style>[\s\S]*?<\/style>/g, "")), corpo.match(/.{30}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
@@ -443,7 +454,7 @@ async function main() {
         ok(`${tag}: o rodapé não fala de custos; fala de stock e de «·»`, !/Custo|PMC|PARCIAL|IVA/.test(sem.meta?.footer ?? "") && /Stock atual/.test(sem.meta?.footer ?? ""));
         ok(`${tag}: mantém CNP, Descrição, Farmácia, meses, unidades e stock`, ["codigo", "descricao", "farmacia", "totalVendas", "existencia"].every((k) => chavesSem.includes(k)) && chavesSem.filter((k) => k.startsWith("m_")).length === nMeses);
         const ths = [...html.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<br\/>/g, " ").trim());
-        ok(`${tag}: nenhum cabeçalho vazio (sem colunas vazias)`, ths.length > 0 && ths.every((t) => t.length > 0));
+        ok(`${tag}: nenhum cabeçalho vazio (sem colunas vazias)${cabeA4 ? "" : " — não cabe em A4: só a mensagem"}`, cabeA4 ? ths.length > 0 && ths.every((t) => t.length > 0) : ths.length === 0 && /relatorio-nao-cabe-a4/.test(html));
         // 2026-11: sem blocos — as larguras visíveis somam 100 numa só tabela (antes: ≤ 100 por bloco)
         const larg = (r: Report) => r.columns.filter((c) => !c.hidden && !c.excelOnly).reduce((a, c) => a + (c.width ?? 0), 0);
         const maxSem = larg(sem);
@@ -452,7 +463,8 @@ async function main() {
         const dCom = com.columns.find((c) => c.key === "descricao")!.width!;
         ok(`${tag}: a Descrição aproveita o espaço libertado (${dCom.toFixed(1)}% → ${dSem.toFixed(1)}%)`, dSem >= dCom);
         // sem blocos: nunca existem colunas «Período:» nem «do bloco»; o único «Total Unid.» é o do período completo
-        ok(`${tag}: uma só coluna «Total Unid.» (período completo), sem «Período:» nem «do bloco», TOTAL GERAL uma só vez`, sem.columns.filter((c) => c.key === "totalVendas").length === 1 && !sem.columns.some((c) => /Período|bloco/.test(c.label)) && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1);
+        // (o Excel de > 13 meses mantém as etiquetas «Período: …» de a012428 em `label`; no HTML/PDF/impressão nunca aparecem)
+        ok(`${tag}: uma só coluna «Total unid.» (período completo), sem «Período:» nem «do bloco» no HTML/PDF, TOTAL GERAL uma só vez`, sem.columns.filter((c) => c.key === "totalVendas").length === 1 && !sem.columns.some((c) => !c.excelOnly && /Período|bloco/.test(c.htmlLabel ?? c.label)) && (!cabeA4 || (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1));
       }
     }
     // O Excel segue as MESMAS opções que o PDF (regra de 2026-10): sem preços não há PVP, custos nem valor de vendas na folha.
@@ -480,13 +492,14 @@ async function main() {
       const txt = textoTodo(p);
       ok("PDF real sem preços: nenhum «€», PVP, Custo, Valor, PARCIAL, s/IVA", semDinheiro(txt), txt.match(/.{20}(€|PVP|Custo|Valor Vendas|PARCIAL).{20}/)?.[0]);
       ok("PDF real sem preços: várias páginas, cabeçalho repetido e TOTAL GERAL uma vez", p.paginas.length >= 2 && p.paginas.every((pg) => textoPag(pg).includes("Descrição")) && p.paginas.flatMap(linhasDe).filter((l) => l.startsWith("TOTAL GERAL")).length === 1);
-      ok("PDF real sem preços: unidades, total de unidades e stock presentes", /Total/.test(txt) && /Stock/.test(txt) && /Unid\./.test(txt));
+      ok("PDF real sem preços: unidades, total de unidades e stock presentes", /Total/.test(txt) && /Stock/.test(txt) && /unid\./.test(txt));
       ok("PDF real sem preços: valores negativos de quantidade continuam visíveis", /-3/.test(txt));
       ok("PDF real sem preços: «Seleção parcial» indicada (30 de 40)", /Artigos:\s*30 de 40 selecionados/.test(txt.replace(/\n/g, " ")));
       ok("PDF real sem preços: nada cortado à direita (a Descrição ganhou espaço)", p.paginas.every((pg) => pg.palavras.every((w) => w[2] <= pg.w - 8)));
     }
 
-    // Números +1 px: no PDF (3 meses, densidade «cozy») a altura das palavras numéricas excede a do texto da descrição
+    // 2026-11 (A4 sempre, a 8 pt): a regra «números +1 px» FOI REMOVIDA — o corpo da tabela (números, CNP, descrição) tem o mesmo tamanho, 8 pt,
+    // o piso de leitura em A4; CNP e Descrição nunca menores que os valores mensais. (Antes: números = texto + 1 px.)
     {
       const b3 = buckets(3);
       const rows = [linha({ codigo: "5200001", descricao: "Texto da descricao do artigo", qtd: [11, 22, 33], valor: 1234.5 }, b3)];
@@ -496,9 +509,9 @@ async function main() {
       const altura = (pred: (w: Palavra) => boolean) => { const h = ws.filter(pred).map((w) => w[3] - w[1]).sort((a, b) => a - b); return h[Math.floor(h.length / 2)] ?? 0; };
       const hTexto = altura((w) => /^(Texto|descricao|artigo|Silveirense)$/.test(w[4]));
       const hNum = altura((w) => /^(11|22|33)$/.test(w[4]));
-      ok(`números maiores que o texto (altura ${hNum.toFixed(2)} vs ${hTexto.toFixed(2)} pt)`, hNum > hTexto && hNum / hTexto < 1.2, `${hNum}/${hTexto}`);
+      ok(`números e texto com a MESMA altura de letra (8 pt): ${hNum.toFixed(2)} vs ${hTexto.toFixed(2)} pt de caixa — razão 0,8–1,25 (diferença só de glifos)`, hNum / hTexto > 0.8 && hNum / hTexto < 1.25, `${hNum}/${hTexto}`);
       const html = renderReportHtml(rel);
-      ok("CSS: números +1px e descrição/cabeçalho sem alteração", /hierarchy-clean tbody td\.num \{ font-size: calc\(1em \+ 1px\); \}/.test(html) && !/hierarchy-clean tbody td\.sg \{[^}]*font-size/.test(html));
+      ok("CSS: corpo da tabela a 8,25 pt e cabeçalhos a 8 pt; sem a regra «números +1px»", /hierarchy-clean tbody td \{ font-size: 8\.25pt;/.test(html) && /hierarchy-clean table \{ font-size: 8\.25pt; \}/.test(html) && /hierarchy-clean thead th \{[^}]*font-size: 8pt/.test(html) && !/td\.num \{ font-size: calc/.test(html));
       ok("só há 4 fontes de números sem aumento no relatório não-limpo (Margens/outros intactos)", !renderReportHtml({ ...rel, meta: { ...rel.meta!, hierarchy: "strong" } }).includes('class="num"'));
     }
   }
@@ -512,7 +525,7 @@ async function main() {
     const tem = (t: string, l: string[]) => l.some((s) => t.includes(s));
     const lum = (rgb: string) => { const m = rgb.match(/\d+(\.\d+)?/g)!.map(Number); return 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]; };
 
-    for (const nMeses of [3, 27]) {
+    for (const nMeses of [3, 14]) {
       const bks = buckets(nMeses);
       const q = bks.map((_, i) => (i === 0 ? 1 : 0));
       const rows = [
@@ -526,12 +539,12 @@ async function main() {
         const txt = textoTodo(p);
         ok(`PDF real ${tag}: valores de venda ${venda ? "presentes" : "AUSENTES"}, de compra ${compra ? "presentes" : "AUSENTES"}`, tem(txt, VENDA_FMT) === venda && tem(txt, COMPRA_FMT) === compra, txt.match(/.{15}(11 111|22 222|33 333|44 444|66 666|88 888).{10}/)?.[0]);
         ok(`PDF real ${tag}: «€» ${venda || compra ? "presente" : "AUSENTE"}; cabeçalhos PVP/Valor Vendas ↔ venda, Custo ↔ compra`,
-          txt.includes("€") === (venda || compra) && /PVP/.test(txt) === venda && /Valor Vendas|Período: valor/.test(txt) === venda && /Custo/.test(txt) === compra);
+          txt.includes("€") === (venda || compra) && /PVP/.test(txt) === venda && /Valor total de vendas/.test(txt) === venda && /Custo/.test(txt) === compra);
         ok(`PDF real ${tag}: identificação, meses, total de unidades e stock sempre presentes`, /7000001/.test(txt) && /Produto Sentinela A/.test(txt) && /Stock/.test(txt) && /unid\./i.test(txt));
-        ok(`PDF real ${tag}: horizontal (${rel.meta?.paperSize}) e nada cortado à direita`, p.paginas.every((pg) => pg.w > pg.h && pg.palavras.every((w) => w[2] <= pg.w - 8)));
+        ok(`PDF real ${tag}: A4 horizontal e nada cortado à direita`, p.paginas.every((pg) => pg.w > pg.h && Math.abs(pg.w - 841.9) < 1.2 && pg.palavras.every((w) => w[2] <= pg.w - 8)));
         const tg = p.paginas.flatMap(linhasDe).filter((l) => l.startsWith("TOTAL GERAL") && !/só aparecem/.test(l));
         ok(`PDF real ${tag}: TOTAL GERAL uma vez, com total de unidades (2) e Stock total (7) lado a lado`, tg.length === 1 && /\b2 7\b/.test(tg[0]), tg.join(" | "));
-        if (nMeses === 27) ok(`PDF real ${tag}: 27 meses numa só tabela (${rel.meta?.paperSize} horizontal), sem blocos, sem perder a estrutura`, !("columnBlocks" in (rel.meta ?? {})) && rel.columns.filter((c) => c.key.startsWith("m_")).length === 27 && p.paginas.every((pg) => pg.palavras.filter((w) => w[4] === "CNP").length === 1));
+        if (nMeses === 14) ok(`PDF real ${tag}: 14 meses numa só tabela (A4 horizontal), sem blocos, sem perder a estrutura`, !("columnBlocks" in (rel.meta ?? {})) && rel.columns.filter((c) => c.key.startsWith("m_")).length === 14 && p.paginas.every((pg) => pg.palavras.filter((w) => w[4] === "CNP").length === 1));
       }
     }
 
@@ -574,7 +587,7 @@ async function main() {
           const corpo = document.querySelector("tbody.row-group");
           const sub = corpo?.querySelector("tr.subtotal-row") ?? null;
           const tg = document.querySelector(".totals-tbody tr");
-          const thMes = [...document.querySelectorAll("thead th")].find((t) => /^[A-Z][a-z]{2}\d\d$/.test((t.textContent ?? "").replace(/\s+/g, ""))) ?? null;
+          const thMes = [...document.querySelectorAll("thead th")].find((t) => /^[A-Z][a-z]{2}\/\d\d$/.test((t.textContent ?? "").replace(/\s+/g, ""))) ?? null;
           return {
             thTotal: bg(document.querySelector("thead th.tint-total")), thMes: bg(thMes), thStock: bg([...document.querySelectorAll("thead th")].find((t) => t.textContent === "Stock") ?? null),
             tdTotal: bg(corpo?.querySelector("tr:not(.subtotal-row) td.tint-total") ?? null), tdMes: bg(corpo?.querySelector("tr:not(.subtotal-row) td.mq") ?? null), tdStock: bg(corpo?.querySelector("tr:not(.subtotal-row) td.stk-pos") ?? null),
@@ -698,16 +711,16 @@ async function main() {
         ok("CSS calculado: as células com rowspan (CNP/Descrição) dos artigos com várias farmácias também fecham com 2px", r.rel.filter((g) => g.baixoSpans !== null && !g.ultimo).every((g) => g.baixoSpans === 2) && r.rel.some((g) => g.baixoSpans !== null));
         ok("CSS calculado: entre farmácias do mesmo artigo e antes do TOTAL ARTIGO só há filetes leves (≤ 1px)", r.rel.every((g) => g.baixoInternas <= 1) && r.rel.filter((g) => g.topoTotalArtigo !== null).every((g) => (g.topoTotalArtigo ?? 0) <= 1));
         ok("CSS calculado: a 1.ª linha de cada artigo não tem borda superior (nada decorativo acima do 1.º artigo da página, nada que colapse com o sublinhado do cabeçalho)", r.rel.every((g) => g.topoPrimeira === 0) && r.thBaixo >= 1);
-        ok("CSS calculado: pequeno espaço antes do 1.º registo de cada artigo (padding-top 8px, sem linha vazia)", r.rel.every((g) => g.paddingTopPrimeira === 8) && !/<tr[^>]*>\s*<td[^>]*>\s*<\/td>\s*<\/tr>/.test(html));
+        ok("CSS calculado: pequeno espaço antes do 1.º registo de cada artigo (padding-top 7px — era 8px antes de a tabela passar a 8 pt em A4 —, sem linha vazia)", r.rel.every((g) => g.paddingTopPrimeira === 7) && !/<tr[^>]*>\s*<td[^>]*>\s*<\/td>\s*<\/tr>/.test(html));
       } finally { await page.close(); }
       const cssHtml = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
       ok("CSS: sem zebra por artigo no relatório limpo (as colunas já têm fundos próprios)", !/hierarchy-clean[^{]*tbody\.row-group-alt[^{]*\{[^}]*background: #(?!fff)/i.test(cssHtml.slice(cssHtml.indexOf("HIERARQUIA LIMPA"))) && !/row-group-alt/.test(html.slice(html.indexOf("<body"))) || /hierarchy-clean tbody\.row-group-alt td/.test(cssHtml));
     }
 
-    // ── PDF real: 3, 13, 14 e 27 meses, com e sem preços; documentos de várias páginas ───────────────────────────────────────────
+    // ── PDF real: 3, 13, 14 meses e a capacidade máxima, com e sem preços; documentos de várias páginas ───────────────────────────────────────────
     const colunas = [
       { n: 3, v: true, c: true }, { n: 13, v: true, c: true }, { n: 3, v: false, c: true }, { n: 3, v: true, c: false }, { n: 3, v: false, c: false }, { n: 13, v: false, c: false },
-      { n: 14, v: true, c: true }, { n: 27, v: true, c: true },
+      { n: 14, v: true, c: true }, { n: capacidadeDoRelatorio(gerar(demo(buckets(14)), buckets(14))).mesesMax, v: true, c: true },
     ];
     for (const k of colunas) {
       const b = buckets(k.n);

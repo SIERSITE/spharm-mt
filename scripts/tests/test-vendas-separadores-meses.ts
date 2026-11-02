@@ -8,8 +8,8 @@
  *   · cada mês do cabeçalho fica entre dois filetes consecutivos, e nenhum valor/palavra é cortado por um filete;
  *   · espessura ≤ 1 px CSS (0,75pt), claramente mais fina do que o separador entre artigos (2px); cinzento claro mas visível;
  *   · nada à esquerda do 1.º mês (CNP, Descrição, Farmácia, PVP, custos) nem à direita de «Total unid.» (Stock, Valor Vendas);
- *   · 2026-11: sem blocos — 14 e 27 meses são UMA só tabela (A3 se não couber em A4): os N meses de cada página têm N+1 filetes.
- * Casos: 1, 3, 6, 13, 14 e 27 meses; as 4 combinações de preços; documento de várias páginas (3 e 13 meses).
+ *   · 2026-11: sem blocos nem A3 — 14 meses (e a capacidade máxima do A4) são UMA só tabela: os N meses de cada página têm N+1 filetes.
+ * Casos: 1, 3, 6, 13, 14 e capacidade máxima de meses; as 4 combinações de preços; documento de várias páginas (3 e 13 meses).
  */
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +20,7 @@ import { renderReportHtml } from "../../lib/reporting/report-html";
 import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import type { Report } from "../../lib/reporting/report-types";
 import { medirMeses, mediana, verticaisDe } from "./_verticais-meses";
+import { capacidadeDoRelatorio } from "../../lib/reporting/layout-vendas";
 
 let passed = 0, failed = 0;
 const ok = (label: string, cond: boolean, detalhe?: string) => {
@@ -67,7 +68,7 @@ async function pdfDe(rel: Report, nome: string, fundos: boolean): Promise<string
     await page.emulateMediaType("print");
     await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
     if (!fundos) await page.addStyleTag({ content: SEM_FUNDOS });
-    // mesmas opções do endpoint (papel A4/A3 de meta.paperSize): lib/reporting/pdf-opcoes.ts; só o fundo é variável
+    // mesmas opções do endpoint (A4 horizontal, margens de meta.pageMarginMm): lib/reporting/pdf-opcoes.ts; só o fundo é variável
     const bytes = await page.pdf({ ...opcoesPdfDoRelatorio(rel), printBackground: fundos });
     const f = path.join(dir, `${nome}.pdf`);
     writeFileSync(f, bytes);
@@ -96,10 +97,13 @@ async function main() {
   browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
   try {
     console.log("\n=== Separadores verticais dos meses — PDF real SEM fundos (simula «gráficos de fundo» desligado: printBackground=false + print-color-adjust:economy, para que o relatório — que pede «exact» — também perca os fundos) ===");
-    for (const n of [1, 3, 6, 13, 14, 27]) {
+    // A4 horizontal sempre: 27 meses NÃO cabem (mensagem em vez de PDF, ver test-vendas-tabela-unica); o último caso é a capacidade máxima.
+    const maxMeses = capacidadeDoRelatorio(gerar(demo(14), 14)).mesesMax;
+    ok(`capacidade máxima A4 ≥ 8 pt com estes dados: ${maxMeses} meses (≥ 14)`, maxMeses >= 14 && maxMeses < 27);
+    for (const n of [1, 3, 6, 13, 14, maxMeses]) {
       const rel = gerar(demo(n), n);
       const f = await pdfDe(rel, `m${n}-sf`, false);
-      verificar(`${n} ${n === 1 ? "mês" : "meses"} (${rel.meta?.paperSize})`, rel, f, {});
+      verificar(`${n} ${n === 1 ? "mês" : "meses"}${n === maxMeses ? " (capacidade máx.)" : ""}`, rel, f, {});
     }
     console.log("\n=== Quatro combinações de preços (larguras recalculadas, filetes alinhados, nada cortado) ===");
     for (const n of [3, 13]) for (const [v, c] of [[true, true], [true, false], [false, true], [false, false]] as const) {

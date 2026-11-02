@@ -12,8 +12,10 @@ import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/ad
 import { renderReportHtml } from "../../lib/reporting/report-html";
 import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import type { Report } from "../../lib/reporting/report-types";
+import { dadosClienteReal, bucketsCliente, FARMACIAS_CLIENTE } from "./_cliente-real";
 
 export const FARMACIAS = ["Farmácia Norte", "Farmácia Segurado", "Farmácia Silveirense"];
+export { dadosClienteReal, bucketsCliente, FARMACIAS_CLIENTE } from "./_cliente-real";
 export const buckets = (n: number, anoIni = 2025, mesIni = 10) =>
   Array.from({ length: n }, (_, i) => ({ ano: anoIni + Math.floor((mesIni - 1 + i) / 12), mes: ((mesIni - 1 + i) % 12) + 1 }));
 
@@ -71,6 +73,17 @@ export function relatorio(rows: VendasAdapterRow[], meses: number, nFarm: number
   });
 }
 
+/** Relatório com os dados calibrados do PDF real do cliente (2 farmácias, 14 meses por omissão). */
+export function relatorioCliente(o: { meses?: number; artigos?: number; venda?: boolean; compra?: boolean; agruparPor?: string } = {}): Report {
+  const meses = o.meses ?? 14;
+  return buildVendasReport({
+    rows: dadosClienteReal({ meses, artigos: o.artigos }), buckets: bucketsCliente(meses),
+    filters: { agruparPor: o.agruparPor ?? "artigo", dataInicio: "2025-10-01", dataFim: "2026-11-02" },
+    universe: { farmacias: FARMACIAS_CLIENTE, fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste (dados sintéticos)", incluirPrecosVenda: o.venda !== false, incluirPrecosCompra: o.compra !== false,
+  });
+}
+
 export const novaPasta = (prefixo: string) => mkdtempSync(path.join(tmpdir(), prefixo));
 export const apagarPasta = (d: string) => { try { rmSync(d, { recursive: true, force: true }); } catch { /* ignora */ } };
 
@@ -83,24 +96,75 @@ export async function pdfDe(browser: Browser, rel: Report, ficheiro: string): Pr
   const page = await browser.newPage();
   try {
     await page.emulateMediaType("print");
-    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
+    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
     writeFileSync(ficheiro, await page.pdf(opcoesPdfDoRelatorio(rel)));
     return ficheiro;
   } finally { await page.close(); }
 }
 
-/** Impressão: o HTML do iframe de `printReport` (papel do @page, sem as opções de PDF do servidor), em mídia print. */
+/** Impressão: o HTML do iframe de `printReport` (A4 horizontal do @page, sem as opções de cabeçalho do servidor), em mídia print. */
 export async function pdfImpressao(browser: Browser, rel: Report, ficheiro: string): Promise<string> {
   const page = await browser.newPage();
   try {
-    const dim = rel.meta?.paperSize === "A3" ? { w: 420, h: 297 } : { w: 297, h: 210 };
-    // o iframe de report-print.ts tem o tamanho real do papel; a viewport reproduz-o
-    await page.setViewport({ width: Math.round(dim.w * 96 / 25.4), height: Math.round(dim.h * 96 / 25.4) });
+    // o iframe de report-print.ts tem o tamanho real do papel (A4 horizontal); a viewport reproduz-o
+    await page.setViewport({ width: Math.round(297 * 96 / 25.4), height: Math.round(210 * 96 / 25.4) });
     await page.emulateMediaType("print");
-    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
+    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
     // a impressão do browser respeita o @page (preferCSSPageSize), sem margens nem cabeçalhos do servidor
     writeFileSync(ficheiro, await page.pdf({ printBackground: true, preferCSSPageSize: true }));
     return ficheiro;
+  } finally { await page.close(); }
+}
+
+/** Medição do DOM em mídia print: colunas (px CSS, relativas à página), tamanhos de letra e células com conteúdo a transbordar. */
+export type MedicaoDom = {
+  colunas: { texto: string; left: number; right: number }[];
+  tabela: { left: number; right: number };
+  /** células cujo conteúdo (Range) sai da caixa de conteúdo (padding/borda excluídos) — corte ou sobreposição */
+  transbordos: { texto: string; excesso: number }[];
+  /** font-size (px CSS) mínimo de todas as células da tabela (th/td), e de CNP/Descrição vs meses */
+  fonteMinPx: number;
+  fonteCnpPx: number;
+  fonteDescPx: number;
+  fonteMesPx: number;
+  nTabelas: number;
+  nThead: number;
+};
+export async function medirDom(browser: Browser, rel: Report): Promise<MedicaoDom> {
+  const page = await browser.newPage();
+  try {
+    // a largura de layout em impressão é a ÁREA ÚTIL da página (297 mm − 2 × margem de 6,5 mm), não a do papel
+    await page.setViewport({ width: Math.round((297 - 2 * 6.5) * 96 / 25.4), height: Math.round(190 * 96 / 25.4) });
+    await page.emulateMediaType("print");
+    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
+    await page.evaluate("window.__name = (f) => f"); // o esbuild do tsx injeta __name nas funções serializadas
+    return await page.evaluate(() => {
+      const t = document.querySelector("table") as HTMLElement | null;
+      const tr = t ? t.getBoundingClientRect() : { left: 0, right: 0 };
+      const ths = Array.from(document.querySelectorAll("thead th")) as HTMLElement[];
+      const colunas = ths.map((th) => { const r = th.getBoundingClientRect(); return { texto: (th.textContent ?? "").replace(/\s+/g, " ").trim(), left: r.left, right: r.right }; });
+      const celulas = Array.from(document.querySelectorAll("thead th, tbody td")) as HTMLElement[];
+      const transbordos: { texto: string; excesso: number }[] = [];
+      let fonteMinPx = Infinity;
+      for (const c of celulas) {
+        const cs = getComputedStyle(c);
+        fonteMinPx = Math.min(fonteMinPx, parseFloat(cs.fontSize));
+        if (c.querySelector("table") || (c.getAttribute("colspan") && Number(c.getAttribute("colspan")) > 1)) continue; // notas/resumo (largura total)
+        const rg = document.createRange(); rg.selectNodeContents(c);
+        const rr = rg.getBoundingClientRect(); const cr = c.getBoundingClientRect();
+        if (rr.width === 0) continue;
+        const esq = cr.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+        const dir = cr.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+        const ex = Math.max(rr.right - dir, esq - rr.left);
+        if (ex > 0.6) transbordos.push({ texto: (c.textContent ?? "").trim().slice(0, 40), excesso: ex });
+      }
+      const px = (sel: string) => { const e = document.querySelector(sel) as HTMLElement | null; return e ? parseFloat(getComputedStyle(e).fontSize) : 0; };
+      return {
+        colunas, tabela: { left: tr.left, right: tr.right }, transbordos, fonteMinPx,
+        fonteCnpPx: px("tbody td.sg"), fonteDescPx: px("tbody td.sg + td.sg"), fonteMesPx: px("tbody td.mes"),
+        nTabelas: document.querySelectorAll("table").length, nThead: document.querySelectorAll("thead").length,
+      };
+    });
   } finally { await page.close(); }
 }
 

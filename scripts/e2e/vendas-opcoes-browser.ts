@@ -197,7 +197,8 @@ async function main() {
       const txtPrev = norm(await previa(page).locator("body").innerText());
       const ths = (await previa(page).locator("thead th").allInnerTexts()).map((t) => norm(t));
       check(tem(txtPrev, VENDA_FMT) === venda && tem(txtPrev, COMPRA_FMT) === compra, `${tag}: Relatório — valores de venda ${venda ? "presentes" : "AUSENTES"}, de compra ${compra ? "presentes" : "AUSENTES"}`);
-      check(ths.some((t) => /PVP/.test(t)) === venda && ths.some((t) => /Valor Vendas/.test(t)) === venda && ths.some((t) => /Custo/.test(t)) === compra && ths.every((t) => t.length > 0), `${tag}: Relatório — colunas coerentes, nenhuma vazia (${ths.join(" | ")})`);
+      check(ths.some((t) => /PVP/.test(t)) === venda && !ths.some((t) => /Valor Vendas|Custo total/.test(t)) && ths.some((t) => /Custo/.test(t)) === compra && ths.every((t) => t.length > 0), `${tag}: Relatório — colunas coerentes (sem «Valor Vendas»/«Custo total»: vão para o resumo financeiro), nenhuma vazia (${ths.join(" | ")})`);
+      check(/Valor total de vendas/.test(txtPrev) === venda && /Custo total estimado/.test(txtPrev) === compra, `${tag}: Relatório — resumo financeiro no fim: valor de vendas só com venda (${venda}), custo só com compra (${compra})`);
       check(/Stock total:\s*7/.test(txtPrev) && /Unidades vendidas:\s*2/.test(txtPrev), `${tag}: Relatório — faixa «Unidades vendidas: 2 · Stock total: 7» sempre presente`);
       check(txtPrev.includes("€") === (venda || compra), `${tag}: Relatório — «€» ${venda || compra ? "presente" : "AUSENTE"}`);
       await page.screenshot({ path: path.join(EVID, `relatorio-${id}.png`) });

@@ -1,35 +1,35 @@
 /**
- * Mapa de Vendas numa SÓ tabela contínua (2026-11) — sem blocos temporais, papel A4/A3 automático.
+ * Mapa de Vendas numa SÓ tabela contínua, em A4 HORIZONTAL SEMPRE (2026-11, segundo desenho — o A3 automático foi rejeitado).
  *
- * Requisito do utilizador, provado aqui sobre PDFs REAIS (Chromium → PDF → PyMuPDF) e sobre a impressão:
- *   1 uma tabela contínua · 2 todos os meses lado a lado · 3 nunca blocos temporais · 4 cada artigo UMA vez · 5 cada farmácia uma
- *   linha por artigo · 6 «TOTAL ARTIGO» uma vez e só com > 1 farmácia · 7 uma só coluna «Total unid.» (período completo) · 8 uma só
- *   «Stock» · 9 PVP/custos/vendas sem repetição · 10 um só TOTAL GERAL, no fim · 11 sem «Parte i de n», «Total unid. do bloco»,
- *   explicações de divisão · 12 paginação só na vertical · 13 artigo nunca dividido entre páginas · 14 cabeçalho completo repetido
- *   em cada página · 15 opções de preços mantêm-se · 16 fórmulas/Excel/email intactos.
+ * Requisito do utilizador, provado aqui sobre PDFs REAIS (Chromium → PDF → PyMuPDF), sobre a geometria das colunas no DOM e sobre a impressão:
+ *   1 formato A4 horizontal (841,9 × 595,3 pt) · 2 corpo da tabela (meses incluídos) ≥ 8 pt, CNP e Descrição ≥ meses, cabeçalhos ≥ 8 pt a negrito ·
+ *   3 colunas: CNP, Descrição, Farmácia, PVP*, Custo unit.*, N meses «Out/25», Total unid., Stock — 14 meses na MESMA página ·
+ *   4 «Custo total est.» e «Valor Vendas (s/IVA)» fora da tabela: resumo financeiro no fim, uma só vez, conforme as opções de preços ·
+ *   5 cada artigo uma só vez, TOTAL ARTIGO só com > 1 farmácia (sem PVP/custo) · 6 paginação só na vertical, artigo nunca dividido, TOTAL GERAL
+ *   e resumo no fim com o último artigo · 7 período que não cabe em A4 ≥ 8 pt: mensagem em vez de PDF/impressão/pré-visualização truncados
+ *   (HTTP 422), Excel e ecrã sem limite · 8 Excel idêntico ao de a012428.
  *
- * Secções: A função de largura/papel (pura) · B estrutura do relatório e do código (sem blocos) · C PDFs reais por cenário ·
- *          D impressão (HTML do iframe, mídia print) · E pré-visualização «Relatório» · F Excel · G e-mail/endpoint · H separadores
- *          (meses verticais + 2px entre artigos) em PDFs A4 e A3.
+ * Secções: A capacidadeA4 (pura) · B estrutura do relatório/HTML · C PDFs reais por cenário · D impressão = PDF = pré-visualização ·
+ *          E Excel idêntico a a012428 · F excesso (24/27 meses) · G rotas HTTP (422) · H outros relatórios intactos · I controlo negativo.
  *
- * Corre com:  npx tsx scripts/tests/test-vendas-tabela-unica.ts            (≈ 15-25 min numa máquina carregada: ~45 PDFs reais; o Python do PyMuPDF é lento em A3)
+ * Corre com:  npx tsx scripts/tests/test-vendas-tabela-unica.ts            (≈ 8-12 min: ~40 PDFs reais)
  *             TABELA_UNICA_RAPIDO=1 npx tsx …                              (subconjunto de cenários)
+ * Variáveis: A012428_ROOT = worktree em a012428 (para o Excel e os outros relatórios); sem ele usa o caminho por omissão e, se não existir, salta E/H.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import * as XLSX from "xlsx";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import { renderReportHtml } from "../../lib/reporting/report-html";
 import { aplicarPrivacidade } from "../../lib/reporting/privacidade";
-import {
-  decidirLayout, FOLGA_MM, MARGEM_LATERAL_DEGRADADA_MM, MARGEM_LATERAL_MM, PAPEL_HORIZONTAL_MM, maximoMesesSemDegradar,
-  type TextosDasColunas,
-} from "../../lib/reporting/layout-largura";
+import { capacidadeA4, DESCRICAO_MIN_MM, LARGURA_UTIL_MM, MARGEM_LATERAL_VENDAS_MM, PADDINGS_PX, mensagemExcesso, type TextosDasColunas } from "../../lib/reporting/layout-largura";
+import { bloqueadoPorA4, capacidadeDoRelatorio, colunasVisiveis } from "../../lib/reporting/layout-vendas";
 import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import { analisar } from "./_analise-tabela-unica";
-import { abrirBrowser, apagarPasta, dados, lerPdf, novaPasta, pdfDe, pdfImpressao, relatorio } from "./_tabela-unica";
-import { medirMeses, separadoresDe } from "./_verticais-meses";
+import { abrirBrowser, apagarPasta, dados, lerPdf, medirDom, novaPasta, pdfDe, pdfImpressao, relatorio, relatorioCliente } from "./_tabela-unica";
+import { medirMeses } from "./_verticais-meses";
 
 let passed = 0, failed = 0;
 const ok = (label: string, cond: boolean, detalhe?: string) => {
@@ -38,263 +38,371 @@ const ok = (label: string, cond: boolean, detalhe?: string) => {
 };
 const RAPIDO = process.env.TABELA_UNICA_RAPIDO === "1";
 const src = (p: string) => readFileSync(p, "utf8");
-
-// ───────────────────────────────────────────────────────────────────────────────────────────────
-// A. A função de largura/papel (pura, determinística)
-// ───────────────────────────────────────────────────────────────────────────────────────────────
-console.log("\n=== A. decidirLayout: regra de largura e papel (função pura) ===");
-
-/** Textos «moderados» (artigo corrente, totais mensais até 4 dígitos) e «extremos» (123 456 unidades, 12 345,67 €, negativos). */
-const MODERADO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["6,66 €"], custoUnitario: ["3,74 €"], custoTotal: ["1 234,56 €"], valor: ["12 345,67 €"], totalUnid: ["1 234"], stock: ["123"], mes: ["12", "1 234"] };
-const EXTREMO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["12 345,67 €"], custoUnitario: ["12 345,67 €"], custoTotal: ["1 234 567,89 €"], valor: ["1 234 567,89 €"], totalUnid: ["123 456"], stock: ["12 345"], mes: ["-12 345", "123 456"] };
+const A012428 = process.env.A012428_ROOT ?? "C:/projetos/spharm-mt-worktrees/spharm-mt-worktrees/garantia-fase";
+const corpoDe = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, "");
 const COMBOS = [[true, true], [true, false], [false, true], [false, false]] as const;
 const nomeCombo = (v: boolean, c: boolean) => `venda=${v ? "sim" : "não"} compra=${c ? "sim" : "não"}`;
-const lay = (n: number, v: boolean, c: boolean, t: TextosDasColunas = MODERADO) => decidirLayout({ nMeses: n, incluirVenda: v, incluirCompra: c, textos: t });
 
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// A. capacidadeA4: a regra de largura (função pura, determinística)
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+console.log("\n=== A. capacidadeA4: A4 horizontal ≥ 8 pt (função pura) ===");
+
+/** Textos «moderados» (artigo corrente, totais mensais até 4 dígitos) e «extremos» (123 456 unidades, 12 345,67 €, negativos). */
+const MODERADO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["91,80 €"], custoUnitario: ["48,18 €"], totalUnid: ["999", "14 350"], stock: ["133", "1492"], mes: ["·", "12", "123", "1077"], rotulosMes: ["Out/25", "Nov/26", "Mai/26", "Ago/26"] };
+const EXTREMO: TextosDasColunas = { codigo: ["5880034"], farmacia: ["Silveirense", "TOTAL ARTIGO"], pvp: ["12 345,67 €"], custoUnitario: ["12 345,67 €"], totalUnid: ["123 456", "1 234 567"], stock: ["12 345", "-12 345"], mes: ["-12 345", "123 456", "1 234 567"], rotulosMes: ["Out/25", "Nov/26", "Mai/26", "Ago/26"] };
+const cap = (n: number, v: boolean, c: boolean, t: TextosDasColunas = MODERADO) => capacidadeA4({ nMeses: n, textos: t }, { incluirVenda: v, incluirCompra: c });
+const TABELA: Record<string, number> = {};
 {
-  ok(`áreas úteis: A4 horizontal = 297 − 2×${MARGEM_LATERAL_MM} = ${297 - 2 * MARGEM_LATERAL_MM} mm; A3 = 420 − 2×${MARGEM_LATERAL_MM} = ${420 - 2 * MARGEM_LATERAL_MM} mm`, PAPEL_HORIZONTAL_MM.A4.largura - 2 * MARGEM_LATERAL_MM === 281 && PAPEL_HORIZONTAL_MM.A3.largura - 2 * MARGEM_LATERAL_MM === 404);
-  ok("determinística: a mesma entrada dá exatamente a mesma decisão", JSON.stringify(lay(14, true, true)) === JSON.stringify(lay(14, true, true)));
+  ok(`área útil: A4 horizontal 297 − 2×${MARGEM_LATERAL_VENDAS_MM} = ${LARGURA_UTIL_MM} mm; margens laterais ≥ 5 mm (impressoras)`, LARGURA_UTIL_MM === 297 - 2 * MARGEM_LATERAL_VENDAS_MM && MARGEM_LATERAL_VENDAS_MM >= 5 && MARGEM_LATERAL_VENDAS_MM <= 7);
+  ok("determinística: a mesma entrada dá exatamente a mesma decisão", JSON.stringify(cap(14, true, true)) === JSON.stringify(cap(14, true, true)));
+  ok("padding horizontal só desce (5 → 2 px) — a letra nunca", PADDINGS_PX[0] === 5 && PADDINGS_PX[PADDINGS_PX.length - 1] === 2 && PADDINGS_PX.every((p, i) => i === 0 || p < PADDINGS_PX[i - 1]));
 
   for (const [nome, t] of [["moderados", MODERADO], ["extremos", EXTREMO]] as const) {
     for (const [v, c] of COMBOS) {
-      // o papel nunca volta atrás de A3 para A4 ao acrescentar meses; a largura mínima nunca diminui dentro do mesmo papel/densidade
-      const seq = Array.from({ length: 40 }, (_, i) => lay(i + 1, v, c, t));
-      const primeiroA3 = seq.findIndex((d) => d.papel === "A3");
-      ok(`${nome} · ${nomeCombo(v, c)}: papel monótono (A4 até ${primeiroA3 < 0 ? "≥ 40" : primeiroA3} meses, A3 daí em diante)`, primeiroA3 < 0 || seq.slice(primeiroA3).every((d) => d.papel === "A3"));
-      ok(`${nome} · ${nomeCombo(v, c)}: A4 ⇔ as colunas cabem em A4 com folga (${FOLGA_MM} mm); A3 ⇔ não cabem`, seq.every((d) => (d.papel === "A4") === d.cabeEmA4 && (d.papel !== "A4" || d.larguraMinimaMm + FOLGA_MM <= d.larguraUtilMm + 1e-9)));
-      ok(`${nome} · ${nomeCombo(v, c)}: ponto de transição exato — no último nº de meses em A4 cabe, no seguinte o A4 forçado já não cabe`, primeiroA3 <= 0 || (() => {
-        const ant = seq[primeiroA3 - 1], seg = decidirLayout({ nMeses: primeiroA3 + 1, incluirVenda: v, incluirCompra: c, textos: t, papelForcado: "A4" });
-        return ant.papel === "A4" && ant.cabeEmA4 && (seg.degradado || seg.excedeLimite);
-      })());
-      ok(`${nome} · ${nomeCombo(v, c)}: as larguras (%) somam 100 e nenhuma é negativa, para 1…40 meses`, seq.every((d) => {
+      const max = cap(1, v, c, t).mesesMax;
+      TABELA[`${nome}|${v}|${c}`] = max;
+      const seq = Array.from({ length: 40 }, (_, i) => cap(i + 1, v, c, t));
+      ok(`${nome} · ${nomeCombo(v, c)}: cabe ⇔ n ≤ mesesMax (${max}); todos os n coerentes (1…40)`, seq.every((d, i) => d.cabe === (i + 1 <= max) && d.mesesMax === max));
+      ok(`${nome} · ${nomeCombo(v, c)}: no limite — ${max} meses cabem, ${max + 1} não`, max >= 1 && cap(max, v, c, t).cabe && !cap(max + 1, v, c, t).cabe);
+      ok(`${nome} · ${nomeCombo(v, c)}: quando cabe, as larguras somam 100 %, Descrição ≥ ${DESCRICAO_MIN_MM} mm e o padding só diminui com os meses`, seq.filter((d) => d.cabe).every((d, i, a) => {
         const p = d.pct;
-        // PVP/custos/valor só existem se a classe está incluída; os meses repetem-se n vezes (a soma exata é testada no adapter)
-        return Object.values(p).every((x) => x >= 0) && Math.abs(p.codigo + p.farmacia + p.pvp + p.custoUnitario + p.custoTotal + p.totalUnid + p.stock + p.valor + p.descricao + p.mes * (seq.indexOf(d) + 1) - 100) < 1e-6;
+        const soma = p.codigo + p.farmacia + p.pvp + p.custoUnitario + p.totalUnid + p.stock + p.descricao + p.mes * d.nMeses;
+        return Math.abs(soma - 100) < 1e-6 && d.descricaoMm >= DESCRICAO_MIN_MM - 1e-6 && (i === 0 || d.padPx <= a[i - 1].padPx);
       }));
+      ok(`${nome} · ${nomeCombo(v, c)}: sem a classe de preços não há a coluna (largura 0)`, seq.every((d) => (v || d.pct.pvp === 0) && (c || d.pct.custoUnitario === 0)));
+      ok(`${nome} · ${nomeCombo(v, c)}: 24 e 27 meses NÃO cabem`, !cap(24, v, c, t).cabe && !cap(27, v, c, t).cabe);
     }
   }
-
-  console.log("\n  — 12 / 13 / 14 meses, cada combinação de preços (textos moderados | extremos) —");
-  for (const [v, c] of COMBOS) {
-    const linha = [12, 13, 14].map((n) => { const m = lay(n, v, c), e = lay(n, v, c, EXTREMO); return `${n}: ${m.papel}/${m.densidade} (${m.larguraMinimaMm.toFixed(0)} mm) | ${e.papel}/${e.densidade}${e.degradado ? "+deg" : ""} (${e.larguraMinimaMm.toFixed(0)} mm)`; });
-    console.log(`  ${nomeCombo(v, c)} ⇒ ${linha.join(" ; ")}`);
-  }
-  // casos-limite fixos (documentados): sem preços de venda nem de compra cabem 14 meses em A4; com todos os preços já não cabem 12
-  ok("14 meses sem preços de venda nem de compra (textos moderados) → A4", lay(14, false, false).papel === "A4");
-  ok("14 meses com todos os preços (textos moderados) → A3 (não cabe em A4)", lay(14, true, true).papel === "A3");
-  ok("12 meses com todos os preços (textos moderados) → A3; 12 meses sem preços de compra → A4", lay(12, true, true).papel === "A3" && lay(12, true, false).papel === "A4");
-  ok("1 e 3 meses, qualquer combinação (textos moderados) → A4, tipografia arejada (cozy)", COMBOS.every(([v, c]) => [1, 3].every((n) => lay(n, v, c).papel === "A4" && lay(n, v, c).densidade === "cozy")));
-  ok("valores muito longos (123 456 unidades, 12 345,67 €, 1 234 567,89 €) alargam as colunas: o mínimo cresce e 1 mês com todos os preços ainda cabe em A4", lay(1, true, true, EXTREMO).larguraMinimaMm > lay(1, true, true).larguraMinimaMm && lay(1, true, true, EXTREMO).papel === "A4");
-  ok("valores muito longos com 12 meses e todos os preços → A3", lay(12, true, true, EXTREMO).papel === "A3");
-  const comprido: TextosDasColunas = { ...EXTREMO, totalUnid: ["12 345 678 901"], valor: ["99 999 999 999,99 €"], mes: ["-1 234 567"] };
-  ok("textos ainda mais longos nunca encolhem uma coluna abaixo do seu texto (largura mínima só cresce)", lay(6, true, true, comprido).minimos.totalUnid > lay(6, true, true, EXTREMO).minimos.totalUnid && lay(6, true, true, comprido).minimos.mes > lay(6, true, true, EXTREMO).minimos.mes);
-  ok("a coluna de mês nunca fica abaixo do mínimo documentado (7,5 mm) nem a Descrição abaixo de 31 mm (degradação) / 34 mm (normal)", [1, 6, 14, 27].every((n) => { const d = lay(n, true, true), a = d.pct.descricao * (d.excedeLimite ? d.larguraMinimaMm : d.larguraUtilMm) / 100; return d.minimos.mes >= (d.mesesAbreviados ? 6.5 : 7.5) - 1e-9 && a >= (d.degradado ? 31 : 34) - 0.01; }));
-
-  console.log("\n  — degradação controlada (nunca blocos) —");
-  const d27 = lay(27, true, true);
-  ok(`27 meses, todos os preços, textos moderados: A3 sem escala (${d27.papel}, ${d27.densidade}${d27.degradado ? ", degradado" : ""}${d27.excedeLimite ? ", excede" : ""})`, d27.papel === "A3" && !d27.excedeLimite);
-  ok("…meses abreviados («J\\n26»), margens de 6 mm e células de mês compactas só na degradação", d27.degradado ? d27.mesesAbreviados && d27.margemLateralMm === MARGEM_LATERAL_DEGRADADA_MM : d27.margemLateralMm === MARGEM_LATERAL_MM && !d27.mesesAbreviados);
-  const d60 = lay(60, true, true);
-  ok(`60 meses (acima do limite do A3): ${d60.papel}, escala ${(d60.zoom * 100).toFixed(0)} % com aviso — nunca blocos`, d60.papel === "A3" && d60.excedeLimite && d60.zoom < 1 && d60.zoom > 0.3 && !!d60.aviso && Math.abs(d60.zoom * d60.larguraMinimaMm - d60.larguraUtilMm) < 0.01, JSON.stringify({ z: d60.zoom, aviso: d60.aviso }));
-  const maxMod = COMBOS.map(([v, c]) => `${nomeCombo(v, c)}: ${maximoMesesSemDegradar({ incluirVenda: v, incluirCompra: c, textos: MODERADO })}`);
-  const maxExt = COMBOS.map(([v, c]) => `${nomeCombo(v, c)}: ${maximoMesesSemDegradar({ incluirVenda: v, incluirCompra: c, textos: EXTREMO })}`);
-  console.log(`  máx. de meses SEM degradar (A3, tipografia normal) — textos moderados: ${maxMod.join(" | ")}`);
-  console.log(`  máx. de meses SEM degradar — textos extremos: ${maxExt.join(" | ")}`);
-  ok("o máximo sem degradar (moderado, todos os preços) é ≥ 18 meses; o mapa suporta sempre mais (a degradação e a escala nunca cortam)", maximoMesesSemDegradar({ incluirVenda: true, incluirCompra: true, textos: MODERADO }) >= 18);
+  for (const [v, c] of COMBOS) ok(`REQUISITO: 14 meses cabem numa só página A4 (dados moderados · ${nomeCombo(v, c)})`, cap(14, v, c).cabe);
+  const d24 = cap(24, true, true);
+  ok("mensagem de excesso exata (24 meses, todos os preços)", d24.mensagem === `O período de 24 meses não cabe numa página A4 legível (máximo ${d24.mesesMax} meses com estas opções). Reduza o período, retire preços ou use o Excel.` && d24.mensagem === mensagemExcesso(24, d24.mesesMax));
+  console.log("\n  — Capacidade (nº máximo de meses numa página A4 horizontal a 8 pt) —");
+  console.log("  | preços de venda | preços de compra | moderados | extremos (123 456 un.; −12 345; 12 345,67 €) |");
+  for (const [v, c] of COMBOS) console.log(`  | ${v ? "sim" : "não"} | ${c ? "sim" : "não"} | ${TABELA[`moderados|${v}|${c}`]} | ${TABELA[`extremos|${v}|${c}`]} |`);
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-// B. Estrutura do relatório e do código — sem blocos em lado nenhum
+// B. estrutura do relatório e do HTML
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-console.log("\n=== B. Sem blocos temporais no adapter, tipos, HTML, privacidade e restantes relatórios ===");
+console.log("\n=== B. estrutura: colunas, resumo financeiro, TOTAL ARTIGO, Excel ===");
+const rel14 = relatorioCliente({ meses: 14 });
 {
-  for (const f of ["lib/reporting/adapters/vendas.ts", "lib/reporting/report-types.ts", "lib/reporting/report-html.ts", "lib/reporting/privacidade.ts", "lib/reporting/report-pdf-server.ts", "lib/reporting/report-print.ts", "lib/reporting/layout-largura.ts"]) {
-    const s = src(f);
-    ok(`${f}: sem columnBlocks / repartirMeses / MAX_MESES_POR_BLOCO / chaveTotalBloco / bloco-temporal`, !/columnBlocks|repartirMeses|MAX_MESES_POR_BLOCO|chaveTotalBloco|bloco-temporal|bloco-novo|bloco-titulo/.test(s));
+  const chaves = colunasVisiveis(rel14).map((c) => c.key);
+  const meses = chaves.filter((k) => k.startsWith("m_"));
+  ok("colunas do HTML/PDF: CNP, Descrição, Farmácia, PVP, Custo unit., 14 meses, Total unid., Stock — por esta ordem", chaves.join(",") === ["codigo", "descricao", "farmacia", "pvp", "custoUnitarioEstimado", ...meses, "totalVendas", "existencia"].join(",") && meses.length === 14);
+  ok("«Custo total est.» e «Valor Vendas (s/IVA)» são só Excel (excelOnly): não são colunas da tabela", rel14.columns.filter((c) => c.excelOnly).map((c) => c.key).join(",") === "custoEstimado,valorBruto,tipoLinha");
+  const htmlTotal = renderReportHtml(rel14);
+  const html = corpoDe(htmlTotal); // sem o <style> (os comentários do CSS falam de «TOTAL GERAL», «TOTAL ARTIGO»…)
+  const thead = (html.match(/<thead>[\s\S]*?<\/thead>/) ?? [""])[0];
+  ok("cabeçalho HTML: meses «Out/25»…«Nov/26» numa linha; «Total unid.»; sem «Custo total», «Valor Vendas», «Parte», «bloco», «Período:»", /Out\/25/.test(thead) && /Nov\/26/.test(thead) && /Total<br\/>unid\./.test(thead) && !/Custo total|Valor Vendas|Parte|bloco|Período:/.test(thead));
+  ok("HTML: uma tabela, um <thead>, um TOTAL GERAL, um resumo financeiro, sem «Parte i de n»/«bloco»", (html.match(/<table/g) ?? []).length === 1 && (html.match(/<thead>/g) ?? []).length === 1 && (html.match(/TOTAL GERAL/g) ?? []).length === 1 && (html.match(/data-testid="resumo-financeiro"/g) ?? []).length === 1 && !/Parte \d+ de|bloco-temporal|Total unid\. do bloco/.test(html));
+  ok("HTML: @page A4 horizontal com margem lateral de 6,5 mm; nunca A3", /@page \{ size: A4 landscape; margin: 10mm 6\.5mm; \}/.test(htmlTotal) && !/A3/.test(htmlTotal.replace(/\/\*[\s\S]*?\*\//g, "")));
+  ok("HTML: corpo da tabela a 8,25 pt (11 px), cabeçalhos a negrito a 8 pt e Arial/Liberation Sans", /hierarchy-clean table \{ font-size: 8\.25pt; \}/.test(htmlTotal) && /hierarchy-clean thead th \{[^}]*font-size: 8pt/.test(htmlTotal) && /hierarchy-clean tbody td \{ font-size: 8\.25pt/.test(htmlTotal) && /font-family: Arial, "Liberation Sans"/.test(htmlTotal));
+  // TOTAL ARTIGO: só com > 1 farmácia; PVP/custo vazios no HTML
+  const sub = rel14.rows.filter((r) => r.tipoLinha === "Total artigo");
+  let okSub = sub.length > 0;
+  for (const s of sub) okSub = okSub && rel14.rows.filter((r) => r.codigo === s.codigo && r.tipoLinha === "Detalhe").length >= 2;
+  const artigos1 = new Set(rel14.rows.filter((r) => r.tipoLinha === "Detalhe").map((r) => r.codigo));
+  const comSub = new Set(sub.map((s) => s.codigo));
+  ok(`TOTAL ARTIGO só nos artigos com ≥ 2 farmácias (${sub.length} de ${artigos1.size} artigos), nunca com uma só`, okSub && [...artigos1].every((c) => (rel14.rows.filter((r) => r.codigo === c && r.tipoLinha === "Detalhe").length > 1) === comSub.has(c)));
+  const linhasSub = (html.match(/<tr class="subtotal-row">[\s\S]*?<\/tr>/g) ?? []);
+  ok("HTML: a linha TOTAL ARTIGO tem as células de PVP e custo unitário VAZIAS (sem «—»)", linhasSub.length === sub.length && linhasSub.every((l) => (l.match(/<td[^>]*><\/td>/g) ?? []).length >= 2 && !/—/.test(l)));
+  ok("Excel: a linha TOTAL ARTIGO mantém o PVP/custo da linha como estava (a célula do Report não muda; só o HTML as esconde)", sub.every((s) => s.pvp === null && s.custoUnitarioEstimado === null && s.custoEstimado !== undefined));
+  // resumo financeiro
+  const rows = dadosSomas();
+  const rf = rel14.meta?.resumoFinal ?? [];
+  const val = (l: string) => rf.find((i) => i.label === l)?.value;
+  ok("resumo financeiro: unidades, stock, custo total estimado e valor de vendas s/IVA = somas do detalhe (as do TOTAL GERAL do Excel)", val("Unidades vendidas") === rows.unid && val("Stock total") === rows.stock && Math.abs(Number(val("Custo total estimado")) - rows.custo) < 0.01 && Math.abs(Number(val("Valor total de vendas (s/IVA)")) - rows.valor) < 0.01, JSON.stringify([val("Unidades vendidas"), rows.unid, val("Custo total estimado"), rows.custo]));
+  for (const [v, c] of COMBOS) {
+    const r = relatorioCliente({ meses: 6, artigos: 30, venda: v, compra: c });
+    const h = corpoDe(renderReportHtml(r));
+    const bloco = (h.match(/<div class="resumo-final"[\s\S]*?<\/div><\/div><\/td>/) ?? [""])[0];
+    const titulo = (bloco.match(/<div class="rf-titulo">(.*?)<\/div>/) ?? [])[1];
+    ok(`resumo financeiro (${nomeCombo(v, c)}): unidades+stock sempre; custo só com compra; valor de vendas só com venda; título «${titulo}»`, /Unidades vendidas/.test(bloco) && /Stock total/.test(bloco) && /Custo total estimado/.test(bloco) === c && /Valor total de vendas/.test(bloco) === v && titulo === (v || c ? "Resumo financeiro" : "Resumo"));
+    ok(`privacidade (${nomeCombo(v, c)}): nada de PVP/custo/valor em HTML nem no Excel quando a classe está desligada`, (v || !/PVP|Valor total de vendas|Valor de vendas/.test(h)) && (c || !/Custo/.test(h)) && wbHeaders(r).includes("Tipo de linha") && (v === wbHeaders(r).includes("PVP")) && (c === wbHeaders(r).includes("Custo unit. est.")));
   }
-  const todos = spawnSync("git", ["grep", "-l", "-E", "columnBlocks|repartirMeses|chaveTotalBloco", "--", "lib", "app", "components"], { encoding: "utf8" }).stdout.trim();
-  ok("nenhum outro adapter/componente/rota usa blocos (git grep em lib/, app/, components/)", todos === "", todos);
-  const textoRelatorio = src("lib/reporting/adapters/vendas.ts") + src("lib/reporting/report-html.ts");
-  ok("o código já não contém os textos «Parte … de …», «Total unid. do bloco», «Período: custo/valor/Total unid.»", !/Parte \$\{|[Uu]nid\. do bloco|unid\.\\ndo bloco|Período: custo|Período: valor|Período:\\nTotal/.test(textoRelatorio));
-
-  for (const n of [1, 3, 14, 27, 36]) {
-    const rows = dados({ artigos: 20, meses: n, nFarm: 2 });
-    const rel = relatorio(rows, n, 2);
-    const cols = rel.columns.filter((c) => !c.excelOnly);
-    const meses = rel.columns.filter((c) => c.monthAlt);
-    ok(`${n} meses: UMA tabela — ${meses.length} colunas de mês, 1× «Total Unid.», 1× «Stock», 1× «Custo total est.», 1× «Valor Vendas», 1× PVP, 1× «Custo unit. est.»`, meses.length === n && ["totalVendas", "existencia", "custoEstimado", "valorBruto", "pvp", "custoUnitarioEstimado"].every((k) => cols.filter((c) => c.key === k).length === 1));
-    ok(`${n} meses: nenhuma coluna só-HTML de «total do bloco»; a ordem é CNP, Descrição, Farmácia, PVP, Custo unit., Custo total, meses…, Total Unid., Stock, Valor Vendas`, !rel.columns.some((c) => c.htmlOnly) && cols.map((c) => c.key).filter((k) => !k.startsWith("m_")).join(",") === "codigo,descricao,farmacia,pvp,custoUnitarioEstimado,custoEstimado,totalVendas,existencia,valorBruto");
-    const html = renderReportHtml(rel);
-    ok(`${n} meses: HTML com uma só <table>, um só <thead>, um só «TOTAL GERAL» e sem «Parte»/«bloco»`, (html.match(/<table/g) ?? []).length === 1 && (html.match(/<thead>/g) ?? []).length === 1 && (html.match(/<strong>TOTAL GERAL<\/strong>/g) ?? []).length === 1 && !/Parte \d|[Uu]nid\.(<br\/>)? do bloco|do bloco<|Período:<br|bloco-(temporal|novo|titulo)/.test(html.slice(html.indexOf("<body>"))));
-    ok(`${n} meses: o rodapé não explica divisões temporais (sem «blocos», «Parte», «último bloco»)`, !/bloco|Parte \d/i.test(rel.meta?.footer ?? ""), rel.meta?.footer);
-    ok(`${n} meses: soma das larguras = 100 e a Descrição nunca abaixo do mínimo`, Math.abs(cols.reduce((s, c) => s + (c.width ?? 0), 0) - 100) < 1e-6 && (cols.find((c) => c.key === "descricao")?.width ?? 0) > 5);
-    ok(`${n} meses: meta.paperSize = ${rel.meta?.paperSize} e @page do HTML diz o mesmo (${rel.meta?.paperSize} landscape)`, !!rel.meta?.paperSize && html.includes(`size: ${rel.meta.paperSize} landscape`));
-  }
-  // rótulos dos meses: normais com duas linhas de 3+2 caracteres; abreviados («J\n26») só na degradação
-  const r27 = relatorio(dados({ artigos: 5, meses: 27, nFarm: 2 }), 27, 2);
-  const m27 = r27.columns.filter((c) => c.monthAlt).map((c) => c.label);
-  ok(`27 meses: ${r27.meta?.compactMonths ? "meses abreviados «J\\n25»…" : "meses normais"} — cada rótulo tem 2 linhas e as inicais batem com o calendário`, m27.every((l) => /^[A-Za-zÀ-ü]{1,3}\n\d{2}$/.test(l)) && (r27.meta?.compactMonths ? m27.every((l) => l.split("\n")[0].length === 1) : m27.every((l) => l.split("\n")[0].length === 3)), JSON.stringify(m27.slice(0, 4)));
-  const r3 = relatorio(dados({ artigos: 5, meses: 3, nFarm: 2 }), 3, 2);
-  ok("3 meses: rótulos «Out\\n25», «Nov\\n25», «Dez\\n25» (como sempre)", JSON.stringify(r3.columns.filter((c) => c.monthAlt).map((c) => c.label)) === JSON.stringify(["Out\n25", "Nov\n25", "Dez\n25"]));
-
-  // privacidade: reaplicar não reintroduz nada nem altera o papel
-  const rp = relatorio(dados({ artigos: 10, meses: 14, nFarm: 2 }), 14, 2, false, false);
-  const rp2 = aplicarPrivacidade(rp);
-  ok("sem preços: aplicarPrivacidade é idempotente e preserva o papel", rp2.columns.length === rp.columns.length && rp2.meta?.paperSize === rp.meta?.paperSize && !rp2.columns.some((c) => ["pvp", "custoUnitarioEstimado", "custoEstimado", "valorBruto"].includes(c.key)));
-  // as larguras recalculam-se por combinação: sem custos a Descrição ganha espaço
-  const w = (v: boolean, c: boolean) => relatorio(dados({ artigos: 20, meses: 14, nFarm: 2 }), 14, 2, v, c).columns.find((x) => x.key === "descricao")?.width ?? 0;
-  ok(`14 meses: a Descrição cresce quando se retiram preços (todos ${w(true, true).toFixed(1)}% ≤ só venda ${w(true, false).toFixed(1)}% < nenhum ${w(false, false).toFixed(1)}%)`, w(true, true) <= w(true, false) + 1e-9 && w(true, false) < w(false, false));
+  // custo parcial: linha sem custo → nota PARCIAL no resumo
+  const rParc = relatorioCliente({ meses: 3, artigos: 20 });
+  const rowsP = dados({ artigos: 20, meses: 3, nFarm: 2 });
+  rowsP[0].custoUnitarioEstimado = null; rowsP[0].custoEstimado = null;
+  const rP = relatorio(rowsP, 3, 2, true, true);
+  const hP = renderReportHtml(rP);
+  ok("custo em falta: o resumo mostra o custo como PARCIAL com o nº de linhas sem custo (lógica atual do adapter)", /PARCIAL: 1 linha\(s\) sem custo conhecido ficam fora do total/.test(hP) && !/PARCIAL/.test(renderReportHtml(rParc).replace(/Stock total PARCIAL/g, "")));
+  const rStk = dados({ artigos: 10, meses: 3, nFarm: 2 });
+  (rStk[0] as { existenciaConhecida?: boolean }).existenciaConhecida = false;
+  ok("stock desconhecido: o resumo indica PARCIAL com o nº de linhas sem stock conhecido", /PARCIAL: 1 linha\(s\) sem stock conhecido/.test(renderReportHtml(relatorio(rStk, 3, 2, true, true))));
+  // 1 farmácia: nunca TOTAL ARTIGO
+  const r1 = relatorio(dados({ artigos: 30, meses: 6, nFarm: 1 }), 6, 1);
+  ok("uma só farmácia no universo: nenhum TOTAL ARTIGO (nem no HTML nem nas linhas)", !r1.rows.some((r) => r.tipoLinha === "Total artigo") && !/TOTAL ARTIGO/.test(corpoDe(renderReportHtml(r1))));
+  // opções de PDF
+  const op = opcoesPdfDoRelatorio(rel14);
+  ok("opções do PDF do endpoint: format A4, horizontal, margens 10 mm / 6,5 mm, cabeçalho de página «Pág. X / Y»", op.format === "A4" && op.landscape === true && op.margin.left === "6.5mm" && op.margin.right === "6.5mm" && op.margin.top === "10mm" && /pageNumber/.test(op.headerTemplate));
+  // Excel: os cabeçalhos e o TOTAL GERAL
+  const hdr = wbHeaders(rel14);
+  ok("Excel: continua com «Custo total est.», «Valor Vendas (s/IVA)» e «Tipo de linha» (as mesmas colunas)", hdr.some((h) => /custo total/i.test(h)) && hdr.some((h) => /valor\s*vendas/i.test(h)) && hdr.includes("Tipo de linha"));
+}
+function dadosSomas() {
+  const rows = (rel14.meta?.resumoFinal ?? []).length ? relatorioDados() : null;
+  return rows!;
+}
+function relatorioDados() {
+  // somas independentes, sobre as linhas de detalhe do Report
+  const det = rel14.rows.filter((r) => r.tipoLinha === "Detalhe");
+  return {
+    unid: det.reduce((a, r) => a + Number(r.totalVendas), 0),
+    stock: det.reduce((a, r) => a + (typeof r.existencia === "number" ? r.existencia : 0), 0),
+    custo: det.reduce((a, r) => a + (typeof r.custoEstimado === "number" ? r.custoEstimado : 0), 0),
+    valor: det.reduce((a, r) => a + Number(r.valorBruto ?? 0), 0),
+  };
+}
+function wbHeaders(r: ReturnType<typeof relatorioCliente>): string[] {
+  const wb = buildReportWorkbook(r);
+  const ws = wb.Sheets["Relatório"];
+  const linhas = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
+  const i = linhas.findIndex((l) => l[0] === "CNP");
+  return (linhas[i] as string[]).map((h) => String(h).replace(/\s+/g, " "));
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-// C-H. PDFs reais
+// C-D. PDFs reais, impressão, pré-visualização
 // ───────────────────────────────────────────────────────────────────────────────────────────────
-type Cenario = { tag: string; meses: number; nFarm: number; artigos: number; venda: boolean; compra: boolean; extremos?: boolean; impressao?: boolean; profundo?: boolean };
+type MetricasLinha = { nome: string; paginas: number; fonteMin: number; fonteMes: number; cnp: number; desc: number };
+const resumoMetricas: MetricasLinha[] = [];
 
 async function main() {
+  const dir = novaPasta("vendas-a4-");
   const browser = await abrirBrowser();
-  const dir = novaPasta("vendas-tabela-unica-");
-  const cenarios: Cenario[] = [];
-  const add = (c: Omit<Cenario, "tag">) => cenarios.push({ ...c, tag: `${c.meses}m · ${c.nFarm}f · ${c.artigos}art · ${c.venda ? "V" : "-"}${c.compra ? "C" : "-"}${c.extremos ? " · extremos" : ""}` });
+  try {
+    const cenario = async (nome: string, rel: ReturnType<typeof relatorioCliente>, o: { venda: boolean; compra: boolean; nMeses: number; esperaVarias?: boolean }) => {
+      const f = path.join(dir, `${nome.replace(/[^a-z0-9]+/gi, "_")}.pdf`);
+      await pdfDe(browser, rel, f);
+      const dom = await medirDom(browser, rel);
+      const pag = lerPdf(f);
+      const r = analisar(pag, dom, rel, o);
+      ok(`${nome}: A4 horizontal, ${r.metricas.paginas} pág., ${r.metricas.artigos} artigos, ${r.metricas.linhasDados} linhas; letra mín. ${r.metricas.fonteMinTabelaPt.toFixed(2)} pt; nada cortado; um TOTAL GERAL e um resumo no fim`, r.falhas.length === 0, r.falhas.slice(0, 4).join(" | "));
+      resumoMetricas.push({ nome, paginas: r.metricas.paginas, fonteMin: r.metricas.fonteMinTabelaPt, fonteMes: r.metricas.fonteMedianaMesPt, cnp: r.metricas.fonteMedianaCnpPt, desc: r.metricas.fonteMedianaDescPt });
+      return { f, pag, dom, r };
+    };
 
-  const MESES = RAPIDO ? [1, 14, 27] : [1, 3, 6, 12, 13, 14, 24, 27, 36];
-  // 1) meses × todos os preços (2 farmácias); as outras 3 combinações de preços nos meses 1, 3, 14 e 27 (o Python do PyMuPDF é lento em A3)
-  for (const m of MESES) add({ meses: m, nFarm: 2, artigos: 30, venda: true, compra: true, profundo: [1, 14, 27].includes(m) });
-  for (const m of RAPIDO ? [14] : [1, 3, 14, 27]) for (const [v, c] of COMBOS.slice(1)) add({ meses: m, nFarm: 2, artigos: 30, venda: v, compra: c });
-  // 2) uma e três farmácias
-  for (const m of RAPIDO ? [14] : [1, 14, 27]) for (const nf of [1, 3]) add({ meses: m, nFarm: nf, artigos: 30, venda: true, compra: true });
-  // 3) valores elevados e negativos (123 456 unidades, 12 345,67 €, -12 345)
-  for (const m of RAPIDO ? [14] : [1, 6, 12, 14, 24]) add({ meses: m, nFarm: 2, artigos: 24, venda: true, compra: true, extremos: true });
-  if (!RAPIDO) for (const [v, c] of COMBOS.slice(1)) add({ meses: 14, nFarm: 2, artigos: 24, venda: v, compra: c, extremos: true });
-  // 4) várias páginas (≥ 150 artigos), 2 e 3 farmácias
-  for (const m of RAPIDO ? [14] : [3, 14, 27]) add({ meses: m, nFarm: 2, artigos: 150, venda: true, compra: true, impressao: true, profundo: m === 14 });
-  add({ meses: 14, nFarm: 3, artigos: 150, venda: true, compra: true });
-  if (!RAPIDO) add({ meses: 14, nFarm: 2, artigos: 150, venda: false, compra: false });
+    console.log("\n=== C. PDFs reais (Chromium com as opções do endpoint) ===");
+    // C1. o caso do cliente: 326 artigos, 2 farmácias, 14 meses Out/25…Nov/26, preços de venda e de compra
+    console.log("\n  — C1. PDF do cliente: 2025-10-01 a 2026-11-02, 326 artigos, Segurado + Silveirense —");
+    const real = await cenario("cliente 14m 326 artigos (venda+compra)", rel14, { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+    ok("cliente: 14 meses na MESMA tabela e MESMA página (cada página tem os 14 rótulos Out/25…Nov/26 uma vez) — sem blocos", real.pag.length >= 15 && real.pag.every((p) => ["Out/25", "Nov/26"].every((m) => p.tokens.filter((t) => t[5] === m).length === 1)));
+    ok(`cliente: ${real.r.metricas.paginas} páginas (o PDF de a012428 tinha 57 com blocos temporais)`, real.r.metricas.paginas > 1 && real.r.metricas.paginas < 57);
+    ok("cliente: cada artigo/farmácia numa só linha — nº de linhas de dados do PDF = nº de linhas do relatório", real.r.metricas.linhasDados === rel14.rows.length);
+    const ultimo = real.pag[real.pag.length - 1];
+    ok("cliente: TOTAL GERAL e resumo financeiro na última página, com o fim do último artigo (nunca órfãos)", ultimo.tokens.some((t) => t[5] === "GERAL") && ultimo.tokens.some((t) => t[5] === "FINANCEIRO") && ultimo.tokens.some((t) => /^(Segurado|Silveirense)$/.test(t[5])));
+    const txtTodo = real.pag.flatMap((p) => p.tokens.map((t) => t[5])).join(" ");
+    ok("cliente: TOTAL GERAL = 980…15 por mês, 13 613 unidades, stock 1492; custo total e valor de vendas só no resumo", /980 1077 1040/.test(txtTodo) && /13.613/.test(txtTodo) && /1492/.test(txtTodo) && /221.362,54/.test(txtTodo) && /402.879,57/.test(txtTodo));
 
-  console.log(`\n=== C. PDFs reais (endpoint: lib/reporting/pdf-opcoes.ts): ${cenarios.length} cenários — contagens, valores, paginação, papel, cortes, tipografia ===`);
-  const resumo: string[] = [];
-  const falhasPorCenario: string[] = [];
-  const profundos: { tag: string; pdf: string; rel: ReturnType<typeof relatorio>; n: number }[] = [];
-  for (const cn of cenarios) {
-    const rows = dados({ artigos: cn.artigos, meses: cn.meses, nFarm: cn.nFarm, extremos: cn.extremos });
-    const rel = relatorio(rows, cn.meses, cn.nFarm, cn.venda, cn.compra);
-    const f = await pdfDe(browser, rel, path.join(dir, `c${profundos.length}-${resumo.length}.pdf`));
-    const pag = lerPdf(f);
-    const meta = rel.meta!;
-    const opc = { nMeses: cn.meses, venda: cn.venda, compra: cn.compra, papel: meta.paperSize as "A4" | "A3", margemMm: meta.pageMarginMm ?? MARGEM_LATERAL_MM, compacto: !!meta.compactMonths, zoom: (meta.contentZoom ?? 1) < 1 };
-    const r = analisar(pag, rel, rows, opc);
-    const nArtigos = new Set(rows.map((x) => x.codigo)).size;
-    // o papel respeita a regra: A4 ⇔ cabe em A4
-    const regra = (meta.paperSize === "A4") === !!meta.layoutFitsA4 && (meta.paperSize !== "A4" || (meta.layoutMinWidthMm ?? 1e9) + FOLGA_MM <= 281 + 1e-9);
-    const extra: string[] = [];
-    if (!regra) extra.push(`papel ${meta.paperSize} incoerente com a regra (mín ${meta.layoutMinWidthMm} mm)`);
-    if (r.m.artigos !== nArtigos) extra.push(`${r.m.artigos} artigos no PDF, esperados ${nArtigos}`);
-    const multi = cn.artigos >= 150;
-    if (multi && r.m.paginas < 2) extra.push(`relatório de ${cn.artigos} artigos num só página`);
-    const falhas = [...r.falhas, ...extra];
-    ok(`${cn.tag}: ${meta.paperSize}${meta.compactMonths ? "+compacto" : ""}${opc.zoom ? "+escala" : ""} · ${r.m.paginas} pág. · ${r.m.artigos} artigos/${r.m.linhas} linhas conferidos · fonte mín. número ${r.m.tamanhoMinNumeroPt.toFixed(2)} pt, texto ${r.m.tamanhoMinTextoPt.toFixed(2)} pt, cabeçalho ${r.m.tamanhoMinCabecalhoPt.toFixed(2)} pt`, falhas.length === 0, falhas.slice(0, 4).join(" | "));
-    resumo.push(`${cn.tag} → ${meta.paperSize} ${r.m.paginas}p`);
-    if (falhas.length) falhasPorCenario.push(`${cn.tag}: ${falhas.slice(0, 2).join(" / ")}`);
-    if (cn.profundo && !RAPIDO) profundos.push({ tag: cn.tag, pdf: f, rel, n: cn.meses });
-    if (cn.profundo && RAPIDO) profundos.push({ tag: cn.tag, pdf: f, rel, n: cn.meses });
-
-    // D. impressão (HTML do iframe, mídia print): mesma estrutura, mesmo papel
-    if (cn.impressao) {
-      const fi = await pdfImpressao(browser, rel, path.join(dir, `imp${resumo.length}.pdf`));
-      const pi = lerPdf(fi);
-      const ri = analisar(pi, rel, rows, opc);
-      ok(`  impressão · ${cn.tag}: mesmo papel (${opc.papel}), ${ri.m.paginas} pág., todas as verificações iguais às do PDF`, ri.falhas.length === 0, ri.falhas.slice(0, 3).join(" | "));
-      ok(`  impressão · ${cn.tag}: conteúdo idêntico ao do PDF (mesmas colunas, ordem, valores e linhas)`, ri.assinatura === r.assinatura);
+    for (const [v, c] of COMBOS.slice(1)) {
+      if (RAPIDO) break;
+      await cenario(`cliente 14m 326 artigos (${nomeCombo(v, c)})`, relatorioCliente({ meses: 14, venda: v, compra: c }), { venda: v, compra: c, nMeses: 14, esperaVarias: true });
     }
-  }
-  if (falhasPorCenario.length) console.log(`\n  Cenários com falhas (${falhasPorCenario.length}):\n   - ${falhasPorCenario.join("\n   - ")}`);
 
-  // ── Regra de papel nos PDFs: A4 até onde coube, A3 acima (tabela observada) ──
-  console.log("\n  Papel observado por cenário (resumo):");
-  const porMeses = new Map<string, string[]>();
-  for (const s of resumo) { const [k, v] = s.split(" → "); const m = k.split(" · ")[0] + (k.includes("extremos") ? " ext" : "") + " " + k.split(" · ").slice(-1)[0].replace(" extremos", ""); porMeses.set(m, [...(porMeses.get(m) ?? []), v]); }
-  console.log("  " + [...porMeses.entries()].slice(0, 60).map(([k, v]) => `${k}: ${v.join("/")}`).join(" ; "));
+    // C2. 1, 3, 6, 12, 13, 14 meses
+    console.log("\n  — C2. 1 / 3 / 6 / 12 / 13 meses, duas farmácias, as 4 combinações de preços —");
+    for (const n of [1, 3, 6, 12, 13]) {
+      for (const [v, c] of COMBOS) {
+        if (RAPIDO && !(v && c) && n !== 13) continue;
+        if (!(v && c) && ![3, 13].includes(n)) continue; // 4 combinações em 3 e 13 meses; nos restantes só «todos»
+        await cenario(`${n} meses 70 artigos (${nomeCombo(v, c)})`, relatorioCliente({ meses: n, artigos: 70, venda: v, compra: c }), { venda: v, compra: c, nMeses: n, esperaVarias: true });
+      }
+    }
 
-  // ── E. pré-visualização «Relatório» (iframe de ecrã): mesma largura, scroll horizontal, nunca corta ──
-  console.log("\n=== E. Pré-visualização «Relatório» (ecrã, iframe) — largura do papel, scroll horizontal, sem cortes ===");
-  for (const [m, nf] of (RAPIDO ? [[14, 2]] : [[3, 2], [14, 2], [27, 2]]) as [number, number][]) {
-    const rows = dados({ artigos: 30, meses: m, nFarm: nf });
-    const rel = relatorio(rows, m, nf);
-    const html = renderReportHtml(rel);
-    const util = (rel.meta!.paperSize === "A3" ? 420 : 297) - 2 * (rel.meta!.pageMarginMm ?? 8);
-    for (const vw of [1366, 1920]) {
+    // C3. capacidade máxima por combinação (dados do cliente) e uma a mais → mensagem
+    console.log("\n  — C3. capacidade máxima (dados do cliente) por combinação de preços —");
+    const capMax: Record<string, number> = {};
+    for (const [v, c] of COMBOS) {
+      const M = capacidadeDoRelatorio(relatorioCliente({ meses: 14, artigos: 70, venda: v, compra: c })).mesesMax;
+      capMax[`${v}|${c}`] = M;
+      const rM = relatorioCliente({ meses: M, artigos: 70, venda: v, compra: c });
+      ok(`${nomeCombo(v, c)}: ${M} meses (o máximo) cabem; ${M + 1} não → mensagem`, bloqueadoPorA4(rM) === null && bloqueadoPorA4(relatorioCliente({ meses: M + 1, artigos: 70, venda: v, compra: c })) !== null);
+      if (RAPIDO && !(v && c)) continue;
+      await cenario(`${M} meses (máx.) 70 artigos (${nomeCombo(v, c)})`, rM, { venda: v, compra: c, nMeses: M, esperaVarias: true });
+    }
+    console.log(`  capacidade máxima com os dados do cliente: ${JSON.stringify(capMax)}`);
+
+    // C4. uma farmácia, três farmácias, valores elevados e negativos
+    console.log("\n  — C4. 1 e 3 farmácias; 123 456 unidades, −12 345 e 12 345,67 € —");
+    await cenario("1 farmácia 14m 60 artigos", relatorio(dados({ artigos: 60, meses: 14, nFarm: 1 }), 14, 1), { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+    await cenario("3 farmácias 12m 60 artigos", relatorio(dados({ artigos: 60, meses: 12, nFarm: 3 }), 12, 3), { venda: true, compra: true, nMeses: 12, esperaVarias: true });
+    for (const [v, c] of COMBOS) {
+      if (RAPIDO && !(v && c)) continue;
+      const rEx = relatorio(dados({ artigos: 60, meses: 6, nFarm: 2, extremos: true }), 6, 2, v, c);
+      const exCap = capacidadeDoRelatorio(rEx);
+      ok(`extremos (${nomeCombo(v, c)}): 6 meses cabem; capacidade com estes dados = ${exCap.mesesMax} meses`, exCap.cabe && exCap.mesesMax >= 6);
+      const rExMax = relatorio(dados({ artigos: 60, meses: exCap.mesesMax, nFarm: 2, extremos: true }), exCap.mesesMax, 2, v, c);
+      ok(`extremos (${nomeCombo(v, c)}): ${exCap.mesesMax} meses (capacidade máx.) continuam a caber com os valores elevados`, bloqueadoPorA4(rExMax) === null);
+      const ex = await cenario(`extremos 6m (${nomeCombo(v, c)})`, rEx, { venda: v, compra: c, nMeses: 6, esperaVarias: true });
+      const t = ex.pag.flatMap((p) => p.tokens.map((x) => x[5])).join(" ");
+      ok(`extremos (${nomeCombo(v, c)}): 123 456, −12 345 e −987 aparecem inteiros no PDF`, /123.456/.test(t) && /-12.345/.test(t) && /-987/.test(t));
+      if (v && c) await cenario(`extremos ${exCap.mesesMax}m (capacidade máx., ${nomeCombo(v, c)})`, rExMax, { venda: v, compra: c, nMeses: exCap.mesesMax, esperaVarias: true });
+    }
+
+    // C5. paginação: varrimento do nº de artigos (o fim do último artigo ao lado do TOTAL GERAL e do resumo, nunca órfãos)
+    console.log("\n  — C5. paginação: varrimento de 12 a 56 artigos (TOTAL GERAL/resumo nunca sozinhos; artigo nunca dividido) —");
+    for (const nArt of RAPIDO ? [24, 40] : [12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56]) {
+      const r = relatorioCliente({ meses: 14, artigos: nArt });
+      const f = path.join(dir, `varre_${nArt}.pdf`);
+      await pdfDe(browser, r, f);
+      const dom = await medirDom(browser, r);
+      const a = analisar(lerPdf(f), dom, r, { venda: true, compra: true, nMeses: 14 });
+      ok(`${nArt} artigos (${a.metricas.paginas} pág.): sem falhas de paginação (TOTAL GERAL+resumo com artigos; artigos inteiros; cabeçalho em todas)`, a.falhas.length === 0, a.falhas.slice(0, 3).join(" | "));
+    }
+
+    // D. impressão = PDF = pré-visualização = PDF do email
+    console.log("\n=== D. impressão, pré-visualização e PDF do email: a mesma estrutura ===");
+    {
+      const fImp = path.join(dir, "impressao.pdf");
+      await pdfImpressao(browser, rel14, fImp);
+      const imp = lerPdf(fImp);
+      const domI = await medirDom(browser, rel14);
+      const rI = analisar(imp, domI, rel14, { venda: true, compra: true, nMeses: 14, esperaVarias: true });
+      ok(`impressão (iframe, @page): ${rI.metricas.paginas} páginas A4 horizontal, mesmas verificações do PDF`, rI.falhas.length === 0, rI.falhas.slice(0, 3).join(" | "));
+      const sig = (ps: typeof imp) => ps.map((p) => p.tokens.filter((t) => t[4] >= 7.5).map((t) => t[5]).join("|")).join("\n#\n");
+      ok("impressão = PDF do endpoint: o mesmo texto, página a página (só o contador «Pág. X / Y» do servidor difere)", sig(imp) === sig(real.pag));
+      // pré-visualização = o MESMO HTML (renderReportHtml); email/endpoint recebem o Report serializado e reidratado
+      const viaJson = JSON.parse(JSON.stringify(rel14));
+      viaJson.generatedAt = new Date(viaJson.generatedAt);
+      ok("pré-visualização = impressão = PDF = PDF do email: renderReportHtml dá exatamente o mesmo HTML ao Report original e ao Report que viaja em JSON para o servidor", renderReportHtml(rel14) === renderReportHtml(viaJson) && renderReportHtml(aplicarPrivacidade(viaJson)) === renderReportHtml(rel14));
+      const html = renderReportHtml(rel14);
+      ok("pré-visualização (ecrã): largura mínima de 296 mm (área útil do A4 + padding) com scroll — nunca colunas espremidas", /@media screen \{ \.page \{ min-width: 296mm; \} \}/.test(html));
+      // separadores verticais dos meses e filete de 2 px entre artigos (PDF A4 real)
+      const med = medirMeses(real.f, () => 14);
+      ok(`separadores verticais dos meses: 15 filetes por página (14 meses), contínuos do cabeçalho ao fim, em todas as ${med.nPaginas} páginas`, med.falhas.length === 0 && med.nLimites.every((n) => n === 15), med.falhas.slice(0, 2).join(" | "));
+    }
+
+    // I. controlo negativo: a análise TEM de falhar com letra de 7 pt e com uma coluna cortada
+    console.log("\n=== I. controlo negativo: a análise deteta defeitos ===");
+    {
+      const rNeg = relatorioCliente({ meses: 14, artigos: 8 });
       const page = await browser.newPage();
       try {
-        await page.setViewport({ width: vw, height: 800 });
-        await page.setContent(html, { waitUntil: "networkidle0" });
-        const medidas = await page.evaluate(() => {
-          const tabela = document.querySelector("table")!.getBoundingClientRect();
-          const ths = [...document.querySelectorAll("thead th")] as HTMLElement[];
-          const cortados = ths.filter((t) => t.scrollWidth > t.clientWidth + 1).map((t) => t.textContent);
-          const tds = [...document.querySelectorAll("tbody td.nc, tbody td.num")] as HTMLElement[];
-          const cortadosTd = tds.filter((t) => t.scrollWidth > t.clientWidth + 1).length;
-          return { tw: tabela.width, sw: document.documentElement.scrollWidth, cortados, cortadosTd };
-        });
-        const esperadoPx = (util / 25.4) * 96;
-        // a tabela nunca é mais estreita do que o papel (largura útil); com janela larga estica (as colunas escalam em %); com janela
-        // estreita aparece scroll horizontal (scrollWidth ≥ largura do papel) — nunca colunas espremidas nem texto cortado
-        ok(`${m} meses · ecrã ${vw}px · papel ${rel.meta!.paperSize}: a tabela tem pelo menos a largura do papel (${medidas.tw.toFixed(0)} px ≥ ${esperadoPx.toFixed(0)} px), scroll horizontal se a janela é mais estreita (${medidas.sw.toFixed(0)} px) e nenhum cabeçalho/célula cortada`, medidas.tw >= esperadoPx - 2 && medidas.sw >= Math.min(vw, esperadoPx) - 2 && medidas.cortados.length === 0 && medidas.cortadosTd === 0, JSON.stringify(medidas));
+        await page.emulateMediaType("print");
+        const h7 = renderReportHtml(rNeg).replace(/font-size: 8(.25)?pt/g, "font-size: 7pt");
+        await page.setContent(h7, { waitUntil: "networkidle0" });
+        const f7 = path.join(dir, "neg7.pdf");
+        writeFileSync(f7, await page.pdf(opcoesPdfDoRelatorio(rNeg)));
+        const dom = await medirDom(browser, rNeg);
+        const a7 = analisar(lerPdf(f7), dom, rNeg, { venda: true, compra: true, nMeses: 14 });
+        ok("a análise acusa letra de 7 pt (< 8 pt)", a7.falhas.some((x) => /< 8 pt/.test(x)), a7.falhas.slice(0, 2).join(" | "));
+        // colunas com largura insuficiente (cortam números)
+        const hs = renderReportHtml(rNeg).replace(/<col style="width:[\d.]+%" \/>/g, '<col style="width:2%" />');
+        await page.setContent(hs, { waitUntil: "load", timeout: 120000 });
+        const fs2 = path.join(dir, "negcol.pdf");
+        writeFileSync(fs2, await page.pdf(opcoesPdfDoRelatorio(rNeg)));
+        const aS = analisar(lerPdf(fs2), dom, rNeg, { venda: true, compra: true, nMeses: 14 });
+        ok("a análise acusa colunas desalinhadas/cortadas quando as larguras não são as calculadas", aS.falhas.length > 0);
       } finally { await page.close(); }
     }
+  } finally {
+    await browser.close();
+    apagarPasta(dir);
   }
-
-  // ── F. Excel intacto ──
-  console.log("\n=== F. Excel (buildReportWorkbook): todos os meses e valores corretos, uma folha, uma linha por artigo/farmácia ===");
-  for (const m of RAPIDO ? [14] : [3, 14, 27]) {
-    const rows = dados({ artigos: 24, meses: m, nFarm: 2 });
-    const rel = relatorio(rows, m, 2);
-    const wb = buildReportWorkbook(rel);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const mat = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null }) as unknown[][];
-    const linhaCab = mat.findIndex((l) => l.includes("CNP"));
-    const cab = (mat[linhaCab] as string[]).map((c) => String(c ?? "").replace(/\n/g, " "));
-    const iMes = cab.map((c, i) => (/^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez) \d{2}$/.test(c) || /^[JFMASOND] \d{2}$/.test(c) ? i : -1)).filter((i) => i >= 0);
-    const corpo = mat.slice(linhaCab + 1).filter((l) => l[cab.indexOf("CNP")] != null && /^\d{7}$/.test(String(l[cab.indexOf("CNP")])));
-    const det = corpo.filter((l) => l[cab.indexOf("Tipo de linha")] === "Detalhe");
-    const tot = corpo.filter((l) => l[cab.indexOf("Tipo de linha")] === "Total artigo");
-    const iTotal = cab.findIndex((c) => /^Total/.test(c) && /Unid/.test(c));
-    const somaMeses = det.every((l) => iMes.reduce((a, i) => a + Number(l[i] ?? 0), 0) === Number(l[iTotal]));
-    ok(`${m} meses: Excel tem ${iMes.length} colunas de mês (todos, com rótulos completos), ${det.length} linhas de detalhe (=${rows.length}), ${tot.length} «Total artigo» e um só «Total Unid.»`, iMes.length === m && det.length === rows.length && cab.filter((c) => /Unid/.test(c)).length === 1 && cab.filter((c) => c === "Stock").length === 1 && !cab.some((c) => /bloco|Parte/i.test(c)), cab.join("|"));
-    ok(`${m} meses: Excel — valores por linha batem com os dados (soma dos meses = Total Unid.)`, somaMeses);
-  }
-
-  // ── G. e-mail e endpoint: o mesmo pipeline ──
-  console.log("\n=== G. PDF do e-mail e do endpoint: o mesmo gerador (papel A3 incluído) ===");
-  {
-    const email = src("app/api/reports/email/route.ts"), pdfRoute = src("app/api/reports/pdf/route.ts"), servidor = src("lib/reporting/report-pdf-server.ts"), imp = src("lib/reporting/report-print.ts");
-    ok("o e-mail anexa o PDF de buildReportPdfBuffer (o mesmo do endpoint /api/reports/pdf)", /buildReportPdfBuffer\(report\)/.test(email) && /buildReportPdfBuffer\(/.test(pdfRoute));
-    ok("buildReportPdfBuffer usa as opções de pdf-opcoes.ts (formato A4/A3 de meta.paperSize, margens, preferCSSPageSize)", /opcoesPdfDoRelatorio\(report\)/.test(servidor));
-    const rel = relatorio(dados({ artigos: 5, meses: 14, nFarm: 2 }), 14, 2);
-    const o = opcoesPdfDoRelatorio(rel);
-    ok(`pdf-opcoes: formato ${o.format}, landscape, preferCSSPageSize, margens ${o.margin.left}/${o.margin.top}`, o.format === rel.meta!.paperSize && o.landscape && o.preferCSSPageSize && o.margin.left === `${rel.meta!.pageMarginMm}mm`);
-    ok("a impressão do browser: o iframe tem o tamanho do papel do relatório (A3 → 420×297 mm) e o @page pede o mesmo papel", /PAPEL_HORIZONTAL_MM\[papel\]/.test(imp) && /width:\$\{dim\.largura\}mm/.test(imp));
-    const rel2 = relatorio(dados({ artigos: 5, meses: 3, nFarm: 2 }), 3, 2);
-    ok("outros relatórios sem paperSize continuam A4 (o PDF/impressão de Margens, Inventário… não mudam)", opcoesPdfDoRelatorio({ ...rel2, meta: { ...rel2.meta!, paperSize: undefined, pageMarginMm: undefined } }).format === "A4" && !/size: A3/.test(renderReportHtml({ ...rel2, meta: { ...rel2.meta!, paperSize: undefined } })));
-  }
-
-  // ── H. separadores: meses (verticais) e 2px entre artigos, em A4 e A3 (1.ª e última página) ──
-  console.log("\n=== H. Separadores verticais dos meses e filete de 2px entre artigos (PDFs A4 e A3; 1.ª e última páginas) ===");
-  for (const p of profundos) {
-    const f2 = path.join(dir, `rec-${path.basename(p.pdf)}`);
-    spawnSync("python", [path.resolve("scripts/e2e/_recortar_pdf.py"), p.pdf, f2, "1", "-1"], { encoding: "utf8" });
-    // em A3 o Python puro é lento: renderiza-se a 100 dpi (o filete de 0,75 pt continua a ver-se; a espessura mede-se por integral de escuridão)
-    const dpi = p.rel.meta!.paperSize === "A3" ? 100 : undefined;
-    const m = medirMeses(f2, () => p.n, dpi);
-    ok(`${p.tag} (${p.rel.meta!.paperSize}): ${p.n + 1} filetes de mês contínuos do cabeçalho ao fim, cada mês entre dois filetes, nada cortado (${m.nLimites.join("/")} em ${m.nPaginas} pág.)`, m.falhas.length === 0 && m.nLimites.length === m.nPaginas, m.falhas.slice(0, 3).join(" | "));
-    ok(`${p.tag}: filete de mês ${m.minLargura.toFixed(2)}–${m.maxLargura.toFixed(2)} pt (≤ 0,95, o de 1px CSS) e mais fino do que o separador de 2px entre artigos`, m.maxLargura > 0 && m.minLargura >= 0.45 && m.maxLargura <= 0.95);
-    const seps = separadoresDe(f2, dpi);
-    const grossos = seps.flatMap((s) => s.separadores.filter((x) => x.espessura >= 1.2 && x.cinzento >= 110 && x.cinzento <= 180));
-    ok(`${p.tag}: separador de 2px entre artigos presente (${grossos.length} nas 2 páginas medidas, espessura ${grossos.length ? Math.min(...grossos.map((x) => x.espessura)).toFixed(2) : "—"}–${grossos.length ? Math.max(...grossos.map((x) => x.espessura)).toFixed(2) : "—"} pt ≈ 1,5)`, grossos.length >= 3 && grossos.every((x) => x.espessura >= 1.2 && x.espessura <= 2.4));
-  }
-
-  await browser.close();
-  apagarPasta(dir);
-  console.log(`\n${failed === 0 ? "PASSOU" : "FALHOU"} — ${passed} OK, ${failed} falhas`);
-  process.exit(failed === 0 ? 0 : 1);
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// E. Excel idêntico ao de a012428
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+function excelIdentico() {
+  console.log("\n=== E. Excel idêntico ao de a012428 (todas as células, tipos, formatos, larguras, fusões, filtro) ===");
+  if (!existsSync(A012428)) { console.log(`  [SALTADO] worktree a012428 não encontrado em ${A012428} (defina A012428_ROOT)`); return; }
+  const tmp = path.join(tmpdir(), `excel-${process.pid}`);
+  const dump = (root: string, out: string) => spawnSync("npx", ["tsx", path.resolve("scripts/tests/_excel-dump.ts")], { cwd: root, env: { ...process.env, ROOT: root, OUT: out, DADOS: path.resolve("scripts/tests/_cliente-real.ts") }, encoding: "utf8", shell: true });
+  const a = dump(A012428, `${tmp}-antes.json`), b = dump(process.cwd(), `${tmp}-depois.json`);
+  if (a.status !== 0 || b.status !== 0) { ok("Excel: despejo das duas árvores", false, `${a.stderr}${b.stderr}`.slice(0, 300)); return; }
+  const antes = JSON.parse(readFileSync(`${tmp}-antes.json`, "utf8")), depois = JSON.parse(readFileSync(`${tmp}-depois.json`, "utf8"));
+  for (const nome of Object.keys(antes)) {
+    const ca = antes[nome], cb = depois[nome];
+    const difs = [...new Set([...Object.keys(ca.celulas), ...Object.keys(cb.celulas)])].filter((k) => JSON.stringify(ca.celulas[k]) !== JSON.stringify(cb.celulas[k]));
+    const outros = ["ref", "cols", "merges", "autofilter", "folhas"].filter((k) => JSON.stringify(ca[k]) !== JSON.stringify(cb[k]));
+    ok(`Excel «${nome}»: ${Object.keys(ca.celulas).length} células idênticas (valores, tipos, formatos, TOTAL GERAL), larguras, fusões e filtro`, difs.length === 0 && outros.length === 0, `${difs.length} células ≠ (${difs.slice(0, 3).map((k) => `${k}: ${JSON.stringify(ca.celulas[k])} → ${JSON.stringify(cb.celulas[k])}`).join("; ")}); campos ≠: ${outros.join(",")}`);
+  }
+  for (const f of readdirSync(tmpdir()).filter((x) => x.startsWith(`excel-${process.pid}`))) { try { statSync(path.join(tmpdir(), f)); writeFileSync(path.join(tmpdir(), f), ""); } catch { /* ignora */ } }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// F. período que não cabe em A4 legível: mensagem, nunca PDF truncado; Excel completo
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+function excesso() {
+  console.log("\n=== F. 24 e 27 meses: mensagem em vez de PDF/impressão/pré-visualização; Excel completo ===");
+  for (const n of [24, 27]) {
+    for (const [v, c] of COMBOS) {
+      const r = relatorioCliente({ meses: n, artigos: 40, venda: v, compra: c });
+      const cp = capacidadeDoRelatorio(r);
+      const esperado = `O período de ${n} meses não cabe numa página A4 legível (máximo ${cp.mesesMax} meses com estas opções). Reduza o período, retire preços ou use o Excel.`;
+      const b = bloqueadoPorA4(r);
+      const html = corpoDe(renderReportHtml(r));
+      ok(`${n} meses (${nomeCombo(v, c)}): bloqueado com a mensagem «${esperado.slice(0, 60)}…» (máx. ${cp.mesesMax})`, !cp.cabe && b !== null && b.mensagem === esperado && cp.mesesMax < n);
+      ok(`${n} meses (${nomeCombo(v, c)}): a pré-visualização/impressão/PDF mostram só a mensagem — sem tabela truncada`, html.includes(esperado) && !/<table/.test(html) && /data-testid="relatorio-nao-cabe-a4"/.test(html));
+      // Excel completo e inalterado
+      const wb = buildReportWorkbook(r);
+      const linhas = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets["Relatório"], { header: 1 });
+      const iH = linhas.findIndex((l) => l[0] === "CNP");
+      const cab = (linhas[iH] as string[]).map((h) => String(h).replace(/\s+/g, " "));
+      const mesesCab = cab.filter((h) => /^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez) \d\d$/.test(h));
+      const totalRow = linhas[linhas.length - 1] as (string | number)[];
+      const iTot = cab.findIndex((h) => /Total unid\./.test(h));
+      const somaDet = r.rows.filter((x) => x.tipoLinha === "Detalhe").reduce((a, x) => a + Number(x.totalVendas), 0);
+      ok(`${n} meses (${nomeCombo(v, c)}): o Excel tem os ${n} meses, os preços conforme as opções e o TOTAL GERAL (${somaDet} unidades)`, mesesCab.length === n && totalRow[0] === "TOTAL GERAL" && Number(totalRow[iTot]) === somaDet && (v === cab.includes("PVP")) && (c === cab.includes("Custo unit. est.")));
+    }
+  }
+  // o limite coincide entre capacidade, relatório e mensagem; 14 meses nunca é bloqueado
+  ok("14 meses nunca são bloqueados (todas as combinações, dados do cliente)", COMBOS.every(([v, c]) => bloqueadoPorA4(relatorioCliente({ meses: 14, artigos: 60, venda: v, compra: c })) === null));
+  // relatórios que não pedem legibilidade A4 nunca são bloqueados
+  const outro = { ...relatorioCliente({ meses: 27, artigos: 5 }) };
+  outro.meta = { ...outro.meta, legibilidadeA4: false };
+  ok("só os relatórios que declaram `legibilidadeA4` são verificados (os outros nunca são bloqueados)", bloqueadoPorA4(outro) === null);
+}
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// G. rotas HTTP reais (POST /api/reports/pdf e /api/reports/email → 422)
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+function rotas() {
+  console.log("\n=== G. rotas HTTP: 422 com a mesma mensagem; PDF A4 quando cabe ===");
+  const r = spawnSync("npx", ["tsx", path.resolve("scripts/tests/_rotas-pdf.ts")], { encoding: "utf8", shell: true, maxBuffer: 64 * 1024 * 1024, timeout: 240000 });
+  const linhas = (r.stdout ?? "").split("\n").filter((l) => l.startsWith("ROTA "));
+  if (r.status !== 0 && linhas.length === 0) { ok("rotas HTTP executadas", false, `${r.stderr}`.slice(0, 400)); return; }
+  for (const l of linhas) { const [, estado, ...resto] = l.split("|"); ok(resto.join("|").trim(), estado === "OK"); }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// H. outros relatórios (Margens, genérico) com o HTML idêntico ao de a012428; J. código sem A3/blocos
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+function outrosRelatorios() {
+  console.log("\n=== H. outros relatórios: o HTML não mudou ===");
+  if (!existsSync(A012428)) { console.log("  [SALTADO] worktree a012428 não encontrado"); return; }
+  const tmp = path.join(tmpdir(), `html-${process.pid}`);
+  const dump = (root: string, out: string) => spawnSync("npx", ["tsx", path.resolve("scripts/tests/_html-dump.ts")], { cwd: root, env: { ...process.env, ROOT: root, OUT: out }, encoding: "utf8", shell: true });
+  const a = dump(A012428, `${tmp}-a.json`), b = dump(process.cwd(), `${tmp}-b.json`);
+  if (a.status !== 0 || b.status !== 0) { ok("HTML dos outros relatórios: despejo", false, `${a.stderr}${b.stderr}`.slice(0, 300)); return; }
+  const A = JSON.parse(readFileSync(`${tmp}-a.json`, "utf8")), B = JSON.parse(readFileSync(`${tmp}-b.json`, "utf8"));
+  for (const k of Object.keys(A)) {
+    ok(`HTML «${k}»: o corpo do documento (${A[k].corpo.length} caracteres) é byte a byte igual ao de a012428`, A[k].corpo === B[k].corpo);
+    ok(`HTML «${k}»: as regras de CSS que não são do Mapa de Vendas (${A[k].css.split("\n").length} regras) são exatamente as de a012428`, A[k].css === B[k].css);
+  }
+}
+
+function codigo() {
+  console.log("\n=== J. código: sem A3, sem blocos, sem escala ===");
+  const ficheiros = ["lib/reporting/layout-largura.ts", "lib/reporting/layout-vendas.ts", "lib/reporting/pdf-opcoes.ts", "lib/reporting/report-html.ts", "lib/reporting/report-types.ts", "lib/reporting/report-print.ts", "lib/reporting/adapters/vendas.ts", "lib/reporting/report-pdf-server.ts"];
+  const todo = ficheiros.map((f) => src(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")).join("\n"); // sem comentários
+  ok("sem papel A3, `paperSize`, `contentZoom`, `compactMonths`, `columnBlocks`, `decidirLayout`, `repartirMeses` no código", !/A3|paperSize|contentZoom|compactMonths|columnBlocks|decidirLayout|repartirMeses|bloco-temporal/.test(todo));
+  ok("o relatório de Vendas não usa `zoom` nem reduz a letra (sem font-size < 8pt na tabela limpa)", !/hierarchy-clean[^{]*\{[^}]*font-size: (7|6)(\.\d+)?(px|pt)/.test(todo));
+}
+
+(async () => {
+  await main();
+  excelIdentico();
+  excesso();
+  rotas();
+  outrosRelatorios();
+  codigo();
+  console.log("\n=== Resumo das medidas (pt) ===");
+  for (const m of resumoMetricas) console.log(`  ${m.nome}: ${m.paginas} pág.; letra mín. ${m.fonteMin.toFixed(2)}; meses ${m.fonteMes.toFixed(2)}; CNP ${m.cnp.toFixed(2)}; Descrição ${m.desc.toFixed(2)}`);
+  console.log(`\n${passed} passaram, ${failed} falharam`);
+  process.exit(failed > 0 ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
