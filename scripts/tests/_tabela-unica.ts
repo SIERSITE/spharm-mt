@@ -92,13 +92,16 @@ export const apagarPasta = (d: string) => { try { rmSync(d, { recursive: true, f
  * (`Navigation timeout of 30000 ms exceeded` em `setContent`) falhava quando a máquina estava carregada — p.ex. logo a seguir a um `next build`,
  * com o disco quase cheio — e fazia o teste sair com rc=1 sem chegar ao resumo (causa do falhanço em lote, ver notes/vendas-tabela-unica.md).
  */
+/** 180 s por omissão; `PUPPETEER_TIMEOUT_MS=30000` repõe o valor do puppeteer (para reproduzir o falhanço em lote sob carga). */
+const TIMEOUT_MS = Number(process.env.PUPPETEER_TIMEOUT_MS ?? 180_000);
+
 export async function abrirBrowser(): Promise<Browser> {
   const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], protocolTimeout: 600_000 });
   const novaPagina = browser.newPage.bind(browser);
   browser.newPage = async (...a: Parameters<Browser["newPage"]>) => {
     const page = await novaPagina(...a);
-    page.setDefaultNavigationTimeout(180_000);
-    page.setDefaultTimeout(180_000);
+    page.setDefaultNavigationTimeout(TIMEOUT_MS);
+    page.setDefaultTimeout(TIMEOUT_MS);
     return page;
   };
   return browser;
@@ -109,7 +112,7 @@ export async function pdfDe(browser: Browser, rel: Report, ficheiro: string): Pr
   const page = await browser.newPage();
   try {
     await page.emulateMediaType("print");
-    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
+    await page.setContent(renderReportHtml(rel), { waitUntil: "load", timeout: TIMEOUT_MS });
     writeFileSync(ficheiro, await page.pdf(opcoesPdfDoRelatorio(rel)));
     return ficheiro;
   } finally { await page.close(); }
@@ -122,7 +125,7 @@ export async function pdfImpressao(browser: Browser, rel: Report, ficheiro: stri
     // o iframe de report-print.ts tem o tamanho real do papel (A4 horizontal); a viewport reproduz-o
     await page.setViewport({ width: Math.round(297 * 96 / 25.4), height: Math.round(210 * 96 / 25.4) });
     await page.emulateMediaType("print");
-    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
+    await page.setContent(renderReportHtml(rel), { waitUntil: "load", timeout: TIMEOUT_MS });
     // a impressão do browser respeita o @page (preferCSSPageSize), sem margens nem cabeçalhos do servidor
     writeFileSync(ficheiro, await page.pdf({ printBackground: true, preferCSSPageSize: true }));
     return ficheiro;
@@ -149,7 +152,7 @@ export async function medirDom(browser: Browser, rel: Report): Promise<MedicaoDo
     // a largura de layout em impressão é a ÁREA ÚTIL da página (297 mm − 2 × margem de 6 mm), não a do papel
     await page.setViewport({ width: Math.round((297 - 2 * 6) * 96 / 25.4), height: Math.round(190 * 96 / 25.4) });
     await page.emulateMediaType("print");
-    await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0", timeout: 180000 });
+    await page.setContent(renderReportHtml(rel), { waitUntil: "load", timeout: TIMEOUT_MS });
     await page.evaluate("window.__name = (f) => f"); // o esbuild do tsx injeta __name nas funções serializadas
     return await page.evaluate(() => {
       const t = document.querySelector("table") as HTMLElement | null;

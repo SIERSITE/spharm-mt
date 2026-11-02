@@ -121,3 +121,13 @@ Testes antigos alterados (afirmavam o desenho anterior; comentário «2026-11»)
    `vendas-mapa-visual-browser.ts`, `vendas-opcoes-browser.ts`, `vendas-separador-browser.ts`, `vendas-separadores-meses-browser.ts`.
 3. Abrir um PDF real de 14 meses da farmácia e imprimir em A4 sem ampliação.
 4. Worktree temporário usado para a comparação: `C:\projetos\_clean\tmpB` (removido no fim).
+
+## 9. Falhanço em lote do `test-vendas-tabela-unica` (rc=1, sem resumo «N passaram, M falharam») — causa provada
+**Causa**: o `page.setContent(..., { waitUntil: "networkidle0" })` do puppeteer tem **30 s de timeout por omissão**; o primeiro PDF (326 artigos × 14 meses, ~35 páginas) é a operação mais pesada do teste.
+Com a máquina carregada (logo a seguir a um `next build`, processos a competir, disco quase cheio) o Chromium não responde a tempo e o teste morre com
+`TimeoutError: Navigation timeout of 30000 ms exceeded` → o `catch` final imprimia só a pilha e saía com rc=1, **sem a linha de resumo** (e o `grep` do lote procura «N passaram, M falharam»).
+**Reprodução** (mesmo código, só o timeout/espera mudam; carga = 2 threads a 100 % por núcleo): `PUPPETEER_TIMEOUT_MS=30000 TABELA_UNICA_RAPIDO=1 npx tsx scripts/tests/test-vendas-tabela-unica.ts` →
+`TimeoutError: Navigation timeout of 30000 ms exceeded` na 1.ª cena C1, **rc=1**, sem resumo. Também observado 2× durante o desenvolvimento (outros testes que usam `puppeteer.launch` direto têm o mesmo risco latente).
+**Correção** (no teste): `abrirBrowser()` fixa timeouts de 180 s em todas as páginas (`PUPPETEER_TIMEOUT_MS` para repor/ajustar), `setContent` espera `load` (não há rede; `networkidle0` só acrescentava a espera de 500 ms de inatividade), e o `catch` final imprime sempre
+«N passaram, M falharam (ABORTADO: …)». **Prova**: sob a mesma carga o teste passa (161 passaram, 0 falharam, rc=0); no clone `vt`, logo a seguir a `next build`, o comando de lote completo (21 testes) correu **2 vezes seguidas com 42/42 rc=0**
+(`test-vendas-tabela-unica` 203 passaram em ambas); isoladamente também passa.

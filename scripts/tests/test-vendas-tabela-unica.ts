@@ -492,4 +492,9 @@ function codigo() {
   for (const m of resumoMetricas) console.log(`  ${m.nome}: ${m.paginas} pág.; letra mín. ${m.fonteMin.toFixed(2)}; meses ${m.fonteMes.toFixed(2)}; CNP ${m.cnp.toFixed(2)}; Descrição ${m.desc.toFixed(2)}`);
   console.log(`\n${passed} passaram, ${failed} falharam`);
   process.exit(failed > 0 ? 1 : 0);
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  // Falhanço no meio (p.ex. timeout do Chromium): imprime SEMPRE o resumo «N passaram, M falharam» para o lote o apanhar (antes só saía a pilha e rc=1).
+  console.error(e);
+  console.log(`\n${passed} passaram, ${failed + 1} falharam (ABORTADO: ${e instanceof Error ? e.message.split("\n")[0] : String(e)})`);
+  process.exit(1);
+});
