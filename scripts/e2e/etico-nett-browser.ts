@@ -64,6 +64,7 @@ async function abrirFiltros(page: Page) {
 }
 const textoPagina = (page: Page) => page.locator("main, body").first().innerText();
 const tem = (txt: string, cnp: string) => txt.includes(cnp);
+const compacto = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "");
 
 async function main() {
   fs.mkdirSync(EVID, { recursive: true });
@@ -154,11 +155,17 @@ async function main() {
     check(tem(tx, E) && !tem(tx, A) && !tem(tx, B) && !tem(tx, C) && !tem(tx, D), "SEM CLASSIFICAÇÃO: E (sem classificação em nenhuma farmácia)");
     await opcao(page, RE_SEM).click();
     // âmbito: só a farmácia Alfa → A passa a ser ÉTICO (a divergência de Beta está fora do âmbito)
-    await page.getByPlaceholder("Pesquisar farmácia...").first().fill("Alfa");
-    await page.getByRole("button", { name: /^Farmacia Alfa/ }).first().click();
+    // O filtro de farmácia arranca com as três seleccionadas: desligar Beta e Gama deixa só a Alfa.
+    for (const f of ["Beta", "Gama"]) {
+      await page.getByPlaceholder("Pesquisar farmácia...").first().fill(f);
+      await page.getByRole("button", { name: new RegExp(`^Farmacia ${f}`) }).first().click();
+    }
+    await page.getByPlaceholder("Pesquisar farmácia...").first().fill("");
     await opcao(page, RE_ETICO).click();
     await gerarVendas();
     tx = await tabelaVendas();
+    await page.screenshot({ path: path.join(EVID, "vendas-alfa-debug.png"), fullPage: true });
+    console.log("   chips:", (await page.locator("span.rounded-full").allInnerTexts()).join(" | "));
     check(tem(tx, A) && tem(tx, B) && !tem(tx, C), "âmbito só Alfa: ÉTICO = A e B (a divergência de A é com a Beta, fora do âmbito)", tx.slice(0, 300).replace(/\s+/g, " "));
     // PDF e Excel com a linha
     const pdfV = await pdfReal(page, ctx, EVID, "vendas-etico.pdf");
@@ -280,15 +287,15 @@ async function main() {
       await opcao(page, RE_ETICO).click();
       await page.getByRole("button", { name: /Gerar proposta/i }).first().click().catch(() => undefined);
       await page.waitForTimeout(3500);
-      const tp = await textoPagina(page);
-      const cartoes = tp.replace(/\s+/g, " ");
-      check(/A COMPRAR 0/i.test(cartoes) && /ADEQUADO 2/i.test(cartoes), "proposta da Alfa com ÉTICO: 2 artigos (A e B — a classificação é a DA Alfa, onde A é Ético; C é NETT e E não tem)", cartoes.slice(0, 400));
+      const tp = await page.locator("body").innerText();
+      const cartoes = tp.replace(/[\s ​]+/g, " ");
+      check(/A COMPRAR 0/i.test(cartoes) && /ADEQUADO 2/i.test(cartoes), "proposta da Alfa com ÉTICO: 2 artigos (A e B — a classificação é a DA Alfa, onde A é Ético; C é NETT e E não tem)", cartoes.slice(Math.max(0, cartoes.search(/COMPRAR/i) - 40)).slice(0, 300));
       await opcao(page, RE_ETICO).click();
       await opcao(page, RE_NETT).click();
       await page.getByRole("button", { name: /Gerar nova proposta|Gerar proposta/i }).first().click();
       await page.waitForTimeout(3500);
-      const tn = (await textoPagina(page)).replace(/\s+/g, " ");
-      check(/ADEQUADO 0/i.test(tn) && /A COMPRAR 0/i.test(tn), "…com NETT a proposta da Alfa não tem A nem B (só C, sem vendas)", tn.slice(0, 400));
+      const tn = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      check(/ADEQUADO0/i.test(compacto(tn)) && /ACOMPRAR0/i.test(compacto(tn)), "…com NETT a proposta da Alfa não tem A nem B (só C, sem vendas)", tn.slice(Math.max(0, tn.search(/COMPRAR/i) - 40)).slice(0, 300));
       await page.screenshot({ path: path.join(EVID, "encomenda-nova.png") });
     }
 
