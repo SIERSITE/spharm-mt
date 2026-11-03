@@ -583,6 +583,13 @@ export type DecimalNullableFilter<$PrismaModel = never> = {
   not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
+export type EnumClassificacaoEticoNettNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.ClassificacaoEticoNett | Prisma.EnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel> | $Enums.ClassificacaoEticoNett | null
+}
+
 export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
   equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null
   in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null
@@ -597,6 +604,16 @@ export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
   _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
   _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
   _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
+}
+
+export type EnumClassificacaoEticoNettNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ClassificacaoEticoNett | Prisma.EnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumClassificacaoEticoNettNullableWithAggregatesFilter<$PrismaModel> | $Enums.ClassificacaoEticoNett | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel>
 }
 
 export type EnumTipoVendaNullableFilter<$PrismaModel = never> = {
@@ -1485,6 +1502,13 @@ export type NestedDecimalNullableFilter<$PrismaModel = never> = {
   not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
+export type NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.ClassificacaoEticoNett | Prisma.EnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel> | $Enums.ClassificacaoEticoNett | null
+}
+
 export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
   equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null
   in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null
@@ -1499,6 +1523,16 @@ export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
   _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
   _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
   _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>
+}
+
+export type NestedEnumClassificacaoEticoNettNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ClassificacaoEticoNett | Prisma.EnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ClassificacaoEticoNett[] | Prisma.ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumClassificacaoEticoNettNullableWithAggregatesFilter<$PrismaModel> | $Enums.ClassificacaoEticoNett | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumClassificacaoEticoNettNullableFilter<$PrismaModel>
 }
 
 export type NestedEnumTipoVendaNullableFilter<$PrismaModel = never> = {

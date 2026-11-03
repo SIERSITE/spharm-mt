@@ -23,6 +23,14 @@ enum EntidadeEstado {
   INATIVO
 }
 
+/// Classificação ERP «Éticos / NETT» — POR FARMÁCIA (ProdutoFarmacia.eticoNett).
+/// Só estes dois valores existem de propósito: Serviço, Sacos, Outros e qualquer
+/// categoria desconhecida do lookup `dbo.Etico_NETT` do ERP não são importados.
+enum ClassificacaoEticoNett {
+  ETICO
+  NETT
+}
+
 enum ProdutoEstado {
   NOVO
   PENDENTE
@@ -1562,6 +1570,20 @@ model ProdutoFarmacia {
   /// Só preenchido quando uma mudança real (baseline≠actual) foi aplicada.
   fabricanteErpChangedAt   DateTime?
 
+  // ── Classificação ERP Ético / NETT, por farmácia ────────────────────
+  // Origem = `dbo.Stocks.Etico_NETT` resolvido pelo lookup `dbo.Etico_NETT` DESSA farmácia, por descrição
+  // normalizada (os códigos podem diferir entre instalações). Agents que não enviam o campo (≤ rev98) não
+  // tocam nestas colunas. NULL = sem classificação conhecida (nunca «apagar»).
+  eticoNett               ClassificacaoEticoNett?
+  /// Código numérico original no ERP desta farmácia (diagnóstico; NÃO é chave de decisão).
+  eticoNettCodigoErp      Int?
+  /// Descrição original no lookup do ERP desta farmácia (diagnóstico).
+  eticoNettDescricaoErp   String?
+  /// Última vez que o agent observou esta classificação no ERP.
+  eticoNettObservadoEm    DateTime?
+  /// true ⇒ classificação feita à mão: a sincronização automática nunca a substitui.
+  eticoNettManual         Boolean  @default(false)
+
   dataAtualizacao DateTime @updatedAt
   dataCriacao     DateTime @default(now())
 
@@ -1578,6 +1600,7 @@ model ProdutoFarmacia {
   // Suporta filtragem rápida em buckets "Por taxa IVA" no relatório
   // Inventário (4 buckets canónicos: 6/13/23/null).
   @@index([taxaIvaPercent])
+  @@index([eticoNett])
 }
 
 //////////////////////////////////////////////////////

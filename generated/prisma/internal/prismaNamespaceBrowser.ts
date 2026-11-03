@@ -669,6 +669,11 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   fabricanteErpFirstSeenAt: 'fabricanteErpFirstSeenAt',
   fabricanteErpLastSeenAt: 'fabricanteErpLastSeenAt',
   fabricanteErpChangedAt: 'fabricanteErpChangedAt',
+  eticoNett: 'eticoNett',
+  eticoNettCodigoErp: 'eticoNettCodigoErp',
+  eticoNettDescricaoErp: 'eticoNettDescricaoErp',
+  eticoNettObservadoEm: 'eticoNettObservadoEm',
+  eticoNettManual: 'eticoNettManual',
   dataAtualizacao: 'dataAtualizacao',
   dataCriacao: 'dataCriacao'
 } as const

@@ -27,6 +27,14 @@ export const EntidadeEstado = {
 export type EntidadeEstado = (typeof EntidadeEstado)[keyof typeof EntidadeEstado]
 
 
+export const ClassificacaoEticoNett = {
+  ETICO: 'ETICO',
+  NETT: 'NETT'
+} as const
+
+export type ClassificacaoEticoNett = (typeof ClassificacaoEticoNett)[keyof typeof ClassificacaoEticoNett]
+
+
 export const ProdutoEstado = {
   NOVO: 'NOVO',
   PENDENTE: 'PENDENTE',

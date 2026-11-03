@@ -39,6 +39,7 @@ export type ProdutoFarmaciaAvgAggregateOutputType = {
   stockReserva: runtime.Decimal | null
   fornecedorExternalId: number | null
   taxaIvaPercent: number | null
+  eticoNettCodigoErp: number | null
 }
 
 export type ProdutoFarmaciaSumAggregateOutputType = {
@@ -54,6 +55,7 @@ export type ProdutoFarmaciaSumAggregateOutputType = {
   stockReserva: runtime.Decimal | null
   fornecedorExternalId: number | null
   taxaIvaPercent: number | null
+  eticoNettCodigoErp: number | null
 }
 
 export type ProdutoFarmaciaMinAggregateOutputType = {
@@ -90,6 +92,11 @@ export type ProdutoFarmaciaMinAggregateOutputType = {
   fabricanteErpFirstSeenAt: Date | null
   fabricanteErpLastSeenAt: Date | null
   fabricanteErpChangedAt: Date | null
+  eticoNett: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp: number | null
+  eticoNettDescricaoErp: string | null
+  eticoNettObservadoEm: Date | null
+  eticoNettManual: boolean | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -128,6 +135,11 @@ export type ProdutoFarmaciaMaxAggregateOutputType = {
   fabricanteErpFirstSeenAt: Date | null
   fabricanteErpLastSeenAt: Date | null
   fabricanteErpChangedAt: Date | null
+  eticoNett: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp: number | null
+  eticoNettDescricaoErp: string | null
+  eticoNettObservadoEm: Date | null
+  eticoNettManual: boolean | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -166,6 +178,11 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
   fabricanteErpFirstSeenAt: number
   fabricanteErpLastSeenAt: number
   fabricanteErpChangedAt: number
+  eticoNett: number
+  eticoNettCodigoErp: number
+  eticoNettDescricaoErp: number
+  eticoNettObservadoEm: number
+  eticoNettManual: number
   dataAtualizacao: number
   dataCriacao: number
   _all: number
@@ -185,6 +202,7 @@ export type ProdutoFarmaciaAvgAggregateInputType = {
   stockReserva?: true
   fornecedorExternalId?: true
   taxaIvaPercent?: true
+  eticoNettCodigoErp?: true
 }
 
 export type ProdutoFarmaciaSumAggregateInputType = {
@@ -200,6 +218,7 @@ export type ProdutoFarmaciaSumAggregateInputType = {
   stockReserva?: true
   fornecedorExternalId?: true
   taxaIvaPercent?: true
+  eticoNettCodigoErp?: true
 }
 
 export type ProdutoFarmaciaMinAggregateInputType = {
@@ -236,6 +255,11 @@ export type ProdutoFarmaciaMinAggregateInputType = {
   fabricanteErpFirstSeenAt?: true
   fabricanteErpLastSeenAt?: true
   fabricanteErpChangedAt?: true
+  eticoNett?: true
+  eticoNettCodigoErp?: true
+  eticoNettDescricaoErp?: true
+  eticoNettObservadoEm?: true
+  eticoNettManual?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -274,6 +298,11 @@ export type ProdutoFarmaciaMaxAggregateInputType = {
   fabricanteErpFirstSeenAt?: true
   fabricanteErpLastSeenAt?: true
   fabricanteErpChangedAt?: true
+  eticoNett?: true
+  eticoNettCodigoErp?: true
+  eticoNettDescricaoErp?: true
+  eticoNettObservadoEm?: true
+  eticoNettManual?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -312,6 +341,11 @@ export type ProdutoFarmaciaCountAggregateInputType = {
   fabricanteErpFirstSeenAt?: true
   fabricanteErpLastSeenAt?: true
   fabricanteErpChangedAt?: true
+  eticoNett?: true
+  eticoNettCodigoErp?: true
+  eticoNettDescricaoErp?: true
+  eticoNettObservadoEm?: true
+  eticoNettManual?: true
   dataAtualizacao?: true
   dataCriacao?: true
   _all?: true
@@ -437,6 +471,11 @@ export type ProdutoFarmaciaGroupByOutputType = {
   fabricanteErpFirstSeenAt: Date | null
   fabricanteErpLastSeenAt: Date | null
   fabricanteErpChangedAt: Date | null
+  eticoNett: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp: number | null
+  eticoNettDescricaoErp: string | null
+  eticoNettObservadoEm: Date | null
+  eticoNettManual: boolean
   dataAtualizacao: Date
   dataCriacao: Date
   _count: ProdutoFarmaciaCountAggregateOutputType | null
@@ -498,6 +537,11 @@ export type ProdutoFarmaciaWhereInput = {
   fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNett?: Prisma.EnumClassificacaoEticoNettNullableFilter<"ProdutoFarmacia"> | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
+  eticoNettDescricaoErp?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  eticoNettObservadoEm?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNettManual?: Prisma.BoolFilter<"ProdutoFarmacia"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -539,6 +583,11 @@ export type ProdutoFarmaciaOrderByWithRelationInput = {
   fabricanteErpFirstSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
   fabricanteErpLastSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
   fabricanteErpChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNett?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettDescricaoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettObservadoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettManual?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   produto?: Prisma.ProdutoOrderByWithRelationInput
@@ -584,6 +633,11 @@ export type ProdutoFarmaciaWhereUniqueInput = Prisma.AtLeast<{
   fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNett?: Prisma.EnumClassificacaoEticoNettNullableFilter<"ProdutoFarmacia"> | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
+  eticoNettDescricaoErp?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  eticoNettObservadoEm?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNettManual?: Prisma.BoolFilter<"ProdutoFarmacia"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -625,6 +679,11 @@ export type ProdutoFarmaciaOrderByWithAggregationInput = {
   fabricanteErpFirstSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
   fabricanteErpLastSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
   fabricanteErpChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNett?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettDescricaoErp?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettObservadoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  eticoNettManual?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   _count?: Prisma.ProdutoFarmaciaCountOrderByAggregateInput
@@ -671,6 +730,11 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
   fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpChangedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNett?: Prisma.EnumClassificacaoEticoNettNullableWithAggregatesFilter<"ProdutoFarmacia"> | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.IntNullableWithAggregatesFilter<"ProdutoFarmacia"> | number | null
+  eticoNettDescricaoErp?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
+  eticoNettObservadoEm?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNettManual?: Prisma.BoolWithAggregatesFilter<"ProdutoFarmacia"> | boolean
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -706,6 +770,11 @@ export type ProdutoFarmaciaCreateInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -747,6 +816,11 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -782,6 +856,11 @@ export type ProdutoFarmaciaUpdateInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -823,6 +902,11 @@ export type ProdutoFarmaciaUncheckedUpdateInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -861,6 +945,11 @@ export type ProdutoFarmaciaCreateManyInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -896,6 +985,11 @@ export type ProdutoFarmaciaUpdateManyMutationInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -934,6 +1028,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -987,6 +1086,11 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
   fabricanteErpFirstSeenAt?: Prisma.SortOrder
   fabricanteErpLastSeenAt?: Prisma.SortOrder
   fabricanteErpChangedAt?: Prisma.SortOrder
+  eticoNett?: Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrder
+  eticoNettDescricaoErp?: Prisma.SortOrder
+  eticoNettObservadoEm?: Prisma.SortOrder
+  eticoNettManual?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -1004,6 +1108,7 @@ export type ProdutoFarmaciaAvgOrderByAggregateInput = {
   stockReserva?: Prisma.SortOrder
   fornecedorExternalId?: Prisma.SortOrder
   taxaIvaPercent?: Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrder
 }
 
 export type ProdutoFarmaciaMaxOrderByAggregateInput = {
@@ -1040,6 +1145,11 @@ export type ProdutoFarmaciaMaxOrderByAggregateInput = {
   fabricanteErpFirstSeenAt?: Prisma.SortOrder
   fabricanteErpLastSeenAt?: Prisma.SortOrder
   fabricanteErpChangedAt?: Prisma.SortOrder
+  eticoNett?: Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrder
+  eticoNettDescricaoErp?: Prisma.SortOrder
+  eticoNettObservadoEm?: Prisma.SortOrder
+  eticoNettManual?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -1078,6 +1188,11 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
   fabricanteErpFirstSeenAt?: Prisma.SortOrder
   fabricanteErpLastSeenAt?: Prisma.SortOrder
   fabricanteErpChangedAt?: Prisma.SortOrder
+  eticoNett?: Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrder
+  eticoNettDescricaoErp?: Prisma.SortOrder
+  eticoNettObservadoEm?: Prisma.SortOrder
+  eticoNettManual?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -1095,6 +1210,7 @@ export type ProdutoFarmaciaSumOrderByAggregateInput = {
   stockReserva?: Prisma.SortOrder
   fornecedorExternalId?: Prisma.SortOrder
   taxaIvaPercent?: Prisma.SortOrder
+  eticoNettCodigoErp?: Prisma.SortOrder
 }
 
 export type ProdutoFarmaciaCreateNestedManyWithoutProdutoInput = {
@@ -1231,6 +1347,10 @@ export type NullableDecimalFieldUpdateOperationsInput = {
   divide?: runtime.Decimal | runtime.DecimalJsLike | number | string
 }
 
+export type NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput = {
+  set?: $Enums.ClassificacaoEticoNett | null
+}
+
 export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   id?: string
   externalProductId?: number | null
@@ -1262,6 +1382,11 @@ export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1301,6 +1426,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutProdutoInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1368,6 +1498,11 @@ export type ProdutoFarmaciaScalarWhereInput = {
   fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNett?: Prisma.EnumClassificacaoEticoNettNullableFilter<"ProdutoFarmacia"> | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
+  eticoNettDescricaoErp?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  eticoNettObservadoEm?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  eticoNettManual?: Prisma.BoolFilter<"ProdutoFarmacia"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -1403,6 +1538,11 @@ export type ProdutoFarmaciaCreateWithoutFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1442,6 +1582,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1503,6 +1648,11 @@ export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1542,6 +1692,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1605,6 +1760,11 @@ export type ProdutoFarmaciaCreateManyProdutoInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1640,6 +1800,11 @@ export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1679,6 +1844,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1716,6 +1886,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1753,6 +1928,11 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1788,6 +1968,11 @@ export type ProdutoFarmaciaUpdateWithoutFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1827,6 +2012,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1864,6 +2054,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1901,6 +2096,11 @@ export type ProdutoFarmaciaCreateManyFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Date | string | null
   fabricanteErpLastSeenAt?: Date | string | null
   fabricanteErpChangedAt?: Date | string | null
+  eticoNett?: $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: number | null
+  eticoNettDescricaoErp?: string | null
+  eticoNettObservadoEm?: Date | string | null
+  eticoNettManual?: boolean
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1936,6 +2136,11 @@ export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1975,6 +2180,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -2012,6 +2222,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaInput = {
   fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNett?: Prisma.NullableEnumClassificacaoEticoNettFieldUpdateOperationsInput | $Enums.ClassificacaoEticoNett | null
+  eticoNettCodigoErp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  eticoNettDescricaoErp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  eticoNettObservadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  eticoNettManual?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -2052,6 +2267,11 @@ export type ProdutoFarmaciaSelect<ExtArgs extends runtime.Types.Extensions.Inter
   fabricanteErpFirstSeenAt?: boolean
   fabricanteErpLastSeenAt?: boolean
   fabricanteErpChangedAt?: boolean
+  eticoNett?: boolean
+  eticoNettCodigoErp?: boolean
+  eticoNettDescricaoErp?: boolean
+  eticoNettObservadoEm?: boolean
+  eticoNettManual?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -2093,6 +2313,11 @@ export type ProdutoFarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   fabricanteErpFirstSeenAt?: boolean
   fabricanteErpLastSeenAt?: boolean
   fabricanteErpChangedAt?: boolean
+  eticoNett?: boolean
+  eticoNettCodigoErp?: boolean
+  eticoNettDescricaoErp?: boolean
+  eticoNettObservadoEm?: boolean
+  eticoNettManual?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -2134,6 +2359,11 @@ export type ProdutoFarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   fabricanteErpFirstSeenAt?: boolean
   fabricanteErpLastSeenAt?: boolean
   fabricanteErpChangedAt?: boolean
+  eticoNett?: boolean
+  eticoNettCodigoErp?: boolean
+  eticoNettDescricaoErp?: boolean
+  eticoNettObservadoEm?: boolean
+  eticoNettManual?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -2175,11 +2405,16 @@ export type ProdutoFarmaciaSelectScalar = {
   fabricanteErpFirstSeenAt?: boolean
   fabricanteErpLastSeenAt?: boolean
   fabricanteErpChangedAt?: boolean
+  eticoNett?: boolean
+  eticoNettCodigoErp?: boolean
+  eticoNettDescricaoErp?: boolean
+  eticoNettObservadoEm?: boolean
+  eticoNettManual?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
 }
 
-export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "externalProductId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "stockEncomenda" | "stockReserva" | "fornecedorHabitualId" | "fornecedorExternalId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "taxaIvaPercent" | "taxaIvaSource" | "taxaIvaUpdatedAt" | "fabricanteErpBaseline" | "fabricanteErpAtual" | "fabricanteErpFirstSeenAt" | "fabricanteErpLastSeenAt" | "fabricanteErpChangedAt" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
+export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "externalProductId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "stockEncomenda" | "stockReserva" | "fornecedorHabitualId" | "fornecedorExternalId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "taxaIvaPercent" | "taxaIvaSource" | "taxaIvaUpdatedAt" | "fabricanteErpBaseline" | "fabricanteErpAtual" | "fabricanteErpFirstSeenAt" | "fabricanteErpLastSeenAt" | "fabricanteErpChangedAt" | "eticoNett" | "eticoNettCodigoErp" | "eticoNettDescricaoErp" | "eticoNettObservadoEm" | "eticoNettManual" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
 export type ProdutoFarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -2291,6 +2526,23 @@ export type $ProdutoFarmaciaPayload<ExtArgs extends runtime.Types.Extensions.Int
      * Só preenchido quando uma mudança real (baseline≠actual) foi aplicada.
      */
     fabricanteErpChangedAt: Date | null
+    eticoNett: $Enums.ClassificacaoEticoNett | null
+    /**
+     * Código numérico original no ERP desta farmácia (diagnóstico; NÃO é chave de decisão).
+     */
+    eticoNettCodigoErp: number | null
+    /**
+     * Descrição original no lookup do ERP desta farmácia (diagnóstico).
+     */
+    eticoNettDescricaoErp: string | null
+    /**
+     * Última vez que o agent observou esta classificação no ERP.
+     */
+    eticoNettObservadoEm: Date | null
+    /**
+     * true ⇒ classificação feita à mão: a sincronização automática nunca a substitui.
+     */
+    eticoNettManual: boolean
     dataAtualizacao: Date
     dataCriacao: Date
   }, ExtArgs["result"]["produtoFarmacia"]>
@@ -2752,6 +3004,11 @@ export interface ProdutoFarmaciaFieldRefs {
   readonly fabricanteErpFirstSeenAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly fabricanteErpLastSeenAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly fabricanteErpChangedAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
+  readonly eticoNett: Prisma.FieldRef<"ProdutoFarmacia", 'ClassificacaoEticoNett'>
+  readonly eticoNettCodigoErp: Prisma.FieldRef<"ProdutoFarmacia", 'Int'>
+  readonly eticoNettDescricaoErp: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly eticoNettObservadoEm: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
+  readonly eticoNettManual: Prisma.FieldRef<"ProdutoFarmacia", 'Boolean'>
   readonly dataAtualizacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly dataCriacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
 }

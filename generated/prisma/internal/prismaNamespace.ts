@@ -5852,6 +5852,11 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   fabricanteErpFirstSeenAt: 'fabricanteErpFirstSeenAt',
   fabricanteErpLastSeenAt: 'fabricanteErpLastSeenAt',
   fabricanteErpChangedAt: 'fabricanteErpChangedAt',
+  eticoNett: 'eticoNett',
+  eticoNettCodigoErp: 'eticoNettCodigoErp',
+  eticoNettDescricaoErp: 'eticoNettDescricaoErp',
+  eticoNettObservadoEm: 'eticoNettObservadoEm',
+  eticoNettManual: 'eticoNettManual',
   dataAtualizacao: 'dataAtualizacao',
   dataCriacao: 'dataCriacao'
 } as const
@@ -6849,6 +6854,20 @@ export type EnumTipoManutencaoMassaFieldRefInput<$PrismaModel> = FieldRefInputTy
  * Reference to a field of type 'TipoManutencaoMassa[]'
  */
 export type ListEnumTipoManutencaoMassaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoManutencaoMassa[]'>
+    
+
+
+/**
+ * Reference to a field of type 'ClassificacaoEticoNett'
+ */
+export type EnumClassificacaoEticoNettFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ClassificacaoEticoNett'>
+    
+
+
+/**
+ * Reference to a field of type 'ClassificacaoEticoNett[]'
+ */
+export type ListEnumClassificacaoEticoNettFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ClassificacaoEticoNett[]'>
     
 
 

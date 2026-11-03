@@ -68,6 +68,7 @@ import {
   reconciliarImportacaoComGlobal,
   type ResumoReconciliacao,
 } from "@/lib/catalog/reconciliar-importacao";
+import { aplicarEticoNett, prepararEticoNett, resumoEticoNettVazio, type ResumoEticoNett } from "@/lib/ingest/etico-nett";
 import type { ReconciliacaoGruposLaboratoriaisSummary } from "@/lib/catalog/reconciliar-grupos-laboratoriais-garantia";
 
 export const runtime = "nodejs";
@@ -108,6 +109,14 @@ type ProductPayload = {
   codigoATC: unknown;
   grupoHomogeneo: unknown;
   fabricante: unknown;
+  /**
+   * Agent ≥ rev99 — classificação ERP Ético/NETT desta farmácia. `eticoNett` é "ETICO" | "NETT" | null
+   * (null = observado mas sem categoria Ético/NETT). AUSENTE (agent ≤ rev98) = não toca em nada.
+   * Ver lib/classificacao/etico-nett.ts.
+   */
+  eticoNett?: unknown;
+  eticoNettCodigo?: unknown;
+  eticoNettDescricao?: unknown;
 };
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -202,6 +211,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     codigoATC: string | null;
     grupoHomogeneo: string | null;
     fabricante: string | null;
+    /** Campos de classificação Ético/NETT tal como chegaram (interpretados em lib/ingest/etico-nett.ts). */
+    eticoNettRaw: { eticoNett?: unknown; eticoNettCodigo?: unknown; eticoNettDescricao?: unknown };
   };
 
   // Contagens do enriquecimento a partir do ERP, declaradas aqui para
@@ -218,6 +229,19 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     preservados: Record<string, number>;
   } | null = null;
   let reconciliacaoGlobal: ResumoReconciliacao | null = null;
+  // Classificação Ético/NETT desta farmácia (só agent ≥ rev99). Enriquecimento: nunca falha o ingest.
+  let eticoNettResumo: ResumoEticoNett = resumoEticoNettVazio();
+  const aplicarEticoNettDoLote = async (produtoIdPorCnp: ReadonlyMap<number, string>) => {
+    try {
+      const prep = prepararEticoNett(dedup.map((a) => ({ produtoId: produtoIdPorCnp.get(a.cnp), raw: a.eticoNettRaw })));
+      eticoNettResumo = await aplicarEticoNett(ctx.prisma, farmaciaId, prep.aplicar, prep.resumo);
+      if (eticoNettResumo.candidatos > 0) {
+        console.log(`[bootstrap/products] etico_nett ${JSON.stringify({ tenant: ctx.tenant.slug, farmaciaId, ...eticoNettResumo })}`);
+      }
+    } catch (err) {
+      console.error("[bootstrap/products] classificação Ético/NETT falhou (ingestão continua):", err instanceof Error ? err.message : err);
+    }
+  };
   // Grupo laboratorial pesquisável — exclusivo do tenant garantia (as
   // tabelas nem existem fisicamente nos outros tenants). Nunca escreve
   // Produto/Fabricante, nunca falha o ingest — ver lib/catalog/
@@ -268,6 +292,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       codigoATC: asStringOrNull(raw.codigoATC),
       grupoHomogeneo: asStringOrNull(raw.grupoHomogeneo),
       fabricante: asStringOrNull(raw.fabricante),
+      eticoNettRaw: { eticoNett: raw.eticoNett, eticoNettCodigo: raw.eticoNettCodigo, eticoNettDescricao: raw.eticoNettDescricao },
     });
   }
 
@@ -446,6 +471,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     }
     await bulkUpsertProdutoFarmaciaProducts(ctx.prisma, pfRows);
     upserted = dedup.length;
+    await aplicarEticoNettDoLote(cnpToId);
   } catch (bulkErr) {
     console.warn(
       `[bootstrap/products] bulk_failed_fallback_per_row ${JSON.stringify({
@@ -457,6 +483,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     );
     upserted = 0;
     const produtoIdsFallback: string[] = [];
+    const produtoIdPorCnpFallback = new Map<number, string>();
     for (const a of dedup) {
       try {
         // O caminho de recurso tem de aplicar as MESMAS proteccoes do
@@ -549,6 +576,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         });
         upserted++;
         produtoIdsFallback.push(produto.id);
+        produtoIdPorCnpFallback.set(a.cnp, produto.id);
       } catch (err) {
         if (estatDesignacao) estatDesignacao.erros++;
         errors.push({
@@ -559,6 +587,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         });
       }
     }
+
+    await aplicarEticoNettDoLote(produtoIdPorCnpFallback);
 
     // Mesmo passo do caminho bulk (ver acima) — o caminho de recurso
     // também escreve Produto/ProdutoFarmacia e merece a mesma manutenção.
@@ -637,6 +667,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     produtosAtualizados,
     ...(designacoes ? { designacoes } : {}),
     ...(catalogoErp ? { catalogoErp } : {}),
+    ...(eticoNettResumo.candidatos > 0 ? { eticoNett: eticoNettResumo } : {}),
     ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
     ...(gruposLaboratoriais ? { gruposLaboratoriais } : {}),
   });
