@@ -468,6 +468,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     filtroLab,
     formasSelecionadas,
     eticoNettSelecionados,
+    estadoEticoNettPorProduto,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
     utilizacoesSelecionadas,
