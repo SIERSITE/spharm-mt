@@ -46,11 +46,11 @@ if (base === null) {
 } else {
   const d = diferenca(base, src);
   check(d.menos.length === 0, `B1: o cliente não remove nada do base (${d.menos.length} removidas)`);
-  check(d.mais.length === 2 && d.mais.every((l) => /^formas: (filterOptions|universe)\.formas,$/.test(l)), `B2: as únicas linhas novas são as da forma farmacêutica (${JSON.stringify(d.mais)})`);
+  check(d.mais.length === 3 && d.mais.every((l) => /^(formas: (filterOptions|universe)\.formas|eticoNett: filterOptions\.eticoNett),$/.test(l)), `B2: as únicas linhas novas são as dos filtros de forma farmacêutica e Ético/NETT (${JSON.stringify(d.mais)})`);
   const adap = "lib/reporting/adapters/inventario.ts";
   const da = diferenca(noBase(adap) ?? "", atual(adap));
   check(da.menos.length === 0, "B3: o adapter do Inventário não remove nada do base");
-  check(da.mais.every((l) => /forma|Forma|OpcaoFormaFarmaceutica|^\/\*\*|^\}|^\)|^\{/.test(l) || l === "if (forma) out.push(forma);"), `B4: o adapter só ganha código de forma farmacêutica (${da.mais.length} linhas)`);
+  check(da.mais.every((l) => /forma|Forma|OpcaoFormaFarmaceutica|eticoNett|EticoNett|ETICO_NETT|^\/\*\*|^\}|^\)|^\{/.test(l) || l === "if (forma) out.push(forma);"), `B4: o adapter só ganha código de forma farmacêutica e Ético/NETT (${da.mais.length} linhas)`);
   const data = "lib/inventario-data.ts";
   const dd = diferenca(noBase(data) ?? "", atual(data));
   check(dd.mais.length === 0 && dd.menos.length === 0, "B5: lib/inventario-data.ts idêntico ao base");

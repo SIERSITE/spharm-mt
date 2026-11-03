@@ -376,7 +376,7 @@ async function main() {
     }
     const vendasCli = src("components/vendas/vendas-client.tsx");
     check(/formasFarmaceuticas: formasSelecionadas\.length > 0 \? formasSelecionadas : undefined/.test(vendasCli), "G7: Vendas envia as formas ao servidor em handleGerar");
-    check(/formasSelecionadas,\s*\n\s*fornecedoresSelecionados,\s*\n\s*fabricantesSelecionados|fabricantesSelecionados, formasSelecionadas, categoriasSelecionadas/.test(vendasCli), "G8: Vendas inclui as formas nas dependências do htmlPrevia / relatório");
+    check(/formasSelecionadas,\s*\n\s*fornecedoresSelecionados,\s*\n\s*fabricantesSelecionados|fabricantesSelecionados, formasSelecionadas, (eticoNettSelecionados, )?categoriasSelecionadas/.test(vendasCli), "G8: Vendas inclui as formas nas dependências do htmlPrevia / relatório");
     check(/setFormasSelecionadas\(\[\]\)/.test(vendasCli) && /formasFarmaceuticas: formasSelecionadas,/.test(vendasCli), "G9: Vendas — «Limpar filtros» repõe as formas e o contador de filtros conta o eixo");
     const barra = src("components/reporting/report-filters-bar.tsx");
     check(/FiltroFormaFarmaceutica/.test(barra) && /ChipsFormaFarmaceutica/.test(barra), "G10: a barra partilhada (Margens+Inventário) usa o componente comum");
