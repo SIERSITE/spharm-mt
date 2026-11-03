@@ -6,6 +6,8 @@ import {
 } from "@/generated/prisma/client";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
+import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 
 /**
  * Data loader para a página de listagem de encomendas (/encomendas).
@@ -78,6 +80,12 @@ export type OrderListFilters = {
    * INTEIRA (linhasCount e valorEstimado são os do documento, não só das linhas com a forma).
    */
   formas?: string[];
+  /**
+   * Ético/NETT (`ETICO` | `NETT` | `SEM` | `DIVERGENTE`; união; vazio/omitido = sem filtro). Mesma semântica de documento da
+   * forma: fica a encomenda com PELO MENOS UMA linha cujo produto tem um dos estados CONSOLIDADOS escolhidos. Vai no `where`
+   * do `findMany` e do `count`, antes de `skip`/`take`; a encomenda aparece INTEIRA.
+   */
+  eticoNett?: string[];
   page: number;
   pageSize: number;
 };
@@ -150,6 +158,19 @@ export async function loadOrderListData(
   if (formas.length > 0) {
     const porForma = await wherePrismaPorFormas(prisma, formas);
     if (porForma) where.linhas = { some: { produto: porForma } };
+  }
+
+  // Ético/NETT: produtos no estado consolidado escolhido (uma consulta) -> ids das encomendas que os têm em linhas (uma
+  // consulta, array como UM parâmetro). Vai em `AND` para não colidir com `where.linhas` da forma. Sem selecção: nada.
+  const eticoNett = lerValoresFiltroEticoNett(filters.eticoNett ?? []);
+  if (eticoNett.length > 0) {
+    const produtoIds = (await idsProdutosPorEticoNett(prisma, eticoNett, null)) ?? [];
+    const listas = produtoIds.length
+      ? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT DISTINCT le."listaEncomendaId" AS id FROM "LinhaEncomenda" le WHERE le."produtoId" = ANY(${produtoIds}::text[])
+        `)
+      : [];
+    where.AND = [{ id: { in: listas.map((l) => l.id) } }];
   }
 
   const skip = (page - 1) * pageSize;

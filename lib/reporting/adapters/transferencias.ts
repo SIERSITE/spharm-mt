@@ -14,6 +14,7 @@ import type {
 } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { normalizarLargura } from "../column-widths";
+import { ROTULO_ETICO_NETT, lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { filtroLaboratorioParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
@@ -44,6 +45,8 @@ export type TransferenciasAdapterFilters = {
   categoriasSelecionadas?: string[];
   /** CHAVES de forma farmacêutica (APLICADAS). Vazio/omitido = sem filtro. */
   formasSelecionadas?: string[];
+  /** Ético/NETT (APLICADO): `ETICO` | `NETT` | `SEM` | `DIVERGENTE`. Vazio/omitido = sem filtro. */
+  eticoNettSelecionados?: string[];
   prioridadesSelecionadas?: string[];
   artigo?: string;
   dataInicio?: string;
@@ -149,6 +152,8 @@ function buildFilters(
   }
   const forma = filtroFormaFarmaceuticaLinha(f.formasSelecionadas, universe.formas);
   if (forma) out.push(forma);
+  const eticoNett = lerValoresFiltroEticoNett(f.eticoNettSelecionados ?? []);
+  if (eticoNett.length > 0) out.push({ label: "Ético/NETT", value: eticoNett.map((v) => ROTULO_ETICO_NETT[v]).join(", ") });
   if (f.prioridadesSelecionadas && f.prioridadesSelecionadas.length > 0) {
     out.push({
       label: "Prioridades",

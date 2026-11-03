@@ -7,6 +7,7 @@ import { Ban, Copy, FileText, Search, X } from "lucide-react";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
+import { ChipsEticoNett, FiltroEticoNett, type OpcaoFiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import {
@@ -21,6 +22,8 @@ type Props = {
   filters: OrderListFilters;
   /** Opções do filtro «Forma farmacêutica» (carregadas pela página; a lista já vem filtrada). */
   formasOpcoes: OpcaoFormaFarmaceutica[];
+  /** Opções do filtro «Ético/NETT» (carregadas pela página; a lista já vem filtrada). */
+  eticoNettOpcoes: OpcaoFiltroEticoNett[];
   /** Mesma gate de `deleteListaEncomendaAction` — controla o botão "Eliminar". */
   podeEliminar: boolean;
   /** Mesma gate de `anularListaEncomendaAction` — controla o botão "Anular". */
@@ -69,7 +72,7 @@ const EXPORT_OPTIONS = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-export function OrderListClient({ data, filters, formasOpcoes, podeEliminar, podeAnular }: Props) {
+export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, podeEliminar, podeAnular }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -156,6 +159,21 @@ export function OrderListClient({ data, filters, formasOpcoes, podeEliminar, pod
     });
   }
 
+  // Ético/NETT: parâmetro `eticoNett` REPETIDO na URL, mesma navegação da forma (o servidor refaz filtro + contagem + página).
+  const eticoNettSelecionados = filters.eticoNett ?? [];
+  function toggleEticoNett(valor: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const atuais = params.getAll("eticoNett");
+    params.delete("eticoNett");
+    const proximas = atuais.includes(valor) ? atuais.filter((c) => c !== valor) : [...atuais, valor];
+    for (const c of proximas) params.append("eticoNett", c);
+    params.delete("page");
+    const qs = params.toString();
+    startNavigate(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    });
+  }
+
   function commitSearch() {
     const v = searchInput.trim();
     if (v === (filters.search ?? "")) return;
@@ -176,7 +194,8 @@ export function OrderListClient({ data, filters, formasOpcoes, podeEliminar, pod
     !!filters.search ||
     !!filters.dateFrom ||
     !!filters.dateTo ||
-    formasSelecionadas.length > 0;
+    formasSelecionadas.length > 0 ||
+    eticoNettSelecionados.length > 0;
 
   // ───── Acções por linha (mantidas tal como estavam) ─────
 
@@ -398,10 +417,12 @@ export function OrderListClient({ data, filters, formasOpcoes, podeEliminar, pod
             selected={formasSelecionadas}
             onToggle={toggleForma}
           />
+          <FiltroEticoNett opcoes={eticoNettOpcoes} selected={eticoNettSelecionados} onToggle={toggleEticoNett} />
         </div>
-        {formasSelecionadas.length > 0 && (
+        {(formasSelecionadas.length > 0 || eticoNettSelecionados.length > 0) && (
           <div className="mt-2 flex flex-wrap gap-2">
             <ChipsFormaFarmaceutica formas={formasOpcoes} selected={formasSelecionadas} onRemove={toggleForma} />
+            <ChipsEticoNett selected={eticoNettSelecionados} onRemove={toggleEticoNett} />
           </div>
         )}
 

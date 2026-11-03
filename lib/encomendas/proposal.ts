@@ -11,6 +11,8 @@ import {
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
 import { sqlCondicaoForma } from "@/lib/catalog/forma-farmaceutica-sql";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
+import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { resolverFiltroFabricantesProposta } from "@/lib/encomendas/filtro-fabricantes-proposta";
 import { ordenarLinhasProposta } from "@/lib/ordenacao-artigos";
 
@@ -46,6 +48,11 @@ export type ProposalFilters = {
    * sem filtro. Aplicado no SQL da proposta (`= ANY($n)` parametrizado), antes do corte de linhas.
    */
   formas?: string[];
+  /**
+   * Ético/NETT (`ETICO` | `NETT` | `SEM` | `DIVERGENTE`). Estado CONSOLIDADO do produto (tenant), não da farmácia. Vazio/omitido =
+   * sem filtro (e sem consulta extra). Aplicado no SQL da proposta (`p.id = ANY($n)`), antes do corte de linhas.
+   */
+  eticoNett?: string[];
   /**
    * Lista de CNP importada por ficheiro. MESMO nome e MESMA semântica
    * que `SharedReportFilters.cnps` — é o que garante que o mesmo
@@ -426,6 +433,12 @@ export async function generateOrderProposal(
   if (fornFilter) conds.push(Prisma.sql`pf."fornecedorOrigem" = ANY(${fornFilter})`);
   if (typeFilter) conds.push(Prisma.sql`p."productType" = ANY(${typeFilter})`);
   if (formaCond) conds.push(formaCond);
+  // Ético/NETT: ids dos produtos no estado consolidado escolhido (uma consulta, só com selecção) -> `p.id = ANY`.
+  const eticoNettValores = lerValoresFiltroEticoNett(input.filters?.eticoNett ?? []);
+  if (eticoNettValores.length > 0) {
+    const ids = (await idsProdutosPorEticoNett(prisma, eticoNettValores, null)) ?? [];
+    conds.push(Prisma.sql`p.id = ANY(${ids}::text[])`);
+  }
   if (catFilter) {
     conds.push(Prisma.sql`(c1.nome = ANY(${catFilter}) OR pf."categoriaOrigem" = ANY(${catFilter}))`);
   }

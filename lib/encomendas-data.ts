@@ -90,6 +90,12 @@ export type EncomendaBaseRow = {
    * farmacêutica» corre no cliente sobre as linhas JÁ carregadas (o servidor só recebe datas), como os restantes eixos.
    */
   formaChave?: string;
+  /**
+   * Estado CONSOLIDADO Ético/NETT do produto (`ETICO` | `NETT` | `SEM` | `DIVERGENTE`; mesma regra de
+   * `idsProdutosPorEticoNett`: 0 farmácias com informação -> SEM, 1 categoria -> essa, 2 -> DIVERGENTE). Igual em todas as
+   * farmácias do produto. Alimenta o filtro «Ético/NETT», que corre no cliente sobre as linhas já carregadas.
+   */
+  eticoNettEstado?: string;
   productType: string | null;
   // Enriquecimento clínico — surfaced em tooltip + chip ATC na UI.
   dci: string | null;
@@ -248,6 +254,15 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
      GROUP BY pu."produtoId"
   `);
   const utilPorProduto = new Map(utilRows.map((u) => [u.produtoId, u.slugs]));
+
+  // Ético/NETT consolidado por PRODUTO (todas as farmácias do tenant): uma agregação, sem consulta por linha.
+  const eticoNettRows = await prisma.$queryRaw<Array<{ produtoId: string; n: bigint | number; c: string }>>(Prisma.sql`
+    SELECT pf."produtoId", count(DISTINCT pf."eticoNett") AS n, min(pf."eticoNett"::text) AS c
+      FROM "ProdutoFarmacia" pf
+     WHERE pf."eticoNett" IS NOT NULL
+     GROUP BY pf."produtoId"
+  `);
+  const eticoNettPorProduto = new Map(eticoNettRows.map((r) => [r.produtoId, Number(r.n) > 1 ? "DIVERGENTE" : r.c]));
   for (const row of pfRows) row.utilizacoes = utilPorProduto.get(row.produtoId) ?? [];
 
   // Dual-read: IPF carregado em paralelo com vendas mensais. Quando IPF
@@ -436,6 +451,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       subcategoria: par.subcategoria,
       utilizacoes: pf.utilizacoes ?? [],
       formaChave: chaveFormaFarmaceutica(pf.formaFarmaceutica),
+      eticoNettEstado: eticoNettPorProduto.get(pf.produtoId) ?? "SEM",
       productType: pf.productType,
       dci: pf.dci,
       codigoATC: pf.codigoATC,

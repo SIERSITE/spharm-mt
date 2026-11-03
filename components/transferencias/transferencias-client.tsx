@@ -27,6 +27,8 @@ import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratori
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { ChipsEticoNett, FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { nomeLegivelLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import { TransferenciasRegistadasList } from "@/components/transferencias/transferencias-registadas-list";
@@ -80,6 +82,8 @@ type TransferenciasCriterios = {
   fabricantesSelecionados: string[];
   /** CHAVES de forma farmacêutica. Opcional: estados antigos não o têm (lê-se como []). */
   formasSelecionadas?: string[];
+  /** Ético/NETT (`ETICO`/`NETT`/`SEM`/`DIVERGENTE`). Opcional: estados antigos não o têm (lê-se como []). */
+  eticoNettSelecionados?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -107,6 +111,7 @@ type ReportSnapshot = {
   fabricantesSelecionados: string[];
   /** Opcional: snapshots guardados no separador antes deste filtro não o têm (= sem filtro). */
   formasSelecionadas?: string[];
+  eticoNettSelecionados?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -182,6 +187,7 @@ export function TransferenciasClient({
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
       formasSelecionadas: [],
+      eticoNettSelecionados: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -235,6 +241,7 @@ export function TransferenciasClient({
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
       formasSelecionadas: [],
+      eticoNettSelecionados: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -248,6 +255,10 @@ export function TransferenciasClient({
   const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
   const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
     setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
+  const [eticoNettBruto, setEticoNettBruto] = campo("eticoNettSelecionados");
+  const eticoNettSelecionados = useMemo(() => lerValoresFiltroEticoNett(eticoNettBruto), [eticoNettBruto]);
+  const setEticoNettSelecionados: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setEticoNettBruto((prev) => (typeof valor === "function" ? valor(lerValoresFiltroEticoNett(prev)) : valor));
   // Subcategorias acompanham a categoria escolhida.
   const subcategorias = (
     categoriasSelecionadas.length > 0
@@ -282,6 +293,8 @@ export function TransferenciasClient({
           dataFim,
           // Forma farmacêutica no SERVIDOR (antes do corte de 200 linhas e dos totais); o snapshot leva as mesmas formas.
           formasFarmaceuticas: formasSelecionadas,
+          // Ético/NETT também no SERVIDOR, pela mesma via (antes do corte e dos totais).
+          eticoNett: eticoNettSelecionados,
         });
         setRows(result);
         fixarSnapshot();
@@ -305,6 +318,7 @@ export function TransferenciasClient({
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
       formasSelecionadas: [...formasSelecionadas],
+      eticoNettSelecionados: [...eticoNettSelecionados],
       categoriasSelecionadas: [...categoriasSelecionadas],
       subcategoriasSelecionadas: [...subcategoriasSelecionadas],
       utilizacoesSelecionadas: [...utilizacoesSelecionadas],
@@ -329,6 +343,7 @@ export function TransferenciasClient({
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
     formasSelecionadas.length +
+    eticoNettSelecionados.length +
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
@@ -608,6 +623,7 @@ export function TransferenciasClient({
                   fabricantesSelecionados,
                   // Filtros APLICADOS (os que produziram as linhas exportadas), nunca o rascunho em edição.
                   formasSelecionadas: snapshot?.formasSelecionadas ?? [],
+                  eticoNettSelecionados: snapshot?.eticoNettSelecionados ?? [],
                   categoriasSelecionadas,
                   prioridadesSelecionadas,
                   artigo,
@@ -833,6 +849,11 @@ export function TransferenciasClient({
                   selected={formasSelecionadas}
                   onToggle={(value) => toggleValue(value, formasSelecionadas, setFormasSelecionadas)}
                 />
+                <FiltroEticoNett
+                  opcoes={filterOptions.eticoNett ?? []}
+                  selected={eticoNettSelecionados}
+                  onToggle={(value) => toggleValue(value, eticoNettSelecionados, setEticoNettSelecionados)}
+                />
                 <SearchableMultiSelect
                   label="Categoria"
                   options={categorias}
@@ -920,6 +941,10 @@ export function TransferenciasClient({
                   formas={filterOptions.formas ?? []}
                   selected={formasSelecionadas}
                   onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))}
+                />
+                <ChipsEticoNett
+                  selected={eticoNettSelecionados}
+                  onRemove={(valor) => setEticoNettSelecionados((prev) => prev.filter((v) => v !== valor))}
                 />
 
                 {categoriasSelecionadas.map((item) => (

@@ -32,6 +32,8 @@ import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header"
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { ChipsEticoNett, FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
 import { passaFiltroLaboratorioLinha } from "@/lib/reporting/filtro-laboratorio-linhas";
@@ -76,6 +78,8 @@ type ExcessosCriterios = {
   fabricantesSelecionados: string[];
   /** CHAVES de forma farmacêutica. Opcional: estados antigos não o têm (lê-se como []). */
   formasSelecionadas?: string[];
+  /** Ético/NETT (`ETICO`/`NETT`/`SEM`/`DIVERGENTE`). Opcional: estados antigos não o têm (lê-se como []). */
+  eticoNettSelecionados?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -103,6 +107,8 @@ type ReportSnapshot = {
   fabricantesSelecionados: string[];
   /** Opcional: snapshots guardados no separador antes deste filtro não o têm (= sem filtro). */
   formasSelecionadas?: string[];
+  /** Opcional: snapshots guardados no separador antes deste filtro não o têm (= sem filtro). */
+  eticoNettSelecionados?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -183,6 +189,7 @@ export function ExcessosClient({
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
       formasSelecionadas: [],
+      eticoNettSelecionados: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -233,6 +240,7 @@ export function ExcessosClient({
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
       formasSelecionadas: [],
+      eticoNettSelecionados: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -246,6 +254,10 @@ export function ExcessosClient({
   const formasSelecionadas = useMemo(() => lerChavesForma(formasBruto), [formasBruto]);
   const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
     setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
+  const [eticoNettBruto, setEticoNettBruto] = campo("eticoNettSelecionados");
+  const eticoNettSelecionados = useMemo(() => lerValoresFiltroEticoNett(eticoNettBruto), [eticoNettBruto]);
+  const setEticoNettSelecionados: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setEticoNettBruto((prev) => (typeof valor === "function" ? valor(lerValoresFiltroEticoNett(prev)) : valor));
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
@@ -296,6 +308,8 @@ export function ExcessosClient({
           // Forma farmacêutica no SERVIDOR (antes do corte de 200 linhas e dos totais). O snapshot fixado a seguir leva as
           // mesmas formas, por isso o que se vê é sempre o que foi pedido.
           formasFarmaceuticas: formasSelecionadas,
+          // Ético/NETT também no SERVIDOR, pela mesma via (antes do corte e dos totais).
+          eticoNett: eticoNettSelecionados,
         });
         setRows(result);
         // O snapshot é fixado DEPOIS de os dados chegarem: é ele que
@@ -326,6 +340,7 @@ export function ExcessosClient({
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
       formasSelecionadas: [...formasSelecionadas],
+      eticoNettSelecionados: [...eticoNettSelecionados],
       categoriasSelecionadas: [...categoriasSelecionadas],
       subcategoriasSelecionadas: [...subcategoriasSelecionadas],
       utilizacoesSelecionadas: [...utilizacoesSelecionadas],
@@ -349,6 +364,7 @@ export function ExcessosClient({
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
     formasSelecionadas.length +
+    eticoNettSelecionados.length +
     categoriasSelecionadas.length +
     prioridadesSelecionadas.length;
 
@@ -547,6 +563,7 @@ export function ExcessosClient({
                   fabricantesSelecionados,
                   // Filtros APLICADOS (os que produziram as linhas exportadas), nunca o rascunho em edição.
                   formasSelecionadas: snapshot?.formasSelecionadas ?? [],
+                  eticoNettSelecionados: snapshot?.eticoNettSelecionados ?? [],
                   categoriasSelecionadas,
                   prioridadesSelecionadas,
                   artigo,
@@ -649,6 +666,7 @@ export function ExcessosClient({
                 <SearchableMultiSelect label="Distribuidor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
                 <FiltroFabricante fabricantes={fabricantes} laboratorios={laboratorios} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
                 <FiltroFormaFarmaceutica formas={filterOptions.formas ?? []} selected={formasSelecionadas} onToggle={(value) => toggleValue(value, formasSelecionadas, setFormasSelecionadas)} />
+                <FiltroEticoNett opcoes={filterOptions.eticoNett ?? []} selected={eticoNettSelecionados} onToggle={(value) => toggleValue(value, eticoNettSelecionados, setEticoNettSelecionados)} />
                 <SearchableMultiSelect label="Categoria" options={categorias} selected={categoriasSelecionadas} onToggle={(value) => toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)} />
                 <SearchableMultiSelect label="Subcategoria" options={subcategorias} selected={subcategoriasSelecionadas} onToggle={(value) => toggleValue(value, subcategoriasSelecionadas, setSubcategoriasSelecionadas)} />
                 {/* Viaja em slug, mostra-se pelo nome. */}
@@ -689,6 +707,7 @@ export function ExcessosClient({
                   <FilterPill key={`fabricante-${item}`} label={rotuloChipFabricante(item, laboratorios)} onRemove={() => setFabricantesSelecionados((prev) => prev.filter((v) => v !== item))} />
                 ))}
                 <ChipsFormaFarmaceutica formas={filterOptions.formas ?? []} selected={formasSelecionadas} onRemove={(chave) => setFormasSelecionadas((prev) => prev.filter((v) => v !== chave))} />
+                <ChipsEticoNett selected={eticoNettSelecionados} onRemove={(valor) => setEticoNettSelecionados((prev) => prev.filter((v) => v !== valor))} />
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill key={`categoria-${item}`} label={`Categoria: ${item}`} onRemove={() => setCategoriasSelecionadas((prev) => prev.filter((v) => v !== item))} />
                 ))}

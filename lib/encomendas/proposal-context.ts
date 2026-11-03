@@ -19,6 +19,7 @@
  * não um dado que precise de sobreviver por si.
  */
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 
 export type PropostaContexto = {
   version: 1;
@@ -41,6 +42,11 @@ export type PropostaContexto = {
      * `parsearPropostaContexto` devolve SEMPRE um array (`[]` = sem filtro = o comportamento de então).
      */
     formas?: string[];
+    /**
+     * Ético/NETT (`ETICO`/`NETT`/`SEM`/`DIVERGENTE`). Opcional no TIPO (rascunhos anteriores não o têm);
+     * `parsearPropostaContexto` devolve SEMPRE um array (`[]` = sem filtro).
+     */
+    eticoNett?: string[];
   };
   /** Resumo da lista importada, se houver — ver nota acima. */
   listaImportadaResumo: { nomeFicheiro: string; encontrados: number; naoEncontrados: number } | null;
@@ -94,6 +100,8 @@ export function parsearPropostaContexto(raw: string | null): PropostaContexto | 
         productTypes: arr(f?.productTypes),
         // Rascunhos sem o campo -> [] (sem filtro). `lerChavesForma` valida e re-normaliza.
         formas: lerChavesForma(f?.formas),
+        // Rascunhos sem o campo -> [] (sem filtro). `lerValoresFiltroEticoNett` descarta tudo o que não for um dos 4 valores.
+        eticoNett: lerValoresFiltroEticoNett(f?.eticoNett),
       },
       listaImportadaResumo:
         p.listaImportadaResumo && typeof p.listaImportadaResumo === "object"

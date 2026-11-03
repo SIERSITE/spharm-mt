@@ -10,6 +10,8 @@
  */
 import { chaveFormaFarmaceutica, lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { sqlFiltroForma } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
+import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
@@ -279,6 +281,12 @@ export type LoadPfAndSalesOptions = {
    * isso o emparelhamento origem/destino entre farmácias não é afectado (um produto traz todas as suas farmácias).
    */
   formas?: readonly string[];
+  /**
+   * Ético/NETT (`ETICO` | `NETT` | `SEM` | `DIVERGENTE`; união; vazio/omitido = sem restrição). Estado CONSOLIDADO por
+   * produto (`idsProdutosPorEticoNett`), aplicado no SQL de `pfRows` pela mesma via da forma: ANTES de agrupar, ordenar
+   * ou cortar. Sem selecção não há consulta extra.
+   */
+  eticoNett?: readonly string[];
 };
 
 export async function loadPfAndSales(
@@ -303,6 +311,11 @@ export async function loadPfAndSales(
   const stockClause = includeOutOfStock
     ? Prisma.sql`pf."stockAtual" IS NOT NULL`
     : Prisma.sql`pf."stockAtual" IS NOT NULL AND pf."stockAtual" > 0`;
+
+  // Ético/NETT: ids dos produtos cujo estado consolidado pertence à selecção (null = sem restrição).
+  const eticoNettValores = lerValoresFiltroEticoNett(options?.eticoNett ?? []);
+  const idsEticoNett = eticoNettValores.length > 0 ? await idsProdutosPorEticoNett(prisma, eticoNettValores, null) : null;
+  const sqlEticoNett = idsEticoNett ? Prisma.sql`AND pf."produtoId" = ANY(${idsEticoNett}::text[])` : Prisma.empty;
 
   const pfRows = await prisma.$queryRaw<PfBase[]>(Prisma.sql`
     SELECT
@@ -338,6 +351,7 @@ export async function loadPfAndSales(
       AND pf."flagRetirado" = false
       AND f.id = ANY(${farmaciaIds})
       ${sqlFiltroForma(options?.formas)}
+      ${sqlEticoNett}
   `);
 
   type SalesAgg = { produtoId: string; farmaciaId: string; totalQty: number };
@@ -408,6 +422,11 @@ export type OpcoesOperacionais = {
    * aqui (input de Server Action).
    */
   formasFarmaceuticas?: string[];
+  /**
+   * Ético/NETT (valores `ETICO`/`NETT`/`SEM`/`DIVERGENTE`; vazio = sem filtro). Mesmo regime da forma: SERVIDOR, na
+   * query de origem, antes do corte e dos totais. Re-validado aqui (input de Server Action).
+   */
+  eticoNett?: string[];
 };
 
 /** Nome antigo. Mantido para não partir chamadores. */
@@ -509,7 +528,11 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
   const janela6M = janelaMesesAte(janela.fim, 6);
 
   const [{ pfRows, salesMap }, vendas6MMap] = await Promise.all([
-    loadPfAndSales(farmaciaIds, { janela, formas: lerChavesForma(options?.formasFarmaceuticas ?? []) }),
+    loadPfAndSales(farmaciaIds, {
+      janela,
+      formas: lerChavesForma(options?.formasFarmaceuticas ?? []),
+      eticoNett: lerValoresFiltroEticoNett(options?.eticoNett ?? []),
+    }),
     somarVendasNaJanela(farmaciaIds, janela6M),
   ]);
 

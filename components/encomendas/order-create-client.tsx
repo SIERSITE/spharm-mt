@@ -56,6 +56,8 @@ import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos"
 import { LaboratorioMultiSelect } from "@/components/reporting/laboratorio-multi-select";
 import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import {
   TEMPO_AVISO_DEMORA_MS,
   guardarDocumentosPendentes,
@@ -379,6 +381,8 @@ export function OrderCreateClient({
   // Chaves de forma farmacêutica. O valor guardado no separador pode vir de uma versão anterior (sem a chave => []).
   const [selFormasBruto, setSelFormas] = useEstadoSeparador<string[]>("nova:selFormas", []);
   const selFormas = useMemo(() => lerChavesForma(selFormasBruto), [selFormasBruto]);
+  const [selEticoNettBruto, setSelEticoNett] = useEstadoSeparador<string[]>("nova:selEticoNett", []);
+  const selEticoNett = useMemo<string[]>(() => lerValoresFiltroEticoNett(selEticoNettBruto), [selEticoNettBruto]);
   /**
    * Lista de CNP importada por ficheiro.
    *
@@ -1078,6 +1082,7 @@ export function OrderCreateClient({
         utilizacoes: selUtilizacoes,
         productTypes: selProductTypes,
         formas: selFormas,
+        eticoNett: selEticoNett,
       },
       listaImportadaResumo: listaCodigos
         ? {
@@ -2060,6 +2065,7 @@ export function OrderCreateClient({
         setSelUtilizacoes(d.contexto.filters.utilizacoes);
         setSelProductTypes(d.contexto.filters.productTypes);
         setSelFormas(d.contexto.filters.formas ?? []);
+        setSelEticoNett(d.contexto.filters.eticoNett ?? []);
       }
       const persistidas = d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId));
       setLinhas(persistidas);
@@ -2089,6 +2095,7 @@ export function OrderCreateClient({
               utilizacoes: c.filters.utilizacoes,
               productTypes: c.filters.productTypes,
               formas: c.filters.formas ?? [],
+              eticoNett: c.filters.eticoNett ?? [],
               // Universo = as linhas persistidas: garante que cada uma tem
               // a sua linha fresca independentemente dos filtros.
               cnps: persistidas.map((l) => l.cnp),
@@ -2199,6 +2206,7 @@ export function OrderCreateClient({
         categorias: selCategorias, subcategorias: selSubcategorias,
         utilizacoes: selUtilizacoes, productTypes: selProductTypes,
         formas: selFormas,
+        eticoNett: selEticoNett,
         // `undefined` sem lista; o array (mesmo vazio) com lista.
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
       },
@@ -2788,7 +2796,7 @@ export function OrderCreateClient({
 
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
-    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length + selFormas.length +
+    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length + selFormas.length + selEticoNett.length +
     // A lista conta como UM filtro, não como 437: o contador diz quantos
     // eixos estão activos, e um ficheiro é um eixo.
     (listaCodigos ? 1 : 0);
@@ -3239,6 +3247,12 @@ export function OrderCreateClient({
               formas={filterOptions.formas ?? []}
               selected={selFormas}
               onToggle={(chave) => setSelFormas(selFormas.includes(chave) ? selFormas.filter((c) => c !== chave) : [...selFormas, chave])}
+            />
+            {/* Ético/NETT: estado consolidado do produto, filtrado no SQL da proposta (antes do corte de linhas). */}
+            <FiltroEticoNett
+              opcoes={filterOptions.eticoNett ?? []}
+              selected={selEticoNett}
+              onToggle={(valor) => setSelEticoNett(selEticoNett.includes(valor) ? selEticoNett.filter((c) => c !== valor) : [...selEticoNett, valor])}
             />
           </div>
           </>
