@@ -6,6 +6,8 @@ import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
 import { calcularPvpReferencia, descreverPvpReferencia, desvioFaceAReferencia } from "@/lib/pvp-referencia";
 import { calcularPrecoReferencia, descreverPrecoReferencia } from "@/lib/produtos/preco-referencia";
 import { custoDaFarmacia } from "@/lib/produtos/custo-farmacia";
+import { carregarEticoNettDoProduto } from "@/lib/classificacao/etico-nett-sql";
+import type { EstadoConsolidado } from "@/lib/classificacao/etico-nett";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 
 /**
@@ -41,7 +43,21 @@ export type ArtigoFichaStockRow = {
   stockMinimo: number | null;
 };
 
+/** Classificação Ético/NETT de uma farmácia (só farmácias COM informação; nunca se inventa valor para as restantes). */
+export type ArtigoFichaEticoNettFarmacia = {
+  farmaciaId: string;
+  farmaciaNome: string;
+  categoria: "ETICO" | "NETT";
+  codigoErp: number | null;
+  descricaoErp: string | null;
+  /** ISO — serializável para o painel (cliente). */
+  observadoEm: string | null;
+  manual: boolean;
+};
+
 export type ArtigoFichaData = {
+  /** Classificação ERP Ético/NETT: consolidada + por farmácia. */
+  eticoNett: { consolidado: EstadoConsolidado; porFarmacia: ArtigoFichaEticoNettFarmacia[] };
   cnp: number;
   designacao: string;
   /** O utilizador pode alterar o catálogo (`catalog.write`): só então a ficha mostra «Editar designação». */
@@ -101,6 +117,8 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
   });
   if (!produto) return null;
 
+  const eticoNett = await carregarEticoNettDoProduto(prisma, produto.id);
+
   const resolvedCat = resolveCategoria({
     classificacaoNivel1: produto.classificacaoNivel1,
     classificacaoNivel2: produto.classificacaoNivel2,
@@ -159,6 +177,10 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
 
   return {
+    eticoNett: {
+      consolidado: eticoNett.consolidado,
+      porFarmacia: eticoNett.porFarmacia.map((p) => ({ ...p, observadoEm: p.observadoEm ? p.observadoEm.toISOString() : null })),
+    },
     cnp: produto.cnp,
     designacao: produto.designacao,
     podeEditarDesignacao: can(sessao, "catalog.write"),

@@ -14,6 +14,7 @@ import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
 import type { ColunaOrdenacaoStock } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
 import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
+import { ChipsEticoNett, FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { SyncNowWidget } from "@/components/stock/sync-now-widget";
 import type { SyncFarmaciaOption } from "@/lib/sync-request-data";
 
@@ -163,6 +164,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   const selectedSubcategorias = data.params.subcategorias ?? [];
   const selectedUtilizacoes = data.params.utilizacoes ?? [];
   const selectedFormas = data.params.formas ?? [];
+  const selectedEticoNett = data.params.eticoNett ?? [];
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
   const subcategoriasVisiveis = (
@@ -231,6 +233,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
       p.delete("subcategoria");
       p.delete("utilizacao");
       p.delete("forma");
+      p.delete("eticoNett");
       p.delete("page");
     });
   };
@@ -305,7 +308,8 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     selectedCategorias.length > 0 ||
     selectedSubcategorias.length > 0 ||
     selectedUtilizacoes.length > 0 ||
-    selectedFormas.length > 0;
+    selectedFormas.length > 0 ||
+    selectedEticoNett.length > 0;
   const activeFilterCount =
     selectedPharmacies.length +
     selectedCoverage.length +
@@ -313,7 +317,8 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     selectedCategorias.length +
     selectedSubcategorias.length +
     selectedUtilizacoes.length +
-    selectedFormas.length;
+    selectedFormas.length +
+    selectedEticoNett.length;
 
   const rows = useMemo(() => data.rows, [data.rows]);
 
@@ -481,6 +486,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                   onRemove={() => toggleMulti("forma", chave)}
                 />
               ))}
+              <ChipsEticoNett selected={selectedEticoNett} onRemove={(v) => toggleMulti("eticoNett", v)} />
               <button
                 type="button"
                 onClick={clearAllFilters}
@@ -593,6 +599,13 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                 formas={data.filterOptions.formas}
                 selected={selectedFormas}
                 onToggle={(chave) => toggleMulti("forma", chave)}
+              />
+
+              {/* Ético/NETT: consolidado por produto nas farmácias em âmbito; filtrado no servidor (URL `eticoNett`, multi). */}
+              <FiltroEticoNett
+                opcoes={data.filterOptions.eticoNett}
+                selected={selectedEticoNett}
+                onToggle={(v) => toggleMulti("eticoNett", v)}
               />
             </div>
           )}

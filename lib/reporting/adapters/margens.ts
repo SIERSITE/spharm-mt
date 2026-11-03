@@ -28,6 +28,7 @@ import type {
 import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS, rotuloNaturezas } from "@/lib/reporting/natureza-venda";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
+import { filtroEticoNettLinha } from "@/lib/reporting/etico-nett-linha";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
@@ -205,6 +206,8 @@ function buildFiltersLabel(f: SharedReportFilters, universe: UniversoMargens): R
   }
   const forma = filtroFormaFarmaceuticaLinha(f.formasFarmaceuticas, universe.formas);
   if (forma) out.push(forma);
+  const eticoNett = filtroEticoNettLinha(f.eticoNett);
+  if (eticoNett) out.push(eticoNett);
   if (f.distribuidores && f.distribuidores.length > 0) {
     out.push({
       label: "Distribuidores",

@@ -141,6 +141,7 @@ export function InventarioClient({
       fabricantes: filterOptions.fabricantes,
       laboratorios: filterOptions.laboratorios,
       formas: filterOptions.formas,
+      eticoNett: filterOptions.eticoNett,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),

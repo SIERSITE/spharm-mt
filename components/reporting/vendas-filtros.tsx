@@ -27,6 +27,7 @@ import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos"
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
+import { FiltroEticoNett, ChipsEticoNett, type OpcaoFiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { rotuloNaturezas } from "@/lib/reporting/natureza-venda";
 
@@ -96,6 +97,8 @@ export type VendasFiltrosValores = {
   utilizacoes: string[];
   /** Chaves de forma farmacêutica. Opcional: a Manutenção em massa não o usa (o eixo só aparece se `opcoes.formas` existir). */
   formas?: string[];
+  /** Valores Ético/NETT (ETICO · NETT · SEM · DIVERGENTE). Opcional como `formas`. */
+  eticoNett?: string[];
   incluirCredito: boolean;
   incluirTransferencias: boolean;
 };
@@ -109,6 +112,7 @@ export type VendasFiltrosSetters = {
   subcategorias: Dispatch<SetStateAction<string[]>>;
   utilizacoes: Dispatch<SetStateAction<string[]>>;
   formas?: Dispatch<SetStateAction<string[]>>;
+  eticoNett?: Dispatch<SetStateAction<string[]>>;
   incluirCredito: (v: boolean) => void;
   incluirTransferencias: (v: boolean) => void;
 };
@@ -124,6 +128,8 @@ export type VendasFiltrosOpcoes = {
   utilizacoes: Array<{ slug: string; nome: string }>;
   /** Formas farmacêuticas do tenant. Omitido = sem o eixo (Manutenção em massa). */
   formas?: OpcaoFormaFarmaceutica[];
+  /** Opções Ético/NETT do tenant. Omitido = sem o eixo. */
+  eticoNett?: OpcaoFiltroEticoNett[];
 };
 
 export function VendasFiltrosPainel({
@@ -214,6 +220,13 @@ export function VendasFiltrosPainel({
             onToggle={toggle(set.formas)}
           />
         )}
+        {opcoes.eticoNett && set.eticoNett && (
+          <FiltroEticoNett
+            opcoes={opcoes.eticoNett}
+            selected={valores.eticoNett ?? []}
+            onToggle={toggle(set.eticoNett)}
+          />
+        )}
         {extra}
       </div>
 
@@ -280,6 +293,9 @@ export function VendasFiltrosPainel({
         {opcoes.formas && set.formas && (valores.formas ?? []).map((chave) => (
           <FilterPill key={`forma-${chave}`} label={rotuloChipForma(chave, opcoes.formas!)} onRemove={() => remover(set.formas!, chave)} />
         ))}
+        {opcoes.eticoNett && set.eticoNett && (
+          <ChipsEticoNett selected={valores.eticoNett ?? []} onRemove={(v) => remover(set.eticoNett!, v)} />
+        )}
       </div>
     </div>
   );

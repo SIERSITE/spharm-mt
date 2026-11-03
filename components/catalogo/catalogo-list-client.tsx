@@ -22,6 +22,7 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 
 type Props = {
@@ -172,7 +173,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.verificationStatus ||
     !!filters.estado ||
     !!filters.origem ||
-    (filters.formas?.length ?? 0) > 0;
+    (filters.formas?.length ?? 0) > 0 ||
+    (filters.eticoNett?.length ?? 0) > 0;
 
   const startIdx = (data.page - 1) * data.pageSize + 1;
   const endIdx = Math.min(data.page * data.pageSize, data.total);
@@ -288,6 +290,15 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             onToggle={(chave) => {
               const atuais = filters.formas ?? [];
               navigate({ forma: atuais.includes(chave) ? atuais.filter((c) => c !== chave) : [...atuais, chave] });
+            }}
+          />
+          {/* Ético/NETT consolidado: multi-seleção (URL `eticoNett` repetido), filtrada no SERVIDOR antes da paginação e do total. */}
+          <FiltroEticoNett
+            opcoes={filterOptions.eticoNett}
+            selected={filters.eticoNett ?? []}
+            onToggle={(valor) => {
+              const atuais = filters.eticoNett ?? [];
+              navigate({ eticoNett: atuais.includes(valor) ? atuais.filter((c) => c !== valor) : [...atuais, valor] });
             }}
           />
           {hasActiveFilters && (

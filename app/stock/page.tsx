@@ -11,6 +11,7 @@ import {
   type StockCoverageBucket,
   type StockRow,
 } from "@/lib/stock-data";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { StockClient } from "@/components/stock/stock-client";
 import { lerOrdenacaoDeParams } from "@/lib/tabela/ordenacao";
@@ -63,6 +64,8 @@ function parseParams(sp: Record<string, string | string[] | undefined>): StockSe
     // `forma` (multi): chaves normalizadas. `lerChavesForma` re-normaliza e limita o nº — um bookmark/URL
     // forjado só pode produzir uma comparação de igualdade parametrizada, nunca SQL.
     formas: lerChavesForma(sp.forma),
+    // `eticoNett` (multi): só ETICO|NETT|SEM|DIVERGENTE; lixo é descartado.
+    eticoNett: lerValoresFiltroEticoNett(asArray(sp.eticoNett)),
     // A ordenacao viaja na query-string, como a pagina e os filtros:
     // esta tabela pagina no servidor, e o criterio tem de sobreviver a
     // uma mudanca de pagina e a um refresh. Chave invalida cai no

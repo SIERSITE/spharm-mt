@@ -10,6 +10,7 @@ import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
 import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import {
   ENCOMENDA_PREFILL_STORAGE_KEY,
   buildEncomendaPrefillFromVendas,
@@ -98,6 +99,8 @@ type VendasCriterios = {
   fabricantesSelecionados: string[];
   /** CHAVES de forma farmacêutica. Opcional: estados de workspace antigos não o têm (lê-se como []). */
   formasSelecionadas?: string[];
+  /** Valores Ético/NETT. Opcional: estados de workspace antigos não o têm (lê-se como []). */
+  eticoNettSelecionados?: string[];
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -266,6 +269,7 @@ export function VendasClient({
       fornecedoresSelecionados: [],
       fabricantesSelecionados: [],
       formasSelecionadas: [],
+      eticoNettSelecionados: [],
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -320,6 +324,11 @@ export function VendasClient({
   const formasSelecionadas = useMemo(() => lerChavesForma(formasSelecionadasBruto), [formasSelecionadasBruto]);
   const setFormasSelecionadas: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
     setFormasBruto((prev) => (typeof valor === "function" ? valor(lerChavesForma(prev)) : valor));
+  const [eticoNettBruto, setEticoNettBruto] = campo("eticoNettSelecionados");
+  // Filtrado só no servidor (sem equivalente por linha no cliente); estados antigos sem o campo = sem filtro.
+  const eticoNettSelecionados = useMemo(() => lerValoresFiltroEticoNett(eticoNettBruto ?? []) as string[], [eticoNettBruto]);
+  const setEticoNettSelecionados: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
+    setEticoNettBruto((prev) => (typeof valor === "function" ? valor(lerValoresFiltroEticoNett(prev ?? []) as string[]) : valor));
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
@@ -987,6 +996,7 @@ export function VendasClient({
       utilizacoes: utilizacoesSelecionadas,
       fabricantes: fabricantesSelecionados,
       formasFarmaceuticas: formasSelecionadas,
+      eticoNett: eticoNettSelecionados,
       distribuidores: fornecedoresSelecionados,
       cnps: listaCodigos ? listaCodigos.cnps : undefined,
     }),
@@ -997,6 +1007,7 @@ export function VendasClient({
       utilizacoesSelecionadas,
       fabricantesSelecionados,
       formasSelecionadas,
+      eticoNettSelecionados,
       fornecedoresSelecionados,
       listaCodigos,
     ],
@@ -1017,6 +1028,7 @@ export function VendasClient({
     setFornecedoresSelecionados([]);
     setFabricantesSelecionados([]);
     setFormasSelecionadas([]);
+    setEticoNettSelecionados([]);
     setCategoriasSelecionadas([]);
     setSubcategoriasSelecionadas([]);
     setUtilizacoesSelecionadas([]);
@@ -1056,6 +1068,7 @@ export function VendasClient({
         fornecedoresSelecionados,
         fabricantesSelecionados,
         formasSelecionadas,
+        eticoNettSelecionados,
         categoriasSelecionadas,
         artigo,
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
@@ -1088,7 +1101,7 @@ export function VendasClient({
     () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
     [incluirPrecosVenda, incluirPrecosCompra, pvpDiferenteAtivo, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
       apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
-      fornecedoresSelecionados, fabricantesSelecionados, formasSelecionadas, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
+      fornecedoresSelecionados, fabricantesSelecionados, formasSelecionadas, eticoNettSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
       artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
   );
   /* eslint-enable react-hooks/exhaustive-deps */
@@ -1119,6 +1132,8 @@ export function VendasClient({
             fabricantesSelecionados.length > 0 ? fabricantesSelecionados : undefined,
           // Filtrado no SERVIDOR (restringirPorCatalogo), antes dos totais; vazio = sem filtro.
           formasFarmaceuticas: formasSelecionadas.length > 0 ? formasSelecionadas : undefined,
+          // Idem: Ético/NETT resolvido no servidor (restringirPorCatalogo); vazio = sem filtro.
+          eticoNett: eticoNettSelecionados.length > 0 ? eticoNettSelecionados : undefined,
           distribuidores:
             fornecedoresSelecionados.length > 0
               ? fornecedoresSelecionados
@@ -1385,6 +1400,7 @@ export function VendasClient({
                 fabricantes,
                 laboratorios: filterOptions.laboratorios,
                 formas: filterOptions.formas,
+                eticoNett: filterOptions.eticoNett,
                 categorias,
                 subcategorias,
                 utilizacoes: utilizacoesOpcoes,
@@ -1398,6 +1414,7 @@ export function VendasClient({
                 subcategorias: subcategoriasSelecionadas,
                 utilizacoes: utilizacoesSelecionadas,
                 formas: formasSelecionadas,
+                eticoNett: eticoNettSelecionados,
                 incluirCredito,
                 incluirTransferencias,
               }}
@@ -1410,6 +1427,7 @@ export function VendasClient({
                 subcategorias: setSubcategoriasSelecionadas,
                 utilizacoes: setUtilizacoesSelecionadas,
                 formas: setFormasSelecionadas,
+                eticoNett: setEticoNettSelecionados,
                 incluirCredito: setIncluirCredito,
                 incluirTransferencias: setIncluirTransferencias,
               }}

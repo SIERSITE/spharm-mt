@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Package, Tag, Building2, Image as ImageIcon, Pill, Stethoscope } from "lucide-react";
 import type { ArtigoFichaData } from "@/lib/stock/artigo-ficha-data";
+import { ROTULO_ETICO_NETT } from "@/lib/classificacao/etico-nett";
 import { EditorFabricante } from "@/components/stock/editor-fabricante";
 import { EditorDesignacao } from "@/components/stock/editor-designacao";
 
@@ -100,6 +101,8 @@ export function ArtigoFicha({ data, compacto = false }: { data: ArtigoFichaData;
         <SmallMetric label="PVP de referência" value={fmtCurrency(data.pvpReferencia)} helper={data.pvpReferenciaDescricao} />
         <SmallMetric label="Custo de referência" value={fmtCurrency(data.custoReferencia)} helper={data.custoReferenciaDescricao} />
       </section>
+
+      <ClassificacaoEticoNett eticoNett={data.eticoNett} />
 
       <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
         <div className="mb-3 flex items-center gap-2">
@@ -205,5 +208,75 @@ function ArtigoIdentidade({ data }: { data: ArtigoFichaData }) {
         <MetaCell label="Genérico" value={data.flagGenerico ? "Sim" : data.flagGenerico === false ? "Não" : PLACEHOLDER} />
       </div>
     </div>
+  );
+}
+
+/** «Classificação Ético/NETT»: valor consolidado + origem por farmácia. Divergência é assinalada, nunca resolvida. */
+function ClassificacaoEticoNett({ eticoNett }: { eticoNett: ArtigoFichaData["eticoNett"] }) {
+  const { consolidado, porFarmacia } = eticoNett;
+  const divergente = consolidado === "DIVERGENTE";
+  const detalheDivergencia = divergente
+    ? `Divergente: ${(["ETICO", "NETT"] as const)
+        .map((cat) => {
+          const nomes = porFarmacia.filter((p) => p.categoria === cat).map((p) => p.farmaciaNome);
+          return nomes.length > 0 ? `${ROTULO_ETICO_NETT[cat]} em ${nomes.join(", ")}` : null;
+        })
+        .filter((t): t is string => t !== null)
+        .join("; ")}`
+    : null;
+  return (
+    <section
+      data-testid="ficha-etico-nett"
+      className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]"
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Tag className="h-4 w-4 text-indigo-600" />
+        <h2 className="text-[14px] font-semibold text-slate-900">Classificação Ético/NETT</h2>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            divergente
+              ? "bg-amber-100 text-amber-800"
+              : consolidado === "SEM"
+                ? "bg-slate-100 text-slate-500"
+                : "bg-indigo-50 text-indigo-700"
+          }`}
+        >
+          {ROTULO_ETICO_NETT[consolidado]}
+        </span>
+      </div>
+      {detalheDivergencia && (
+        <p className="mb-2 text-[12px] font-medium text-amber-800" role="alert">
+          {detalheDivergencia}
+        </p>
+      )}
+      {porFarmacia.length === 0 ? (
+        <div className="py-3 text-[12px] text-slate-500">Nenhuma farmácia reporta classificação Ético/NETT para este artigo.</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-[1.4fr_0.8fr_0.7fr_1.2fr_1fr] gap-4 border-b border-slate-100 pb-2 text-[10px] uppercase tracking-[0.14em] text-slate-400">
+            <div>Farmácia</div>
+            <div>Categoria</div>
+            <div>Código ERP</div>
+            <div>Descrição ERP</div>
+            <div>Observado em</div>
+          </div>
+          {porFarmacia.map((p) => (
+            <div
+              key={p.farmaciaId}
+              className="grid grid-cols-[1.4fr_0.8fr_0.7fr_1.2fr_1fr] gap-4 border-b border-slate-100 py-2 text-[12px] text-slate-600 last:border-b-0"
+            >
+              <div className="font-medium text-slate-800">{p.farmaciaNome}</div>
+              <div>
+                {ROTULO_ETICO_NETT[p.categoria]}
+                {p.manual && <span className="ml-1 text-[10px] text-slate-400">(manual)</span>}
+              </div>
+              <div className="tabular-nums">{p.codigoErp ?? PLACEHOLDER}</div>
+              <div>{p.descricaoErp && p.descricaoErp.trim() ? p.descricaoErp : PLACEHOLDER}</div>
+              <div>{fmtDate(p.observadoEm)}</div>
+            </div>
+          ))}
+        </>
+      )}
+    </section>
   );
 }

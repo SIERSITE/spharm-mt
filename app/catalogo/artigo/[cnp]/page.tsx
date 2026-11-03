@@ -12,6 +12,9 @@ import {
 } from "@/lib/catalogo-data";
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
+import { getPrisma } from "@/lib/prisma";
+import { carregarEticoNettDoProduto, type EticoNettDoProduto } from "@/lib/classificacao/etico-nett-sql";
+import { ROTULO_ETICO_NETT } from "@/lib/classificacao/etico-nett";
 import { ROTULO_ORIGEM } from "@/lib/categoria-resolver";
 
 export const dynamic = "force-dynamic";
@@ -89,13 +92,14 @@ export default async function CatalogArticlePage({ params }: ArticlePageProps) {
   if (!Number.isFinite(cnpNum) || cnpNum <= 0) notFound();
 
   const article = await loadCatalogoArticle(cnpNum);
+  const eticoNett = article ? await carregarEticoNettDoProduto(await getPrisma(), article.id) : null;
   if (!article) notFound();
   // «Editar designação» só para quem pode alterar o catálogo (a ação revalida no servidor).
   const podeEditarDesignacao = can(await getSession(), "catalog.write");
 
   return (
     <MainShell>
-      <ArticleView article={article} podeEditarDesignacao={podeEditarDesignacao} />
+      <ArticleView article={article} podeEditarDesignacao={podeEditarDesignacao} eticoNett={eticoNett} />
     </MainShell>
   );
 }
@@ -166,7 +170,15 @@ function RegulamentarSection({ article }: { article: CatalogoArticle }) {
   );
 }
 
-function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArticle; podeEditarDesignacao: boolean }) {
+function ArticleView({
+  article,
+  podeEditarDesignacao,
+  eticoNett,
+}: {
+  article: CatalogoArticle;
+  podeEditarDesignacao: boolean;
+  eticoNett: EticoNettDoProduto | null;
+}) {
   const tipo = rotuloProductType(article.productType);
 
   const minPvp = article.presencas
@@ -336,6 +348,31 @@ function ArticleView({ article, podeEditarDesignacao }: { article: CatalogoArtic
             { label: "Genérico", value: article.flagGenerico ? "Sim" : "Não" },
           ]}
         />
+
+        {eticoNett && (
+          <InfoCard
+            title="Classificação Ético/NETT"
+            items={[
+              {
+                label: "Consolidada",
+                value:
+                  eticoNett.consolidado === "DIVERGENTE"
+                    ? `Divergente: ${(["ETICO", "NETT"] as const)
+                        .map((c) => {
+                          const nomes = eticoNett.porFarmacia.filter((p) => p.categoria === c).map((p) => p.farmaciaNome);
+                          return nomes.length > 0 ? `${ROTULO_ETICO_NETT[c]} em ${nomes.join(", ")}` : null;
+                        })
+                        .filter((t): t is string => t !== null)
+                        .join("; ")}`
+                    : ROTULO_ETICO_NETT[eticoNett.consolidado],
+              },
+              ...eticoNett.porFarmacia.map((p) => ({
+                label: p.farmaciaNome,
+                value: `${ROTULO_ETICO_NETT[p.categoria]} · cód. ${p.codigoErp ?? "—"} · ${p.descricaoErp?.trim() || "—"}`,
+              })),
+            ]}
+          />
+        )}
 
         <InfoCard
           title="Apresentação comercial"

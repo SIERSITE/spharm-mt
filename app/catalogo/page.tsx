@@ -13,6 +13,7 @@ import type {
   VerificationStatus,
 } from "@/generated/prisma/client";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,8 @@ function parseFilters(
     productType,
     // `forma` (multi): chaves normalizadas, re-normalizadas e limitadas por `lerChavesForma`.
     formas: lerChavesForma(sp.forma),
+    // `eticoNett` (multi): só ETICO|NETT|SEM|DIVERGENTE; lixo é descartado.
+    eticoNett: lerValoresFiltroEticoNett(Array.isArray(sp.eticoNett) ? sp.eticoNett : sp.eticoNett ? [sp.eticoNett] : []),
     verificationStatus,
     estado,
     origem,
