@@ -22,7 +22,7 @@ import type { SharedReportFilters } from "./filters-shared";
  */
 export function normalizarFiltros(f: SharedReportFilters): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  const lista = (k: "farmaciaNomes" | "categorias" | "subcategorias" | "utilizacoes" | "fabricantes" | "formasFarmaceuticas" | "distribuidores") => {
+  const lista = (k: "farmaciaNomes" | "categorias" | "subcategorias" | "utilizacoes" | "fabricantes" | "formasFarmaceuticas" | "eticoNett" | "distribuidores") => {
     const v = f[k];
     if (v && v.length > 0) out[k] = [...v].sort();
   };
@@ -32,6 +32,7 @@ export function normalizarFiltros(f: SharedReportFilters): Record<string, unknow
   lista("utilizacoes");
   lista("fabricantes");
   lista("formasFarmaceuticas");
+  lista("eticoNett");
   lista("distribuidores");
   if (f.cnps !== undefined) out.cnps = [...f.cnps].sort((a, b) => a - b);
   const pesquisa = f.pesquisa?.trim();
@@ -45,7 +46,7 @@ export function normalizarFiltros(f: SharedReportFilters): Record<string, unknow
   if (f.incluirManutencao) out.incluirManutencao = true;
   // Chaves futuras de `SharedReportFilters` que ainda não tenham regra acima: comparam-se tal e qual (nunca ignoradas).
   const conhecidas = new Set([
-    "farmaciaNomes", "categorias", "subcategorias", "utilizacoes", "fabricantes", "formasFarmaceuticas", "distribuidores", "cnps", "pesquisa",
+    "farmaciaNomes", "categorias", "subcategorias", "utilizacoes", "fabricantes", "formasFarmaceuticas", "eticoNett", "distribuidores", "cnps", "pesquisa",
     "from", "to", "incluirCredito", "incluirTransferencias", "apenasSemClassif", "apenasComStock", "incluirManutencao",
   ]);
   for (const [k, v] of Object.entries(f)) {

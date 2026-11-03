@@ -18,12 +18,17 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { temListaCodigos } from "@/lib/produtos/lista-codigos-tipos";
 import { idsProdutosPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
+import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import type { SharedReportFilters } from "./filters-shared";
 
 export type FiltrosCatalogo = Pick<
   SharedReportFilters,
-  "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas"
->;
+  "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas" | "eticoNett"
+> &
+  Partial<Pick<SharedReportFilters, "farmaciaNomes">> & {
+    /** Âmbito explícito da consolidação Ético/NETT (se o chamador já tem ids). Tem precedência sobre `farmaciaNomes`. */
+    farmaciaIds?: string[];
+  };
 
 /** Há alguma restrição destas para aplicar? */
 export function temFiltroCatalogo(f: FiltrosCatalogo): boolean {
@@ -33,7 +38,8 @@ export function temFiltroCatalogo(f: FiltrosCatalogo): boolean {
     // PRESENÇA, não comprimento: uma lista importada de que nada foi
     // encontrado é `[]` e tem de filtrar para zero. Ver `temListaCodigos`.
     temListaCodigos(f.cnps) ||
-    (f.formasFarmaceuticas?.length ?? 0) > 0
+    (f.formasFarmaceuticas?.length ?? 0) > 0 ||
+    (f.eticoNett?.length ?? 0) > 0
   );
 }
 
@@ -112,6 +118,22 @@ export async function restringirPorCatalogo(
   // `SEM_FORMA` = formaFarmaceutica nula/vazia. Vazio = sem restrição (comportamento anterior).
   if (filtros.formasFarmaceuticas && filtros.formasFarmaceuticas.length > 0) {
     ids = await idsProdutosPorFormas(prisma, filtros.formasFarmaceuticas, ids);
+    if (ids && ids.length === 0) return [];
+  }
+
+  // ── Classificação Ético / NETT ──────────────────────────────────
+  //
+  // Consolidada ENTRE as farmácias em âmbito (as seleccionadas; sem selecção, todas as do tenant): SEM / ÉTICO / NETT /
+  // DIVERGENTE. Em SQL, uma consulta, antes de paginação, cortes e totais. Vazio = sem restrição.
+  if (filtros.eticoNett && filtros.eticoNett.length > 0) {
+    let ambito: string[] | null = filtros.farmaciaIds && filtros.farmaciaIds.length > 0 ? filtros.farmaciaIds : null;
+    if (!ambito && filtros.farmaciaNomes && filtros.farmaciaNomes.length > 0) {
+      const fs = await prisma.farmacia.findMany({ where: { nome: { in: filtros.farmaciaNomes } }, select: { id: true } });
+      ambito = fs.map((f) => f.id);
+      // Nomes que não existem -> nenhuma farmácia em âmbito -> nada classificado (não «todas»).
+      if (ambito.length === 0) return [];
+    }
+    ids = await idsProdutosPorEticoNett(prisma, filtros.eticoNett, ids, ambito);
     if (ids && ids.length === 0) return [];
   }
 

@@ -76,6 +76,7 @@ import {
 } from "./filter-panel";
 import { ImportListaCodigos } from "./import-lista-codigos";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "./filtro-forma-farmaceutica";
+import { ChipsEticoNett, FiltroEticoNett } from "./filtro-etico-nett";
 import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "./laboratorio-multi-select";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -304,6 +305,14 @@ export function ReportFiltersBar({
               selected={value.distribuidores ?? []}
               onToggle={(v) => patch({ distribuidores: alternarValor(v, value.distribuidores ?? []) })}
             />
+            {/* Ético / NETT: classificação ERP consolidada entre as farmácias, filtrada no SERVIDOR. */}
+            {options.eticoNett && (
+              <FiltroEticoNett
+                opcoes={options.eticoNett}
+                selected={value.eticoNett ?? []}
+                onToggle={(v) => patch({ eticoNett: alternarValor(v, value.eticoNett ?? []) })}
+              />
+            )}
           </div>
 
           {/* Chips das selecções activas — mesmo padrão do Vendas, para
@@ -334,6 +343,12 @@ export function ReportFiltersBar({
                 formas={options.formas}
                 selected={value.formasFarmaceuticas ?? []}
                 onRemove={(chave) => patch({ formasFarmaceuticas: (value.formasFarmaceuticas ?? []).filter((v) => v !== chave) })}
+              />
+            )}
+            {options.eticoNett && (
+              <ChipsEticoNett
+                selected={value.eticoNett ?? []}
+                onRemove={(v) => patch({ eticoNett: (value.eticoNett ?? []).filter((x) => x !== v) })}
               />
             )}
             {(value.distribuidores ?? []).map((item) => (

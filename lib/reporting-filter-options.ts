@@ -24,6 +24,7 @@
  *   · getReportingFilterOptions   → opções dos dropdowns (leve, eager)
  */
 
+import { carregarOpcoesEticoNett, type OpcaoEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
@@ -81,6 +82,8 @@ export type ReportingFilterOptions = {
    * (UMA agregação SQL). Ver `lib/catalog/forma-farmaceutica-filtro.ts`.
    */
   formas: OpcaoFormaFarmaceutica[];
+  /** Classificação Ético/NETT consolidada (ETICO · NETT · SEM · DIVERGENTE) com contagem de produtos activos. */
+  eticoNett: OpcaoEticoNett[];
   /**
    * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). NUNCA
    * inclui texto bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
@@ -137,6 +140,7 @@ export async function getReportingFilterOptions(
       fornecedores: [],
       fabricantes: [],
       formas: [],
+      eticoNett: [],
       categorias: [],
       subcategorias: [],
       utilizacoes: [],
@@ -260,6 +264,7 @@ export async function getReportingFilterOptions(
     laboratorios,
     pertencaGrupos,
     formas: await carregarOpcoesFormaFarmaceutica(prisma),
+    eticoNett: await carregarOpcoesEticoNett(prisma),
     categorias,
     subcategorias: subcategoriaRows
       .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))

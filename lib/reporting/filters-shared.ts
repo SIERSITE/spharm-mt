@@ -30,6 +30,7 @@
  * separados em vez de num único objecto deste tipo (o chamador
  * constrói um `SharedReportFilters` efémero só para as alimentar).
  */
+import type { ValorFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS } from "./natureza-venda";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
@@ -87,6 +88,13 @@ export type SharedReportFilters = {
    * `lib/catalog/forma-farmaceutica-filtro.ts`. Combina-se com os restantes eixos por E lógico.
    */
   formasFarmaceuticas?: string[];
+  /**
+   * Classificação ERP Ético/NETT: valores de `ValorFiltroEticoNett` ("ETICO" | "NETT" | "SEM" | "DIVERGENTE"), união (OU)
+   * dentro do eixo, E lógico com os restantes. Vazio/omitido = todos = comportamento anterior (estados antigos sem o
+   * campo lêem-se como omitido). Aplica-se NO SERVIDOR (`restringirPorCatalogo`), antes de paginação e totais.
+   * Ver `lib/classificacao/etico-nett.ts`.
+   */
+  eticoNett?: string[];
   /** Fabricantes canónicos seleccionados. Vazio = todos. */
   fabricantes?: string[];
   /** Distribuidores / grossistas seleccionados. Vazio = todos. */
@@ -186,6 +194,7 @@ export function contarFiltrosAtivos(filtros: SharedReportFilters): number {
   if ((filtros.utilizacoes?.length ?? 0) > 0) n++;
   if ((filtros.fabricantes?.length ?? 0) > 0) n++;
   if ((filtros.formasFarmaceuticas?.length ?? 0) > 0) n++;
+  if ((filtros.eticoNett?.length ?? 0) > 0) n++;
   if ((filtros.distribuidores?.length ?? 0) > 0) n++;
   // A lista importada conta como UM eixo, não como "N produtos" — ver
   // a nota grande em `cnps` acima sobre `undefined` vs `[]`.
@@ -230,6 +239,7 @@ export function limparFiltrosPreservandoData(
     utilizacoes: [],
     fabricantes: [],
     formasFarmaceuticas: [],
+    eticoNett: [],
     distribuidores: [],
     cnps: undefined,
     apenasSemClassif: false,
@@ -281,6 +291,8 @@ export type ReportFilterOptions = {
   fabricantes: string[];
   /** Formas farmacêuticas do tenant (chave, rótulo, nº de produtos). Omitido = sem filtro de forma (consumidor antigo). */
   formas?: OpcaoFormaFarmaceutica[];
+  /** Classificação Ético/NETT (valor + nº de produtos). Omitido = sem filtro Ético/NETT (consumidor antigo). */
+  eticoNett?: Array<{ valor: ValorFiltroEticoNett; count: number }>;
   /** SÓ no tenant garantia — ver o mesmo campo em `ReportingFilterOptions` (lib/reporting-filter-options.ts). */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
   distribuidores: string[];
