@@ -71,7 +71,8 @@ async function main() {
   const sql = fs.readFileSync(path.join(raiz, "prisma/migrations", MIGRACAO, "migration.sql"), "utf8");
   const instrucoes = sql.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").split(";").map((s) => s.trim()).filter(Boolean);
   check(instrucoes.length === 3, `3 instruções (CREATE TYPE, ALTER TABLE ADD COLUMN, CREATE INDEX) — ${instrucoes.length}`);
-  check(!/\b(DROP|UPDATE|DELETE|TRUNCATE|RENAME)\b/i.test(sql) && !/ALTER COLUMN|SET NOT NULL|SET DATA TYPE/i.test(sql), "nenhum DROP/UPDATE/DELETE/RENAME nem ALTER COLUMN");
+  const corpo = instrucoes.join(";\n"); // sem os comentários (que mencionam DROP no rollback)
+  check(!/\b(DROP|UPDATE|DELETE|TRUNCATE|RENAME)\b/i.test(corpo) && !/ALTER COLUMN|SET NOT NULL|SET DATA TYPE/i.test(corpo), "nenhum DROP/UPDATE/DELETE/RENAME nem ALTER COLUMN");
   check(/ADD COLUMN "eticoNettManual" BOOLEAN NOT NULL DEFAULT false/.test(sql), "a única coluna NOT NULL tem DEFAULT (linhas antigas ficam válidas)");
 
   const suf = Date.now().toString(36);
