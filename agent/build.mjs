@@ -348,6 +348,13 @@ function copyResources(endpoint) {
   } else {
     throw new Error("agent/docs/resiliencia.md não existe — a rev98 não pode ser empacotada sem a documentação operacional.");
   }
+  // Classificação Ético/NETT (rev99): instalação lado a lado, validação antes da troca e rollback.
+  const eticoNettSrc = path.join(AGENT_ROOT, "docs", "rev99-etico-nett.md");
+  if (fs.existsSync(eticoNettSrc)) {
+    fs.copyFileSync(eticoNettSrc, path.join(DIST_ROOT, "REV99-ETICO-NETT.md"));
+  } else {
+    throw new Error("agent/docs/rev99-etico-nett.md não existe — a rev99 não pode ser empacotada sem o guia de instalação.");
+  }
 
   // Um marcador a zero significa que alguém reescreveu a fonte e voltou
   // a pôr um domínio à mão. É exactamente a regressão que este trabalho
@@ -2278,6 +2285,7 @@ function writeReadme() {
     `  run-sync-now-poll-auto.bat      Task Scheduler (2/2 min): poll de sync-now. Log em logs\\sync-now-*.log. Ver agent/docs/sync-now.md.`,
     `  run-daily-pipeline-plan.bat     rev98: dry-run do plano do daily-pipeline (dias em falta + politica de retentativas). Nada e executado.`,
     `  RESILIENCIA.md                  rev98: retentativas, retoma, dias em falta, alertas e idempotencia dos endpoints`,
+    `  REV99-ETICO-NETT.md             rev99: Etico/NETT - instalacao lado a lado, validacao antes da troca da tarefa e rollback para a rev98`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,
