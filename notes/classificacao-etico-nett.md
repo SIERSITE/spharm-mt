@@ -19,10 +19,20 @@ Só `ÉTICO` e `NETT` são implementados. Serviço, Sacos, Outros e qualquer cat
 
 `Genérico` continua a ser `Produto.flagGenerico` (vem de `Stocks.Generico`). **Não** existe segunda classificação de genérico.
 
-## Consolidação (nunca «a última farmácia ganha»)
+## Âmbito e consolidação (nunca «a última farmácia ganha»)
 
-Entre as farmácias **em âmbito** que têm informação: 0 ⇒ `SEM` · uma só categoria ⇒ essa · duas categorias ⇒ `DIVERGENTE`. Nos mapas, o âmbito
-são as farmácias seleccionadas (sem selecção: todas as do tenant). Uma farmácia sem informação não vota.
+Entre as farmácias **em âmbito** que têm informação: 0 ⇒ `SEM` · uma só categoria ⇒ essa · duas categorias ⇒ `DIVERGENTE`. Uma farmácia sem
+informação não vota. O âmbito depende do ecrã:
+
+| Ecrã | Âmbito |
+| --- | --- |
+| Vendas, Margens, Inventário, Stock | as farmácias seleccionadas (sem selecção, todas) |
+| Proposta de Encomenda | **a farmácia da proposta** (DIVERGENTE nunca existe) |
+| Lista de Encomendas | **a farmácia de cada encomenda** (DIVERGENTE nunca existe) |
+| Mapa de Encomendas | linhas por farmácia; o cliente consolida só as farmácias seleccionadas |
+| Excessos, Transferências | as farmácias do grupo que o loader recebe |
+| Catálogo | o tenant inteiro (nível de catálogo) |
+| Ficha do artigo | consolidado do tenant + uma linha por farmácia (com a divergência explicada) |
 
 ## Contrato de ingestão (`POST /api/ingest/v1/bootstrap/products`, campos opcionais por item)
 
@@ -30,12 +40,15 @@ são as farmácias seleccionadas (sem selecção: todas as do tenant). Uma farm�
 | --- | --- |
 | campos ausentes (agent ≤ rev98) | **nada** é tocado |
 | `eticoNett: "ETICO" \| "NETT"` (+ `eticoNettCodigo`, `eticoNettDescricao`) | grava na `ProdutoFarmacia` **já existente** (UPDATE; nunca INSERT) |
-| `eticoNett: null` | observado mas sem categoria Ético/NETT: aviso, **não altera nem apaga** |
+| `eticoNett: null` + `eticoNettOutraCategoria: true` (+ código, descrição «Serviços»/«Sacos»/«Outros») | **retira só a classificação automática** (fica SEM); só se a descrição confirmar uma categoria conhecida |
+| `eticoNett: null` (lookup ausente, código órfão, descrição vazia/desconhecida/ambígua) | aviso (`naoClassificados`); **não altera nem apaga** |
 | valor inválido, ou descrição que não confirma a categoria | `invalidos`, nada é escrito |
-| `eticoNettManual = true` | `ignoradosManual`, nada é escrito |
+| `eticoNettManual = true` | `ignoradosManual`, nada é alterado nem retirado |
 
-Reenvios são idempotentes. A resposta traz `eticoNett: { candidatos, aplicados, naoClassificados, invalidos, ignoradosManual }` só quando o
-lote trazia os campos novos. A classificação **não cria produtos**: o universo é o do lote que o agent já enviava.
+Reenvios são idempotentes. A resposta traz `eticoNett: { candidatos, aplicados, limpos, outraCategoria, naoClassificados, invalidos,
+ignoradosManual }` só quando o lote trazia os campos novos. A classificação **não cria produtos**: o universo é o do lote que o agent já
+enviava. Se o Produto já existe no MT e a farmácia ainda não tem `ProdutoFarmacia`, é o upsert normal desse item (o mesmo de sempre) que a
+cria **antes** deste passo, só para a farmácia que enviou o artigo; o passo da classificação nunca faz INSERT.
 
 ## Agent rev99 (em cima da rev98; rev98 intacta)
 
@@ -60,6 +73,5 @@ existente. PDF/impressão/Excel/email partilham o `Report` e levam a linha «Ét
 
 * O sync diário só relê os artigos que se moveram no dia (e o refresh operacional diário o catálogo activo): uma mudança de classificação no ERP sem
   movimento chega no refresh operacional ou no `full-sync`.
-* Uma classificação que passe no ERP a Serviço/desconhecido **não apaga** a anterior (decisão deliberada).
-* O mapa de Encomendas calcula o estado consolidado com uma agregação extra em cada carga.
-* Na lista/proposta de Encomendas o âmbito é o tenant inteiro (não só a farmácia da encomenda).
+* Uma classificação que passe no ERP a uma categoria **desconhecida/ambígua** (ou com lookup em falta) não apaga a anterior; só Serviço, Sacos e Outros (lista fechada) a retiram.
+* O mapa de Encomendas faz uma consulta extra (uma linha por farmácia com classificação) em cada carga.
