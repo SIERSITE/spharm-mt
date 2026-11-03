@@ -16,6 +16,7 @@
  * `scripts/tests/test-ui-catalogo.ts` mantém a lista de componentes sem
  * rota; qualquer novo entra lá de propósito ou o teste falha.
  */
+import { consolidarEticoNett } from "@/lib/classificacao/etico-nett";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -83,8 +84,8 @@ type EncomendaFarmaciaRow = {
   utilizacoes: string[];
   /** Chave normalizada da forma farmacêutica (calculada no servidor) — alimenta o filtro «Forma farmacêutica». */
   formaChave?: string;
-  /** Estado consolidado Ético/NETT do produto (calculado no servidor) — alimenta o filtro «Ético/NETT». */
-  eticoNettEstado?: string;
+  /** Classificação Ético/NETT DESTA farmácia (servidor) — o cliente consolida só as farmácias em âmbito. */
+  eticoNett?: "ETICO" | "NETT" | null;
   dci?: string | null;
   codigoATC?: string | null;
   valorEstimado: number;
@@ -313,6 +314,18 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     });
   }, [initialRows, coberturaAlvoDias]);
 
+  const estadoEticoNettPorProduto = useMemo(() => {
+    const porProduto = new Map<string, Array<"ETICO" | "NETT" | null | undefined>>();
+    for (const row of rowsCalculadas) {
+      if (farmaciasSelecionadas.length > 0 && !farmaciasSelecionadas.includes(row.farmacia)) continue;
+      const chave = String(row.produtoId ?? row.cnp);
+      const lista = porProduto.get(chave) ?? [];
+      lista.push(row.eticoNett);
+      porProduto.set(chave, lista);
+    }
+    return new Map([...porProduto].map(([id, valores]) => [id, consolidarEticoNett(valores)]));
+  }, [rowsCalculadas, farmaciasSelecionadas]);
+
   const groupRows = useMemo<GroupEncomendaRow[]>(() => {
     const filtered = rowsCalculadas.filter((row) => {
       if (farmaciasSelecionadas.length > 0 && !farmaciasSelecionadas.includes(row.farmacia)) return false;
@@ -320,8 +333,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       if (!passaFiltroLaboratorioLinha(row, fabricantesSelecionados, filtroLab)) return false;
       // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
       if (!passaFiltroForma(row.formaChave, formasSelecionadas)) return false;
-      // Ético/NETT: estado consolidado já calculado no servidor (`row.eticoNettEstado`); selecção vazia = passa tudo.
-      if (eticoNettSelecionados.length > 0 && !eticoNettSelecionados.includes(row.eticoNettEstado ?? "SEM")) return false;
+      // Ético/NETT: consolidado SÓ sobre as farmácias em âmbito (seleccionadas; sem selecção, todas). Vazio = passa tudo.
+      if (eticoNettSelecionados.length > 0 && !eticoNettSelecionados.includes(estadoEticoNettPorProduto.get(String(row.produtoId ?? row.cnp)) ?? "SEM")) return false;
       if (
         !passaFiltroCatalogo(row, {
           categorias: categoriasSelecionadas,

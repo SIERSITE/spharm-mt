@@ -55,13 +55,26 @@ const plano: ag.PlanoEticoNett = {
   lookup: ag.resolverLookupEticoNett([{ codigo: 1, descricao: "Éticos" }, { codigo: 2, descricao: "NETT" }, { codigo: 3, descricao: "Serviços" }]),
   lookupAusente: null,
   linhasLookup: 3,
-  contagens: { etico: 0, nett: 0, naoClassificados: 0, semCodigo: 0 },
+  contagens: { etico: 0, nett: 0, naoClassificados: 0, outraCategoria: 0, semCodigo: 0 },
 };
 const e = srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(plano, 1));
 check(e.tipo === "VALOR" && e.categoria === "ETICO" && e.codigoErp === 1 && e.descricaoErp === "Éticos", "o servidor aceita o ETICO que o agent envia");
 const n = srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(plano, 2));
 check(n.tipo === "VALOR" && n.categoria === "NETT", "o servidor aceita o NETT que o agent envia");
-check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(plano, 3)).tipo === "NAO_CLASSIFICADO", "Serviço -> NAO_CLASSIFICADO no servidor (aviso, nada escrito)");
+const sv = srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(plano, 3));
+check(sv.tipo === "OUTRA_CATEGORIA" && sv.descricaoErp === "Serviços", "Serviço (categoria conhecida) -> OUTRA_CATEGORIA no servidor (retira a automática)");
+const desc = ag.resolverLookupEticoNett([{ codigo: 1, descricao: "Éticos" }, { codigo: 8, descricao: "Qualquer coisa" }, { codigo: 9, descricao: "" }, { codigo: 5, descricao: "Outros" }]);
+const planoD: ag.PlanoEticoNett = { ...plano, lookup: desc, contagens: { etico: 0, nett: 0, naoClassificados: 0, outraCategoria: 0, semCodigo: 0 } };
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoD, 8)).tipo === "NAO_CLASSIFICADO", "descrição desconhecida -> NAO_CLASSIFICADO (preserva)");
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoD, 9)).tipo === "NAO_CLASSIFICADO", "descrição vazia -> NAO_CLASSIFICADO (preserva)");
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoD, 77)).tipo === "NAO_CLASSIFICADO", "código órfão -> NAO_CLASSIFICADO (preserva)");
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoD, 5)).tipo === "OUTRA_CATEGORIA", "Outros -> OUTRA_CATEGORIA");
+const planoSemLookup: ag.PlanoEticoNett = { ...plano, lookup: null, lookupAusente: "SEM_TABELA", contagens: { etico: 0, nett: 0, naoClassificados: 0, outraCategoria: 0, semCodigo: 0 } };
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoSemLookup, 3)).tipo === "NAO_CLASSIFICADO", "lookup ausente -> NAO_CLASSIFICADO (nunca retira)");
+const amb = ag.resolverLookupEticoNett([{ codigo: 1, descricao: "Éticos" }, { codigo: 1, descricao: "Serviços" }, { codigo: 2, descricao: "Éticos" }]);
+const planoA: ag.PlanoEticoNett = { ...plano, lookup: amb, contagens: { etico: 0, nett: 0, naoClassificados: 0, outraCategoria: 0, semCodigo: 0 } };
+check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoA, 1)).tipo === "NAO_CLASSIFICADO" && srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(planoA, 2)).tipo === "NAO_CLASSIFICADO", "ambíguo (Ético e Serviço no mesmo código; dois códigos Ético) -> preserva");
+check(srv.ehOutraCategoriaConhecida("Sacos L.") && srv.ehOutraCategoriaConhecida("SERVIÇOS") && !srv.ehOutraCategoriaConhecida("Éticos") && !srv.ehOutraCategoriaConhecida("Serviços e Éticos") && ag.ehOutraCategoriaConhecida("Outros") === srv.ehOutraCategoriaConhecida("Outros"), "lista fechada de categorias conhecidas, igual no agent e no servidor");
 check(srv.lerEticoNettDoPayload(ag.eticoNettParaPayload(plano, null)).tipo === "AUSENTE", "sem código -> AUSENTE no servidor (nada observado)");
 
 console.log(`\n${ok} OK, ${ko} FALHA(S)`);

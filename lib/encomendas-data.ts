@@ -95,7 +95,8 @@ export type EncomendaBaseRow = {
    * `idsProdutosPorEticoNett`: 0 farmácias com informação -> SEM, 1 categoria -> essa, 2 -> DIVERGENTE). Igual em todas as
    * farmácias do produto. Alimenta o filtro «Ético/NETT», que corre no cliente sobre as linhas já carregadas.
    */
-  eticoNettEstado?: string;
+  /** Classificação Ético/NETT DESTA farmácia (origem por farmácia); o estado consolidado calcula-se no cliente sobre o âmbito. */
+  eticoNett?: "ETICO" | "NETT" | null;
   productType: string | null;
   // Enriquecimento clínico — surfaced em tooltip + chip ATC na UI.
   dci: string | null;
@@ -255,14 +256,14 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
   `);
   const utilPorProduto = new Map(utilRows.map((u) => [u.produtoId, u.slugs]));
 
-  // Ético/NETT consolidado por PRODUTO (todas as farmácias do tenant): uma agregação, sem consulta por linha.
-  const eticoNettRows = await prisma.$queryRaw<Array<{ produtoId: string; n: bigint | number; c: string }>>(Prisma.sql`
-    SELECT pf."produtoId", count(DISTINCT pf."eticoNett") AS n, min(pf."eticoNett"::text) AS c
+  // Ético/NETT POR FARMÁCIA (a origem é a farmácia): uma consulta, sem consulta por linha. O cliente consolida só as
+  // farmácias em âmbito (as seleccionadas) — nunca o tenant inteiro.
+  const eticoNettRows = await prisma.$queryRaw<Array<{ produtoId: string; farmaciaId: string; c: string }>>(Prisma.sql`
+    SELECT pf."produtoId", pf."farmaciaId", pf."eticoNett"::text AS c
       FROM "ProdutoFarmacia" pf
      WHERE pf."eticoNett" IS NOT NULL
-     GROUP BY pf."produtoId"
   `);
-  const eticoNettPorProduto = new Map(eticoNettRows.map((r) => [r.produtoId, Number(r.n) > 1 ? "DIVERGENTE" : r.c]));
+  const eticoNettPorProdutoFarmacia = new Map(eticoNettRows.map((r) => [`${r.produtoId}|${r.farmaciaId}`, r.c]));
   for (const row of pfRows) row.utilizacoes = utilPorProduto.get(row.produtoId) ?? [];
 
   // Dual-read: IPF carregado em paralelo com vendas mensais. Quando IPF
@@ -451,7 +452,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       subcategoria: par.subcategoria,
       utilizacoes: pf.utilizacoes ?? [],
       formaChave: chaveFormaFarmaceutica(pf.formaFarmaceutica),
-      eticoNettEstado: eticoNettPorProduto.get(pf.produtoId) ?? "SEM",
+      eticoNett: (eticoNettPorProdutoFarmacia.get(`${pf.produtoId}|${pf.farmaciaId}`) as "ETICO" | "NETT" | undefined) ?? null,
       productType: pf.productType,
       dci: pf.dci,
       codigoATC: pf.codigoATC,

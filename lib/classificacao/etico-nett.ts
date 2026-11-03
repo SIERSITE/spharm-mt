@@ -51,6 +51,17 @@ export function categoriaDaDescricao(descricao: string | null | undefined): Cate
   return null;
 }
 
+const OUTRAS_FORMAS = /^(servicos?|sacos( l)?|outros?)$/;
+
+/**
+ * Categorias CONHECIDAS do lookup `dbo.Etico_NETT` que não são Ético/NETT (Serviço, Sacos, Outros). NÃO se importam como
+ * classificação; só servem para saber que o ERP já classificou o artigo noutra categoria (e por isso o MT deixa de o
+ * mostrar como Ético/NETT). Lista FECHADA: descrição desconhecida/vazia/ambígua NÃO conta (preserva-se o que existe).
+ */
+export function ehOutraCategoriaConhecida(descricao: string | null | undefined): boolean {
+  return OUTRAS_FORMAS.test(normalizarDescricaoEticoNett(descricao));
+}
+
 export type LinhaLookupEticoNett = { codigo: number | null | undefined; descricao: string | null | undefined };
 
 export type ResolucaoLookupEticoNett = {
@@ -129,6 +140,7 @@ export function lerValoresFiltroEticoNett(entrada: unknown): ValorFiltroEticoNet
 export type EticoNettDoPayload =
   | { tipo: "AUSENTE" } // agent ≤ rev98: não toca em nada
   | { tipo: "NAO_CLASSIFICADO" } // observado mas sem categoria Ético/NETT (Serviço, desconhecido, lookup em falta…)
+  | { tipo: "OUTRA_CATEGORIA"; codigoErp: number | null; descricaoErp: string } // categoria conhecida ≠ Ético/NETT: retira a automática
   | { tipo: "INVALIDO" } // valor incoerente (categoria que a descrição não confirma, ou texto estranho)
   | { tipo: "VALOR"; categoria: CategoriaEticoNett; codigoErp: number | null; descricaoErp: string | null };
 
@@ -139,9 +151,22 @@ export type EticoNettDoPayload =
  * Ausente ≠ null: ausente = agent antigo (preserva), null = agent novo que não reconheceu categoria.
  * Se a descrição vier, TEM de confirmar a categoria — senão o item é INVALIDO e nada se escreve.
  */
-export function lerEticoNettDoPayload(raw: { eticoNett?: unknown; eticoNettCodigo?: unknown; eticoNettDescricao?: unknown }): EticoNettDoPayload {
+export function lerEticoNettDoPayload(raw: {
+  eticoNett?: unknown;
+  eticoNettCodigo?: unknown;
+  eticoNettDescricao?: unknown;
+  eticoNettOutraCategoria?: unknown;
+}): EticoNettDoPayload {
   if (raw.eticoNett === undefined) return { tipo: "AUSENTE" };
-  if (raw.eticoNett === null) return { tipo: "NAO_CLASSIFICADO" };
+  if (raw.eticoNett === null) {
+    if (raw.eticoNettOutraCategoria !== true) return { tipo: "NAO_CLASSIFICADO" };
+    // O ERP diz que o artigo é de outra categoria CONHECIDA: só se aceita se a descrição o confirmar (defesa em profundidade).
+    const d = typeof raw.eticoNettDescricao === "string" ? raw.eticoNettDescricao.trim().slice(0, 120) : "";
+    if (!d || !ehOutraCategoriaConhecida(d)) return { tipo: "INVALIDO" };
+    const k = raw.eticoNettCodigo;
+    const codigo = typeof k === "number" && Number.isInteger(k) && k >= 0 && k <= 32767 ? k : null;
+    return { tipo: "OUTRA_CATEGORIA", codigoErp: codigo, descricaoErp: d };
+  }
   if (raw.eticoNett !== "ETICO" && raw.eticoNett !== "NETT") return { tipo: "INVALIDO" };
   const categoria = raw.eticoNett;
   const descricao = typeof raw.eticoNettDescricao === "string" ? raw.eticoNettDescricao.trim().slice(0, 120) : null;

@@ -254,8 +254,8 @@ async function main() {
     const prop = (filters?: { eticoNett?: string[]; fabricantes?: string[] }) =>
       generateOrderProposal({ farmaciaId: f1.id, farmaciaNome: "EN Farmácia Um", startDate: inicio, endDate: fim, considerStock: true, baseRule: "coverage", targetCoverageDays: 15, filters }, prisma, { resolverTenant: async () => null });
     const pCnps = (r: { rows: Array<{ cnp: number }> }) => ordenado([...new Set(r.rows.map((x) => x.cnp))]);
-    check(mesmo(pCnps(await prop({ eticoNett: ["ETICO"] })), ordenado(ETICO)), "P1: proposta filtra por ÉTICO (antes do corte de linhas)");
-    check(mesmo(pCnps(await prop({ eticoNett: ["DIVERGENTE"] })), ordenado(DIVERG)), "P2: proposta DIVERGENTE");
+    check(mesmo(pCnps(await prop({ eticoNett: ["ETICO"] })), ordenado([...ETICO, ...DIVERG])), "P1: proposta da farmácia Um filtra por ÉTICO com a classificação DA FARMÁCIA UM (os «divergentes» são Ético nela)");
+    check(mesmo(pCnps(await prop({ eticoNett: ["DIVERGENTE"] })), []), "P2: DIVERGENTE não existe numa proposta de uma só farmácia");
     check(mesmo(pCnps(await prop({ eticoNett: ["NETT"], fabricantes: ["EN ALFA FAB"] })), ordenado(NETT)), "P3: proposta NETT E fabricante");
     check(mesmo(pCnps(await prop({ eticoNett: [] })), pCnps(await prop())), "P4: [] = proposta de base");
     check((await prop({ eticoNett: ["NETT"] })).meta.filtered === 2, "P5: contagens da proposta reflectem o filtro");
@@ -282,11 +282,11 @@ async function main() {
     check(oE.total === 3 && mesmo(nomes(oE), ["EN Enc 00", "EN Enc 01", "EN Enc 02"]), "O2: ÉTICO na página 1 mostra as 3 encomendas (antes só havia na página 1 por acaso — total reflecte o filtro)", `total=${oE.total}`);
     check(oE.orders.every((o) => o.linhasCount === 2), "O3: a encomenda aparece INTEIRA (2 linhas)");
     const oD = await lista(["DIVERGENTE"]);
-    check(oD.total === 1 && mesmo(nomes(oD), ["EN Enc 03"]), "O4: DIVERGENTE = 1 encomenda");
+    check(oD.total === 0, "O4: DIVERGENTE = nenhuma encomenda (cada uma é de uma só farmácia)");
     const oN = await lista(["NETT"]);
-    check(oN.total === 0 && oN.orders.length === 0, "O5: NETT sem encomendas -> 0 (não a lista completa)");
+    check(oN.total === 1 && mesmo(nomes(oN), ["EN Enc 03"]), "O5: NETT = Enc 03 (farmácia Dois, onde o k5 é NETT)");
     const oSem = await lista(["SEM"]);
-    check(oSem.total === 39, `O6: SEM = 39 (todas menos a Enc 03, cuja única linha é um DIVERGENTE) — veio ${oSem.total}`);
+    check(oSem.total === 39, `O6: SEM = 39 (todas menos a Enc 03, cuja única linha é NETT na farmácia Dois) — veio ${oSem.total}`);
     const oVazio = await lista([]);
     check(oVazio.total === 40, "O7: [] = baseline");
 
@@ -298,11 +298,11 @@ async function main() {
       universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [], prioridades: [] },
       organization: "EN",
     });
-    const linha = rep.filtersApplied.find((f) => f.label === "Ético/NETT");
-    check(linha?.value === "Ético, Divergente", "X1: o Report de Excessos (base de PDF, impressão, Excel e email) leva «Ético/NETT: Ético, Divergente»", JSON.stringify(rep.filtersApplied));
+    const linha = (rep.filtersApplied ?? []).find((f) => f.label === "Ético/NETT");
+    check(linha?.value === "Ético, Divergente", "X1: o Report de Excessos (base de PDF, impressão, Excel e email) leva «Ético/NETT: Ético, Divergente»", JSON.stringify(rep.filtersApplied ?? []));
     check(rep.rows.length === eE.length, "X2: o Report leva exactamente as linhas filtradas");
     const repSem = buildExcessosReport({ rows: e0 as never, filters: { ...OPC } as never, universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [], prioridades: [] }, organization: "EN" });
-    check(!repSem.filtersApplied.some((f) => f.label === "Ético/NETT"), "X3: sem filtro não há linha Ético/NETT");
+    check(!(repSem.filtersApplied ?? []).some((f) => f.label === "Ético/NETT"), "X3: sem filtro não há linha Ético/NETT");
 
     // ═══ O · opções e pré-filtro partilhado ═══
     secao("O · opções do filtro e pré-filtro partilhado");

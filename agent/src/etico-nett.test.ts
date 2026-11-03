@@ -128,6 +128,19 @@ async function main() {
   const viaMapDireto = ([linha] as never[]).map(rowToProductPayload as never);
   ok("passar o índice do .map como 2.º argumento não rebenta nem classifica", viaMapDireto.length === 1);
 
+  console.log("\n=== C2. transições: outra categoria conhecida vs desconhecido ===");
+  const tr = await descobrirEticoNett(poolFalso({
+    colunas: [COL_STOCKS, ...COLS_LOOKUP],
+    lookup: [{ codigo: 1, descricao: "Éticos" }, { codigo: 2, descricao: "NETT" }, { codigo: 3, descricao: "Serviços" }, { codigo: 4, descricao: "Sacos L." }, { codigo: 5, descricao: "Outros" }, { codigo: 6, descricao: "Coisa nova" }, { codigo: 7, descricao: "" }],
+  }));
+  for (const [cod, desc] of [[3, "Serviços"], [4, "Sacos L."], [5, "Outros"]] as const) {
+    const pl = eticoNettParaPayload(tr, cod);
+    ok(`código ${cod} (${desc}) -> eticoNett null + eticoNettOutraCategoria + descrição`, pl.eticoNett === null && pl.eticoNettOutraCategoria === true && pl.eticoNettDescricao === desc);
+  }
+  ok("categoria desconhecida -> null SEM flag (preserva)", eticoNettParaPayload(tr, 6).eticoNettOutraCategoria === undefined && eticoNettParaPayload(tr, 6).eticoNett === null);
+  ok("descrição vazia -> null SEM flag (preserva)", eticoNettParaPayload(tr, 7).eticoNettOutraCategoria === undefined);
+  ok("contagens: 3 de outra categoria, 3 leituras sem categoria reconhecível (6 duas vezes, 7)", tr.contagens.outraCategoria === 3 && tr.contagens.naoClassificados === 3, JSON.stringify(tr.contagens));
+
   console.log("\n=== F. logs sem dados ===");
   const log = descreverPlanoEticoNett(normal) + " " + descreverContagensEticoNett(normal);
   ok("só contagens/estrutura (sem «Serviços», «Sacos», «Outros»)", !/Servi|Sacos|Outros/i.test(log), log);

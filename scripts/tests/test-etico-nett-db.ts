@@ -218,7 +218,7 @@ async function main() {
       produtoId: upB.get(CNP.a)!, farmaciaId: farmB.id, externalProductId: CNP.a, pvp: 1, pmc: null, puc: 1, dataUltimaVenda: null,
       dataUltimaCompra: null, flagRetirado: false, fornecedorExternalId: null, fornecedorOrigem: null, taxaIvaPercent: null,
     }]);
-    await aplicarEticoNett(prismaB, farmB.id, [{ produtoId: upB.get(CNP.a)!, categoria: "NETT", codigoErp: 2, descricaoErp: "NETT" }], { candidatos: 1, aplicados: 0, naoClassificados: 0, invalidos: 0, ignoradosManual: 0 });
+    await aplicarEticoNett(prismaB, farmB.id, [{ produtoId: upB.get(CNP.a)!, categoria: "NETT", codigoErp: 2, descricaoErp: "NETT" }], { candidatos: 1, aplicados: 0, limpos: 0, outraCategoria: 0, naoClassificados: 0, invalidos: 0, ignoradosManual: 0 });
     const opB = Object.fromEntries((await carregarOpcoesEticoNett(prismaB)).map((o) => [o.valor, o.count]));
     check(opB.NETT === 1 && opB.ETICO === 0 && opB.DIVERGENTE === 0, "tenant B vê só o seu NETT", JSON.stringify(opB));
     check((await pf(CNP.a, farmX.id)).eticoNett === "ETICO", "tenant A não foi afetado pelo B (mesmo CNP, outra base)");

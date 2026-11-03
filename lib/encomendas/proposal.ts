@@ -436,7 +436,7 @@ export async function generateOrderProposal(
   // Ético/NETT: ids dos produtos no estado consolidado escolhido (uma consulta, só com selecção) -> `p.id = ANY`.
   const eticoNettValores = lerValoresFiltroEticoNett(input.filters?.eticoNett ?? []);
   if (eticoNettValores.length > 0) {
-    const ids = (await idsProdutosPorEticoNett(prisma, eticoNettValores, null)) ?? [];
+    const ids = (await idsProdutosPorEticoNett(prisma, eticoNettValores, null, [input.farmaciaId])) ?? [];
     conds.push(Prisma.sql`p.id = ANY(${ids}::text[])`);
   }
   if (catFilter) {

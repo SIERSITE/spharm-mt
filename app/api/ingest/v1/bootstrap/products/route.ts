@@ -117,6 +117,8 @@ type ProductPayload = {
   eticoNett?: unknown;
   eticoNettCodigo?: unknown;
   eticoNettDescricao?: unknown;
+  /** true = o ERP classificou o artigo noutra categoria CONHECIDA (Serviço, Sacos, Outros): retira só a classificação automática. */
+  eticoNettOutraCategoria?: unknown;
 };
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -212,7 +214,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     grupoHomogeneo: string | null;
     fabricante: string | null;
     /** Campos de classificação Ético/NETT tal como chegaram (interpretados em lib/ingest/etico-nett.ts). */
-    eticoNettRaw: { eticoNett?: unknown; eticoNettCodigo?: unknown; eticoNettDescricao?: unknown };
+    eticoNettRaw: { eticoNett?: unknown; eticoNettCodigo?: unknown; eticoNettDescricao?: unknown; eticoNettOutraCategoria?: unknown };
   };
 
   // Contagens do enriquecimento a partir do ERP, declaradas aqui para
@@ -234,7 +236,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const aplicarEticoNettDoLote = async (produtoIdPorCnp: ReadonlyMap<number, string>) => {
     try {
       const prep = prepararEticoNett(dedup.map((a) => ({ produtoId: produtoIdPorCnp.get(a.cnp), raw: a.eticoNettRaw })));
-      eticoNettResumo = await aplicarEticoNett(ctx.prisma, farmaciaId, prep.aplicar, prep.resumo);
+      eticoNettResumo = await aplicarEticoNett(ctx.prisma, farmaciaId, prep.aplicar, prep.resumo, prep.limpar);
       if (eticoNettResumo.candidatos > 0) {
         console.log(`[bootstrap/products] etico_nett ${JSON.stringify({ tenant: ctx.tenant.slug, farmaciaId, ...eticoNettResumo })}`);
       }
@@ -292,7 +294,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       codigoATC: asStringOrNull(raw.codigoATC),
       grupoHomogeneo: asStringOrNull(raw.grupoHomogeneo),
       fabricante: asStringOrNull(raw.fabricante),
-      eticoNettRaw: { eticoNett: raw.eticoNett, eticoNettCodigo: raw.eticoNettCodigo, eticoNettDescricao: raw.eticoNettDescricao },
+      eticoNettRaw: { eticoNett: raw.eticoNett, eticoNettCodigo: raw.eticoNettCodigo, eticoNettDescricao: raw.eticoNettDescricao, eticoNettOutraCategoria: raw.eticoNettOutraCategoria },
     });
   }
 

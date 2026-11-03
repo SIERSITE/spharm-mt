@@ -7,7 +7,6 @@ import {
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
-import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 
 /**
  * Data loader para a página de listagem de encomendas (/encomendas).
@@ -160,16 +159,18 @@ export async function loadOrderListData(
     if (porForma) where.linhas = { some: { produto: porForma } };
   }
 
-  // Ético/NETT: produtos no estado consolidado escolhido (uma consulta) -> ids das encomendas que os têm em linhas (uma
-  // consulta, array como UM parâmetro). Vai em `AND` para não colidir com `where.linhas` da forma. Sem selecção: nada.
+  // Ético/NETT: cada encomenda pertence a UMA farmácia, por isso o estado de cada linha é o da classificação DESSA
+  // farmácia (ETICO/NETT; sem classificação ou sem ProdutoFarmacia = SEM). DIVERGENTE não existe num âmbito de uma só
+  // farmácia (não corresponde a nenhuma encomenda). Uma consulta; vai em `AND` para não colidir com `where.linhas` da forma.
   const eticoNett = lerValoresFiltroEticoNett(filters.eticoNett ?? []);
   if (eticoNett.length > 0) {
-    const produtoIds = (await idsProdutosPorEticoNett(prisma, eticoNett, null)) ?? [];
-    const listas = produtoIds.length
-      ? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT DISTINCT le."listaEncomendaId" AS id FROM "LinhaEncomenda" le WHERE le."produtoId" = ANY(${produtoIds}::text[])
-        `)
-      : [];
+    const listas = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT DISTINCT le."listaEncomendaId" AS id
+        FROM "LinhaEncomenda" le
+        JOIN "ListaEncomenda" l ON l.id = le."listaEncomendaId"
+        LEFT JOIN "ProdutoFarmacia" pf ON pf."produtoId" = le."produtoId" AND pf."farmaciaId" = l."farmaciaId"
+       WHERE COALESCE(pf."eticoNett"::text, 'SEM') = ANY(${eticoNett}::text[])
+    `);
     where.AND = [{ id: { in: listas.map((l) => l.id) } }];
   }
 

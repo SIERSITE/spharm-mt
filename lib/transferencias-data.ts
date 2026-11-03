@@ -314,7 +314,7 @@ export async function loadPfAndSales(
 
   // Ético/NETT: ids dos produtos cujo estado consolidado pertence à selecção (null = sem restrição).
   const eticoNettValores = lerValoresFiltroEticoNett(options?.eticoNett ?? []);
-  const idsEticoNett = eticoNettValores.length > 0 ? await idsProdutosPorEticoNett(prisma, eticoNettValores, null) : null;
+  const idsEticoNett = eticoNettValores.length > 0 ? await idsProdutosPorEticoNett(prisma, eticoNettValores, null, farmaciaIds) : null;
   const sqlEticoNett = idsEticoNett ? Prisma.sql`AND pf."produtoId" = ANY(${idsEticoNett}::text[])` : Prisma.empty;
 
   const pfRows = await prisma.$queryRaw<PfBase[]>(Prisma.sql`

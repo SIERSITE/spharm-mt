@@ -49,12 +49,21 @@ export function categoriaDaDescricao(descricao: string | null | undefined): Cate
   return null;
 }
 
+const OUTRAS_FORMAS = /^(servicos?|sacos( l)?|outros?)$/;
+
+/** Categorias CONHECIDAS que não são Ético/NETT (Serviço, Sacos, Outros). Lista FECHADA: o resto é «desconhecido». */
+export function ehOutraCategoriaConhecida(descricao: string | null | undefined): boolean {
+  return OUTRAS_FORMAS.test(normalizarDescricaoEticoNett(descricao));
+}
+
 export type LinhaLookupEticoNett = { codigo: number | null | undefined; descricao: string | null | undefined };
 
 export type ResolucaoLookupEticoNett = {
   porCodigo: Map<number, CategoriaEticoNett>;
   /** Descrição ORIGINAL (aparada) do lookup, só dos códigos resolvidos — vai no payload, nunca nos logs. */
   descricaoOriginal: Map<number, string>;
+  /** codigo -> descrição ORIGINAL, só de códigos INEQUIVOCAMENTE de outra categoria conhecida (Serviço, Sacos, Outros). */
+  outraCategoria: Map<number, string>;
   ignoradas: number;
   ambiguos: number[];
 };
@@ -66,12 +75,14 @@ export type ResolucaoLookupEticoNett = {
 export function resolverLookupEticoNett(linhas: readonly LinhaLookupEticoNett[]): ResolucaoLookupEticoNett {
   const candidatos = new Map<number, Set<CategoriaEticoNett>>();
   const original = new Map<number, string>();
+  const outras = new Map<number, string>();
   let ignoradas = 0;
   for (const l of linhas) {
     const cod = typeof l.codigo === "number" && Number.isInteger(l.codigo) ? l.codigo : null;
     const cat = categoriaDaDescricao(l.descricao);
     if (cod === null || cat === null) {
       ignoradas++;
+      if (cod !== null && ehOutraCategoriaConhecida(l.descricao)) outras.set(cod, String(l.descricao).trim().slice(0, 120));
       continue;
     }
     const s = candidatos.get(cod) ?? new Set<CategoriaEticoNett>();
@@ -95,7 +106,18 @@ export function resolverLookupEticoNett(linhas: readonly LinhaLookupEticoNett[])
     porCodigo.set(cod, [...cats][0]);
     descricaoOriginal.set(cod, original.get(cod) ?? "");
   }
-  return { porCodigo, descricaoOriginal, ignoradas, ambiguos: [...ambiguos].sort((a, b) => a - b) };
+  // Um código que aparece como Ético/NETT E como outra categoria é ambíguo: nem classifica nem retira.
+  const outraCategoria = new Map<number, string>();
+  for (const [cod, d] of outras) {
+    if (candidatos.has(cod)) ambiguos.add(cod);
+    else outraCategoria.set(cod, d);
+  }
+  for (const cod of ambiguos) {
+    porCodigo.delete(cod);
+    descricaoOriginal.delete(cod);
+    outraCategoria.delete(cod);
+  }
+  return { porCodigo, descricaoOriginal, outraCategoria, ignoradas, ambiguos: [...ambiguos].sort((a, b) => a - b) };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -108,6 +130,8 @@ export type ContagensEticoNett = {
   nett: number;
   /** Artigos com código que não é Ético/NETT (Serviço, Sacos, Outros, desconhecido, ambíguo, órfão, lookup em falta). */
   naoClassificados: number;
+  /** Artigos de outra categoria CONHECIDA (Serviço, Sacos, Outros): o servidor retira só a classificação automática. */
+  outraCategoria: number;
   /** Artigos sem código no ERP (nada observado). */
   semCodigo: number;
 };
@@ -133,7 +157,7 @@ export function planoEticoNettVazio(): PlanoEticoNett {
     lookup: null,
     lookupAusente: "SEM_COLUNA",
     linhasLookup: 0,
-    contagens: { etico: 0, nett: 0, naoClassificados: 0, semCodigo: 0 },
+    contagens: { etico: 0, nett: 0, naoClassificados: 0, outraCategoria: 0, semCodigo: 0 },
   };
 }
 
@@ -214,6 +238,11 @@ export function eticoNettParaPayload(plano: PlanoEticoNett | undefined | null, c
     plano.contagens.semCodigo++;
     return {};
   }
+  const outra = plano.lookup?.outraCategoria.get(cod);
+  if (outra !== undefined) {
+    plano.contagens.outraCategoria++;
+    return { eticoNett: null, eticoNettOutraCategoria: true, eticoNettCodigo: cod, eticoNettDescricao: outra };
+  }
   const cat = plano.lookup?.porCodigo.get(cod);
   if (!cat) {
     plano.contagens.naoClassificados++;
@@ -241,5 +270,5 @@ export function descreverPlanoEticoNett(plano: PlanoEticoNett): string {
 /** Resumo das contagens do ciclo para o fim do pipeline de produtos. */
 export function descreverContagensEticoNett(plano: PlanoEticoNett): string {
   const c = plano.contagens;
-  return `Ético/NETT enviados: ${c.etico} Ético, ${c.nett} NETT; ${c.naoClassificados} sem categoria Ético/NETT (aviso); ${c.semCodigo} sem código.`;
+  return `Ético/NETT enviados: ${c.etico} Ético, ${c.nett} NETT; ${c.outraCategoria} de outra categoria conhecida; ${c.naoClassificados} sem categoria reconhecível (aviso); ${c.semCodigo} sem código.`;
 }

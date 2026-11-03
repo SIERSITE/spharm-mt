@@ -148,6 +148,48 @@ async function main() {
     r = await post(fX.id, [item(7_000_005, { eticoNett: "ETICO", eticoNettCodigo: 3, eticoNettDescricao: "Serviços" })]);
     check((r.body.eticoNett as Record<string, number>).invalidos === 1 && (await pf(7_000_005, fX.id))?.eticoNett === null, "ETICO com descrição «Serviços» é recusado (inválido)");
 
+    secao("transições: categoria conhecida ≠ Ético/NETT retira; o resto preserva");
+    const base = 7_100_000;
+    await post(fX.id, [1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => item(base + i, { eticoNett: i % 2 ? "ETICO" : "NETT", eticoNettCodigo: 1, eticoNettDescricao: i % 2 ? "Éticos" : "NETT" })));
+    const cat = async (i: number) => (await pf(base + i, fX.id))?.eticoNett ?? null;
+    check((await cat(1)) === "ETICO" && (await cat(2)) === "NETT", "pré-condição: classificados");
+    const outra = (i: number, descricao: string, extra: Record<string, unknown> = {}) =>
+      item(base + i, { eticoNett: null, eticoNettOutraCategoria: true, eticoNettCodigo: 3, eticoNettDescricao: descricao, ...extra });
+    r = await post(fX.id, [outra(1, "Serviços"), outra(2, "Sacos L."), outra(3, "Outros")]);
+    const rs = r.body.eticoNett as Record<string, number>;
+    check((await cat(1)) === null && (await cat(2)) === null && (await cat(3)) === null, "ÉTICO→Serviço, NETT→Sacos, ÉTICO→Outros: ficam SEM");
+    check(rs.limpos === 3 && rs.outraCategoria === 3 && rs.aplicados === 0, "contagens: 3 retirados", JSON.stringify(rs));
+    const limpa = await pf(base + 1, fX.id);
+    check(limpa?.eticoNettCodigoErp === 3 && limpa?.eticoNettDescricaoErp === "Serviços", "guarda o código/descrição ERP atuais (diagnóstico)");
+    r = await post(fX.id, [outra(1, "Serviços")]);
+    check((r.body.eticoNett as Record<string, number>).limpos === 0 && (await cat(1)) === null, "repetir é idempotente (já SEM: nada a retirar)");
+    // preservar: desconhecido, lookup ausente, órfão, vazio, ambíguo (todos chegam do agent como null SEM flag), rev98, inválidos
+    r = await post(fX.id, [
+      item(base + 4, { eticoNett: null }), // desconhecido / lookup ausente / órfão / ambíguo
+      item(base + 5, {}), // rev98
+      item(base + 6, { eticoNett: null, eticoNettOutraCategoria: true, eticoNettCodigo: 3, eticoNettDescricao: "" }), // descrição vazia
+      item(base + 7, { eticoNett: null, eticoNettOutraCategoria: true, eticoNettCodigo: 3, eticoNettDescricao: "Qualquer coisa nova" }), // desconhecida
+      item(base + 8, { eticoNett: null, eticoNettOutraCategoria: true, eticoNettCodigo: 1, eticoNettDescricao: "Éticos" }), // flag incoerente
+    ]);
+    const rp = r.body.eticoNett as Record<string, number>;
+    check((await cat(4)) === "NETT" && (await cat(5)) === "ETICO" && (await cat(6)) === "NETT" && (await cat(7)) === "ETICO" && (await cat(8)) === "NETT", "desconhecido / rev98 / vazio / nova descrição / incoerente: NADA é apagado");
+    check(rp.naoClassificados === 1 && rp.invalidos === 3 && rp.limpos === 0, "…contados como aviso/inválidos", JSON.stringify(rp));
+    // manual protegido
+    const pm = await pf(base + 9, fX.id);
+    await prisma.produtoFarmacia.update({ where: { id: pm!.id }, data: { eticoNettManual: true } });
+    r = await post(fX.id, [outra(9, "Serviços")]);
+    check((await cat(9)) === "ETICO" && (r.body.eticoNett as Record<string, number>).ignoradosManual === 1, "classificação manual nunca é retirada");
+
+    secao("Produto existe no MT mas ainda não tem ProdutoFarmacia desta farmácia");
+    const so = await prisma.produto.create({ data: { cnp: 7_200_001, designacao: "SO NO CATALOGO", origemDados: "FARMACIA" } });
+    check((await prisma.produtoFarmacia.count({ where: { produtoId: so.id } })) === 0, "pré-condição: Produto sem nenhuma ProdutoFarmacia");
+    const nProd2 = await prisma.produto.count();
+    r = await post(fY.id, [item(7_200_001, { eticoNett: "NETT", eticoNettCodigo: 7, eticoNettDescricao: "NETT" })]);
+    const novaPf = await pf(7_200_001, fY.id);
+    check(novaPf?.eticoNett === "NETT" && (await prisma.produto.count()) === nProd2 && (await prisma.produtoFarmacia.count({ where: { produtoId: so.id } })) === 1,
+      "o upsert normal do item (universo que o agent já enviava) cria a associação da farmácia que o enviou; o Produto não é duplicado");
+    check((await prisma.produtoFarmacia.count({ where: { produtoId: so.id, farmaciaId: fX.id } })) === 0, "…e NÃO cria associação em nenhuma outra farmácia");
+
     await prisma.$disconnect();
   } finally {
     await admin.query(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
