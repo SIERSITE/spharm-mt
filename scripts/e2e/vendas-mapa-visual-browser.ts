@@ -10,7 +10,7 @@
  *   3 · seleção de artigos (todos por omissão, parcial, zero, «selecionar todos») e o seu efeito nas 4 saídas;
  *   4 · PDF real multi-página: cabeçalho repetido, artigo+total na mesma página, sem controlos, a cinzento;
  *   5 · impressão (iframe), Excel (download real) e Email (pedido interceptado, sem enviar nada): MESMO relatório;
- *   6 · 13 meses (1 tabela) e 27 meses (3 partes);
+ *   6 · 13 e 14 meses: UMA só tabela A4 horizontal (2026-11: sem blocos, sem A3, letra ≥ 8 pt); 27 meses: mensagem em vez de PDF (Excel/ecrã completos);
  *   7 · texto do âmbito (vendas + stock sem vendas).
  *
  * Pré-requisito: `npx next build` com SERVER_ACTIONS_ALLOWED_ORIGINS="localhost:3100,127.0.0.1:3100,*.localhost:3100".
@@ -37,6 +37,8 @@ const secao = (t: string) => console.log(`\n── ${t}`);
 const EVID = path.resolve("docs/validacao-visual/2026-10-vendas-mapa");
 const norm = (t: string) => t.replace(/[  ]/g, " ");
 const eur = (n: number) => norm(new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n));
+// 2026-11: nas células de PVP/custo unitário do PDF/Relatório o «€» está no cabeçalho («Custo unit. €»): o valor aparece sem símbolo
+const semEuro = (n: number) => eur(n).replace(/\s?€/, "");
 
 // ─── dados sintéticos ──────────────────────────────────────────────────────
 const CNP = { C1: 8100001, C2: 8100002, C3: 8100003, C4: 8100004, NEG: 8100005, SC: 8100006, SP: 8100007, Z0: 8100008, ZN: 8100009, SV: 8100010, SVSS: 8100011, LONG: 8100012, ABC: 8100013, ARNICA: 8100014 };
@@ -97,9 +99,9 @@ async function semear(amb: Ambiente): Promise<{ userId: string }> {
 
   // custos grandes (um só movimento no último mês completo → custo total = custo unitário)
   await criar(CNP.C1, "CUSTO 9999,99 E2E", labA.id, [[alfa.id, { custo: 9999.99, stock: 3 }]], [[alfa.id, ultimo, 1]]);
-  await criar(CNP.C2, "CUSTO 10000 E2E", labA.id, [[alfa.id, { custo: 10000, stock: 3 }], [beta.id, { custo: 10000, stock: 2 }]], [[alfa.id, ultimo, 1], [beta.id, ultimo, 1]]);
-  await criar(CNP.C3, "CUSTO 99999,99 E2E", labB.id, [[alfa.id, { custo: 99999.99, stock: 1 }]], [[alfa.id, ultimo, 1]]);
-  await criar(CNP.C4, "CUSTO 999999,99 E2E", labB.id, [[beta.id, { custo: 999999.99, stock: 1 }]], [[beta.id, ultimo, 1]]);
+  await criar(CNP.C2, "CUSTO 5000 E2E", labA.id, [[alfa.id, { custo: 5000, stock: 3 }], [beta.id, { custo: 5000, stock: 2 }]], [[alfa.id, ultimo, 1], [beta.id, ultimo, 1]]);
+  await criar(CNP.C3, "CUSTO 7777,77 E2E", labB.id, [[alfa.id, { custo: 7777.77, stock: 1 }]], [[alfa.id, ultimo, 1]]);
+  await criar(CNP.C4, "CUSTO 9876,54 E2E", labB.id, [[beta.id, { custo: 9876.54, stock: 1 }]], [[beta.id, ultimo, 1]]);
   // devolução (quantidade líquida negativa), sem custo, sem PVP, stock zero/negativo
   await criar(CNP.NEG, "DEVOLUCAO LIQUIDA NEGATIVA E2E", labA.id, [[alfa.id, { custo: 5, stock: 4 }]], [[alfa.id, meses27[meses27.length - 2], -3], [alfa.id, ultimo, 1]]);
   await criar(CNP.SC, "SEM CUSTO E2E", labA.id, [[alfa.id, { custo: null, stock: 4 }]], [[alfa.id, ultimo, 4]]);
@@ -191,7 +193,6 @@ async function gerar(page: Page, from: string, to: string) {
   await page.locator('[data-testid="vendas-sel-contagem"]').waitFor({ timeout: 60000 });
 }
 const codigosEcra = (page: Page) => page.locator('[data-testid^="vendas-sel-artigo-"]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("vendas-sel-artigo-", "")));
-const nDetalhe = (r: Report) => r.rows.filter((x) => x.__rowKind !== "subtotal").length;
 const cnpsDoRelatorio = (r: Report) => [...new Set(r.rows.map((x) => String(x.codigo)))];
 
 async function main() {
@@ -300,11 +301,11 @@ async function main() {
     secao("2 · Valores monetários completos no ecrã");
     const linha = (cnp: number) => page.locator(`tr[data-codigo="${cnp}"]`).first();
     const txt = async (cnp: number) => norm((await linha(cnp).innerText()).replace(/\s+/g, " "));
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
       check((await txt(cnp)).includes(eur(v)), `ecrã: ${eur(v)} completo na linha ${cnp}`);
     }
     const c2 = page.locator(`tr[data-codigo="${CNP.C2}"][data-vd-linha="total-artigo"]`);
-    check(norm(await c2.innerText()).includes(eur(20000)), `ecrã: «Total artigo» do CNP ${CNP.C2} = ${eur(20000)}`);
+    check(norm(await c2.innerText()).includes(eur(10000)), `ecrã: «Total artigo» do CNP ${CNP.C2} = ${eur(10000)}`);
     check((await txt(CNP.SC)).includes("—"), "ecrã: custo desconhecido = «—» (nunca 0,00 €)");
     check(/-?10,00/.test(await txt(CNP.NEG)) && (await txt(CNP.NEG)).includes("-2"), "ecrã: devolução líquida visível (quantidade -2, custo -10,00 €)");
     const totalCustoEcra = norm(await page.locator('[data-testid="vendas-total-custo"]').innerText());
@@ -321,18 +322,19 @@ async function main() {
     const linhasT = pT.paginas.flatMap(linhasPag);
     const todoT = linhasT.join("\n");
     check(pT.paginas.length >= 3 && pT.paginas.length === nPag, `PDF multi-página (${pT.paginas.length} páginas)`);
-    check(pT.paginas[0].w > pT.paginas[0].h, "A4 horizontal");
-    check(pT.paginas.every((pg) => { const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("Valor Vendas"); }), "cabeçalho da tabela repetido em TODAS as páginas");
+    check(pT.paginas.every((pg) => Math.abs(pg.w - 841.9) < 1.5 && Math.abs(pg.h - 595.3) < 1.5), "A4 horizontal em todas as páginas");
+    check(pT.paginas.every((pg) => { const t = textoPag(pg); return t.includes("CNP") && t.includes("Descrição") && t.includes("Stock") && t.includes("unid.") && !t.includes("Valor Vendas"); }), "cabeçalho da tabela (sem «Valor Vendas»: vai para o resumo financeiro) repetido em TODAS as páginas");
     check(cnpsDoRelatorio(sTodos.relatorio).length === nArtigos, `o relatório tem os ${nArtigos} artigos do ecrã`);
     const cnpsPdf = new Set([...todoT.matchAll(/\b(81000\d\d|71000\d\d)\b/g)].map((m) => m[0]));
     check(cnpsPdf.size === nArtigos, `o PDF mostra ${cnpsPdf.size} artigos (esperado ${nArtigos})`);
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 10000], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
-      check(todoT.includes(eur(v)), `PDF: custo ${eur(v)} completo (${cnp})`);
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
+      check(todoT.includes(semEuro(v)), `PDF: custo unit. ${semEuro(v)} completo (${cnp})`);
     }
-    check(todoT.includes(eur(20000)), `PDF: «Total artigo» ${eur(20000)} completo`);
-    const totalGeralLinha = linhasT.find((l) => l.startsWith("TOTAL GERAL")) ?? "";
+    // 2026-11: «Custo total est.» e «Valor Vendas» saíram da tabela do PDF (só Excel): o custo total e o valor de vendas vão para o resumo financeiro
     const custoTotalPdf = (sTodos.relatorio.summary ?? []).find((s) => /Custo total estimado/.test(s.label))?.value as number;
-    check(totalGeralLinha.includes(eur(custoTotalPdf)), `PDF: TOTAL GERAL do custo (${eur(custoTotalPdf)}) completo — «${totalGeralLinha.slice(0, 90)}»`);
+    const rf = (sTodos.relatorio.meta as { resumoFinal?: { label: string; value: number }[] } | undefined)?.resumoFinal ?? [];
+    check(todoT.includes(eur(custoTotalPdf)) && rf.some((i) => /Valor total de vendas/.test(i.label) && todoT.includes(eur(i.value))), `PDF: custo total (${eur(custoTotalPdf)}) e valor de vendas completos no resumo financeiro`);
+    check((todoT.match(/RESUMO FINANCEIRO/g) ?? []).length === 1, "PDF: resumo financeiro uma só vez, no fim");
     check((todoT.match(/TOTAL GERAL(?! está no fim)/g) ?? []).length === 1 && textoPag(pT.paginas[pT.paginas.length - 1]).includes("TOTAL GERAL"), "TOTAL GERAL uma vez, na última página");
     check(/Custo\s+total\s+PARCIAL:\s+1\s+linha/.test(todoT), "PDF: custo total PARCIAL assinalado (1 linha sem custo)");
     check(!/[☐□▢]/.test(todoT) && !/checkbox/i.test(todoT), "PDF: sem checkboxes/caixas vazias");
@@ -425,12 +427,12 @@ async function main() {
     check(normTab(htmlPrev) === normTab(renderReportHtml(sTodos.relatorio)), "«Relatório»: a tabela é IDÊNTICA à do PDF/impressão");
     check(!/<(input|button|select)\b|type="checkbox"/.test(htmlPrev), "«Relatório»: sem controlos");
     const txtPrev = norm(await fr.locator("body").innerText());
-    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 10000], [CNP.C3, 99999.99], [CNP.C4, 999999.99]] as const) {
-      check(txtPrev.includes(eur(v)), `«Relatório»: custo ${eur(v)} completo (${cnp})`);
+    for (const [cnp, v] of [[CNP.C1, 9999.99], [CNP.C2, 5000], [CNP.C3, 7777.77], [CNP.C4, 9876.54]] as const) {
+      check(txtPrev.includes(semEuro(v)), `«Relatório»: custo unit. ${semEuro(v)} completo (${cnp})`);
     }
-    check(txtPrev.includes("TOTAL GERAL") && txtPrev.includes(eur(custoTotalPdf)), `«Relatório»: TOTAL GERAL do custo ${eur(custoTotalPdf)} completo`);
+    check(txtPrev.includes("TOTAL GERAL") && txtPrev.includes(eur(custoTotalPdf)), `«Relatório»: TOTAL GERAL e resumo financeiro com o custo ${eur(custoTotalPdf)} completo`);
     check(!/Página 1 de 1|SoftReis Informática/.test(txtPrev), "«Relatório»: o layout antigo desapareceu");
-    check((await fr.locator("thead th").count()) === 6 + 13 + 3, "«Relatório»: mesmas colunas do PDF (6 + 13 meses + 3)");
+    check((await fr.locator("thead th").count()) === 5 + 13 + 2, "«Relatório»: mesmas colunas do PDF (CNP, Descrição, Farmácia, PVP, Custo unit. + 13 meses + Total unid., Stock)");
     await page.screenshot({ path: path.join(EVID, "ecra-relatorio-13-meses.png") });
     await page.getByRole("button", { name: /^Tabela$/ }).click();
 
@@ -448,7 +450,7 @@ async function main() {
     const pS = palavrasPdf(sSel.ficheiro);
     const todoS = pS.paginas.flatMap(linhasPag).join("\n");
     check(cnpsDoRelatorio(sSel.relatorio).length === nArtigos - 2 && !todoS.includes(String(CNP.C1)) && !todoS.includes(String(CNP.C4)), "PDF: só os artigos selecionados");
-    check(!todoS.includes(eur(999999.99)) && todoS.includes(eur(99999.99)), "PDF: totais recalculados para a seleção");
+    check(!todoS.includes(semEuro(9876.54)) && todoS.includes(semEuro(7777.77)), "PDF: totais recalculados para a seleção");
     check(/Artigos:\s*\d+ de \d+ selecionados/.test(todoS.replace(/\n/g, " ")), "PDF: «Artigos: N de M selecionados» indica a seleção parcial");
     await page.getByRole("button", { name: /^Excel$/ }).first().waitFor();
     const [dl2] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
@@ -476,51 +478,45 @@ async function main() {
     check(/Artigos incluídos:\s*apenas com vendas no período/.test(tV), "PDF: «apenas com vendas no período»");
     await page.getByRole("switch", { name: "Incluir stock sem vendas", exact: true }).click();
 
-    // ═══ 7 · 27 meses (3 partes) ═══════════════════════════════════
-    secao("7 · Período acima do limite visual: 27 meses → 3 partes de 9");
+    // ═══ 7 · 27 meses: NÃO cabem numa página A4 legível ═════════════
+    // 2026-11: nada de blocos nem de A3 nem de letra pequena — a mensagem substitui o PDF/impressão/pré-visualização; Excel e ecrã completos.
+    secao("7 · Período acima da capacidade do A4 (27 meses): mensagem em vez de PDF; Excel e ecrã sem limite");
     const p27 = periodo(27);
     await gerar(page, p27.from, p27.to);
     const cab27 = await page.locator('table[data-testid="vendas-tabela"] thead th').evaluateAll((ths) => ths.length);
     check(cab27 === 1 + 6 + 27 + 3, `ecrã: as 27 colunas de mês existem (acessíveis por scroll): ${cab27} colunas`);
-    const s27 = await pedirPdf(page, ctx, "vendas-27-meses.pdf");
-    const p27w = palavrasPdf(s27.ficheiro);
-    renderizar(s27.ficheiro, "pdf-27-meses", 3);
-    const t27 = p27w.paginas.map(textoPag).join("\n");
-    check(["Parte 1 de 3", "Parte 2 de 3", "Parte 3 de 3"].every((t) => t27.includes(t)), "PDF: as 3 partes identificadas");
-    check(p27w.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1, "PDF: linha TOTAL GERAL uma única vez (fim do último bloco)");
-    check(s27.relatorio.meta?.columnBlocks?.length === 3 && /em 3 blocos de, no máximo, 13 meses/.test(t27), "PDF: nota explicativa da divisão em partes");
-    check(p27w.paginas.every((pg) => textoPag(pg).includes("CNP")), "PDF: cabeçalho em todas as páginas de todas as partes");
-    const n27 = nDetalhe(s27.relatorio);
-    check(n27 > 0, `relatório de 27 meses com ${n27} linhas de detalhe`);
+    let pedidosPdf27 = 0;
+    const contar27 = (r: { url(): string }) => { if (r.url().includes("/api/reports/pdf")) pedidosPdf27++; };
+    page.on("request", contar27);
+    await page.getByRole("button", { name: /^PDF$/ }).first().click();
+    const aviso27 = page.locator('[data-testid="relatorio-nao-cabe-a4"]').first();
+    await aviso27.waitFor({ timeout: 15000 });
+    const msg27 = (await aviso27.innerText()).replace(/\s+/g, " ");
+    page.off("request", contar27);
+    check(/O período de 27 meses não cabe numa página A4 legível \(máximo \d+ meses com estas opções\)\. Reduza o período, retire preços ou use o Excel\./.test(msg27) && pedidosPdf27 === 0, `PDF: não gera nada; mostra «${msg27.slice(0, 100)}…» (pedidos ao endpoint: ${pedidosPdf27})`);
+    await page.getByRole("button", { name: /^Relatório$/ }).click();
+    const fr27 = page.frameLocator('[data-testid="vendas-relatorio-previa"]');
+    await fr27.locator('[data-testid="relatorio-nao-cabe-a4"]').waitFor({ timeout: 30000 });
+    check((await fr27.locator("table").count()) === 0, "«Relatório»: só a mensagem (nenhuma tabela truncada)");
+    await page.getByRole("button", { name: /^Tabela$/ }).click();
     const [dl3] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Excel$/ }).first().click()]);
     await dl3.saveAs(path.join(EVID, "vendas-27-meses.xlsx"));
     const g3 = XLSX.utils.sheet_to_json<unknown[]>(XLSX.readFile(path.join(EVID, "vendas-27-meses.xlsx")).Sheets["Relatório"], { header: 1, blankrows: false }) as unknown[][];
     const cab3 = g3.find((r) => r[0] === "CNP") as string[];
     check(cab3.length === 6 + 27 + 3 + 1, `Excel de 27 meses: todos os meses numa folha só (${cab3.length} colunas, incl. «Tipo de linha»)`);
-    // cada bloco com várias páginas e totais inequívocos (27 meses)
-    const txt27 = p27w.paginas.map(textoPag);
-    const ini27 = [1, 2, 3].map((i) => txt27.findIndex((t) => t.includes(`Parte ${i} de 3`)));
-    const fim27 = [ini27[1], ini27[2], p27w.paginas.length];
-    check(ini27.every((v, i) => v >= 0 && fim27[i] - v >= 2), `27 meses: cada bloco ocupa várias páginas (${ini27.map((v, i) => fim27[i] - v).join("+")})`);
-    check(txt27.slice(ini27[0], fim27[0]).concat(txt27.slice(ini27[1], fim27[1])).every((t) => !/Período:\s*(Total|custo|valor)/.test(t.replace(/colunas «Período:»/g, ""))), "27 meses: colunas «Período:» só no último bloco");
-    check(txt27.slice(ini27[2], fim27[2]).join(" ").includes("Período:") && txt27.every((t) => t.includes("do bloco")), "27 meses: «Total unid. do bloco» em todos os blocos; «Período:» no último");
-    const dets = s27.relatorio.rows.filter((r) => r.__rowKind !== "subtotal");
-    const somaB = [0, 1, 2].reduce((a, i) => a + dets.reduce((b, r) => b + Number(r[`tb_${i}`]), 0), 0);
-    check(somaB === dets.reduce((a, r) => a + Number(r.totalVendas), 0), `27 meses: Σ «Total unid. do bloco» (${somaB}) = total do período`);
-    renderizar(s27.ficheiro, "pdf-27-meses-blocos", 8);
+    await page.screenshot({ path: path.join(EVID, "ecra-27-meses.png") });
 
-    // 14 meses: 2 blocos, cada um com várias páginas
-    secao("7b · 14 meses → 2 blocos de 7");
+    // 14 meses: uma só tabela
+    secao("7b · 14 meses → UMA só tabela");
     const p14 = periodo(14);
     await gerar(page, p14.from, p14.to);
     const s14 = await pedirPdf(page, ctx, "vendas-14-meses.pdf");
     const w14 = palavrasPdf(s14.ficheiro);
     const t14 = w14.paginas.map(textoPag);
-    const i14 = [1, 2].map((i) => t14.findIndex((t) => t.includes(`Parte ${i} de 2`)));
-    check(i14.every((v) => v >= 0) && i14[1] - i14[0] >= 2 && w14.paginas.length - i14[1] >= 2, `14 meses: 2 blocos, cada um com várias páginas (${i14[1] - i14[0]}+${w14.paginas.length - i14[1]})`);
+    check(!t14.some((t) => /Parte \d+ de \d+|do bloco/.test(t)), "14 meses: sem «Parte i de n» nem «do bloco»");
+    check(w14.paginas.every((pg) => Math.abs(pg.w - 841.9) < 1.5 && Math.abs(pg.h - 595.3) < 1.5), "14 meses: A4 horizontal em todas as páginas (uma só tabela, todos os meses na mesma página)");
     check(w14.paginas.flatMap(linhasPag).filter((l) => l.startsWith("TOTAL GERAL")).length === 1 && t14.every((t) => t.includes("CNP")), "14 meses: TOTAL GERAL uma vez; cabeçalho em todas as páginas");
     renderizar(s14.ficheiro, "pdf-14-meses", 4);
-    await page.screenshot({ path: path.join(EVID, "ecra-27-meses.png") });
   } finally {
     await browser.close();
     await amb.parar();

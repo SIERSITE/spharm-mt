@@ -3,13 +3,13 @@
  *
  * Mede PIXÉIS do PDF real (Chromium → PDF → PyMuPDF), gerado SEM fundos (simula «Imprimir gráficos de fundo» desligado: o que sobra
  * são só bordas e texto) e, para 3 e 13 meses, também COM fundos. Verifica, por página:
- *   · nº de filetes verticais no intervalo dos meses = meses do bloco + 1 (um entre cada par + o limite de cada lado);
+ *   · nº de filetes verticais no intervalo dos meses = meses + 1 (um entre cada par + o limite de cada lado);
  *   · cada filete é UMA linha contínua do topo do cabeçalho até ao fim da tabela (inclui «TOTAL ARTIGO» e «TOTAL GERAL»);
  *   · cada mês do cabeçalho fica entre dois filetes consecutivos, e nenhum valor/palavra é cortado por um filete;
  *   · espessura ≤ 1 px CSS (0,75pt), claramente mais fina do que o separador entre artigos (2px); cinzento claro mas visível;
  *   · nada à esquerda do 1.º mês (CNP, Descrição, Farmácia, PVP, custos) nem à direita de «Total unid.» (Stock, Valor Vendas);
- *   · blocos (14 e 27 meses): cada bloco tem os seus limites; «Total unid. do bloco» não parece um mês; sem filete duplicado.
- * Casos: 1, 3, 6, 13, 14 e 27 meses; as 4 combinações de preços; documento de várias páginas (3 e 13 meses).
+ *   · 2026-11: sem blocos nem A3 — 14 meses (e a capacidade máxima do A4) são UMA só tabela: os N meses de cada página têm N+1 filetes.
+ * Casos: 1, 3, 6, 13, 14 e capacidade máxima de meses; as 4 combinações de preços; documento de várias páginas (3 e 13 meses).
  */
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,8 +17,10 @@ import path from "node:path";
 import puppeteer from "puppeteer";
 import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
 import { renderReportHtml } from "../../lib/reporting/report-html";
+import { opcoesPdfDoRelatorio } from "../../lib/reporting/pdf-opcoes";
 import type { Report } from "../../lib/reporting/report-types";
 import { medirMeses, mediana, verticaisDe } from "./_verticais-meses";
+import { capacidadeDoRelatorio } from "../../lib/reporting/layout-vendas";
 
 let passed = 0, failed = 0;
 const ok = (label: string, cond: boolean, detalhe?: string) => {
@@ -66,29 +68,25 @@ async function pdfDe(rel: Report, nome: string, fundos: boolean): Promise<string
     await page.emulateMediaType("print");
     await page.setContent(renderReportHtml(rel), { waitUntil: "networkidle0" });
     if (!fundos) await page.addStyleTag({ content: SEM_FUNDOS });
-    const bytes = await page.pdf({
-      format: "A4", landscape: true, printBackground: fundos, preferCSSPageSize: true, margin: { top: "10mm", right: "8mm", bottom: "10mm", left: "8mm" },
-      displayHeaderFooter: true, headerTemplate: `<div style="font-size:7px;width:100%;text-align:right;padding-right:8mm">Pág. <span class="pageNumber"></span> / <span class="totalPages"></span></div>`, footerTemplate: `<div></div>`,
-    });
+    // mesmas opções do endpoint (A4 horizontal, margens de meta.pageMarginMm): lib/reporting/pdf-opcoes.ts; só o fundo é variável
+    const bytes = await page.pdf({ ...opcoesPdfDoRelatorio(rel), printBackground: fundos });
     const f = path.join(dir, `${nome}.pdf`);
     writeFileSync(f, bytes);
     return f;
   } finally { await page.close(); }
 }
 
-/** Meses esperados por página: um documento sem blocos tem todos em cada página; com blocos, cada página (bloco) os seus. */
+/** Meses esperados por página: 2026-11 — sem blocos, TODOS os meses em cada página (antes: os do bloco). */
 function mesesPorPagina(rel: Report, nPaginas: number): number[] {
   const meses = rel.columns.filter((c) => c.monthAlt).map((c) => c.key);
-  const blocos = rel.meta?.columnBlocks;
-  if (blocos && blocos.length > 1) return blocos.map((b) => meses.filter((k) => !b.omitir.includes(k)).length);
   return Array.from({ length: nPaginas }, () => meses.length);
 }
 
-function verificar(tag: string, rel: Report, f: string, opc: { blocos?: boolean; fundos?: boolean }) {
+function verificar(tag: string, rel: Report, f: string, opc: { fundos?: boolean }) {
   const nPag = verticaisDe(f).length;
   const porPag = mesesPorPagina(rel, nPag);
-  const m = medirMeses(f, (pi) => porPag[opc.blocos ? pi : 0]);
-  ok(`${tag}: n.º de filetes = meses do bloco + 1 em cada página (${m.nLimites.join("/")} em ${m.nPaginas} pág.), contínuos do cabeçalho ao TOTAL GERAL (incl. TOTAL ARTIGO), cada mês entre dois filetes, nada cortado, nada fora das colunas dos meses`, m.falhas.length === 0 && m.nLimites.length === m.nPaginas, m.falhas.slice(0, 4).join(" | "));
+  const m = medirMeses(f, (pi) => porPag[pi]);
+  ok(`${tag}: n.º de filetes = meses + 1 em cada página (${m.nLimites.join("/")} em ${m.nPaginas} pág.), contínuos do cabeçalho ao TOTAL GERAL (incl. TOTAL ARTIGO), cada mês entre dois filetes, nada cortado, nada fora das colunas dos meses`, m.falhas.length === 0 && m.nLimites.length === m.nPaginas, m.falhas.slice(0, 4).join(" | "));
   ok(`${tag}: espessura real ${m.minLargura.toFixed(2)}–${m.maxLargura.toFixed(2)}pt (1px CSS = 0,75pt; alvo 0,5–0,95) e mais fina do que o separador entre artigos (${Number.isFinite(m.minHorizontal) ? m.minHorizontal.toFixed(2) : "—"}pt medidos)`, m.maxLargura > 0 && m.minLargura >= 0.5 && m.maxLargura <= 0.95 && (!Number.isFinite(m.minHorizontal) || m.maxLargura < m.minHorizontal));
   if (!opc.fundos) {
     ok(`${tag}: sem fundos continua legível — filetes de mês cinzento claro mas visível (mediana ${mediana(m.cinzMes)}/255), limites um pouco mais escuros (${mediana(m.cinzLimite)}/255)`, (m.cinzMes.length === 0 || (mediana(m.cinzMes) >= 150 && mediana(m.cinzMes) <= 215 && mediana(m.cinzLimite) <= mediana(m.cinzMes))) && m.cinzLimite.length > 0 && mediana(m.cinzLimite) >= 120 && mediana(m.cinzLimite) <= 215);
@@ -99,10 +97,13 @@ async function main() {
   browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
   try {
     console.log("\n=== Separadores verticais dos meses — PDF real SEM fundos (simula «gráficos de fundo» desligado: printBackground=false + print-color-adjust:economy, para que o relatório — que pede «exact» — também perca os fundos) ===");
-    for (const n of [1, 3, 6, 13, 14, 27]) {
+    // A4 horizontal sempre: 27 meses NÃO cabem (mensagem em vez de PDF, ver test-vendas-tabela-unica); o último caso é a capacidade máxima.
+    const maxMeses = capacidadeDoRelatorio(gerar(demo(14), 14)).mesesMax;
+    ok(`capacidade máxima A4 ≥ 8 pt com estes dados: ${maxMeses} meses (≥ 14)`, maxMeses >= 14 && maxMeses < 27);
+    for (const n of [1, 3, 6, 13, 14, maxMeses]) {
       const rel = gerar(demo(n), n);
       const f = await pdfDe(rel, `m${n}-sf`, false);
-      verificar(`${n} ${n === 1 ? "mês" : "meses"}${n > 13 ? " (blocos)" : ""}`, rel, f, { blocos: n > 13 });
+      verificar(`${n} ${n === 1 ? "mês" : "meses"}${n === maxMeses ? " (capacidade máx.)" : ""}`, rel, f, {});
     }
     console.log("\n=== Quatro combinações de preços (larguras recalculadas, filetes alinhados, nada cortado) ===");
     for (const n of [3, 13]) for (const [v, c] of [[true, true], [true, false], [false, true], [false, false]] as const) {

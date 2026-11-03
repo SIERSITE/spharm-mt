@@ -26,6 +26,7 @@ import { buildReportExcelBuffer } from "@/lib/reporting/report-excel-buffer";
 import { getMailerForFarmacia } from "@/lib/reporting/report-email-transport";
 import { getSession } from "@/lib/auth";
 import { aplicarPrivacidade } from "@/lib/reporting/privacidade";
+import { bloqueadoPorA4 } from "@/lib/reporting/layout-vendas";
 import type { Report } from "@/lib/reporting/report-types";
 
 export const runtime = "nodejs";
@@ -95,6 +96,13 @@ export async function POST(request: Request): Promise<Response> {
   const formats = (payload.attachFormats ?? []).filter(
     (f): f is "pdf" | "excel" => f === "pdf" || f === "excel"
   );
+
+  // Mapa de Vendas: um período que não cabe numa página A4 legível não leva PDF em anexo (nem se envia nada): 422 com a mensagem.
+  // O Excel nunca é limitado.
+  if (formats.includes("pdf")) {
+    const bloqueio = bloqueadoPorA4(report);
+    if (bloqueio) return Response.json({ ok: false, error: bloqueio.mensagem }, { status: 422 });
+  }
 
   // ─── Transportador (resolve por farmácia da sessão; fallback global) ──────
   const session = await getSession();

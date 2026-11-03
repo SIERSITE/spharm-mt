@@ -42,6 +42,8 @@ import puppeteer, { type Browser } from "puppeteer";
 import type { Report } from "./report-types";
 import { renderReportHtml } from "./report-html";
 import { makeReportFilename } from "./report-filename";
+import { opcoesPdfDoRelatorio } from "./pdf-opcoes";
+import { bloqueadoPorA4, RelatorioNaoCabeA4Error } from "./layout-vendas";
 
 // ─── Ambiente do Chromium ─────────────────────────────────────────────────────
 
@@ -187,43 +189,18 @@ export type PdfResult = {
 };
 
 export async function buildReportPdfBuffer(report: Report): Promise<PdfResult> {
+  // Mapa de Vendas: período que não cabe numa página A4 legível → NUNCA um PDF truncado/ilegível; erro tipado (a API responde 422).
+  const bloqueio = bloqueadoPorA4(report);
+  if (bloqueio) throw new RelatorioNaoCabeA4Error(bloqueio);
   const html = renderReportHtml(report);
-  const landscape = report.meta?.orientation === "landscape";
-
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
     await page.emulateMediaType("print");
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
 
-    const pdfBytes = await page.pdf({
-      format: "A4",
-      landscape,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: {
-        top: "10mm",
-        right: "8mm",
-        bottom: "10mm",
-        left: "8mm",
-      },
-      // "Pág. X / Y" discreto, no canto superior direito — a referência
-      // visual do relatório redesenhado (2026-09) traz isto, e só o
-      // Chromium consegue calcular o número TOTAL de páginas: não há
-      // forma de o fazer só com CSS de conteúdo (`@page` não expõe
-      // `counter(pages)` no motor de impressão do Chromium). O
-      // `headerTemplate` vive na margem superior — não sobrepõe o
-      // cabeçalho do próprio relatório, que começa depois da margem.
-      displayHeaderFooter: true,
-      headerTemplate: `
-        <div style="width:100%; font-size:7px; color:#94a3b8; padding:2mm 8mm 0 8mm;
-                    display:flex; justify-content:flex-end;
-                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-          Pág. <span class="pageNumber"></span> / <span class="totalPages"></span>
-        </div>
-      `,
-      footerTemplate: `<div></div>`,
-    });
+    // As opções (A4, margens) vivem em pdf-opcoes.ts, partilhadas com os testes.
+    const pdfBytes = await page.pdf(opcoesPdfDoRelatorio(report));
 
     // puppeteer devolve Uint8Array em versões recentes — normalizar para Buffer
     const buffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);

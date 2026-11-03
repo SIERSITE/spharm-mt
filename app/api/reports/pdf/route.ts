@@ -13,6 +13,7 @@
 
 import { buildReportPdfBuffer } from "@/lib/reporting/report-pdf-server";
 import { aplicarPrivacidade } from "@/lib/reporting/privacidade";
+import { RelatorioNaoCabeA4Error } from "@/lib/reporting/layout-vendas";
 import type { Report } from "@/lib/reporting/report-types";
 
 // Forçar Node runtime — puppeteer não corre em Edge.
@@ -53,6 +54,10 @@ export async function POST(request: Request): Promise<Response> {
       },
     });
   } catch (err) {
+    // Período que não cabe numa página A4 legível (Mapa de Vendas): 422 com a mensagem para o utilizador, sem PDF.
+    if (err instanceof RelatorioNaoCabeA4Error) {
+      return Response.json({ error: err.message }, { status: 422 });
+    }
     console.error("[api/reports/pdf] falha a gerar PDF", err);
     const msg = err instanceof Error ? err.message : String(err);
     return Response.json({ error: `Falha a gerar PDF: ${msg}` }, { status: 500 });

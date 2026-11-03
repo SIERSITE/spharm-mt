@@ -8,14 +8,14 @@ import path from "node:path";
 export type Palavra = [number, number, number, number, string, ...unknown[]];
 export type Vert = { x0: number; x1: number; largura: number; y0: number; y1: number; cinzento: number; integral: number };
 export type PagV = { largura: number; altura: number; verticais: Vert[]; cabecalho: { texto: string; x0: number; x1: number; y0: number; y1: number }[]; cnps: { y0: number; y1: number; texto: string }[]; cabCnp: { y0: number; y1: number }[]; totais: { y0: number; y1: number; texto: string }[] };
-const py = (script: string, f: string) => {
-  const r = spawnSync("python", [path.resolve(`scripts/e2e/${script}`), f], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+const py = (script: string, f: string, dpi?: number) => {
+  const r = spawnSync("python", [path.resolve(`scripts/e2e/${script}`), f, ...(dpi ? [String(dpi)] : [])], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`python ${script}: ${r.stderr}`);
   return JSON.parse(r.stdout.trim().split("\n").pop() ?? "[]");
 };
-export const verticaisDe = (f: string): PagV[] => py("_verticais_pdf.py", f);
+export const verticaisDe = (f: string, dpi?: number): PagV[] => py("_verticais_pdf.py", f, dpi);
 export const palavrasDe = (f: string): { paginas: { w: number; h: number; palavras: Palavra[] }[] } => py("_palavras_pdf.py", f);
-export const separadoresDe = (f: string): { separadores: { espessura: number; cinzento: number }[] }[] => py("_separadores_pdf.py", f);
+export const separadoresDe = (f: string, dpi?: number): { separadores: { espessura: number; cinzento: number }[] }[] => py("_separadores_pdf.py", f, dpi);
 
 /** Funde os troços do mesmo filete (x a ±1.5pt) numa só linha com os intervalos verticais que cobre. */
 type Linha = { x: number; largura: number; cinzento: number; integral: number; intervalos: [number, number][] };
@@ -41,10 +41,10 @@ function linhasVerticais(p: PagV): Linha[] {
 export type MedicaoMeses = { falhas: string[]; nLimites: number[]; nPaginas: number; minLargura: number; maxLargura: number; minHorizontal: number; cinzMes: number[]; cinzLimite: number[] };
 
 /** `esperados(pi)`: nº de meses da página `pi` (0-based); `null` = o do cabeçalho (só valida o resto). */
-export function medirMeses(f: string, esperados: (pi: number) => number | null): MedicaoMeses {
-  const pags = verticaisDe(f);
+export function medirMeses(f: string, esperados: (pi: number) => number | null, dpi?: number): MedicaoMeses {
+  const pags = verticaisDe(f, dpi);
   const txt = palavrasDe(f);
-  const sep = separadoresDe(f);
+  const sep = separadoresDe(f, dpi);
   const falhas: string[] = [];
   const nLimitesTotal: number[] = [];
   let maxLargura = 0, minLargura = Infinity, minHorizontal = Infinity;

@@ -15,7 +15,8 @@ import sys
 
 import fitz
 
-DPI = 200
+# 2.º argumento opcional: DPI da renderização (200 por omissão; mais baixo em A3, onde o Python puro é lento)
+DPI = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 Z = DPI / 72
 ALVO_SEP = (132, 147, 166)  # #8493a6
 TOL_SEP = 40

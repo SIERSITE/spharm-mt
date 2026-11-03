@@ -83,11 +83,12 @@ function buckets(n: number): { ano: number; mes: number }[] {
 const colunasVisiveis = (cols: ReturnType<typeof buildVendasReport>["columns"]) =>
   cols.filter((c) => !c.hidden && !c.excelOnly);
 
-/** Soma das larguras visíveis de cada página/bloco (um só quando o período cabe numa página). */
+/**
+ * Soma das larguras visíveis da tabela. 2026-11: o período é SEMPRE uma só tabela (sem blocos temporais) — a função devolve uma só
+ * soma (antes: uma por bloco, para períodos acima de 13 meses).
+ */
 function somasPorBloco(rel: ReturnType<typeof buildVendasReport>): number[] {
-  const cols = colunasVisiveis(rel.columns);
-  const blocos = rel.meta?.columnBlocks ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key))) : [cols];
-  return blocos.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0));
+  return [colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0)];
 }
 
 console.log("\n=== A. buildColumns: a tabela nunca \"esmaga\" — soma ≤ 100 sempre ===");
@@ -99,10 +100,10 @@ for (const n of [0, 1, 3, 6, 9, 10, 12, 18, 24, 36]) {
     universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
     organization: "Grupo",
   });
-  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em blocos (uma página cada); a soma ≤ 100 vale por bloco.
+  // 2026-11: uma só tabela para qualquer nº de meses (o papel passa a A3 quando não cabe em A4).
   const somaLarguras = Math.max(...somasPorBloco(rel));
   ok(
-    `${n} meses: soma das larguras visíveis ≤ 100 por página/bloco (obtido ${somaLarguras.toFixed(1)})`,
+    `${n} meses: soma das larguras visíveis ≤ 100 numa só tabela (obtido ${somaLarguras.toFixed(1)})`,
     somaLarguras <= 100 + 0.05, // folga de arredondamento
     `colunas: ${JSON.stringify(colunasVisiveis(rel.columns).map((c) => c.width))}`,
   );
@@ -141,7 +142,7 @@ console.log("\n=== C. As colunas fixas nunca desaparecem, mesmo em relatórios m
   const fixas = colunasVisiveis(rel.columns).filter((c) => !c.key.startsWith("m_"));
   ok("mesmo com 36 meses, nenhuma coluna fixa fica com largura 0 ou negativa", fixas.every((c) => (c.width ?? 0) > 0));
   const somaLarguras = Math.max(...somasPorBloco(rel));
-  ok("…e a soma continua ≤ 100 em cada bloco/página", somaLarguras <= 100.05, `${somaLarguras}`);
+  ok("…e a soma continua ≤ 100 numa só tabela (36 meses: A3)", somaLarguras <= 100.05, `${somaLarguras}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -244,14 +245,17 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     organization: "Grupo",
   });
   const mesesCols = rel.columns.filter((c) => c.key.startsWith("m_"));
+  // A4 SEMPRE (2026-11): o cabeçalho do mês no HTML/PDF/impressão é «Out/25» NUMA linha (htmlLabel; a largura da coluna vem do texto
+  // medido, ver layout-largura.ts, e o cabeçalho é a negrito a 8 pt). O Excel (`label`) mantém as duas linhas de sempre — não muda.
   ok(
-    "cada rótulo de mês tem exactamente duas linhas (mês + ano de 2 dígitos)",
+    "Excel: o rótulo de cada mês (label) continua com duas linhas (mês + ano de 2 dígitos) — o Excel não muda",
     mesesCols.every((c) => /^[A-Za-zà-üÀ-Ü]{3}\n\d{2}$/.test(c.label)),
     JSON.stringify(mesesCols.map((c) => c.label)),
   );
   ok(
-    "…e nenhuma linha do rótulo de mês passa de 3 caracteres (nunca mais \"JAN/26\" numa linha só)",
-    mesesCols.every((c) => c.label.split("\n").every((linha) => linha.length <= 3)),
+    "HTML/PDF: o cabeçalho de cada mês (htmlLabel) é «Mmm/AA» numa só linha (meses abreviados; 14 cabem em A4)",
+    mesesCols.every((c) => /^[A-Za-zà-üÀ-Ü]{3}\/\d{2}$/.test(c.htmlLabel ?? "")),
+    JSON.stringify(mesesCols.map((c) => c.htmlLabel)),
   );
 
   // Correcção (2026-09): Custo unit. est. voltou a ser uma coluna do
@@ -265,21 +269,22 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
   eq("…e o rótulo está partido em duas linhas (coluna estreita)", custo?.label, "Custo\nunit. est.");
 
   const totalUnid = rel.columns.find((c) => c.key === "totalVendas");
-  eq("\"Total Unid.\" também partido em duas linhas", totalUnid?.label, "Total\nUnid.");
+  eq("Excel: \"Total Unid.\" continua partido em duas linhas (label)", totalUnid?.label, "Total\nUnid.");
+  eq("HTML/PDF: o cabeçalho é «Total unid.» em duas linhas (htmlLabel) — uma só coluna de total do período", totalUnid?.htmlLabel, "Total\nunid.");
 
   const html = renderReportHtml(rel);
   ok(
-    "o HTML gerado traduz \"\\n\" do rótulo em <br/> dentro do cabeçalho",
-    html.includes("Jan<br/>26") && html.includes("Total<br/>Unid."),
+    "o HTML gerado traduz \"\\n\" do rótulo em <br/> (Total<br/>unid.) e põe o mês numa linha (Jan/26)",
+    html.includes("Jan/26") && html.includes("Total<br/>unid."),
   );
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
   ok(
-    "…e o <thead> já não tem o formato antigo de uma linha só \"Jan/26\"",
-    !theadHtml.includes("Jan/26") && !theadHtml.includes("Total Unid."),
+    "…e o <thead> já não tem o formato antigo de duas linhas «Jan<br/>26» nem «Total Unid.»",
+    theadHtml.includes("Jan/26") && !theadHtml.includes("Jan<br/>26") && !theadHtml.includes("Total Unid."),
   );
   ok(
-    "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. est.)",
-    theadHtml.includes("Custo<br/>unit. est."),
+    "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. €)",
+    theadHtml.includes("Custo<br/>unit. €"),
   );
 }
 

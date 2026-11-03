@@ -44,7 +44,7 @@ import { renderReportHtml } from "../../lib/reporting/report-html";
 import { formatCurrency } from "../../lib/reporting/report-formatters";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import * as XLSX from "xlsx";
-import { buildVendasReport, repartirMeses, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
+import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
 import { readFileSync } from "node:fs";
 
 let pass = 0;
@@ -276,18 +276,14 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   // sempre presentes independentemente dos dados desta chamada.
   const bodyHtml = html.slice(html.indexOf("<body>"));
   const cols = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
-  // Mapa de Vendas 2026-10: acima de 13 meses o período reparte-se em BLOCOS (uma página cada) — a soma ≤ 100 vale
-  // por bloco (cada bloco é uma tabela completa), não para o conjunto de todas as colunas de todos os blocos.
-  const blocosCols = rel.meta?.columnBlocks
-    ? rel.meta.columnBlocks.map((b) => cols.filter((c) => !b.omitir.includes(c.key)))
-    : [cols];
-  const somaLarguras = Math.max(...blocosCols.map((bc) => bc.reduce((s, c) => s + (c.width ?? 0), 0)));
+  // Mapa de Vendas 2026-11 (A4 horizontal sempre): o período é SEMPRE uma só tabela (sem blocos): a soma das larguras visíveis é 100 para qualquer
+  // nº de meses (se as colunas não cabem em A4 ≥ 8 pt, o PDF não é gerado — ver lib/reporting/layout-largura.ts; nunca A3 nem letra pequena).
+  const somaLarguras = cols.reduce((s, c) => s + (c.width ?? 0), 0);
 
-  ok(`${nf}f/${nm}m: soma das larguras visíveis ≤ 100 por página/bloco (${somaLarguras.toFixed(1)})`, somaLarguras <= 100.05);
+  ok(`${nf}f/${nm}m: soma das larguras visíveis = 100 numa só tabela (${somaLarguras.toFixed(1)}), sem blocos, sem papel A3`, Math.abs(somaLarguras - 100) <= 0.05 && !("columnBlocks" in (rel.meta ?? {})) && !("paperSize" in (rel.meta ?? {})));
   ok(`${nf}f/${nm}m: meta.density é "compact"`, rel.meta?.density === "compact");
-  const mesesPorBloco = Math.max(...repartirMeses(nm));
-  const tableDensityEsperada = mesesPorBloco <= 6 ? "cozy" : mesesPorBloco <= 10 ? "tight" : "ultratight";
-  eq(`${nf}f/${nm}m: tableDensity = "${tableDensityEsperada}"`, rel.meta?.tableDensity, tableDensityEsperada);
+  // A4 horizontal sempre: a letra é fixa (8 pt), por isso já não há densidade tipográfica por nº de meses — poupa-se largura com o padding (meta.paddingCelulaPx)
+  ok(`${nf}f/${nm}m: sem tableDensity (letra fixa de 8 pt); padding das células ${rel.meta?.paddingCelulaPx} px (1,5…5)`, rel.meta?.tableDensity === undefined && [1.5, 2, 2.5, 3, 4, 5].includes(Number(rel.meta?.paddingCelulaPx)));
 
   if (nf > 1) {
     ok(`${nf}f/${nm}m: existe TOTAL ARTIGO (mais de uma farmácia)`, bodyHtml.includes("TOTAL ARTIGO"));
@@ -390,8 +386,9 @@ console.log("\n=== G5. custoUnitarioEstimado e valorBruto — bug antigo corrigi
   // Só no <body> — "PVP:" também aparece num comentário CSS (a explicar
   // a regra .cell-note), sempre presente independentemente dos dados.
   const bodyHtmlG5 = html.slice(html.indexOf("<body>"));
-  ok("o PVP aparece como coluna (não sublinha)", bodyHtmlG5.includes(">PVP<"));
-  ok("o Custo unit. est. aparece com o valor certo (12,34 €)", bodyHtmlG5.includes(`>${formatCurrency(12.34)}<`));
+  // 2026-11: o «€» vai para o cabeçalho («PVP €», «Custo unit. €») e as células mostram «12,34» sem símbolo (o Excel não muda)
+  ok("o PVP aparece como coluna (não sublinha)", bodyHtmlG5.includes(">PVP €<"));
+  ok("o Custo unit. aparece com o valor certo (12,34, sem «€» na célula)", bodyHtmlG5.includes(">12,34<"));
   ok("o Valor Vendas aparece no HTML (40,00 €)", bodyHtmlG5.includes("40,00"));
 }
 
@@ -423,8 +420,8 @@ console.log("\n=== G6. Excel e HTML/PDF mostram as mesmas colunas, na mesma orde
 
   const html = renderReportHtml(rel);
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
-  ok("o HTML/PDF TAMBÉM desenha PVP como coluna própria", theadHtml.includes(">PVP<"));
-  ok("…e Custo unit. est. também", theadHtml.includes("Custo") && theadHtml.includes("unit. est."));
+  ok("o HTML/PDF TAMBÉM desenha PVP como coluna própria", theadHtml.includes(">PVP €<"));
+  ok("…e Custo unit. est. também", theadHtml.includes("Custo") && theadHtml.includes("unit. €"));
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -604,10 +601,13 @@ console.log("\n=== K. Ordem das farmácias — estável e igual em todos os arti
 // ═════════════════════════════════════════════════════════════════════
 console.log("\n=== H. report-pdf-server.ts pede paginação ao Chromium ===");
 {
-  const src = readFileSync("lib/reporting/report-pdf-server.ts", "utf8");
+  // 2026-11: as opções do page.pdf() (papel A4/A3, margens, cabeçalho «Pág. X / Y») vivem em pdf-opcoes.ts, partilhadas com os testes;
+  // report-pdf-server.ts continua a usá-las (verificado abaixo).
+  const src = readFileSync("lib/reporting/pdf-opcoes.ts", "utf8");
+  ok("report-pdf-server.ts usa as opções partilhadas (opcoesPdfDoRelatorio)", /opcoesPdfDoRelatorio\(report\)/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")));
   ok("displayHeaderFooter activo", /displayHeaderFooter:\s*true/.test(src));
   ok("headerTemplate usa pageNumber/totalPages (só o Chromium sabe o total)", /pageNumber/.test(src) && /totalPages/.test(src));
-  ok("page.close()/finally continuam intactos (não regrediu o launcher)", /page\.close\(\)/.test(src) && /finally/.test(src));
+  ok("page.close()/finally continuam intactos (não regrediu o launcher)", /page\.close\(\)/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")) && /finally/.test(readFileSync("lib/reporting/report-pdf-server.ts", "utf8")));
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -656,21 +656,21 @@ console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por arti
 
   const html2f = renderReportHtml(rel2f);
   const body2f = html2f.slice(html2f.indexOf("<body>"));
-  ok("PDF/HTML mostra o PVP do Segurado (6,66 €)", body2f.includes(`>${formatCurrency(6.66)}<`));
-  ok("…e o do Silveirense (6,50 €), NUNCA os dois iguais", body2f.includes(`>${formatCurrency(6.5)}<`));
-  ok("PDF/HTML mostra o custo do Segurado (4,46 €)", body2f.includes(`>${formatCurrency(4.46)}<`));
-  ok("…e o do Silveirense (3,75 €)", body2f.includes(`>${formatCurrency(3.75)}<`));
+  ok("PDF/HTML mostra o PVP do Segurado (6,66 €)", body2f.includes(`>${"6,66"}<`));
+  ok("…e o do Silveirense (6,50 €), NUNCA os dois iguais", body2f.includes(`>${"6,50"}<`));
+  ok("PDF/HTML mostra o custo do Segurado (4,46 €)", body2f.includes(`>${"4,46"}<`));
+  ok("…e o do Silveirense (3,75 €)", body2f.includes(`>${"3,75"}<`));
   // A célula da 2ª sublinha (Silveirense) tem de ser uma célula própria,
   // não coberta por rowspan — é exactamente o que o bug fazia desaparecer.
   const linhasTr2f = body2f.match(/<tr[^>]*>.*?<\/tr>/g) ?? [];
   const trSilveirense = linhasTr2f.find((tr) => tr.includes(">Silveirense<"));
-  ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${formatCurrency(6.5)}<`));
-  // TOTAL ARTIGO mostra "—" (em dash — valor null via formatCell, não o
-  // "–" en dash de zeroAsDash) para PVP/Custo — nunca uma média, nunca
-  // em branco por acaso.
+  ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${"6,50"}<`));
+  // 2026-11: a linha TOTAL ARTIGO mostra APENAS totais mensais, total de unidades e stock — as células de PVP e de Custo unit. ficam
+  // VAZIAS no HTML/PDF (antes «—»); nunca uma média nem um valor escolhido. O Excel mantém o valor da linha (nulo) como estava.
   const trTotal2f = linhasTr2f.find((tr) => tr.includes("TOTAL ARTIGO"));
   const numTracos = (trTotal2f?.match(/>—</g) ?? []).length;
-  ok('TOTAL ARTIGO mostra pelo menos dois "—" (PVP e Custo, sem valor único)', numTracos >= 2);
+  const celulasVazias = (trTotal2f?.match(/<td[^>]*><\/td>/g) ?? []).length;
+  ok('TOTAL ARTIGO: PVP e Custo unit. com células VAZIAS (nenhum "—", nenhum valor)', numTracos === 0 && celulasVazias >= 2 && !trTotal2f?.includes("6,66") && !trTotal2f?.includes("6,50"));
 
   // 1 farmácia — sem grupo/rowspan, continua a mostrar o valor certo.
   const rows1f = [
@@ -705,7 +705,7 @@ console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por arti
   const html5f = renderReportHtml(rel5f);
   const body5f = html5f.slice(html5f.indexOf("<body>"));
   for (let i = 0; i < 5; i++) {
-    ok(`5f: PVP da farmácia ${i + 1} (${formatCurrency(10 + i)}) aparece no PDF/HTML`, body5f.includes(`>${formatCurrency(10 + i)}<`));
+    ok(`5f: PVP da farmácia ${i + 1} (${formatCurrency(10 + i)}) aparece no PDF/HTML`, body5f.includes(`>${formatCurrency(10 + i).replace(/\s?€/, "")}<`));
   }
 }
 

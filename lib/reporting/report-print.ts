@@ -25,10 +25,18 @@
 
 import type { Report } from "./report-types";
 import { renderReportHtml } from "./report-html";
+import { bloqueadoPorA4 } from "./layout-vendas";
 
 export function printReport(report: Report): void {
   if (typeof document === "undefined") {
     console.warn("[report-print] document indisponível — chamada ignorada");
+    return;
+  }
+
+  // Mapa de Vendas: um período que não cabe numa página A4 legível não se imprime truncado — mensagem em vez de diálogo.
+  const bloqueio = bloqueadoPorA4(report);
+  if (bloqueio) {
+    window.alert(bloqueio.mensagem);
     return;
   }
 

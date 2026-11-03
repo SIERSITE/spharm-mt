@@ -57,8 +57,16 @@ export type ReportColumn = {
    * também: `hidden` esconde de TUDO, incluindo Excel.
    */
   excelOnly?: boolean;
-  /** Só existe em HTML/PDF/print — nunca no Excel (ex.: totais por bloco temporal; o Excel mostra todos os meses numa folha). */
+  /** Só existe em HTML/PDF/print — nunca no Excel (o Excel mostra todos os meses numa folha). */
   htmlOnly?: boolean;
+  /** Moeda SEM « €» nas células de HTML/PDF/print (o símbolo vai no cabeçalho, `htmlLabel`); o Excel continua com o formato monetário. */
+  semSimbolo?: boolean;
+  /** A célula quebra linha (inclusive no meio de uma palavra muito longa) em vez de alargar a coluna — HTML/PDF/print. */
+  quebra?: boolean;
+  /** Rótulo do cabeçalho em HTML/PDF/print, se diferente de `label` (o Excel usa sempre `label`). Ex.: «Out/25» numa linha. */
+  htmlLabel?: string;
+  /** Na linha de subtotal («TOTAL ARTIGO») a célula fica VAZIA em HTML/PDF/print (o Excel mantém o valor da linha). */
+  vazioNoSubtotal?: boolean;
   /**
    * Sublinha discreta sob esta célula, só em HTML/PDF/print — nunca no
    * Excel, que fica com o valor plano da coluna. Aponta para OUTRA
@@ -97,7 +105,7 @@ export type ReportColumn = {
    */
   stockIndicator?: boolean;
   /**
-   * Marca esta coluna como mensal (mesmo conjunto que `ReportMeta.columnBlocks` reparte) e dá-lhe um fundo
+   * Marca esta coluna como mensal (todas as colunas mensais ficam lado a lado na mesma tabela) e dá-lhe um fundo
    * alternado MUITO discreto (meses pares/ímpares) — só HTML/PDF/print.
    */
   monthAlt?: boolean;
@@ -214,6 +222,16 @@ export type ReportSummaryItem = {
   sensivel?: "venda" | "compra";
 };
 
+/** Item do resumo no fim do relatório (ver `ReportMeta.resumoFinal`). */
+export type ResumoFinalItem = {
+  label: string;
+  value: ReportCell;
+  format?: ReportFormat;
+  sensivel?: "venda" | "compra";
+  /** Indicação a mostrar junto do valor (ex.: «PARCIAL: 3 linhas sem custo conhecido ficam fora do total»). */
+  nota?: string;
+};
+
 export type ReportFilter = {
   label: string;
   /** Já renderizado em texto pelo produtor do relatório */
@@ -224,6 +242,21 @@ export type ReportMeta = {
   /** Usado para filename e subject de email. Default = slug(title). */
   slug?: string;
   orientation?: "portrait" | "landscape";
+  /** Margem lateral da página em mm (omitido = 8). O Mapa de Vendas usa 6,5 mm (A4 horizontal, ver layout-largura.ts). */
+  pageMarginMm?: number;
+  /**
+   * Relatório que TEM de ser legível impresso em A4 horizontal sem ampliação (Mapa de Vendas): tabela única a 8 pt. Presente ⇒ o
+   * PDF, a impressão, a pré-visualização e o PDF do email só se geram se as colunas couberem (`capacidadeDoRelatorio`,
+   * lib/reporting/layout-vendas.ts); senão o servidor responde 422 e a UI mostra a mensagem. O Excel nunca é limitado.
+   */
+  legibilidadeA4?: boolean;
+  /** Padding horizontal (px) das células da tabela, escolhido pela regra de largura (layout-largura.ts). Só HTML/PDF/print. */
+  paddingCelulaPx?: number;
+  /**
+   * Resumo no FIM do relatório (HTML/PDF/impressão/pré-visualização, uma só vez, depois do TOTAL GERAL) — nunca no Excel nem repetido
+   * por artigo. Os itens `sensivel` saem quando essa classe de preços está desligada (privacidade.ts).
+   */
+  resumoFinal?: ResumoFinalItem[];
   /** Rodapé livre (ex: "SPharm.MT — Uso interno") */
   footer?: string;
   /** Nome da empresa/farmácia no cabeçalho */
@@ -286,12 +319,6 @@ export type ReportMeta = {
    *     «Total artigo» em cinzento muito claro, sem blocos escuros (Mapa de Vendas, 2026-10). Lê-se em cinzentos.
    */
   hierarchy?: "normal" | "strong" | "clean";
-  /**
-   * Reparte as colunas em BLOCOS TEMPORAIS (páginas) quando há demasiadas para uma página A4 legível — HTML/PDF/print
-   * apenas (o Excel e o ecrã mostram sempre todas). Cada bloco omite as colunas listadas em `omitir` (as dos outros
-   * blocos); as restantes (identificação, totais…) repetem-se em todos. O TOTAL GERAL só aparece no ÚLTIMO bloco.
-   */
-  columnBlocks?: { titulo: string; omitir: string[] }[];
   /** Texto sob a tabela em HTML/PDF/print (default «N linhas»). Ex.: «12 artigos · 31 linhas». */
   tableNote?: string;
   /** Rótulo da linha de totais no Excel (default «Total»). */

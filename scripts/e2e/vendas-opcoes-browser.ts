@@ -36,12 +36,12 @@ const norm = (t: string) => t.replace(/[  ]/g, " ").replace(/\s+/g, " ");
 const lum = (rgb: string) => { const m = rgb.match(/\d+(\.\d+)?/g)!.map(Number); return 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]; };
 
 // Valores-sentinela ÚNICOS por classe (SENTINELA UM = Alfa, SENTINELA DOIS = Beta; qty 1 cada):
-//   venda : PVP 11111.11 · valor de vendas 33333.33 · PVP estimado (Σ qtd×pvp) 22222.22 · total do valor 66666.66
-//   compra: custo unitário/total da linha 44444.44 · total do custo 88888.88
-const VENDA_FMT = ["11 111,11", "22 222,22", "33 333,33", "66 666,66"];
-const VENDA_RAW = ["11111.11", "22222.22", "33333.33", "66666.66"];
-const COMPRA_FMT = ["44 444,44", "88 888,88"];
-const COMPRA_RAW = ["44444.44", "88888.88"];
+//   venda : PVP 1111.11 · valor de vendas 3333.33 · PVP estimado (Σ qtd×pvp) 2222.22 · total do valor 6666.66
+//   compra: custo unitário/total da linha 4444.44 · total do custo 8888.88
+const VENDA_FMT = ["1111,11", "2222,22", "3333,33", "6666,66"];
+const VENDA_RAW = ["1111.11", "2222.22", "3333.33", "6666.66"];
+const COMPRA_FMT = ["4444,44", "8888,88"];
+const COMPRA_RAW = ["4444.44", "8888.88"];
 const tem = (t: string, l: string[]) => l.some((s) => t.includes(s));
 
 const INIT_CAPTURA_IMPRESSAO = `
@@ -145,9 +145,9 @@ async function main() {
       prisma.vendaMensal.create({ data: { produtoId, farmaciaId, ano, mes: mesVenda, quantidade: 1, quantidadeLiquida: 1, valorTotal: valor, valorBruto: valor } });
     // Sentinelas
     const s1 = await novoProduto(7400001, "SENTINELA UM");
-    await ficha(s1.id, alfa, { pvp: 11111.11, pmc: 44444.44, stock: 3 }); await venda(s1.id, alfa, 33333.33);
+    await ficha(s1.id, alfa, { pvp: 1111.11, pmc: 4444.44, stock: 3 }); await venda(s1.id, alfa, 3333.33);
     const s2 = await novoProduto(7400002, "SENTINELA DOIS");
-    await ficha(s2.id, beta, { pvp: 11111.11, pmc: 44444.44, stock: 4 }); await venda(s2.id, beta, 33333.33);
+    await ficha(s2.id, beta, { pvp: 1111.11, pmc: 4444.44, stock: 4 }); await venda(s2.id, beta, 3333.33);
     // PVP diferente entre farmácias
     const d1 = await novoProduto(7400011, "PVPDIF IGUAL");           await ficha(d1.id, alfa, { pvp: 20, stock: 1 }); await ficha(d1.id, beta, { pvp: 20.004, stock: 2 }); await venda(d1.id, alfa, 20); await venda(d1.id, beta, 20);
     const d2 = await novoProduto(7400012, "PVPDIF CENTIMO");         await ficha(d2.id, alfa, { pvp: 20, stock: 3 }); await ficha(d2.id, beta, { pvp: 20.01, stock: 4 }); await venda(d2.id, alfa, 20); await venda(d2.id, beta, 20.01);
@@ -197,7 +197,8 @@ async function main() {
       const txtPrev = norm(await previa(page).locator("body").innerText());
       const ths = (await previa(page).locator("thead th").allInnerTexts()).map((t) => norm(t));
       check(tem(txtPrev, VENDA_FMT) === venda && tem(txtPrev, COMPRA_FMT) === compra, `${tag}: Relatório — valores de venda ${venda ? "presentes" : "AUSENTES"}, de compra ${compra ? "presentes" : "AUSENTES"}`);
-      check(ths.some((t) => /PVP/.test(t)) === venda && ths.some((t) => /Valor Vendas/.test(t)) === venda && ths.some((t) => /Custo/.test(t)) === compra && ths.every((t) => t.length > 0), `${tag}: Relatório — colunas coerentes, nenhuma vazia (${ths.join(" | ")})`);
+      check(ths.some((t) => /PVP/.test(t)) === venda && !ths.some((t) => /Valor Vendas|Custo total/.test(t)) && ths.some((t) => /Custo/.test(t)) === compra && ths.every((t) => t.length > 0), `${tag}: Relatório — colunas coerentes (sem «Valor Vendas»/«Custo total»: vão para o resumo financeiro), nenhuma vazia (${ths.join(" | ")})`);
+      check(/Valor total de vendas/.test(txtPrev) === venda && /Custo total estimado/.test(txtPrev) === compra, `${tag}: Relatório — resumo financeiro no fim: valor de vendas só com venda (${venda}), custo só com compra (${compra})`);
       check(/Stock total:\s*7/.test(txtPrev) && /Unidades vendidas:\s*2/.test(txtPrev), `${tag}: Relatório — faixa «Unidades vendidas: 2 · Stock total: 7» sempre presente`);
       check(txtPrev.includes("€") === (venda || compra), `${tag}: Relatório — «€» ${venda || compra ? "presente" : "AUSENTE"}`);
       await page.screenshot({ path: path.join(EVID, `relatorio-${id}.png`) });
@@ -360,7 +361,8 @@ async function main() {
         const total = document.querySelector(".totals-tbody td.num");
         return { texto: px(texto), num: px(num), stock: px(stock), total: px(total) };
       });
-      check(Math.abs(f.num - f.texto - 1) < 0.2 && Math.abs(f.total - f.texto - 1) < 0.2 && Math.abs(f.stock - f.texto - 1) < 0.2, `${w}×${h} (Relatório): números/stock/totais ${f.num}/${f.stock}/${f.total}px = texto ${f.texto}px + 1`);
+      // 2026-11: A4 a 8,025 pt — a regra «números = texto + 1 px» foi removida; CNP/Descrição ≥ valores mensais, tudo a 10,7 px (8,25 pt ≥ 8 pt).
+      check(Math.abs(f.num - f.texto) < 0.2 && Math.abs(f.total - f.texto) < 0.2 && Math.abs(f.stock - f.texto) < 0.2 && f.texto >= 10.66, `${w}×${h} (Relatório): números/stock/totais ${f.num}/${f.stock}/${f.total}px = texto ${f.texto}px (todos ≥ 8 pt)`);
       await page.getByRole("button", { name: /^Tabela$/ }).click();
       await page.locator('[data-testid="vendas-tabela"]').waitFor();
       const e = await page.locator('table[data-testid="vendas-tabela"]').evaluate(() => {
