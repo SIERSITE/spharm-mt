@@ -102,6 +102,16 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // commit completo, data UTC, sha256 de cada ficheiro) e o build recusa
 // árvore suja. A rev96 ficou sem manifesto e com o commit abreviado dum
 // SHA intermédio no agent.cjs, o que não permitia provar a sua origem.
+// rev99 — CLASSIFICAÇÃO ÉTICO / NETT (Entrega B). Em cima da rev98, SEM tocar no lock único, heartbeat, identidade do
+// processo, guarda de escrita, retoma HTTP/SQL, catch-up nem na configuração (`agent.config.json` rev98 continua válido):
+//   · bootstrap/products-upload/full-sync e sync diário/sync-now passam a ler `dbo.Stocks.Etico_NETT` (mais uma coluna do
+//     SELECT que já existia — o universo de artigos NÃO muda) e o lookup `dbo.Etico_NETT` DESTA farmácia (só SELECT);
+//   · a categoria decide-se pela DESCRIÇÃO normalizada (nunca por códigos fixos): só «Éticos» e «NETT» contam; Serviço,
+//     Sacos, Outros, desconhecidos, ambíguos e lookup em falta seguem como `eticoNett: null` (aviso, nada é alterado);
+//   · campos opcionais no payload de /bootstrap/products; uma instalação sem a coluna não envia nada;
+//   · logs só com estrutura e contagens (nunca o lookup nem descrições).
+// Exige a aplicação SaaS desta mesma entrega (migration aditiva `produto_farmacia_etico_nett`) para GRAVAR; um servidor
+// anterior ignora os campos novos sem erro.
 // rev98 — RESILIÊNCIA da sincronização diária (incidente da Silveirense, 15/10/2026: `fetch failed` no 6.º lote de
 // produtos depois de o servidor já o ter processado; o agent abortou o pipeline e o Agendador não o reexecutou):
 //   · retentativas centralizadas no cliente HTTP (original + 4: ~5/15/30/60 s + jitter, Retry-After, timeout
@@ -114,7 +124,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 //   · logs de cada pedido (endpoint/etapa/dia/lote/tentativa/tipo de falha/ambígua) sem segredos;
 //   · `daily-pipeline --plan` (dry-run do plano) e wrapper run-daily-pipeline-plan.bat.
 // Só código do agent: SEM alterações ao SaaS, SEM migrations, `agent.config.json` rev97 continua válido (opções novas opcionais).
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "98";
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "99";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //

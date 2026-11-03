@@ -40,6 +40,14 @@ import {
   EMPTY_CATALOG_PLAN,
   type CatalogPlan,
 } from "../catalog-discovery.js";
+import {
+  descobrirEticoNett,
+  descreverContagensEticoNett,
+  descreverPlanoEticoNett,
+  eticoNettParaPayload,
+  eticoNettSelect,
+  type PlanoEticoNett,
+} from "../etico-nett.js";
 
 type SchemaProbeAPI = {
   tableExists: (
@@ -203,6 +211,11 @@ export type SchemaCapabilities = {
    * (`EMPTY_CATALOG_PLAN`) — nenhuma query se parte por faltar.
    */
   catalogPlan?: CatalogPlan;
+  /**
+   * rev99 — classificação Ético/NETT (`Stocks.Etico_NETT` + lookup `dbo.Etico_NETT` desta farmácia). Opcional pela
+   * mesma razão do `catalogPlan`: ausente = nenhuma coluna detectada (CAST(NULL), nada enviado, a query não se parte).
+   */
+  eticoNettPlano?: PlanoEticoNett;
 };
 
 async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promise<SchemaCapabilities> {
@@ -217,7 +230,8 @@ async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promis
   const stocksCols = await probes.listColumns(pool, { schema: "dbo", table: "Stocks" });
   const hasDataActualiz = stocksCols.some((c) => c.name === "Data_Actualiz");
   const catalogPlan = await discoverCatalogPlan(pool);
-  return { hasStocksMov, stocksMovDateCol, hasDataActualiz, catalogPlan };
+  const eticoNettPlano = await descobrirEticoNett(pool);
+  return { hasStocksMov, stocksMovDateCol, hasDataActualiz, catalogPlan, eticoNettPlano };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -351,7 +365,8 @@ export function buildProductsSql(caps: SchemaCapabilities, scope: "date" | "full
       ${dciSelect}                 AS dci,
       ${atcSelect}                 AS codigoATC,
       ${ghSelect}                  AS grupoHomogeneo,
-      ${fabricanteSelect}          AS fabricante
+      ${fabricanteSelect}          AS fabricante,
+      ${eticoNettSelect(caps.eticoNettPlano)} AS eticoNettCodigo
     FROM [dbo].[Stocks] s
     OUTER APPLY (
       SELECT TOP 1 [Fornecedor Habitual]
@@ -454,11 +469,13 @@ export type ProductRow = {
   codigoATC: unknown;
   grupoHomogeneo: unknown;
   fabricante: unknown;
+  /** rev99 — código cru de `Stocks.Etico_NETT` (NULL se a coluna não existe). */
+  eticoNettCodigo?: unknown;
 };
 
 /** Exportada para `test-agent-fabricante-daily-sync.ts` — confirma que o
  * payload do sync diário passou a incluir o catálogo regulamentar. */
-export function rowToProductPayload(r: ProductRow): Record<string, unknown> {
+export function rowToProductPayload(r: ProductRow, eticoNettPlano?: PlanoEticoNett | null): Record<string, unknown> {
   return {
     externalProductId: numOrNull(r.externalProductId),
     cnp: numOrNull(r.cnp),
@@ -474,6 +491,7 @@ export function rowToProductPayload(r: ProductRow): Record<string, unknown> {
     fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
     fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
     ...catalogFieldsToPayload(r),
+    ...eticoNettParaPayload(eticoNettPlano, r.eticoNettCodigo),
   };
 }
 
@@ -498,6 +516,7 @@ async function pipelineProducts(
       : `▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})`,
   );
   logger.raw(DOUBLE_RULE);
+  if (caps.eticoNettPlano) logger.log(`  ${descreverPlanoEticoNett(caps.eticoNettPlano)}`);
 
   while (true) {
     const rs = await pool
@@ -509,7 +528,7 @@ async function pipelineProducts(
 
     if (rs.recordset.length === 0) break;
     counts.productsRead += rs.recordset.length;
-    const items = rs.recordset.map(rowToProductPayload);
+    const items = rs.recordset.map((r) => rowToProductPayload(r, caps.eticoNettPlano));
     batches++;
     if (envio.dryRun || !client) {
       guardarAmostra(envio.amostras?.produtos, items);
@@ -542,6 +561,7 @@ async function pipelineProducts(
     if (last && typeof last.externalProductId === "number") lastId = last.externalProductId;
     if (rs.recordset.length < PRODUCTS_BATCH) break;
   }
+  if (caps.eticoNettPlano?.stocksColuna) logger.log(`  ${descreverContagensEticoNett(caps.eticoNettPlano)}`);
 }
 
 type StockRow = {

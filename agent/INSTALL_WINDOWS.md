@@ -343,6 +343,14 @@ idempotência e ficheiros de estado em `RESILIENCIA.md` (neste pacote).
 * Estado local em `run\` (`pipeline-pendentes.json`, `pipeline-alertas.json`, `pipelinerun-pendentes\`); falhas definitivas ficam também no
   Registo de Eventos do Windows (Application, origem `SPharmMT-Agent`).
 
+### 8.2c Classificação Ético / NETT (rev99)
+
+A rev99 lê `dbo.Stocks.Etico_NETT` e o lookup `dbo.Etico_NETT` **desta** farmácia (só `SELECT`) e envia ao SaaS, por artigo,
+`eticoNett: "ETICO" | "NETT"` (+ código e descrição originais). Os códigos **não** são assumidos: a decisão é pela descrição
+normalizada (sem acentos/maiúsculas/pontuação). Serviço, Sacos, Outros e qualquer descrição desconhecida ou ambígua seguem
+como `eticoNett: null` (aviso; o SaaS não altera nada). O universo de artigos sincronizados **não muda** e o `agent.config.json`
+da rev98 continua válido. No log aparece apenas estrutura e contagens (nunca o lookup).
+
 ### 8.3 Como parar / desinstalar
 
 Como o agent não é um serviço Windows na v0.1:

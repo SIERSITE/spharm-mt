@@ -55,6 +55,13 @@ import {
   catalogFieldsToPayload,
   logCatalogPlan,
 } from "../catalog-discovery.js";
+import {
+  descobrirEticoNett,
+  descreverContagensEticoNett,
+  descreverPlanoEticoNett,
+  eticoNettParaPayload,
+  eticoNettSelect,
+} from "../etico-nett.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -152,6 +159,13 @@ type ProductPayload = {
   codigoATC: string | null;
   grupoHomogeneo: string | null;
   fabricante: string | null;
+  /**
+   * rev99 — classificação ERP Ético/NETT (ver `etico-nett.ts`). OPCIONAIS: omitidos quando a instalação não tem
+   * `Stocks.Etico_NETT` ou o artigo não tem código; `eticoNett: null` = o artigo tem código mas não é Ético/NETT.
+   */
+  eticoNett?: "ETICO" | "NETT" | null;
+  eticoNettCodigo?: number;
+  eticoNettDescricao?: string | null;
 };
 
 type StockPayload = {
@@ -668,6 +682,10 @@ export async function runProductsPipeline(
   const { dciSelect, atcSelect, ghSelect, ghJoin, fabricanteSelect, fabricanteJoin } =
     buildCatalogSqlFragments(catalogPlan);
 
+  // rev99 — classificação Ético/NETT: lookup DESTA farmácia, resolvido por descrição (só SELECT; sem dados nos logs).
+  const eticoNettPlano = await descobrirEticoNett(pool);
+  console.log(`  ${descreverPlanoEticoNett(eticoNettPlano)}`);
+
   const ivaJoinClause =
     ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
       ? `LEFT JOIN [dbo].[${ivaPlan.masterTable}] iva_master
@@ -744,6 +762,7 @@ export async function runProductsPipeline(
         codigoATC: unknown;
         grupoHomogeneo: unknown;
         fabricante: unknown;
+        eticoNettCodigo: unknown;
       }>(`
         SELECT TOP (@n)
           s.CodigoID                   AS externalProductId,
@@ -764,7 +783,8 @@ export async function runProductsPipeline(
           ${dciSelect}                 AS dci,
           ${atcSelect}                 AS codigoATC,
           ${ghSelect}                  AS grupoHomogeneo,
-          ${fabricanteSelect}          AS fabricante
+          ${fabricanteSelect}          AS fabricante,
+          ${eticoNettSelect(eticoNettPlano)} AS eticoNettCodigo
         FROM [dbo].[Stocks] s
         OUTER APPLY (
           SELECT TOP 1 [Fornecedor Habitual]
@@ -807,6 +827,7 @@ export async function runProductsPipeline(
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
       taxaIva: numOrNull(r.taxaIva),
       ...catalogFieldsToPayload(r),
+      ...eticoNettParaPayload(eticoNettPlano, r.eticoNettCodigo),
     }));
 
     if (dryRun) {
@@ -899,6 +920,7 @@ export async function runProductsPipeline(
       `  as vendas historicas deles ficavam orfas. Entram com flagRetirado preservado.`,
     );
   }
+  console.log(`  ${descreverContagensEticoNett(eticoNettPlano)}`);
   return totals;
 }
 
