@@ -154,15 +154,12 @@ async function main() {
     check(tem(tx, E) && !tem(tx, A) && !tem(tx, B) && !tem(tx, C) && !tem(tx, D), "SEM CLASSIFICAÇÃO: E (sem classificação em nenhuma farmácia)");
     await opcao(page, RE_SEM).click();
     // âmbito: só a farmácia Alfa → A passa a ser ÉTICO (a divergência de Beta está fora do âmbito)
-    await page.getByRole("button", { name: /Farm[aá]cias?/ }).first().click().catch(() => undefined);
-    const cartaoFarm = page.getByPlaceholder(/Pesquisar farm/i).first();
-    if ((await cartaoFarm.count()) === 0) await abrirFiltros(page);
-    await page.getByPlaceholder(/Pesquisar farm/i).first().fill("Alfa");
-    await page.getByRole("button", { name: /Farmacia Alfa/ }).first().click();
+    await page.getByPlaceholder("Pesquisar farmácia...").first().fill("Alfa");
+    await page.getByRole("button", { name: /^Farmacia Alfa/ }).first().click();
     await opcao(page, RE_ETICO).click();
     await gerarVendas();
     tx = await tabelaVendas();
-    check(tem(tx, A) && tem(tx, B) && !tem(tx, C), "âmbito só Alfa: ÉTICO = A e B (a divergência de A é com a Beta, fora do âmbito)");
+    check(tem(tx, A) && tem(tx, B) && !tem(tx, C), "âmbito só Alfa: ÉTICO = A e B (a divergência de A é com a Beta, fora do âmbito)", tx.slice(0, 300).replace(/\s+/g, " "));
     // PDF e Excel com a linha
     const pdfV = await pdfReal(page, ctx, EVID, "vendas-etico.pdf");
     check(/Ético\/NETT\W{0,6}Ético/.test(pdfV.texto), "PDF (Vendas): filtros aplicados trazem «Ético/NETT: Ético»");
@@ -284,7 +281,14 @@ async function main() {
       await page.getByRole("button", { name: /Gerar proposta/i }).first().click().catch(() => undefined);
       await page.waitForTimeout(3500);
       const tp = await textoPagina(page);
-      check(tem(tp, A) && tem(tp, B) && !tem(tp, C) && !tem(tp, E), "proposta da Alfa com ÉTICO: A e B (classificação DA Alfa — A é Ético na Alfa) e não C/E");
+      const cartoes = tp.replace(/\s+/g, " ");
+      check(/A COMPRAR 0/i.test(cartoes) && /ADEQUADO 2/i.test(cartoes), "proposta da Alfa com ÉTICO: 2 artigos (A e B — a classificação é a DA Alfa, onde A é Ético; C é NETT e E não tem)", cartoes.slice(0, 400));
+      await opcao(page, RE_ETICO).click();
+      await opcao(page, RE_NETT).click();
+      await page.getByRole("button", { name: /Gerar nova proposta|Gerar proposta/i }).first().click();
+      await page.waitForTimeout(3500);
+      const tn = (await textoPagina(page)).replace(/\s+/g, " ");
+      check(/ADEQUADO 0/i.test(tn) && /A COMPRAR 0/i.test(tn), "…com NETT a proposta da Alfa não tem A nem B (só C, sem vendas)", tn.slice(0, 400));
       await page.screenshot({ path: path.join(EVID, "encomenda-nova.png") });
     }
 
