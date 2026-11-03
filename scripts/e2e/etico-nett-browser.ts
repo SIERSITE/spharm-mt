@@ -289,7 +289,7 @@ async function main() {
       await page.waitForTimeout(3500);
       const tp = await page.locator("body").innerText();
       const cartoes = tp.replace(/[\s ​]+/g, " ");
-      check(/A COMPRAR 0/i.test(cartoes) && /ADEQUADO 2/i.test(cartoes), "proposta da Alfa com ÉTICO: 2 artigos (A e B — a classificação é a DA Alfa, onde A é Ético; C é NETT e E não tem)", cartoes.slice(Math.max(0, cartoes.search(/COMPRAR/i) - 40)).slice(0, 300));
+      check(/ACOMPRAR0/i.test(compacto(cartoes)) && /ADEQUADO2/i.test(compacto(cartoes)), "proposta da Alfa com ÉTICO: 2 artigos (A e B — a classificação é a DA Alfa, onde A é Ético; C é NETT e E não tem)", cartoes.slice(Math.max(0, cartoes.search(/COMPRAR/i) - 40)).slice(0, 300));
       await opcao(page, RE_ETICO).click();
       await opcao(page, RE_NETT).click();
       await page.getByRole("button", { name: /Gerar nova proposta|Gerar proposta/i }).first().click();
