@@ -95,6 +95,11 @@ export type SharedReportFilters = {
    * Ver `lib/classificacao/etico-nett.ts`.
    */
   eticoNett?: string[];
+  /**
+   * Filtro «Genérico» (`Produto.flagGenerico`): `undefined` = Todos (omissão) · `GENERICO` · `NAO_GENERICO`. Aplica-se no
+   * servidor (`restringirPorCatalogo`), antes de totais e paginação. Ver `lib/catalog/generico-filtro.ts`.
+   */
+  generico?: "GENERICO" | "NAO_GENERICO";
   /** Fabricantes canónicos seleccionados. Vazio = todos. */
   fabricantes?: string[];
   /** Distribuidores / grossistas seleccionados. Vazio = todos. */
@@ -195,6 +200,7 @@ export function contarFiltrosAtivos(filtros: SharedReportFilters): number {
   if ((filtros.fabricantes?.length ?? 0) > 0) n++;
   if ((filtros.formasFarmaceuticas?.length ?? 0) > 0) n++;
   if ((filtros.eticoNett?.length ?? 0) > 0) n++;
+  if (filtros.generico === "GENERICO" || filtros.generico === "NAO_GENERICO") n++;
   if ((filtros.distribuidores?.length ?? 0) > 0) n++;
   // A lista importada conta como UM eixo, não como "N produtos" — ver
   // a nota grande em `cnps` acima sobre `undefined` vs `[]`.
@@ -240,6 +246,7 @@ export function limparFiltrosPreservandoData(
     fabricantes: [],
     formasFarmaceuticas: [],
     eticoNett: [],
+    generico: undefined,
     distribuidores: [],
     cnps: undefined,
     apenasSemClassif: false,
@@ -293,6 +300,8 @@ export type ReportFilterOptions = {
   formas?: OpcaoFormaFarmaceutica[];
   /** Classificação Ético/NETT (valor + nº de produtos). Omitido = sem filtro Ético/NETT (consumidor antigo). */
   eticoNett?: Array<{ valor: ValorFiltroEticoNett; count: number }>;
+  /** Contagens do filtro Genérico (produtos activos). Omitido = sem filtro Genérico (consumidor antigo). */
+  generico?: { genericos: number; naoGenericos: number };
   /** SÓ no tenant garantia — ver o mesmo campo em `ReportingFilterOptions` (lib/reporting-filter-options.ts). */
   laboratorios?: CatalogoFilterOptionLaboratorio[];
   distribuidores: string[];

@@ -41,12 +41,13 @@ export function normalizarFiltros(f: SharedReportFilters): Record<string, unknow
   if (f.to) out.to = f.to;
   if ((f.incluirCredito ?? DEFAULT_INCLUIR_CREDITO) !== DEFAULT_INCLUIR_CREDITO) out.incluirCredito = f.incluirCredito;
   if ((f.incluirTransferencias ?? DEFAULT_INCLUIR_TRANSFERENCIAS) !== DEFAULT_INCLUIR_TRANSFERENCIAS) out.incluirTransferencias = f.incluirTransferencias;
+  if (f.generico === "GENERICO" || f.generico === "NAO_GENERICO") out.generico = f.generico;
   if (f.apenasSemClassif) out.apenasSemClassif = true;
   if (f.apenasComStock) out.apenasComStock = true;
   if (f.incluirManutencao) out.incluirManutencao = true;
   // Chaves futuras de `SharedReportFilters` que ainda não tenham regra acima: comparam-se tal e qual (nunca ignoradas).
   const conhecidas = new Set([
-    "farmaciaNomes", "categorias", "subcategorias", "utilizacoes", "fabricantes", "formasFarmaceuticas", "eticoNett", "distribuidores", "cnps", "pesquisa",
+    "farmaciaNomes", "categorias", "subcategorias", "utilizacoes", "fabricantes", "formasFarmaceuticas", "eticoNett", "generico", "distribuidores", "cnps", "pesquisa",
     "from", "to", "incluirCredito", "incluirTransferencias", "apenasSemClassif", "apenasComStock", "incluirManutencao",
   ]);
   for (const [k, v] of Object.entries(f)) {

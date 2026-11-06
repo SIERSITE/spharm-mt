@@ -77,6 +77,7 @@ import {
 import { ImportListaCodigos } from "./import-lista-codigos";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "./filtro-forma-farmaceutica";
 import { ChipsEticoNett, FiltroEticoNett } from "./filtro-etico-nett";
+import { ChipGenerico, FiltroGenerico } from "./filtro-generico";
 import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "./laboratorio-multi-select";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -306,6 +307,10 @@ export function ReportFiltersBar({
               onToggle={(v) => patch({ distribuidores: alternarValor(v, value.distribuidores ?? []) })}
             />
             {/* Ético / NETT: classificação ERP consolidada entre as farmácias, filtrada no SERVIDOR. */}
+            {/* Genérico: escolha única (Todos por omissão), filtrada no SERVIDOR. */}
+            {options.generico && (
+              <FiltroGenerico valor={value.generico} contagens={options.generico} onChange={(v) => patch({ generico: v })} />
+            )}
             {options.eticoNett && (
               <FiltroEticoNett
                 opcoes={options.eticoNett}
@@ -345,6 +350,7 @@ export function ReportFiltersBar({
                 onRemove={(chave) => patch({ formasFarmaceuticas: (value.formasFarmaceuticas ?? []).filter((v) => v !== chave) })}
               />
             )}
+            {options.generico && <ChipGenerico valor={value.generico} onRemove={() => patch({ generico: undefined })} />}
             {options.eticoNett && (
               <ChipsEticoNett
                 selected={value.eticoNett ?? []}

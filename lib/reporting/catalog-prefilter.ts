@@ -19,11 +19,12 @@ import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { temListaCodigos } from "@/lib/produtos/lista-codigos-tipos";
 import { idsProdutosPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
 import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
+import { idsProdutosPorGenerico } from "@/lib/catalog/generico-sql";
 import type { SharedReportFilters } from "./filters-shared";
 
 export type FiltrosCatalogo = Pick<
   SharedReportFilters,
-  "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas" | "eticoNett"
+  "subcategorias" | "utilizacoes" | "cnps" | "formasFarmaceuticas" | "eticoNett" | "generico"
 > &
   Partial<Pick<SharedReportFilters, "farmaciaNomes">> & {
     /** Âmbito explícito da consolidação Ético/NETT (se o chamador já tem ids). Tem precedência sobre `farmaciaNomes`. */
@@ -39,7 +40,10 @@ export function temFiltroCatalogo(f: FiltrosCatalogo): boolean {
     // encontrado é `[]` e tem de filtrar para zero. Ver `temListaCodigos`.
     temListaCodigos(f.cnps) ||
     (f.formasFarmaceuticas?.length ?? 0) > 0 ||
-    (f.eticoNett?.length ?? 0) > 0
+    (f.eticoNett?.length ?? 0) > 0 ||
+    // Genérico: `undefined` = Todos; só GENERICO/NAO_GENERICO restringem (lerValorGenerico descarta o resto).
+    f.generico === "GENERICO" ||
+    f.generico === "NAO_GENERICO"
   );
 }
 
@@ -134,6 +138,15 @@ export async function restringirPorCatalogo(
       if (ambito.length === 0) return [];
     }
     ids = await idsProdutosPorEticoNett(prisma, filtros.eticoNett, ids, ambito);
+    if (ids && ids.length === 0) return [];
+  }
+
+  // ── Genérico ────────────────────────────────────────────────────
+  //
+  // `Produto.flagGenerico` (NOT NULL; vem de Stocks.Generico). UMA consulta, antes de totais, paginação e cortes.
+  // `undefined` = Todos = sem restrição. «Não genéricos» inclui os artigos que o ERP não classificou (a coluna não tem nulos).
+  if (filtros.generico === "GENERICO" || filtros.generico === "NAO_GENERICO") {
+    ids = await idsProdutosPorGenerico(prisma, filtros.generico, ids);
     if (ids && ids.length === 0) return [];
   }
 

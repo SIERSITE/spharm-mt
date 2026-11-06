@@ -24,6 +24,7 @@
  *   · getReportingFilterOptions   → opções dos dropdowns (leve, eager)
  */
 
+import { carregarOpcoesGenerico, type OpcoesGenerico } from "@/lib/catalog/generico-sql";
 import { carregarOpcoesEticoNett, type OpcaoEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
@@ -84,6 +85,8 @@ export type ReportingFilterOptions = {
   formas: OpcaoFormaFarmaceutica[];
   /** Classificação Ético/NETT consolidada (ETICO · NETT · SEM · DIVERGENTE) com contagem de produtos activos. */
   eticoNett: OpcaoEticoNett[];
+  /** Contagens do filtro Genérico (`Produto.flagGenerico`, produtos activos). */
+  generico: OpcoesGenerico;
   /**
    * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). NUNCA
    * inclui texto bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
@@ -141,6 +144,7 @@ export async function getReportingFilterOptions(
       fabricantes: [],
       formas: [],
       eticoNett: [],
+      generico: { genericos: 0, naoGenericos: 0 },
       categorias: [],
       subcategorias: [],
       utilizacoes: [],
@@ -265,6 +269,7 @@ export async function getReportingFilterOptions(
     pertencaGrupos,
     formas: await carregarOpcoesFormaFarmaceutica(prisma),
     eticoNett: await carregarOpcoesEticoNett(prisma),
+    generico: await carregarOpcoesGenerico(prisma),
     categorias,
     subcategorias: subcategoriaRows
       .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))
