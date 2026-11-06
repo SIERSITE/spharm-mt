@@ -14,6 +14,7 @@ import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
 import type { ColunaOrdenacaoStock } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
 import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
+import { ChipGenerico, FiltroGenerico } from "@/components/reporting/filtro-generico";
 import { ChipsEticoNett, FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { SyncNowWidget } from "@/components/stock/sync-now-widget";
 import type { SyncFarmaciaOption } from "@/lib/sync-request-data";
@@ -165,6 +166,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   const selectedUtilizacoes = data.params.utilizacoes ?? [];
   const selectedFormas = data.params.formas ?? [];
   const selectedEticoNett = data.params.eticoNett ?? [];
+  const selectedGenerico = data.params.generico;
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
   const subcategoriasVisiveis = (
@@ -224,6 +226,15 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     });
   };
 
+  // Genérico: escolha única — substitui o parâmetro (ou remove-o em «Todos») e volta à página 1.
+  const setGenerico = (v: string | undefined) => {
+    push((p) => {
+      p.delete("generico");
+      if (v) p.set("generico", v);
+      p.delete("page");
+    });
+  };
+
   const clearAllFilters = () => {
     push((p) => {
       p.delete("pharmacy");
@@ -234,6 +245,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
       p.delete("utilizacao");
       p.delete("forma");
       p.delete("eticoNett");
+      p.delete("generico");
       p.delete("page");
     });
   };
@@ -309,7 +321,8 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     selectedSubcategorias.length > 0 ||
     selectedUtilizacoes.length > 0 ||
     selectedFormas.length > 0 ||
-    selectedEticoNett.length > 0;
+    selectedEticoNett.length > 0 ||
+    !!selectedGenerico;
   const activeFilterCount =
     selectedPharmacies.length +
     selectedCoverage.length +
@@ -318,7 +331,8 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
     selectedSubcategorias.length +
     selectedUtilizacoes.length +
     selectedFormas.length +
-    selectedEticoNett.length;
+    selectedEticoNett.length +
+    (selectedGenerico ? 1 : 0);
 
   const rows = useMemo(() => data.rows, [data.rows]);
 
@@ -487,6 +501,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                 />
               ))}
               <ChipsEticoNett selected={selectedEticoNett} onRemove={(v) => toggleMulti("eticoNett", v)} />
+              <ChipGenerico valor={selectedGenerico} onRemove={() => setGenerico(undefined)} />
               <button
                 type="button"
                 onClick={clearAllFilters}
@@ -607,6 +622,9 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                 selected={selectedEticoNett}
                 onToggle={(v) => toggleMulti("eticoNett", v)}
               />
+
+              {/* Genérico: escolha única, filtrada no servidor (URL `generico`). */}
+              <FiltroGenerico valor={selectedGenerico} contagens={data.filterOptions.generico} onChange={setGenerico} />
             </div>
           )}
         </section>

@@ -10,6 +10,7 @@ import { useUtilizador } from "@/components/layout/session-provider";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
 import { lerChavesForma, passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import {
   ENCOMENDA_PREFILL_STORAGE_KEY,
@@ -101,6 +102,8 @@ type VendasCriterios = {
   formasSelecionadas?: string[];
   /** Valores Ético/NETT. Opcional: estados de workspace antigos não o têm (lê-se como []). */
   eticoNettSelecionados?: string[];
+  /** Filtro Genérico: `undefined` = Todos. Opcional: estados de workspace antigos não o têm (lê-se como Todos). */
+  generico?: "GENERICO" | "NAO_GENERICO";
   categoriasSelecionadas: string[];
   subcategoriasSelecionadas: string[];
   utilizacoesSelecionadas: string[];
@@ -270,6 +273,7 @@ export function VendasClient({
       fabricantesSelecionados: [],
       formasSelecionadas: [],
       eticoNettSelecionados: [],
+      generico: undefined,
       categoriasSelecionadas: [],
       subcategoriasSelecionadas: [],
       utilizacoesSelecionadas: [],
@@ -329,6 +333,10 @@ export function VendasClient({
   const eticoNettSelecionados = useMemo(() => lerValoresFiltroEticoNett(eticoNettBruto ?? []) as string[], [eticoNettBruto]);
   const setEticoNettSelecionados: React.Dispatch<React.SetStateAction<string[]>> = (valor) =>
     setEticoNettBruto((prev) => (typeof valor === "function" ? valor(lerValoresFiltroEticoNett(prev ?? []) as string[]) : valor));
+  const [genericoBruto, setGenericoBruto] = campo("generico");
+  // Filtrado só no servidor; estados antigos sem o campo (ou com lixo) = Todos.
+  const generico = useMemo(() => lerValorGenerico(genericoBruto), [genericoBruto]);
+  const setGenerico = (v: "GENERICO" | "NAO_GENERICO" | undefined) => setGenericoBruto(lerValorGenerico(v));
   const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
@@ -997,6 +1005,7 @@ export function VendasClient({
       fabricantes: fabricantesSelecionados,
       formasFarmaceuticas: formasSelecionadas,
       eticoNett: eticoNettSelecionados,
+      generico,
       distribuidores: fornecedoresSelecionados,
       cnps: listaCodigos ? listaCodigos.cnps : undefined,
     }),
@@ -1008,6 +1017,7 @@ export function VendasClient({
       fabricantesSelecionados,
       formasSelecionadas,
       eticoNettSelecionados,
+      generico,
       fornecedoresSelecionados,
       listaCodigos,
     ],
@@ -1029,6 +1039,7 @@ export function VendasClient({
     setFabricantesSelecionados([]);
     setFormasSelecionadas([]);
     setEticoNettSelecionados([]);
+    setGenerico(undefined);
     setCategoriasSelecionadas([]);
     setSubcategoriasSelecionadas([]);
     setUtilizacoesSelecionadas([]);
@@ -1069,6 +1080,7 @@ export function VendasClient({
         fabricantesSelecionados,
         formasSelecionadas,
         eticoNettSelecionados,
+        generico,
         categoriasSelecionadas,
         artigo,
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
@@ -1101,7 +1113,7 @@ export function VendasClient({
     () => (modoVisualizacao === "relatorio" && hasGenerated && !semArtigosParaImprimir ? renderReportHtml(construirRelatorio()) : ""),
     [incluirPrecosVenda, incluirPrecosCompra, pvpDiferenteAtivo, modoVisualizacao, hasGenerated, semArtigosParaImprimir, linhasParaRelatorio, buckets, ordenacao, ambito, agruparPor, ordenarPor,
       apenasComVendas, apenasComStock, incluirManutencao, incluirCredito, incluirTransferencias, farmaciasSelecionadas,
-      fornecedoresSelecionados, fabricantesSelecionados, formasSelecionadas, eticoNettSelecionados, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
+      fornecedoresSelecionados, fabricantesSelecionados, formasSelecionadas, eticoNettSelecionados, generico, categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas,
       artigo, listaCodigos, periodHeader, dataInicio, dataFim, nSelecionados, codigosVisiveis.length],
   );
   /* eslint-enable react-hooks/exhaustive-deps */
@@ -1134,6 +1146,8 @@ export function VendasClient({
           formasFarmaceuticas: formasSelecionadas.length > 0 ? formasSelecionadas : undefined,
           // Idem: Ético/NETT resolvido no servidor (restringirPorCatalogo); vazio = sem filtro.
           eticoNett: eticoNettSelecionados.length > 0 ? eticoNettSelecionados : undefined,
+          // Genérico resolvido no servidor (restringirPorCatalogo), antes de seleção e totais; undefined = Todos.
+          generico,
           distribuidores:
             fornecedoresSelecionados.length > 0
               ? fornecedoresSelecionados
@@ -1401,6 +1415,7 @@ export function VendasClient({
                 laboratorios: filterOptions.laboratorios,
                 formas: filterOptions.formas,
                 eticoNett: filterOptions.eticoNett,
+                generico: filterOptions.generico,
                 categorias,
                 subcategorias,
                 utilizacoes: utilizacoesOpcoes,
@@ -1415,6 +1430,7 @@ export function VendasClient({
                 utilizacoes: utilizacoesSelecionadas,
                 formas: formasSelecionadas,
                 eticoNett: eticoNettSelecionados,
+                generico,
                 incluirCredito,
                 incluirTransferencias,
               }}
@@ -1428,6 +1444,7 @@ export function VendasClient({
                 utilizacoes: setUtilizacoesSelecionadas,
                 formas: setFormasSelecionadas,
                 eticoNett: setEticoNettSelecionados,
+                generico: setGenerico,
                 incluirCredito: setIncluirCredito,
                 incluirTransferencias: setIncluirTransferencias,
               }}

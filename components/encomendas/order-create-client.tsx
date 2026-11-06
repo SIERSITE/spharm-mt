@@ -57,6 +57,8 @@ import { LaboratorioMultiSelect } from "@/components/reporting/laboratorio-multi
 import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
+import { FiltroGenerico } from "@/components/reporting/filtro-generico";
+import { lerValorGenerico, type ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import {
   TEMPO_AVISO_DEMORA_MS,
@@ -383,6 +385,10 @@ export function OrderCreateClient({
   const selFormas = useMemo(() => lerChavesForma(selFormasBruto), [selFormasBruto]);
   const [selEticoNettBruto, setSelEticoNett] = useEstadoSeparador<string[]>("nova:selEticoNett", []);
   const selEticoNett = useMemo<string[]>(() => lerValoresFiltroEticoNett(selEticoNettBruto), [selEticoNettBruto]);
+  // Genérico: Todos = undefined. Persistido no separador como texto ("" = Todos) e relido com `lerValorGenerico`.
+  const [selGenericoBruto, setSelGenericoBruto] = useEstadoSeparador<string>("nova:selGenerico", "");
+  const selGenerico: ValorGenerico | undefined = lerValorGenerico(selGenericoBruto);
+  const setSelGenerico = (v: ValorGenerico | undefined) => setSelGenericoBruto(v ?? "");
   /**
    * Lista de CNP importada por ficheiro.
    *
@@ -1083,6 +1089,7 @@ export function OrderCreateClient({
         productTypes: selProductTypes,
         formas: selFormas,
         eticoNett: selEticoNett,
+        generico: selGenerico,
       },
       listaImportadaResumo: listaCodigos
         ? {
@@ -2066,6 +2073,7 @@ export function OrderCreateClient({
         setSelProductTypes(d.contexto.filters.productTypes);
         setSelFormas(d.contexto.filters.formas ?? []);
         setSelEticoNett(d.contexto.filters.eticoNett ?? []);
+        setSelGenerico(lerValorGenerico(d.contexto.filters.generico));
       }
       const persistidas = d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId));
       setLinhas(persistidas);
@@ -2096,6 +2104,7 @@ export function OrderCreateClient({
               productTypes: c.filters.productTypes,
               formas: c.filters.formas ?? [],
               eticoNett: c.filters.eticoNett ?? [],
+              generico: lerValorGenerico(c.filters.generico),
               // Universo = as linhas persistidas: garante que cada uma tem
               // a sua linha fresca independentemente dos filtros.
               cnps: persistidas.map((l) => l.cnp),
@@ -2207,6 +2216,7 @@ export function OrderCreateClient({
         utilizacoes: selUtilizacoes, productTypes: selProductTypes,
         formas: selFormas,
         eticoNett: selEticoNett,
+        generico: selGenerico,
         // `undefined` sem lista; o array (mesmo vazio) com lista.
         cnps: listaCodigos ? listaCodigos.cnps : undefined,
       },
@@ -2796,7 +2806,7 @@ export function OrderCreateClient({
 
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
-    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length + selFormas.length + selEticoNett.length +
+    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length + selFormas.length + selEticoNett.length + (selGenerico ? 1 : 0) +
     // A lista conta como UM filtro, não como 437: o contador diz quantos
     // eixos estão activos, e um ficheiro é um eixo.
     (listaCodigos ? 1 : 0);
@@ -3254,6 +3264,8 @@ export function OrderCreateClient({
               selected={selEticoNett}
               onToggle={(valor) => setSelEticoNett(selEticoNett.includes(valor) ? selEticoNett.filter((c) => c !== valor) : [...selEticoNett, valor])}
             />
+            {/* Genérico: Produto.flagGenerico, filtrado no SQL da proposta (antes do corte de linhas). */}
+            <FiltroGenerico valor={selGenerico} onChange={setSelGenerico} contagens={filterOptions.generico} />
           </div>
           </>
         )}

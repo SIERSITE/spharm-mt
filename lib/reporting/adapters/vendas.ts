@@ -89,6 +89,7 @@ import type {
 } from "../report-types";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { filtroListaImportada } from "../filters-shared";
+import { filtroGenericoLinha } from "@/lib/catalog/generico-filtro";
 import { filtroEticoNettLinha } from "@/lib/reporting/etico-nett-linha";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
@@ -174,6 +175,8 @@ export type VendasAdapterFilters = {
   formasSelecionadas?: string[];
   /** Valores do filtro Ético/NETT (ETICO · NETT · SEM · DIVERGENTE) aplicados. Vazio/omitido = sem filtro. */
   eticoNettSelecionados?: string[];
+  /** Filtro Genérico aplicado (`undefined` = Todos). */
+  generico?: "GENERICO" | "NAO_GENERICO";
   categoriasSelecionadas?: string[];
   artigo?: string;
   /** ISO yyyy-mm-dd — refletido no subtitle e na lista de filtros. */
@@ -382,6 +385,8 @@ function buildFilters(
   if (forma) out.push(forma);
   const eticoNett = filtroEticoNettLinha(f.eticoNettSelecionados);
   if (eticoNett) out.push(eticoNett);
+  const generico = filtroGenericoLinha(f.generico);
+  if (generico) out.push(generico);
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
   if (f.artigo && f.artigo.trim()) {

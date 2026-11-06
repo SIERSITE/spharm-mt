@@ -12,6 +12,7 @@ import {
   type StockRow,
 } from "@/lib/stock-data";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { StockClient } from "@/components/stock/stock-client";
 import { lerOrdenacaoDeParams } from "@/lib/tabela/ordenacao";
@@ -66,6 +67,8 @@ function parseParams(sp: Record<string, string | string[] | undefined>): StockSe
     formas: lerChavesForma(sp.forma),
     // `eticoNett` (multi): só ETICO|NETT|SEM|DIVERGENTE; lixo é descartado.
     eticoNett: lerValoresFiltroEticoNett(asArray(sp.eticoNett)),
+    // `generico` (escolha única): só GENERICO|NAO_GENERICO; ausente/lixo = Todos.
+    generico: lerValorGenerico(asArray(sp.generico)[0]),
     // A ordenacao viaja na query-string, como a pagina e os filtros:
     // esta tabela pagina no servidor, e o criterio tem de sobreviver a
     // uma mudanca de pagina e a um refresh. Chave invalida cai no

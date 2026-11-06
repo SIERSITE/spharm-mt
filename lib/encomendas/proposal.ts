@@ -11,6 +11,7 @@ import {
 import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
 import { sqlCondicaoForma } from "@/lib/catalog/forma-farmaceutica-sql";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { flagDoFiltroGenerico } from "@/lib/catalog/generico-filtro";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { resolverFiltroFabricantesProposta } from "@/lib/encomendas/filtro-fabricantes-proposta";
@@ -53,6 +54,11 @@ export type ProposalFilters = {
    * sem filtro (e sem consulta extra). Aplicado no SQL da proposta (`p.id = ANY($n)`), antes do corte de linhas.
    */
   eticoNett?: string[];
+  /**
+   * Genérico (`GENERICO` | `NAO_GENERICO`; omitido = Todos). `Produto.flagGenerico`; aplicado no SQL da proposta (alias `p`), antes do corte
+   * de linhas, sem consulta extra.
+   */
+  generico?: string;
   /**
    * Lista de CNP importada por ficheiro. MESMO nome e MESMA semântica
    * que `SharedReportFilters.cnps` — é o que garante que o mesmo
@@ -439,6 +445,9 @@ export async function generateOrderProposal(
     const ids = (await idsProdutosPorEticoNett(prisma, eticoNettValores, null, [input.farmaciaId])) ?? [];
     conds.push(Prisma.sql`p.id = ANY(${ids}::text[])`);
   }
+  // Genérico: `Produto.flagGenerico` (NOT NULL) no SQL, antes do corte de linhas. Todos = sem condição.
+  const flagGenerico = flagDoFiltroGenerico(input.filters?.generico);
+  if (flagGenerico !== undefined) conds.push(Prisma.sql`p."flagGenerico" = ${flagGenerico}`);
   if (catFilter) {
     conds.push(Prisma.sql`(c1.nome = ANY(${catFilter}) OR pf."categoriaOrigem" = ANY(${catFilter}))`);
   }

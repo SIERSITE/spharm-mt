@@ -10,6 +10,8 @@
  */
 import { chaveFormaFarmaceutica, lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { sqlFiltroForma } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
+import { sqlFiltroGenerico } from "@/lib/catalog/generico-sql";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { idsProdutosPorEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { getPrisma } from "@/lib/prisma";
@@ -287,6 +289,8 @@ export type LoadPfAndSalesOptions = {
    * ou cortar. Sem selecção não há consulta extra.
    */
   eticoNett?: readonly string[];
+  /** Genérico (`GENERICO` | `NAO_GENERICO`; omitido = Todos). Aplicado no SQL de `pfRows` (join a Produto), antes de agrupar/cortar. */
+  generico?: string;
 };
 
 export async function loadPfAndSales(
@@ -352,6 +356,7 @@ export async function loadPfAndSales(
       AND f.id = ANY(${farmaciaIds})
       ${sqlFiltroForma(options?.formas)}
       ${sqlEticoNett}
+      ${sqlFiltroGenerico(options?.generico)}
   `);
 
   type SalesAgg = { produtoId: string; farmaciaId: string; totalQty: number };
@@ -427,6 +432,8 @@ export type OpcoesOperacionais = {
    * query de origem, antes do corte e dos totais. Re-validado aqui (input de Server Action).
    */
   eticoNett?: string[];
+  /** Genérico (`GENERICO`/`NAO_GENERICO`; omitido = Todos). Servidor, na query de origem, antes do corte e dos totais. */
+  generico?: string;
 };
 
 /** Nome antigo. Mantido para não partir chamadores. */
@@ -532,6 +539,7 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
       janela,
       formas: lerChavesForma(options?.formasFarmaceuticas ?? []),
       eticoNett: lerValoresFiltroEticoNett(options?.eticoNett ?? []),
+      generico: lerValorGenerico(options?.generico),
     }),
     somarVendasNaJanela(farmaciaIds, janela6M),
   ]);

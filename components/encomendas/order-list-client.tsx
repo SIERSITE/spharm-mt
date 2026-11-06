@@ -8,6 +8,8 @@ import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-fi
 import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { ChipsEticoNett, FiltroEticoNett, type OpcaoFiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
+import { ChipGenerico, FiltroGenerico, type ContagensGenerico } from "@/components/reporting/filtro-generico";
+import { lerValorGenerico, type ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import {
@@ -24,6 +26,8 @@ type Props = {
   formasOpcoes: OpcaoFormaFarmaceutica[];
   /** Opções do filtro «Ético/NETT» (carregadas pela página; a lista já vem filtrada). */
   eticoNettOpcoes: OpcaoFiltroEticoNett[];
+  /** Contagens do filtro «Genérico» (carregadas pela página; a lista já vem filtrada). */
+  genericoOpcoes?: ContagensGenerico;
   /** Mesma gate de `deleteListaEncomendaAction` — controla o botão "Eliminar". */
   podeEliminar: boolean;
   /** Mesma gate de `anularListaEncomendaAction` — controla o botão "Anular". */
@@ -72,7 +76,7 @@ const EXPORT_OPTIONS = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, podeEliminar, podeAnular }: Props) {
+export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, genericoOpcoes, podeEliminar, podeAnular }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -174,6 +178,19 @@ export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, 
     });
   }
 
+  // Genérico: parâmetro `generico` na URL (Todos = sem parâmetro); o servidor refaz filtro + contagem + página.
+  const genericoSelecionado = lerValorGenerico(filters.generico);
+  function setGenerico(v: ValorGenerico | undefined) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (v) params.set("generico", v);
+    else params.delete("generico");
+    params.delete("page");
+    const qs = params.toString();
+    startNavigate(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    });
+  }
+
   function commitSearch() {
     const v = searchInput.trim();
     if (v === (filters.search ?? "")) return;
@@ -195,7 +212,8 @@ export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, 
     !!filters.dateFrom ||
     !!filters.dateTo ||
     formasSelecionadas.length > 0 ||
-    eticoNettSelecionados.length > 0;
+    eticoNettSelecionados.length > 0 ||
+    !!genericoSelecionado;
 
   // ───── Acções por linha (mantidas tal como estavam) ─────
 
@@ -418,11 +436,13 @@ export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, 
             onToggle={toggleForma}
           />
           <FiltroEticoNett opcoes={eticoNettOpcoes} selected={eticoNettSelecionados} onToggle={toggleEticoNett} />
+          <FiltroGenerico valor={genericoSelecionado} onChange={setGenerico} contagens={genericoOpcoes} />
         </div>
-        {(formasSelecionadas.length > 0 || eticoNettSelecionados.length > 0) && (
+        {(formasSelecionadas.length > 0 || eticoNettSelecionados.length > 0 || genericoSelecionado) && (
           <div className="mt-2 flex flex-wrap gap-2">
             <ChipsFormaFarmaceutica formas={formasOpcoes} selected={formasSelecionadas} onRemove={toggleForma} />
             <ChipsEticoNett selected={eticoNettSelecionados} onRemove={toggleEticoNett} />
+            <ChipGenerico valor={genericoSelecionado} onRemove={() => setGenerico(undefined)} />
           </div>
         )}
 

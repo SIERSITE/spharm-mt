@@ -19,6 +19,7 @@
  * não um dado que precise de sobreviver por si.
  */
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 
 export type PropostaContexto = {
@@ -47,6 +48,10 @@ export type PropostaContexto = {
      * `parsearPropostaContexto` devolve SEMPRE um array (`[]` = sem filtro).
      */
     eticoNett?: string[];
+    /**
+     * Genérico (`GENERICO`/`NAO_GENERICO`). Opcional no TIPO; rascunhos anteriores não o têm e leem-se como Todos (`undefined`).
+     */
+    generico?: string;
   };
   /** Resumo da lista importada, se houver — ver nota acima. */
   listaImportadaResumo: { nomeFicheiro: string; encontrados: number; naoEncontrados: number } | null;
@@ -102,6 +107,8 @@ export function parsearPropostaContexto(raw: string | null): PropostaContexto | 
         formas: lerChavesForma(f?.formas),
         // Rascunhos sem o campo -> [] (sem filtro). `lerValoresFiltroEticoNett` descarta tudo o que não for um dos 4 valores.
         eticoNett: lerValoresFiltroEticoNett(f?.eticoNett),
+        // Rascunhos sem o campo (ou com lixo) -> Todos. `lerValorGenerico` só aceita os 2 valores.
+        generico: lerValorGenerico(f?.generico),
       },
       listaImportadaResumo:
         p.listaImportadaResumo && typeof p.listaImportadaResumo === "object"

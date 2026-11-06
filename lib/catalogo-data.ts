@@ -4,6 +4,8 @@ import { getPrisma } from "@/lib/prisma";
 import { carregarFichaRegulamentar, type FichaRegulamentar } from "@/lib/regulamentar/consulta";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { carregarOpcoesFormaFarmaceutica, wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
+import { carregarOpcoesGenerico, wherePrismaPorGenerico, type OpcoesGenerico } from "@/lib/catalog/generico-sql";
+import type { ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { carregarOpcoesEticoNett, wherePrismaPorEticoNett, type OpcaoEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
@@ -143,6 +145,8 @@ export type CatalogoListFilters = {
   formas?: string[];
   /** Ético/NETT consolidado (ETICO|NETT|SEM|DIVERGENTE; parâmetro de URL `eticoNett`, multi). Vazio/omitido = todos. */
   eticoNett?: string[];
+  /** Genérico (GENERICO|NAO_GENERICO; parâmetro de URL `generico`, escolha única). Omitido = Todos. */
+  generico?: ValorGenerico;
   verificationStatus?: VerificationStatus;
   estado?: ProdutoEstado;
   /**
@@ -188,6 +192,8 @@ export type CatalogoFilterOptions = {
   formas: OpcaoFormaFarmaceutica[];
   /** Ético/NETT: as 4 opções com a contagem de produtos activos. */
   eticoNett: OpcaoEticoNett[];
+  /** Genérico: contagem de produtos genéricos / não genéricos. */
+  generico: OpcoesGenerico;
 };
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -210,7 +216,7 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
   const tenantSlug = await resolveCurrentTenantSlug();
   const comGrupos = gruposLaboratoriaisAtivos(tenantSlug);
 
-  const [classificacoesN1, laboratorios, formas, eticoNett] = await Promise.all([
+  const [classificacoesN1, laboratorios, formas, eticoNett, generico] = await Promise.all([
     prisma.classificacao.findMany({
       where: { tipo: "NIVEL_1", estado: "ATIVO" },
       select: { id: true, nome: true },
@@ -225,6 +231,7 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
           ),
     carregarOpcoesFormaFarmaceutica(prisma),
     carregarOpcoesEticoNett(prisma),
+    carregarOpcoesGenerico(prisma),
   ]);
 
   return {
@@ -232,6 +239,7 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
     classificacoesN1,
     formas,
     eticoNett,
+    generico,
   };
 }
 
@@ -255,6 +263,8 @@ export async function loadCatalogoListData(
   const whereForma = await wherePrismaPorFormas(prisma, filters.formas);
   // Ético/NETT: ids resolvidos no servidor ANTES de count/skip/take, por isso total e páginas respeitam o filtro.
   const whereEticoNett = await wherePrismaPorEticoNett(prisma, filters.eticoNett);
+  // Genérico: condição simples sobre `flagGenerico`, combinada no where ANTES de count/skip/take (null = Todos, sem efeito).
+  const whereGenerico = wherePrismaPorGenerico(filters.generico);
 
   if (filters.search && filters.search.trim().length > 0) {
     // Termos AND (lib/reporting/pesquisa-termos.ts): cada termo tem de
@@ -273,7 +283,7 @@ export async function loadCatalogoListData(
     }
   }
 
-  for (const extra of [whereForma, whereEticoNett]) {
+  for (const extra of [whereForma, whereEticoNett, whereGenerico]) {
     if (!extra) continue;
     const existentes = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
     where.AND = [...existentes, extra];

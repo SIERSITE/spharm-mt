@@ -22,6 +22,7 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { ChipGenerico, FiltroGenerico } from "@/components/reporting/filtro-generico";
 import { FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 
@@ -174,7 +175,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.estado ||
     !!filters.origem ||
     (filters.formas?.length ?? 0) > 0 ||
-    (filters.eticoNett?.length ?? 0) > 0;
+    (filters.eticoNett?.length ?? 0) > 0 ||
+    !!filters.generico;
 
   const startIdx = (data.page - 1) * data.pageSize + 1;
   const endIdx = Math.min(data.page * data.pageSize, data.total);
@@ -301,6 +303,17 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
               navigate({ eticoNett: atuais.includes(valor) ? atuais.filter((c) => c !== valor) : [...atuais, valor] });
             }}
           />
+          {/* Genérico: escolha única (URL `generico`), filtrada no SERVIDOR antes da paginação e do total. */}
+          <FiltroGenerico
+            valor={filters.generico}
+            contagens={filterOptions.generico}
+            onChange={(v) => navigate({ generico: v })}
+          />
+          {filters.generico && (
+            <div className="flex items-end">
+              <ChipGenerico valor={filters.generico} onRemove={() => navigate({ generico: undefined })} />
+            </div>
+          )}
           {hasActiveFilters && (
             <div className="flex items-end">
               <button

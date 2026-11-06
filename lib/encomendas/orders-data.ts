@@ -6,6 +6,8 @@ import {
 } from "@/generated/prisma/client";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { wherePrismaPorFormas } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
+import { wherePrismaPorGenerico } from "@/lib/catalog/generico-sql";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 
 /**
@@ -85,6 +87,12 @@ export type OrderListFilters = {
    * do `findMany` e do `count`, antes de `skip`/`take`; a encomenda aparece INTEIRA.
    */
   eticoNett?: string[];
+  /**
+   * Genérico (`GENERICO` | `NAO_GENERICO`; omitido = Todos). Mesma semântica de documento da forma: fica a encomenda com PELO MENOS
+   * UMA linha cujo produto tem `flagGenerico` igual. Vai no `where` do `findMany` e do `count`, antes de `skip`/`take`; a
+   * encomenda aparece INTEIRA.
+   */
+  generico?: string;
   page: number;
   pageSize: number;
 };
@@ -172,6 +180,14 @@ export async function loadOrderListData(
        WHERE COALESCE(pf."eticoNett"::text, 'SEM') = ANY(${eticoNett}::text[])
     `);
     where.AND = [{ id: { in: listas.map((l) => l.id) } }];
+  }
+
+  // Genérico: uma só relação `some` nas linhas (sem consulta extra), em `AND` para não colidir com `where.linhas` da forma
+  // nem com o `AND` do Ético/NETT. Todos = sem condição.
+  const porGenerico = wherePrismaPorGenerico(lerValorGenerico(filters.generico));
+  if (porGenerico) {
+    const anteriores = where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : [];
+    where.AND = [...anteriores, { linhas: { some: { produto: porGenerico } } }];
   }
 
   const skip = (page - 1) * pageSize;

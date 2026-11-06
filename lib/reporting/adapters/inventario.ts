@@ -28,6 +28,7 @@ import type {
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
+import { filtroGenericoLinha } from "@/lib/catalog/generico-filtro";
 import { filtroEticoNettLinha } from "@/lib/reporting/etico-nett-linha";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
@@ -126,6 +127,8 @@ function buildFiltersLabel(
   if (forma) out.push(forma);
   const eticoNett = filtroEticoNettLinha(f.eticoNett);
   if (eticoNett) out.push(eticoNett);
+  const generico = filtroGenericoLinha(f.generico);
+  if (generico) out.push(generico);
   if (f.distribuidores && f.distribuidores.length > 0) {
     out.push({
       label: "Distribuidores",

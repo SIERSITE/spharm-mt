@@ -27,6 +27,8 @@ import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos"
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { FiltroFormaFarmaceutica, rotuloChipForma } from "@/components/reporting/filtro-forma-farmaceutica";
+import { FiltroGenerico, ChipGenerico, type ContagensGenerico } from "@/components/reporting/filtro-generico";
+import type { ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { FiltroEticoNett, ChipsEticoNett, type OpcaoFiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { rotuloNaturezas } from "@/lib/reporting/natureza-venda";
@@ -99,6 +101,8 @@ export type VendasFiltrosValores = {
   formas?: string[];
   /** Valores Ético/NETT (ETICO · NETT · SEM · DIVERGENTE). Opcional como `formas`. */
   eticoNett?: string[];
+  /** Filtro Genérico: `undefined` = Todos. */
+  generico?: ValorGenerico;
   incluirCredito: boolean;
   incluirTransferencias: boolean;
 };
@@ -113,6 +117,7 @@ export type VendasFiltrosSetters = {
   utilizacoes: Dispatch<SetStateAction<string[]>>;
   formas?: Dispatch<SetStateAction<string[]>>;
   eticoNett?: Dispatch<SetStateAction<string[]>>;
+  generico?: (v: ValorGenerico | undefined) => void;
   incluirCredito: (v: boolean) => void;
   incluirTransferencias: (v: boolean) => void;
 };
@@ -130,6 +135,8 @@ export type VendasFiltrosOpcoes = {
   formas?: OpcaoFormaFarmaceutica[];
   /** Opções Ético/NETT do tenant. Omitido = sem o eixo. */
   eticoNett?: OpcaoFiltroEticoNett[];
+  /** Contagens do filtro Genérico. Omitido = sem o eixo. */
+  generico?: ContagensGenerico;
 };
 
 export function VendasFiltrosPainel({
@@ -227,6 +234,9 @@ export function VendasFiltrosPainel({
             onToggle={toggle(set.eticoNett)}
           />
         )}
+        {opcoes.generico && set.generico && (
+          <FiltroGenerico valor={valores.generico} contagens={opcoes.generico} onChange={set.generico} />
+        )}
         {extra}
       </div>
 
@@ -295,6 +305,9 @@ export function VendasFiltrosPainel({
         ))}
         {opcoes.eticoNett && set.eticoNett && (
           <ChipsEticoNett selected={valores.eticoNett ?? []} onRemove={(v) => remover(set.eticoNett!, v)} />
+        )}
+        {opcoes.generico && set.generico && (
+          <ChipGenerico valor={valores.generico} onRemove={() => set.generico!(undefined)} />
         )}
       </div>
     </div>

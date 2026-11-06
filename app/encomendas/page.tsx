@@ -10,6 +10,8 @@ import {
 } from "@/lib/encomendas/orders-data";
 import { lerChavesForma } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { carregarOpcoesFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-sql";
+import { lerValorGenerico } from "@/lib/catalog/generico-filtro";
+import { carregarOpcoesGenerico } from "@/lib/catalog/generico-sql";
 import { lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { carregarOpcoesEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { OrderListClient } from "@/components/encomendas/order-list-client";
@@ -71,6 +73,8 @@ function parseFilters(
     formas: lerChavesForma(sp.forma),
     // `eticoNett` repetido na URL: só os 4 valores conhecidos (`lerValoresFiltroEticoNett`); o resto é descartado.
     eticoNett: lerValoresFiltroEticoNett(Array.isArray(sp.eticoNett) ? sp.eticoNett : sp.eticoNett ? [sp.eticoNett] : []),
+    // `generico` na URL: só GENERICO/NAO_GENERICO; qualquer outra coisa = Todos.
+    generico: lerValorGenerico(sp.generico),
     page: clampPage(Number(asString(sp.page) ?? 1)),
     pageSize: clampPageSize(Number(asString(sp.pageSize) ?? DEFAULT_PAGE_SIZE)),
   };
@@ -86,10 +90,11 @@ export default async function EncomendasPage({ searchParams }: Props) {
   const filters = parseFilters(sp);
   const prisma = await getPrisma();
   // Opções do filtro «Forma farmacêutica»: UMA agregação, em paralelo com a lista (que já traz o filtro aplicado).
-  const [data, formasOpcoes, eticoNettOpcoes] = await Promise.all([
+  const [data, formasOpcoes, eticoNettOpcoes, genericoOpcoes] = await Promise.all([
     loadOrderListData(prisma, filters),
     carregarOpcoesFormaFarmaceutica(prisma),
     carregarOpcoesEticoNett(prisma),
+    carregarOpcoesGenerico(prisma),
   ]);
   // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction`/
   // `anularListaEncomendaAction` — calculada aqui para os botões
@@ -107,7 +112,7 @@ export default async function EncomendasPage({ searchParams }: Props) {
           Lista de encomendas criadas. Finalize rascunhos e acompanhe o estado de exportação.
         </p>
         <div className="mt-6">
-          <OrderListClient data={data} filters={filters} formasOpcoes={formasOpcoes} eticoNettOpcoes={eticoNettOpcoes} podeEliminar={podeEliminar} podeAnular={podeAnular} />
+          <OrderListClient data={data} filters={filters} formasOpcoes={formasOpcoes} eticoNettOpcoes={eticoNettOpcoes} genericoOpcoes={genericoOpcoes} podeEliminar={podeEliminar} podeAnular={podeAnular} />
         </div>
       </div>
     </MainShell>

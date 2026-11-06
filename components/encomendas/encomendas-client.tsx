@@ -38,6 +38,8 @@ import { CreateInternalTransferButton } from "@/components/transferencias/create
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
 import { passaFiltroForma } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { ChipGenerico, FiltroGenerico } from "@/components/reporting/filtro-generico";
+import { passaFiltroGenerico, type ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { ChipsEticoNett, FiltroEticoNett } from "@/components/reporting/filtro-etico-nett";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
 import { useFiltroLaboratorio } from "@/components/reporting/use-cnps-laboratorios";
@@ -84,6 +86,8 @@ type EncomendaFarmaciaRow = {
   utilizacoes: string[];
   /** Chave normalizada da forma farmacêutica (calculada no servidor) — alimenta o filtro «Forma farmacêutica». */
   formaChave?: string;
+  /** `Produto.flagGenerico` (servidor) — alimenta o filtro «Genérico». */
+  generico?: boolean;
   /** Classificação Ético/NETT DESTA farmácia (servidor) — o cliente consolida só as farmácias em âmbito. */
   eticoNett?: "ETICO" | "NETT" | null;
   dci?: string | null;
@@ -260,6 +264,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
   const [formasSelecionadas, setFormasSelecionadas] = useState<string[]>([]);
   const [eticoNettSelecionados, setEticoNettSelecionados] = useState<string[]>([]);
+  const [genericoSelecionado, setGenericoSelecionado] = useState<ValorGenerico | undefined>(undefined);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
@@ -333,6 +338,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       if (!passaFiltroLaboratorioLinha(row, fabricantesSelecionados, filtroLab)) return false;
       // Forma farmacêutica: chave já calculada no servidor (`row.formaChave`); selecção vazia = passa tudo.
       if (!passaFiltroForma(row.formaChave, formasSelecionadas)) return false;
+      // Genérico: booleano já carregado com a linha (`row.generico`); Todos = passa tudo.
+      if (!passaFiltroGenerico(row.generico, genericoSelecionado)) return false;
       // Ético/NETT: consolidado SÓ sobre as farmácias em âmbito (seleccionadas; sem selecção, todas). Vazio = passa tudo.
       if (eticoNettSelecionados.length > 0 && !eticoNettSelecionados.includes(estadoEticoNettPorProduto.get(String(row.produtoId ?? row.cnp)) ?? "SEM")) return false;
       if (
@@ -468,6 +475,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     filtroLab,
     formasSelecionadas,
     eticoNettSelecionados,
+    genericoSelecionado,
     estadoEticoNettPorProduto,
     categoriasSelecionadas,
     subcategoriasSelecionadas,
@@ -558,6 +566,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     fabricantesSelecionados.length +
     formasSelecionadas.length +
     eticoNettSelecionados.length +
+    (genericoSelecionado ? 1 : 0) +
     categoriasSelecionadas.length;
 
   return (
@@ -768,6 +777,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   selected={eticoNettSelecionados}
                   onToggle={(value) => toggleValue(value, eticoNettSelecionados, setEticoNettSelecionados)}
                 />
+                <FiltroGenerico valor={genericoSelecionado} onChange={setGenericoSelecionado} contagens={filterOptions.generico} />
                 <SearchableMultiSelect
                   label="Categorias"
                   options={categorias}
@@ -835,6 +845,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   selected={eticoNettSelecionados}
                   onRemove={(valor) => setEticoNettSelecionados((prev) => prev.filter((v) => v !== valor))}
                 />
+                <ChipGenerico valor={genericoSelecionado} onRemove={() => setGenericoSelecionado(undefined)} />
                 {categoriasSelecionadas.map((item) => (
                   <FilterPill
                     key={`categoria-${item}`}

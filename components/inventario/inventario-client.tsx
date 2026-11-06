@@ -142,6 +142,7 @@ export function InventarioClient({
       laboratorios: filterOptions.laboratorios,
       formas: filterOptions.formas,
       eticoNett: filterOptions.eticoNett,
+      generico: filterOptions.generico,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),

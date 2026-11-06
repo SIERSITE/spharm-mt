@@ -91,6 +91,11 @@ export type EncomendaBaseRow = {
    */
   formaChave?: string;
   /**
+   * `Produto.flagGenerico` (NOT NULL). Alimenta o filtro «Genérico», que corre no cliente sobre as linhas já carregadas (vem do
+   * mesmo SELECT dos produtos, sem consulta extra).
+   */
+  generico?: boolean;
+  /**
    * Estado CONSOLIDADO Ético/NETT do produto (`ETICO` | `NETT` | `SEM` | `DIVERGENTE`; mesma regra de
    * `idsProdutosPorEticoNett`: 0 farmácias com informação -> SEM, 1 categoria -> essa, 2 -> DIVERGENTE). Igual em todas as
    * farmácias do produto. Alimenta o filtro «Ético/NETT», que corre no cliente sobre as linhas já carregadas.
@@ -201,6 +206,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     flagMNSRM: boolean;
     codigoATC: string | null;
     productType: string | null;
+    flagGenerico: boolean;
     /** Preenchido a seguir à query, por produto — ver `utilPorProduto`. */
     utilizacoes: string[];
   };
@@ -229,7 +235,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       p."flagMSRM"                  AS "flagMSRM",
       p."flagMNSRM"                 AS "flagMNSRM",
       p."codigoATC"                 AS "codigoATC",
-      p."productType"               AS "productType"
+      p."productType"               AS "productType",
+      p."flagGenerico"              AS "flagGenerico"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p   ON p.id  = pf."produtoId"
     JOIN "Farmacia" f   ON f.id  = pf."farmaciaId"
@@ -452,6 +459,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       subcategoria: par.subcategoria,
       utilizacoes: pf.utilizacoes ?? [],
       formaChave: chaveFormaFarmaceutica(pf.formaFarmaceutica),
+      generico: pf.flagGenerico === true,
       eticoNett: (eticoNettPorProdutoFarmacia.get(`${pf.produtoId}|${pf.farmaciaId}`) as "ETICO" | "NETT" | undefined) ?? null,
       productType: pf.productType,
       dci: pf.dci,

@@ -10,7 +10,8 @@
  *   `asBoolOrFalse`: um valor ausente/nulo no ERP (ou um agent que não envie o campo) fica `false`.
  *   Logo «não genérico» NÃO distingue «o ERP disse que não» de «o ERP não disse nada». Distinguir exigiria uma 2.ª coluna,
  *   que esta entrega NÃO cria (decisão explícita: Não genéricos inclui os artigos sem informação).
- * · A reconciliação INFARMED e a ficha manual (`camposManuais`) também a escrevem; o filtro lê o valor final.
+ * · Quem a escreve: o ingest do ERP (`/bootstrap/products`), a criação manual de produto e a ficha manual (`camposManuais` protege
+ *   a edição manual do ERP). A reconciliação INFARMED NÃO a escreve (não tem equivalência). O filtro lê o valor final.
  *
  * ── O filtro ────────────────────────────────────────────────────────────────────────────────────────────────
  *

@@ -18,6 +18,7 @@ import type {
 } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { normalizarLargura } from "../column-widths";
+import { filtroGenericoLinha } from "@/lib/catalog/generico-filtro";
 import { ROTULO_ETICO_NETT, lerValoresFiltroEticoNett } from "@/lib/classificacao/etico-nett";
 import { filtroFormaFarmaceuticaLinha, type OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
 import { filtroLaboratorioParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
@@ -55,6 +56,8 @@ export type ExcessosAdapterFilters = {
   formasSelecionadas?: string[];
   /** Ético/NETT (APLICADO): `ETICO` | `NETT` | `SEM` | `DIVERGENTE`. Vazio/omitido = sem filtro. */
   eticoNettSelecionados?: string[];
+  /** Genérico (APLICADO): `GENERICO` | `NAO_GENERICO`. Omitido = Todos. */
+  genericoSelecionado?: string;
   prioridadesSelecionadas?: string[];
   artigo?: string;
   dataInicio?: string;
@@ -164,6 +167,8 @@ function buildFilters(
   if (forma) out.push(forma);
   const eticoNett = lerValoresFiltroEticoNett(f.eticoNettSelecionados ?? []);
   if (eticoNett.length > 0) out.push({ label: "Ético/NETT", value: eticoNett.map((v) => ROTULO_ETICO_NETT[v]).join(", ") });
+  const generico = filtroGenericoLinha(f.genericoSelecionado);
+  if (generico) out.push(generico);
   if (f.prioridadesSelecionadas && f.prioridadesSelecionadas.length > 0) {
     out.push({
       label: "Prioridades",

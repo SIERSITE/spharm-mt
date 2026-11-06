@@ -24,6 +24,8 @@ import { resolverPar } from "@/lib/categoria-resolver";
 import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import { carregarOpcoesFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-sql";
 import type { OpcaoFormaFarmaceutica } from "@/lib/catalog/forma-farmaceutica-filtro";
+import { carregarOpcoesGenerico, type OpcoesGenerico } from "@/lib/catalog/generico-sql";
+import type { ValorGenerico } from "@/lib/catalog/generico-filtro";
 import { carregarOpcoesEticoNett, type OpcaoEticoNett } from "@/lib/classificacao/etico-nett-sql";
 import { construirPredicadoPesquisa } from "@/lib/reporting/pesquisa-produto";
 import {
@@ -348,6 +350,8 @@ export type StockSearchParams = {
   formas?: string[];
   /** Ético/NETT (ETICO|NETT|SEM|DIVERGENTE; parâmetro de URL `eticoNett`, multi). Vazio = todos. */
   eticoNett?: string[];
+  /** Genérico (GENERICO|NAO_GENERICO; parâmetro de URL `generico`, escolha única). Omitido = Todos. */
+  generico?: ValorGenerico;
   page: number;
   pageSize: number;
   /**
@@ -383,6 +387,8 @@ export type StockPageData = {
     formas: OpcaoFormaFarmaceutica[];
     /** Ético/NETT: as 4 opções com a contagem de produtos. */
     eticoNett: OpcaoEticoNett[];
+    /** Genérico: contagem de produtos genéricos / não genéricos. */
+    generico: OpcoesGenerico;
   };
   params: StockSearchParams;
   /**
@@ -739,7 +745,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
   // Universo dos filtros de catálogo. Três consultas leves ao vocabulário
   // — não ao catálogo — e ficam disponíveis mesmo no estado vazio, senão
   // o utilizador não tinha por onde começar.
-  const [n1, n2, utils, formas, eticoNett] = await Promise.all([
+  const [n1, n2, utils, formas, eticoNett, generico] = await Promise.all([
     prisma.classificacao.findMany({
       where: { tipo: "NIVEL_1", estado: "ATIVO" },
       select: { nome: true },
@@ -759,6 +765,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     `),
     carregarOpcoesFormaFarmaceutica(prisma),
     carregarOpcoesEticoNett(prisma),
+    carregarOpcoesGenerico(prisma),
   ]);
   const opcoesCatalogo = {
     categorias: n1.map((c) => c.nome),
@@ -766,6 +773,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     utilizacoes: utils,
     formas,
     eticoNett,
+    generico,
   };
   const page = clampStockPage(params.page);
   const pageSize = clampStockPageSize(params.pageSize);
@@ -810,6 +818,8 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     formasFarmaceuticas: params.formas,
     // Ético/NETT consolidado: `restringirPorCatalogo` valida os valores e aplica-o no servidor, antes de paginar.
     eticoNett: params.eticoNett,
+    // Genérico: `restringirPorCatalogo` valida e aplica no servidor, antes de paginar e de somar.
+    generico: params.generico,
     // Âmbito da consolidação: as farmácias seleccionadas (vazio = todas).
     farmaciaNomes: params.pharmacies,
   };
