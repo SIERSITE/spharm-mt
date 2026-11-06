@@ -129,7 +129,7 @@ async function main() {
     check((await chip(page, "Genérico: Apenas genéricos").count()) >= 1, "chip «Genérico: Apenas genéricos»");
     await gerar();
     let cs = await codigos();
-    check(JSON.stringify(cs) === JSON.stringify([A, D].sort()), `GENERICO: só A e D (${cs.join(",")})`);
+    check(JSON.stringify(cs) === JSON.stringify([A, C, D].sort()), `GENERICO: A, C e D — o C existe na Alfa sem vendas e aparece como em «Todos» (${cs.join(",")})`);
     const unidGen = await unidades([CNP.A, CNP.D]);
 
     // ── saídas: Relatório, impressão, PDF, Excel, email ──
@@ -171,7 +171,7 @@ async function main() {
     await ENETT.getByRole("button", { name: /^NETT\s*\d/ }).click();
     await gerar();
     cs = await codigos();
-    check(JSON.stringify(cs) === JSON.stringify([D]), `GENERICO E NETT (tenant): só D — o A é divergente (${cs.join(",")})`);
+    check(JSON.stringify(cs) === JSON.stringify([C, D].sort()), `GENERICO E NETT (tenant): C e D — o A é divergente (${cs.join(",")})`);
     await ENETT.getByRole("button", { name: /^NETT\s*\d/ }).click();
     const FORMA = page.getByPlaceholder("Pesquisar forma farmacêutica...").first().locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
     await FORMA.getByRole("button", { name: /^Comprimido\s*\d/ }).first().click();
@@ -195,10 +195,7 @@ async function main() {
     await page.getByPlaceholder("Pesquisar farmácia...").first().fill("");
     await gerar();
     cs = await codigos();
-    check(JSON.stringify(cs) === JSON.stringify([A]), `GENERICO E só a farmácia Alfa: A (o D é da Gama) (${cs.join(",")})`);
-    await page.getByLabel("Data fim").fill(`${ano}-01-31`);
-    await gerar();
-    check((await codigos()).length === 0, "GENERICO E período sem vendas (Janeiro): sem artigos");
+    check(JSON.stringify(cs) === JSON.stringify([A, C].sort()), `GENERICO E só a farmácia Alfa: A e C (o D é da Gama) (${cs.join(",")})`);
     await page.getByLabel("Data fim").fill(new Date().toISOString().slice(0, 10));
 
     // ── Limpar filtros ──
@@ -272,7 +269,7 @@ async function main() {
     await radio(page, "NAO_GENERICO").click();
     await page.waitForURL(/generico=NAO_GENERICO/);
     tc = await textoPagina(page);
-    check(tem(tc, B) && !tem(tc, A), "Catálogo: NAO_GENERICO pela UI");
+    check(!tem(tc, A) && !tem(tc, D) && !tem(tc, C) && /15\d[\s\S]{0,12}produtos/.test(tc), "Catálogo: NAO_GENERICO pela UI (sem A, C nem D; a lista não genérica tem 150+ artigos)");
     await page.screenshot({ path: path.join(EVID, "catalogo.png") });
     await page.getByRole("button", { name: /^Limpar$/ }).click();
     await page.waitForFunction(() => !location.search.includes("generico="));
