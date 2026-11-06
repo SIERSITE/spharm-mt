@@ -269,7 +269,7 @@ async function main() {
     await radio(page, "NAO_GENERICO").click();
     await page.waitForURL(/generico=NAO_GENERICO/);
     tc = await textoPagina(page);
-    check(!tem(tc, A) && !tem(tc, D) && !tem(tc, C) && /15\d[\s\S]{0,12}produtos/.test(tc), "Catálogo: NAO_GENERICO pela UI (sem A, C nem D; a lista não genérica tem 150+ artigos)");
+    check(!tem(tc, A) && !tem(tc, D) && !tem(tc, C) && /\b15\d\s+produtos/.test(tc), "Catálogo: NAO_GENERICO pela UI (sem A, C nem D; a lista não genérica tem 150+ artigos)");
     await page.screenshot({ path: path.join(EVID, "catalogo.png") });
     await page.getByRole("button", { name: /^Limpar$/ }).click();
     await page.waitForFunction(() => !location.search.includes("generico="));
