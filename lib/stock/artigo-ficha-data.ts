@@ -1,6 +1,8 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { podeRenomearFabricante } from "@/lib/catalogo/fabricante-renomear-scope";
+import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { can } from "@/lib/permissions-core";
 import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
 import { calcularPvpReferencia, descreverPvpReferencia, desvioFaceAReferencia } from "@/lib/pvp-referencia";
@@ -70,6 +72,8 @@ export type ArtigoFichaData = {
   fabricanteId: string | null;
   /** O utilizador pode alterar o catálogo (`catalog.write`): só então a ficha mostra «Editar» no fabricante. */
   podeEditarFabricante: boolean;
+  /** «Editar nome do fabricante» (renomear/consolidar): só Silveira e Garantia + `catalog.write`. Decisão do servidor; a action volta a verificar. */
+  podeRenomearFabricante: boolean;
   /** O fabricante foi definido à mão na ficha (marca `camposManuais ∋ "fabricante"`). */
   fabricanteManual: boolean;
   /** A ficha está protegida contra a sincronização automática (`validadoManualmente`). */
@@ -189,6 +193,7 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
     fabricante: fmt(produto.fabricante?.nomeNormalizado),
     fabricanteId: produto.fabricanteId,
     podeEditarFabricante: can(sessao, "catalog.write"),
+    podeRenomearFabricante: !!produto.fabricanteId && podeRenomearFabricante(sessao, await resolveCurrentTenantSlug()),
     fabricanteManual: produto.camposManuais.includes("fabricante"),
     fabricanteProtegido: produto.validadoManualmente,
     fabricanteErp: [...new Set(produto.produtosFarmacia.map((pf) => pf.fabricanteErpAtual).filter((v): v is string => !!v))],

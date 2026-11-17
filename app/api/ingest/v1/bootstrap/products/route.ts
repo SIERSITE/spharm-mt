@@ -63,7 +63,7 @@ import {
 import { normalizeIva } from "@/lib/iva";
 import { applyErpCatalogFields } from "@/lib/ingest/catalog-from-erp";
 import { applyFornecedorPreferencialSilveira } from "@/lib/ingest/fornecedor-preferencial-silveira";
-import { TENANT_CATALOGO_MASSA } from "@/lib/tenant-context";
+import { TENANT_CATALOGO_MASSA, catalogoManutencaoAtiva } from "@/lib/tenant-context";
 import {
   reconciliarImportacaoComGlobal,
   type ResumoReconciliacao,
@@ -349,7 +349,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           fabricante: a.fabricante,
         })),
         farmaciaId,
-        { modoNuncaReescreverFabricante: ctx.tenant.slug === TENANT_CATALOGO_MASSA },
+        {
+          modoNuncaReescreverFabricante: ctx.tenant.slug === TENANT_CATALOGO_MASSA,
+          // Tenant autenticado do agent (control plane), nunca do payload.
+          resolverFabricantePorAlias: catalogoManutencaoAtiva(ctx.tenant.slug),
+        },
       );
       const escritos =
         Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +

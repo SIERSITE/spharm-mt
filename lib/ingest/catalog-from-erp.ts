@@ -339,6 +339,15 @@ export async function applyErpCatalogFields(
      * deixam de ter significado neste modo e não são tocados.
      */
     modoNuncaReescreverFabricante?: boolean;
+    /**
+     * Resolver o nome de fabricante vindo do ERP também por `FabricanteAlias`
+     * (o nome ANTIGO de um fabricante corrigido na ficha continua a apontar
+     * para o fabricante corrigido, em vez de recriar o antigo). SÓ para os
+     * tenants da correção de nome de fabricante (gate no caller —
+     * `catalogoManutencaoAtiva`, ver `lib/tenant-constants.ts`). Omitido/false
+     * = comportamento anterior, byte a byte.
+     */
+    resolverFabricantePorAlias?: boolean;
   },
 ): Promise<ErpCatalogResult> {
   const modoNuncaReescreverFabricante = opts?.modoNuncaReescreverFabricante ?? false;
@@ -433,6 +442,25 @@ export async function applyErpCatalogFields(
       select: { id: true, nomeNormalizado: true },
     });
     for (const f of jaExistem) fabPorNome.set(f.nomeNormalizado, f.id);
+    if (opts?.resolverFabricantePorAlias) {
+      // Só alias INEQUÍVOCO (um único fabricante): ambíguo nunca resolve sozinho
+      // (mesma regra de `resolverOuCriarFabricante`) e cai na criação habitual.
+      const emFalta = nomesFab.filter((n) => !fabPorNome.has(n));
+      if (emFalta.length) {
+        const porAlias = await prisma.fabricanteAlias.findMany({
+          where: { aliasNome: { in: emFalta } },
+          select: { aliasNome: true, fabricanteId: true },
+        });
+        const donos = new Map<string, Set<string>>();
+        for (const a of porAlias) {
+          if (!donos.has(a.aliasNome)) donos.set(a.aliasNome, new Set());
+          donos.get(a.aliasNome)!.add(a.fabricanteId);
+        }
+        for (const [nome, ids] of donos) {
+          if (ids.size === 1) fabPorNome.set(nome, [...ids][0]);
+        }
+      }
+    }
     for (const nome of nomesFab) {
       if (fabPorNome.has(nome)) continue;
       const criado = await prisma.fabricante.upsert({

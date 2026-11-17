@@ -181,6 +181,7 @@ function ArtigoIdentidade({ data }: { data: ArtigoFichaData }) {
             fabricanteId={data.fabricanteId}
             fabricante={data.fabricante}
             podeEditar
+            podeRenomear={data.podeRenomearFabricante}
             manual={data.fabricanteManual}
             protegido={data.fabricanteProtegido}
             fabricanteErp={data.fabricanteErp}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, ShieldCheck } from "lucide-react";
 import {
@@ -9,6 +9,7 @@ import {
   pesquisarFabricantesAction,
   prepararCriacaoFabricanteAction,
 } from "@/app/stock/artigo/fabricante-actions";
+import { RenomearFabricante } from "@/components/stock/renomear-fabricante";
 import { useAlteracoesPendentes, useEstadoSeparador } from "@/lib/workspace/estado-separador";
 
 /**
@@ -41,6 +42,7 @@ export function EditorFabricante({
   fabricanteId,
   fabricante,
   podeEditar,
+  podeRenomear = false,
   manual,
   protegido,
   fabricanteErp,
@@ -50,6 +52,8 @@ export function EditorFabricante({
   fabricanteId: string | null;
   fabricante: string;
   podeEditar: boolean;
+  /** «Editar nome do fabricante» (renomear/consolidar no tenant) — decidido pelo servidor; ver `renomear-fabricante-actions.ts`. */
+  podeRenomear?: boolean;
   manual: boolean;
   protegido: boolean;
   fabricanteErp: string[];
@@ -63,6 +67,16 @@ export function EditorFabricante({
   const [prep, setPrep] = useState<Preparacao | null>(null);
   const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [aOcupar, setAOcupar] = useState(false);
+
+  // Quando o servidor entrega outro fabricante/nome (ex.: depois de renomear/consolidar), o que foi «aplicado» aqui deixa de valer.
+  const servidor = useRef(`${fabricanteId}|${fabricante}`);
+  useEffect(() => {
+    const agora = `${fabricanteId}|${fabricante}`;
+    if (servidor.current === agora) return; // primeira renderização: nada mudou
+    servidor.current = agora;
+    setAplicado(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage ao que o servidor entrega
+  }, [fabricanteId, fabricante]);
 
   const atual = aplicado ?? { id: fabricanteId, nome: fabricante, manual, protegido };
   const pendente = form.aberto && (form.escolhido !== null || form.novoNome.trim() !== "" || form.passo !== "editar");
@@ -178,6 +192,7 @@ export function EditorFabricante({
           )}
         </div>
         <div className="text-[13px] font-medium text-slate-800" data-testid="fabricante-valor">{atual.nome}</div>
+        {podeRenomear && fabricanteId && <RenomearFabricante cnp={cnp} nomeAtual={fabricante} />}
         {atual.manual && (
           <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700" title="Definido na ficha: a sincronização automática não o substitui">
             <ShieldCheck className="h-3 w-3" /> definido manualmente
