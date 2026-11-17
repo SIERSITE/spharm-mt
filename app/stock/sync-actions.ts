@@ -41,6 +41,7 @@ import {
   podeCriarNovoPedido,
   type SyncRequestEstadoSnapshot,
 } from "@/lib/sync-request/estado";
+import { estadoParaCliente } from "@/lib/sync-request/estado";
 import { loadFarmaciasParaSync, loadSyncStatus, type SyncFarmaciaOption, type SyncWidgetStatus } from "@/lib/sync-request-data";
 
 export type SyncActionResult =
@@ -69,7 +70,7 @@ export async function getSyncStatusAction(input: { farmaciaId: string }): Promis
   if (!canAccessFarmaciaSync(session, farmaciaId)) {
     return { ok: false, error: "Sem acesso a esta farmácia." };
   }
-  return { ok: true, status: await loadSyncStatus(farmaciaId) };
+  return { ok: true, status: estadoParaCliente(await loadSyncStatus(farmaciaId)) };
 }
 
 /**
@@ -89,7 +90,7 @@ export async function requestSyncNowAction(input: { farmaciaId: string }): Promi
   if (tenantSlug === TENANT_SYNC_BLOQUEADO) {
     return {
       ok: false,
-      error: "Sincronização automática temporariamente desligada para este tenant enquanto decorre a classificação de fabricantes/grupos laboratoriais.",
+      error: "A atualização manual não está disponível neste momento.",
     };
   }
 
@@ -143,5 +144,5 @@ export async function requestSyncNowAction(input: { farmaciaId: string }): Promi
     meta: { farmaciaId },
   });
 
-  return { ok: true, status: await loadSyncStatus(farmaciaId) };
+  return { ok: true, status: estadoParaCliente(await loadSyncStatus(farmaciaId)) };
 }

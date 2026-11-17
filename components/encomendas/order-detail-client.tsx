@@ -6,7 +6,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
-import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
+import type { OrderDetail } from "@/lib/encomendas/order-detail";
 import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { DocumentosModal } from "@/components/reporting/documentos-modal";
@@ -61,19 +61,6 @@ function fmtDateTime(d: Date | string | null): string {
     minute: "2-digit",
   });
 }
-
-const TIMELINE_STATUS_STYLE: Record<string, string> = {
-  ATTEMPT: "border-slate-200 bg-slate-50 text-slate-700",
-  LEASE_CLAIMED: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  LEASE_RELEASED: "border-slate-200 bg-slate-50 text-slate-600",
-  LEASE_EXPIRED: "border-amber-200 bg-amber-50 text-amber-700",
-  SUCCESS: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  FAILURE: "border-rose-200 bg-rose-50 text-rose-700",
-  RETRY_SCHEDULED: "border-amber-200 bg-amber-50 text-amber-700",
-  GAVE_UP: "border-rose-300 bg-rose-100 text-rose-800",
-  MANUAL_RETRY: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  MANUAL_CANCEL: "border-slate-200 bg-slate-50 text-slate-600",
-};
 
 export function OrderDetailClient({ detail, fornecedores }: Props) {
   const router = useRouter();
@@ -454,30 +441,6 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
             />
           </div>
         </div>
-
-        {detail.outbox && (
-          <div className="mt-3 grid gap-x-6 gap-y-1 border-t border-slate-100 pt-3 text-[12px] text-slate-600 md:grid-cols-3">
-            <div>
-              <span className="text-slate-400">Outbox:</span>{" "}
-              <span className="font-mono">{detail.outbox.id}</span>
-            </div>
-            <div>
-              <span className="text-slate-400">Tentativas:</span> {detail.outbox.attemptCount}
-            </div>
-            {detail.outbox.spharmDocumentId && (
-              <div>
-                <span className="text-slate-400">SPharm doc:</span>{" "}
-                <span className="font-mono">{detail.outbox.spharmDocumentId}</span>
-              </div>
-            )}
-            {detail.outbox.lastError && (
-              <div className="md:col-span-3">
-                <span className="text-rose-500">Último erro:</span>{" "}
-                <span className="text-rose-700">{detail.outbox.lastError}</span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Acções de gestão do outbox — visíveis só quando há outbox e estado permite */}
         {detail.outbox &&
@@ -903,62 +866,6 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
           </div>
         </div>
       )}
-
-      {/* Timeline de exportação */}
-      {detail.outbox && (
-        <section className="rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-[14px] font-semibold text-slate-900">
-              Timeline de exportação
-            </h2>
-            <p className="mt-0.5 text-[12px] text-slate-500">
-              Eventos do agent SPharm — tentativas, ACK/NACK, retries, cancelamentos.
-            </p>
-          </div>
-
-          {detail.timeline.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[12px] text-slate-400">
-              Sem eventos — outbox criado mas o agent ainda não tentou exportar.
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-50">
-              {detail.timeline.map((ev) => (
-                <TimelineItem key={ev.id} event={ev} />
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </div>
-  );
-}
-
-function TimelineItem({ event }: { event: OrderTimelineEvent }) {
-  const cls = TIMELINE_STATUS_STYLE[event.status] ?? "border-slate-200 bg-slate-50 text-slate-700";
-  return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>
-          {event.status.toLowerCase().replace(/_/g, " ")}
-        </span>
-        <span className="text-[11px] text-slate-500">tentativa {event.attempt}</span>
-        <span className="text-[11px] text-slate-400">·</span>
-        <span className="text-[11px] text-slate-500">{fmtDateTime(event.at)}</span>
-        {event.httpStatus != null && (
-          <>
-            <span className="text-[11px] text-slate-400">·</span>
-            <span className="text-[11px] text-slate-500">HTTP {event.httpStatus}</span>
-          </>
-        )}
-      </div>
-      {event.message && (
-        <div className="mt-1 text-[12px] text-slate-700">{event.message}</div>
-      )}
-      {event.spharmSqlError && (
-        <div className="mt-1 rounded-md border border-rose-100 bg-rose-50 px-2 py-1 font-mono text-[11px] text-rose-700">
-          {event.spharmSqlError}
-        </div>
-      )}
-    </li>
   );
 }

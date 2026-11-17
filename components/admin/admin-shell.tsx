@@ -9,6 +9,7 @@ import {
   ListChecks,
   Activity,
   DatabaseZap,
+  Plug,
 } from "lucide-react";
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
 const NAV = [
   { label: "Visão geral", href: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Tenants", href: "/admin/tenants", icon: Building2, exact: false },
+  { label: "Integração", href: "/admin/integracao", icon: Plug, exact: false },
   { label: "Catálogo · Saúde", href: "/admin/catalogo", icon: Activity, exact: true },
   { label: "Catálogo · Revisão", href: "/admin/catalogo/revisao", icon: ListChecks, exact: false },
   { label: "INFARMED", href: "/admin/infarmed", icon: DatabaseZap, exact: false },

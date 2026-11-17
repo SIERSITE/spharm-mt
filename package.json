@@ -220,6 +220,8 @@
     "test:vendas-pdf-layout": "tsx scripts/tests/test-vendas-pdf-layout.ts",
     "test:fabricante-renomear": "tsx scripts/tests/test-fabricante-renomear.ts",
     "e2e:fabricante-renomear": "tsx scripts/e2e/fabricante-renomear.e2e.ts",
+    "test:integracao-restrita": "tsx scripts/tests/test-integracao-restrita.ts",
+    "e2e:integracao-restrita": "tsx scripts/e2e/integracao-restrita.e2e.ts",
     "test:vendas-mapa-visual": "tsx scripts/tests/test-vendas-mapa-visual.ts",
     "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts",
     "test:designacao-silveira": "tsx scripts/tests/test-designacao-silveira.ts",
