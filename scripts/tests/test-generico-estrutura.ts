@@ -28,7 +28,12 @@ if (temBase) {
   check(!nomes.some((n) => n.startsWith("prisma/")), "nenhuma migration nem alteração ao schema Prisma");
   check(!nomes.some((n) => n.startsWith("generated/")), "o cliente Prisma gerado não mudou");
   const proibidos = ["app/api/ingest/", "lib/ingest/", "lib/classificacao/", "lib/jobs/"];
-  check(!nomes.some((n) => proibidos.some((p) => n.startsWith(p))), "ingest/sincronização e classificação Ético/NETT não foram tocados", nomes.filter((n) => proibidos.some((p) => n.startsWith(p))).join(","));
+  // Exceção deliberada e mínima, posterior ao filtro Genérico: «Editar nome do fabricante» (Silveira/Garantia) liga a resolução de
+  // fabricantes por alias no ingest do ERP, só nesses tenants (opção `resolverFabricantePorAlias`, default false = comportamento
+  // anterior). Ver docs/fabricante-renomear.md. Qualquer OUTRO ficheiro de ingest/classificação/jobs continua proibido.
+  const excecoesAutorizadas = new Set(["app/api/ingest/v1/bootstrap/products/route.ts", "lib/ingest/catalog-from-erp.ts"]);
+  const tocados = nomes.filter((n) => proibidos.some((p) => n.startsWith(p)) && !excecoesAutorizadas.has(n));
+  check(tocados.length === 0, "ingest/sincronização e classificação Ético/NETT não foram tocados (salvo a exceção do alias de fabricante)", tocados.join(","));
   const calculos = ["lib/margens/", "lib/operational/", "lib/vendas/", "lib/reporting/calculos"];
   check(!nomes.some((n) => calculos.some((p) => n.startsWith(p))), "nenhum módulo de cálculo alterado");
 } else {
