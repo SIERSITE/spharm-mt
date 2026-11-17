@@ -11,7 +11,7 @@
  * `GET .../pending?waitSeconds=N` mantidas em espera pelo servidor —
  * ver `agent/docs/sync-now.md` secção 2), a latência típica caiu de
  * minutos para segundos — mas continua a não ser uma garantia
- * instantânea a 100% (ver `MICROCOPY_HONESTA` abaixo, e
+ * instantânea a 100% (e
  * `estadoParaMensagem` para o texto por estado).
  *
  * Só é montado pelo servidor (`app/stock/page.tsx`) quando a sessão tem
@@ -29,14 +29,8 @@ import {
 } from "@/app/stock/sync-actions";
 import type { SyncFarmaciaOption, SyncWidgetStatus } from "@/lib/sync-request-data";
 
-/**
- * Texto honesto sobre a latência: "muito mais rápido" (segundos, via
- * long-polling), nunca "imediato garantido" — o agent só reclama o
- * pedido no ciclo de long-poll em que ele calhar a existir, e a
- * sincronização em si ainda pode demorar consoante o ERP.
- */
-const MICROCOPY_HONESTA =
-  "Normalmente leva poucos segundos — o agente da farmácia responde por long-polling, não é uma garantia instantânea.";
+/** Expectativa honesta, sem jargão: não prometemos instantaneidade. */
+const MICROCOPY_HONESTA = "Normalmente demora poucos segundos, mas não é uma garantia instantânea.";
 
 /** Mensagem de estado mostrada junto ao botão, por estado do pedido. */
 function estadoParaMensagem(status: SyncWidgetStatus | null): string | null {
@@ -51,7 +45,7 @@ function estadoParaMensagem(status: SyncWidgetStatus | null): string | null {
     case "FALHOU":
       return "Falhou — tenta novamente.";
     case "EXPIRADO":
-      return "Expirou sem resposta do agente — tenta novamente.";
+      return "Não foi possível atualizar agora — tenta novamente.";
     default:
       return null;
   }
@@ -212,28 +206,13 @@ export function SyncNowWidget({ farmacias }: Props) {
         </span>
       </div>
 
-      {status?.estado === "CONCLUIDO" && status.resultado ? (
-        <div className="mt-1.5 text-[10px] text-emerald-700">
-          {mensagemEstado} — Stock actualizado: {status.resultado.stockAtualizado} · Produtos
-          actualizados: {status.resultado.produtosAtualizados} · Fabricantes alterados:{" "}
-          {status.resultado.fabricantesAlterados}
-          {status.resultado.designacoesAlteradas !== undefined ? (
-            <>
-              {" "}
-              · Designações alteradas: {status.resultado.designacoesAlteradas}
-            </>
-          ) : null}
-        </div>
-      ) : null}
       {(status?.estado === "FALHOU" || status?.estado === "EXPIRADO") ? (
-        <div className="mt-1.5 text-[10px] text-red-600">
-          {mensagemEstado}
-          {status.erro ? ` ${status.erro}` : ""}
-        </div>
+        <div className="mt-1.5 text-[10px] text-red-600">{mensagemEstado}</div>
       ) : null}
       {error ? <div className="mt-1.5 text-[10px] text-red-600">{error}</div> : null}
 
       <div className="mt-1.5 text-[9.5px] italic text-slate-400">{MICROCOPY_HONESTA}</div>
+
     </div>
   );
 }

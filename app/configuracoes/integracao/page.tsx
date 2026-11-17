@@ -1,25 +1,19 @@
-import { MainShell } from "@/components/layout/main-shell";
-import { requirePermission } from "@/lib/permissions";
-import { loadOutboxTabData } from "@/lib/integracao/outbox-data";
-import { OutboxClient } from "@/components/integracao/outbox-client";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { podeVerIntegracao } from "@/lib/integracao/acesso";
 
 export const dynamic = "force-dynamic";
 
-export default async function IntegracaoPage() {
-  await requirePermission("settings.global");
-  const data = await loadOutboxTabData();
-
-  return (
-    <MainShell>
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Integração SPharm</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Estado do fluxo bidireccional entre SPharmMT e as instâncias SPharm das farmácias.
-        </p>
-        <div className="mt-6">
-          <OutboxClient data={data} />
-        </div>
-      </div>
-    </MainShell>
-  );
+/**
+ * A informação técnica de integração deixou de existir dentro do tenant:
+ * é só para técnicos internos e vive em /admin/integracao. Esta rota fica
+ * apenas para que links/favoritos antigos aterrem num sítio coerente —
+ * NUNCA renderiza nada (nem dados, nem componentes de integração).
+ *
+ *   · técnico interno → /admin/integracao
+ *   · qualquer outro  → /dashboard
+ */
+export default async function IntegracaoRetirada() {
+  const session = await getSession();
+  redirect(podeVerIntegracao(session) ? "/admin/integracao" : "/dashboard");
 }

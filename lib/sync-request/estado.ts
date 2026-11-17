@@ -181,3 +181,14 @@ export function parseSyncResultado(raw: unknown): SyncResultado {
     ...(designacoesVerificadas !== undefined ? { designacoesVerificadas } : {}),
   };
 }
+
+/**
+ * O que o BROWSER do cliente pode receber de um estado de sincronização.
+ * `resultado` (contagens de stock/produtos/fabricantes alterados) e `erro`
+ * (texto do agent) são informação técnica de integração: ficam no servidor.
+ * Aplicada a TODAS as respostas das actions do widget, para que o payload
+ * não os transporte mesmo que a UI não os mostre.
+ */
+export function estadoParaCliente<T extends { resultado: unknown; erro: unknown }>(status: T): T {
+  return { ...status, resultado: null, erro: null };
+}

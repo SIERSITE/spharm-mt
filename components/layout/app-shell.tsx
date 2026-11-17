@@ -14,7 +14,6 @@ import {
   PackageX,
   Mail,
   Users,
-  Plug,
   ShieldCheck,
   Percent,
   KeyRound,
@@ -102,7 +101,6 @@ const navigation: NavGroup[] = [
         soAdministrador: true,
       },
       { label: "Email", href: "/configuracoes/email", icon: Mail },
-      { label: "Integração", href: "/configuracoes/integracao", icon: Plug },
     ],
   },
   {

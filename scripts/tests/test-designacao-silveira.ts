@@ -176,7 +176,9 @@ console.log("\n=== I. Resultado de «Atualizar agora» e UI ===");
   const r3 = parseSyncResultado({ designacoesAlteradas: -4, designacoesVerificadas: "x" });
   ok("valores inválidos descartados", r3.designacoesAlteradas === undefined && r3.designacoesVerificadas === undefined);
   const w = src("components/stock/sync-now-widget.tsx");
-  ok("o botão mostra «Designações alteradas: N» só quando o contador existe", /designacoesAlteradas !== undefined[\s\S]{0,200}Designações alteradas:/.test(w));
+  // Integração restrita a técnicos: as contagens do resultado (incl. designações) são informação
+  // técnica e já não chegam ao cliente (`estadoParaCliente`); o contador continua a existir no servidor.
+  ok("o widget do cliente já não mostra contagens técnicas (designações/stock/fabricantes)", !/designacoesAlteradas|Designações alteradas|fabricantesAlterados/.test(w));
 }
 
 console.log("\n=== J. Sem migration ===");

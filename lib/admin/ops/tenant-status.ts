@@ -3,6 +3,7 @@ import { getTenantBySlug } from "@/lib/control-plane";
 import { getTenantPrismaForAdmin } from "@/lib/admin/tenant-client";
 import { AdminApiError } from "@/lib/admin/ops/_shared";
 import { PIPELINE_KIND, PIPELINE_STATUS } from "@/lib/pipeline/types";
+import { getOutboxCountersForTenant } from "@/lib/admin/tenant-data";
 
 /**
  * lib/admin/ops/tenant-status.ts
@@ -61,6 +62,21 @@ export type TenantStatusResult = {
     stagingOperationalOrphans: number;
     stagingNonStockServices: number;
   } | null;
+  /**
+   * Informação técnica de INTEGRAÇÃO (agent + fila de exportação de encomendas).
+   * Só é servida por este endpoint administrativo (bearer admin, domínio admin) —
+   * em produção é a via dos técnicos internos; a app do tenant não a expõe.
+   */
+  integration: {
+    agent: {
+      lastHeartbeatAt: string | null;
+      minutesAgo: number | null;
+      healthy: boolean;
+      version: string | null;
+      ip: string | null;
+    };
+    outbox: { pendente: number; emExportacao: number; exportado: number; falhado: number; cancelado: number } | null;
+  };
   exitCode: number;
 };
 
@@ -82,7 +98,7 @@ function toRunSummary(run: RawRun): PipelineRunSummary {
   };
 }
 
-export async function getTenantStatus(slug: string): Promise<TenantStatusResult> {
+async function getTenantStatusBase(slug: string): Promise<Omit<TenantStatusResult, "integration">> {
   if (!slug || slug.trim() === "") {
     throw new AdminApiError(400, "slug em falta", "bad_request");
   }
@@ -232,5 +248,27 @@ export async function getTenantStatus(slug: string): Promise<TenantStatusResult>
       stagingNonStockServices: stagingServices,
     },
     exitCode,
+  };
+}
+
+const HEARTBEAT_HEALTHY_WINDOW_MIN = 30;
+
+export async function getTenantStatus(slug: string): Promise<TenantStatusResult> {
+  const base = await getTenantStatusBase(slug);
+  const tenant = await getTenantBySlug(slug.trim());
+  const hb = tenant?.lastAgentHeartbeatAt ?? null;
+  const minutesAgo = hb ? Math.floor((Date.now() - hb.getTime()) / 60_000) : null;
+  return {
+    ...base,
+    integration: {
+      agent: {
+        lastHeartbeatAt: hb ? hb.toISOString() : null,
+        minutesAgo,
+        healthy: minutesAgo !== null && minutesAgo < HEARTBEAT_HEALTHY_WINDOW_MIN,
+        version: tenant?.lastAgentVersion ?? null,
+        ip: tenant?.lastAgentIp ?? null,
+      },
+      outbox: tenant && tenant.estado === "ACTIVE" ? await getOutboxCountersForTenant(tenant) : null,
+    },
   };
 }

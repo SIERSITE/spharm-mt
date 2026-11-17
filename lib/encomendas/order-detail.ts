@@ -103,8 +103,6 @@ export type OrderDetail = {
     state: OrderExportState;
     spharmDocumentId: string | null;
     exportedAt: Date | null;
-    attemptCount: number;
-    lastError: string | null;
   } | null;
   timeline: OrderTimelineEvent[];
   /** Indica se a lista é editável — true só quando estado === RASCUNHO. */
@@ -181,8 +179,6 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
           state: true,
           spharmDocumentId: true,
           exportedAt: true,
-          attemptCount: true,
-          lastError: true,
         },
       },
     },
@@ -210,24 +206,10 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
     pfRows.map((r) => [r.produtoId, { stock: toF(r.stockAtual), fornecedor: r.fornecedorOrigem }])
   );
 
-  const timeline: OrderTimelineEvent[] = lista.outbox
-    ? (
-        await prisma.orderExportAudit.findMany({
-          where: { outboxId: lista.outbox.id },
-          orderBy: { at: "desc" },
-          take: 50,
-        })
-      ).map((a) => ({
-        id: a.id,
-        attempt: a.attempt,
-        at: a.at,
-        status: a.status,
-        message: a.message,
-        httpStatus: a.httpStatus,
-        spharmSqlError: a.spharmSqlError,
-        actorId: a.actorId,
-      }))
-    : [];
+  // A timeline de exportação (tentativas, HTTP, erros SQL do SPharm) é informação
+  // técnica de integração: não sai do servidor para utilizadores do tenant.
+  // Os técnicos veem-na no console /admin.
+  const timeline: OrderTimelineEvent[] = [];
 
   return {
     id: lista.id,
@@ -286,8 +268,6 @@ export async function loadOrderDetailComPrisma(prisma: PrismaClient, id: string)
           state: lista.outbox.state,
           spharmDocumentId: lista.outbox.spharmDocumentId,
           exportedAt: lista.outbox.exportedAt,
-          attemptCount: lista.outbox.attemptCount,
-          lastError: lista.outbox.lastError,
         }
       : null,
     timeline,
