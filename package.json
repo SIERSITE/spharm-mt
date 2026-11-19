@@ -10,6 +10,8 @@
     "scheduler": "node scripts/workers/scheduler.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:ultima-atualizacao": "tsx scripts/tests/test-ultima-atualizacao.ts",
+    "e2e:ultima-atualizacao": "tsx scripts/e2e/ultima-atualizacao.e2e.ts",
     "control:generate": "tsx scripts/control/generate.ts",
     "control:migrate:deploy": "tsx scripts/control/migrate-deploy.ts",
     "control:migrate:status": "tsx scripts/control/migrate-status.ts",

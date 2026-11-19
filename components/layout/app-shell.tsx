@@ -18,13 +18,16 @@ import {
   ShieldCheck,
   Percent,
   KeyRound,
+  Menu as MenuIcon,
+  X as XIcon,
   Wrench,
   ListChecks,
 } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
+import { UltimaAtualizacaoMenu } from "@/components/layout/ultima-atualizacao";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import { ArtigoPanel } from "@/components/stock/artigo-panel";
@@ -158,6 +161,19 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const utilizador = useUtilizador();
   const taskBar = useTaskBar();
   const ehAdministrador = utilizador?.perfil === "ADMINISTRADOR";
+  const [menuAberto, setMenuAberto] = useState(false);
+  // O menu móvel fecha ao navegar e com Esc.
+  useEffect(() => {
+    setMenuAberto(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!menuAberto) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuAberto(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuAberto]);
 
   // "Logout... com alterações pendentes avisa" — a tarefa ACTIVA é a
   // única de que a AppShell pode saber, sem cada ecrã ter de registar um
@@ -178,17 +194,8 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
     // Uma secção que fique sem itens não deve deixar o rótulo órfão.
     .filter((g) => g.items.length > 0);
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-[#eef4f6] text-[#18323a]">
-      {/* fundo global */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute -left-20 top-[-120px] h-[280px] w-[280px] rounded-full bg-[rgba(86,168,137,0.08)] blur-3xl" />
-        <div className="absolute right-[-80px] top-[-80px] h-[260px] w-[260px] rounded-full bg-[rgba(157,200,224,0.10)] blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(138,170,178,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(138,170,178,0.06)_1px,transparent_1px)] bg-[size:88px_88px]" />
-      </div>
-
-      <div className="relative z-10 flex min-h-screen">
-        <aside className="hidden w-[242px] shrink-0 border-r border-[rgba(165,190,196,0.30)] bg-[rgba(255,255,255,0.48)] backdrop-blur-sm md:flex md:flex-col">
+  const conteudoMenu = (
+    <>
           <div className="flex h-16 items-center gap-3 border-b border-[rgba(165,190,196,0.25)] px-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#56a889] text-sm font-semibold text-white shadow-sm">
               SP
@@ -198,7 +205,7 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             </div>
           </div>
 
-          <div className="flex-1 px-4 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
             <nav className="space-y-8">
               {groups.map((group, gIdx) => (
                 <div key={group.section ?? `__root_${gIdx}`}>
@@ -249,8 +256,10 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             Sem sessao nao se desenha nada. Um nome por omissao seria o
             mesmo defeito outra vez, so' que mais dificil de encontrar.
           */}
+          <UltimaAtualizacaoMenu />
+
           {utilizador ? (
-            <div className="border-t border-[rgba(165,190,196,0.25)] px-4 py-4">
+            <div className="shrink-0 border-t border-[rgba(165,190,196,0.25)] px-4 py-4">
               <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#18323a] text-xs font-medium text-white">
                   {inicial(utilizador.nome)}
@@ -266,7 +275,35 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
               </div>
             </div>
           ) : null}
+    </>
+  );
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#eef4f6] text-[#18323a]">
+      {/* fundo global */}
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-20 top-[-120px] h-[280px] w-[280px] rounded-full bg-[rgba(86,168,137,0.08)] blur-3xl" />
+        <div className="absolute right-[-80px] top-[-80px] h-[260px] w-[260px] rounded-full bg-[rgba(157,200,224,0.10)] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(138,170,178,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(138,170,178,0.06)_1px,transparent_1px)] bg-[size:88px_88px]" />
+      </div>
+
+      <div className="relative z-10 flex min-h-screen">
+        <aside className="hidden w-[242px] shrink-0 border-r border-[rgba(165,190,196,0.30)] bg-[rgba(255,255,255,0.48)] backdrop-blur-sm md:sticky md:top-0 md:flex md:h-screen md:flex-col">
+          {conteudoMenu}
         </aside>
+
+        {menuAberto ? (
+          <div className="fixed inset-0 z-50 md:hidden" data-testid="menu-movel">
+            <button type="button" aria-label="Fechar menu" className="absolute inset-0 bg-black/30" onClick={() => setMenuAberto(false)} />
+            <aside className="relative flex h-full w-[260px] max-w-[85vw] flex-col border-r border-[rgba(165,190,196,0.30)] bg-white shadow-xl">
+              <button type="button" aria-label="Fechar menu" onClick={() => setMenuAberto(false)} className="absolute right-3 top-3 z-10 rounded-lg p-1.5 text-[#55707a] hover:bg-slate-100">
+                <XIcon className="h-5 w-5" />
+              </button>
+              {conteudoMenu}
+            </aside>
+          </div>
+        ) : null}
+
 
         <div className="relative flex min-w-0 flex-1 flex-col">
           {/* decoração médica canto superior direito */}
@@ -336,7 +373,19 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
           </svg>
 
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[rgba(165,190,196,0.25)] bg-[rgba(255,255,255,0.55)] px-6 backdrop-blur-xl">
-            <div className="text-sm font-medium text-slate-500">Dashboard</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Abrir menu"
+                aria-expanded={menuAberto}
+                data-testid="menu-movel-abrir"
+                onClick={() => setMenuAberto(true)}
+                className="rounded-xl p-2 text-slate-600 hover:bg-white/60 md:hidden"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+              <div className="text-sm font-medium text-slate-500">Dashboard</div>
+            </div>
 
             <div className="flex items-center gap-3">
               <form action={logoutAction} onSubmit={handleLogoutSubmit}>
