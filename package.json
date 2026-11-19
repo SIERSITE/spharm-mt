@@ -10,6 +10,8 @@
     "scheduler": "node scripts/workers/scheduler.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:textos-tecnicos": "tsx scripts/tests/test-textos-tecnicos.ts",
+    "e2e:textos-tecnicos": "tsx scripts/e2e/textos-tecnicos.e2e.ts",
     "test:ultima-atualizacao": "tsx scripts/tests/test-ultima-atualizacao.ts",
     "e2e:ultima-atualizacao": "tsx scripts/e2e/ultima-atualizacao.e2e.ts",
     "control:generate": "tsx scripts/control/generate.ts",

@@ -290,7 +290,7 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
       }
       const r = await finalizeFromDetailAction(detail.id, autosave.versaoAtual);
       if (r.ok && r.tipo === "unico") {
-        setFlash({ type: "ok", msg: `Finalizada. Outbox: ${r.outboxId}` });
+        setFlash({ type: "ok", msg: "Encomenda finalizada." });
         router.refresh();
       } else if (r.ok && r.tipo === "multi_fornecedor") {
         setFlash({ type: "ok", msg: r.resumoTexto });
@@ -361,12 +361,12 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   }
 
   function handleRetryOutbox(outboxId: string) {
-    if (!confirm("Repor a encomenda para PENDENTE para o agent tentar novamente?")) return;
+    if (!confirm("Tentar enviar de novo esta encomenda?")) return;
     setFlash(null);
     startTransition(async () => {
       const r = await retryOutboxAction(outboxId);
       if (r.ok) {
-        setFlash({ type: "ok", msg: "Encomenda reposta para PENDENTE — o agent tentará na próxima passagem." });
+        setFlash({ type: "ok", msg: "A encomenda vai ser enviada de novo." });
         router.refresh();
       } else {
         setFlash({ type: "err", msg: r.error });
@@ -375,12 +375,12 @@ export function OrderDetailClient({ detail, fornecedores }: Props) {
   }
 
   function handleCancelOutbox(outboxId: string) {
-    if (!confirm("Cancelar a exportação desta encomenda? O agent não a tentará exportar novamente.")) return;
+    if (!confirm("Cancelar o envio desta encomenda? Não voltará a ser enviada.")) return;
     setFlash(null);
     startTransition(async () => {
       const r = await cancelOutboxAction(outboxId);
       if (r.ok) {
-        setFlash({ type: "ok", msg: "Exportação cancelada." });
+        setFlash({ type: "ok", msg: "Envio cancelado." });
         router.refresh();
       } else {
         setFlash({ type: "err", msg: r.error });

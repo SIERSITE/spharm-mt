@@ -760,7 +760,7 @@ export function ExcessosClient({
             <div className="mx-auto max-w-2xl">
               <h2 className="text-base font-semibold text-slate-900">O relatório de excessos é gerado sob pedido</h2>
               <p className="mt-2 text-[13px] leading-6 text-slate-600">
-                Defina o período e os critérios pretendidos e carregue em <span className="font-semibold text-slate-900">Gerar relatório</span>. A página não pré-carrega dados.
+                Defina o período e os critérios pretendidos e carregue em <span className="font-semibold text-slate-900">Gerar relatório</span>.
               </p>
             </div>
           </section>

@@ -244,8 +244,7 @@ export function ExtratoMovimentos({
         <div>
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Espelho do relatório <span className="font-medium">Movimento de Artigos</span> do ERP — uma
-            linha por movimento, com documento, contraparte, quantidades e running balance. Altera{" "}
+            Uma linha por movimento do artigo, com documento, contraparte, quantidades e o stock depois de cada movimento. Altera{" "}
             <span className="font-semibold text-slate-700">Desde / Até</span> para mudar o período.
           </p>
         </div>
@@ -334,9 +333,7 @@ export function ExtratoMovimentos({
 
       {semLedger.length > 0 && (
         <div className="mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-          Sem movimentos ingeridos para {semLedger.map((c) => c.farmacia).join(", ")}.
-          O extrato desta(s) farmácia(s) fica vazio até o pipeline de movimentos
-          correr — não significa que o artigo não se tenha mexido.
+          Ainda não há movimentos disponíveis para {semLedger.map((c) => c.farmacia).join(", ")}. O extrato desta(s) farmácia(s) fica vazio até esses dados chegarem — não significa que o artigo não se tenha mexido.
         </div>
       )}
 

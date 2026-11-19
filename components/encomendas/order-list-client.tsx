@@ -227,7 +227,7 @@ export function OrderListClient({ data, filters, formasOpcoes, eticoNettOpcoes, 
       }
       setFlash(
         r.tipo === "unico"
-          ? { type: "ok", msg: `Finalizada. Outbox: ${r.outboxId}` }
+          ? { type: "ok", msg: "Encomenda finalizada." }
           : { type: "ok", msg: r.resumoTexto }
       );
     });

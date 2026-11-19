@@ -454,10 +454,7 @@ export function InventarioClient({
         <section className="flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            <b>Valor stock s/IVA</b> = <code>stockAtual × PMC</code> (PMC/PUC do ERP são sem
-            IVA). <b>Valor stock c/IVA</b> aplica a taxa da última compra do produto
-            (<code>StagingCompraRawLine</code>), normalizada para o conjunto canónico de
-            farmácia <b>6% · 13% · 23%</b>. Taxa fora deste conjunto (ou ausente) → linha em{" "}
+            <b>Valor stock s/IVA</b> = stock atual × PMC (os preços de compra são sem IVA). <b>Valor stock c/IVA</b> aplica a taxa de IVA da última compra do produto, arredondada a uma das taxas de farmácia: <b>6% · 13% · 23%</b>. Taxa fora deste conjunto (ou ausente) → linha em{" "}
             <span className="font-semibold">IVA por apurar</span>, valor c/IVA não calculado.
             Não inventamos taxa.
           </span>
@@ -516,8 +513,7 @@ export function InventarioClient({
             </h2>
             <p className="mx-auto mt-2 max-w-[460px] text-[12px] leading-5 text-slate-500">
               Define os filtros e clica em{" "}
-              <span className="font-semibold text-emerald-700">Gerar</span>. A página
-              não pré-carrega dados — só lê da BD após o trigger explícito.
+              <span className="font-semibold text-emerald-700">Gerar</span>.
             </p>
           </section>
         ) : vista === "farmacia" ? (

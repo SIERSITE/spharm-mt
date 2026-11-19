@@ -338,7 +338,6 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
             </h2>
             <p className="mx-auto mt-2 max-w-[460px] text-[12px] leading-5 text-slate-500">
               Defina o período e clique em <span className="font-semibold text-emerald-700">Gerar</span>.
-              A página não pré-carrega Devoluções — só lê da BD após o trigger explícito.
             </p>
           </section>
         ) : (

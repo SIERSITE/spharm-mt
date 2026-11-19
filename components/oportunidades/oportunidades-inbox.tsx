@@ -37,18 +37,9 @@ type DciItem = {
   atc5: string;
 };
 
-type IpfFresh = {
-  healthy: boolean;
-  ageHours: number | null;
-  coverage: number;
-  reasons: string[];
-  totalRows: number;
-};
-
 type Props = {
   sameCnp: SameCnpItem[];
   dciEquivalent: DciItem[];
-  ipfFreshness: IpfFresh | null;
 };
 
 function eur(n: number): string {
@@ -60,14 +51,14 @@ function eur(n: number): string {
   });
 }
 
-export function OportunidadesInbox({ sameCnp, dciEquivalent, ipfFreshness }: Props) {
+export function OportunidadesInbox({ sameCnp, dciEquivalent }: Props) {
   const totalAvoidedSame = sameCnp.reduce((s, x) => s + x.avoidedPurchaseEstimate, 0);
   const totalAvoidedDci = dciEquivalent.reduce((s, x) => s + x.avoidedPurchaseEstimate, 0);
 
   return (
     <div className="space-y-4">
       {/* KPIs compactos */}
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2">
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3">
           <div className="text-[11px] uppercase tracking-wider text-cyan-700/80">Same-CNP</div>
           <div className="mt-1 text-[22px] font-semibold text-cyan-800">{sameCnp.length}</div>
@@ -77,37 +68,6 @@ export function OportunidadesInbox({ sameCnp, dciEquivalent, ipfFreshness }: Pro
           <div className="text-[11px] uppercase tracking-wider text-amber-700/80">DCI-equivalente (cautelar)</div>
           <div className="mt-1 text-[22px] font-semibold text-amber-800">{dciEquivalent.length}</div>
           <div className="text-[12px] text-amber-700">~{eur(totalAvoidedDci)} (a validar)</div>
-        </div>
-        <div
-          className={[
-            "rounded-2xl border px-4 py-3",
-            ipfFreshness === null
-              ? "border-slate-200 bg-slate-50"
-              : ipfFreshness.healthy
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-rose-200 bg-rose-50",
-          ].join(" ")}
-        >
-          <div className="text-[11px] uppercase tracking-wider opacity-70">IPF read-model</div>
-          <div className="mt-1 text-[22px] font-semibold">
-            {ipfFreshness === null
-              ? "—"
-              : ipfFreshness.healthy
-                ? "saudável"
-                : "atenção"}
-          </div>
-          <div className="text-[12px] opacity-70">
-            {ipfFreshness === null
-              ? "indisponível"
-              : `${ipfFreshness.totalRows.toLocaleString("pt-PT")} rows · ${(ipfFreshness.coverage * 100).toFixed(0)}% · ${ipfFreshness.ageHours === null ? "—" : `${ipfFreshness.ageHours.toFixed(1)}h`}`}
-          </div>
-          {ipfFreshness && !ipfFreshness.healthy && (
-            <ul className="mt-1 ml-3 list-disc text-[11px] text-rose-800">
-              {ipfFreshness.reasons.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          )}
         </div>
       </section>
 

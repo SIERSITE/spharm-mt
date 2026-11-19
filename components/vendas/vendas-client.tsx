@@ -1562,8 +1562,7 @@ export function VendasClient({
               <p className="mt-2 text-[13px] leading-5 text-slate-500">
                 Defina o âmbito, o período e as farmácias a incluir e clique em{" "}
                 <span className="font-semibold text-emerald-700">Gerar</span> para
-                carregar os dados de Vendas. A página não pré-carrega o universo
-                completo — só lê da BD após o trigger explícito.
+                carregar os dados de Vendas.
               </p>
             </div>
           </section>

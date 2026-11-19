@@ -441,8 +441,7 @@ export function MargensClient({
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
             Margem calculada <b>SEM IVA</b>: <code>(PVP/(1+taxa)) − PMC</code>. Taxas válidas
-            de farmácia: <b>6% · 13% · 23%</b>. Taxa por produto vem da última compra em{" "}
-            <code>StagingCompraRawLine</code>, normalizada para uma destas três. Fora deste
+            de farmácia: <b>6% · 13% · 23%</b>. Usa-se a taxa de IVA da última compra de cada produto, arredondada a uma destas três. Fora deste
             conjunto → estado <span className="font-semibold">IVA por apurar</span>, margem
             €/% suprimidas (não inventamos taxa). Sem custo conhecido →{" "}
             <span className="font-semibold">Sem custo</span> ou{" "}
@@ -484,8 +483,7 @@ export function MargensClient({
             </h2>
             <p className="mx-auto mt-2 max-w-[480px] text-[12px] leading-5 text-slate-500">
               Define o período e clica em{" "}
-              <span className="font-semibold text-emerald-700">Gerar</span>. A página não
-              pré-carrega Margens — só lê da BD após o trigger explícito. Depois, alterar os
+              <span className="font-semibold text-emerald-700">Gerar</span>. Depois, alterar os
               filtros não atualiza o relatório: clica em{" "}
               <span className="font-semibold text-emerald-700">Atualizar</span> para os aplicar.
             </p>

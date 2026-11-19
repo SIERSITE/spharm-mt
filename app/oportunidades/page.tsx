@@ -3,8 +3,6 @@ import { getInternalSubstitutionsData } from "@/lib/transferencias-data";
 import { findDciEquivalentSubstitutions, type DciSubstitutionInput } from "@/lib/transfers/dci-equivalent-substitution";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { legacyPrisma } from "@/lib/prisma";
-import { getIpfFreshness } from "@/lib/operational/ipf-freshness";
 import { OportunidadesInbox } from "@/components/oportunidades/oportunidades-inbox";
 
 export const dynamic = "force-dynamic";
@@ -141,9 +139,6 @@ export default async function OportunidadesPage() {
     );
   }
 
-  // 3. IPF freshness — operational alert se stale.
-  const freshness = await getIpfFreshness(legacyPrisma).catch(() => null);
-
   return (
     <MainShell>
       <div className="relative z-10 space-y-6 pt-10">
@@ -152,7 +147,7 @@ export default async function OportunidadesPage() {
             Oportunidades operacionais
           </h1>
           <p className="mt-1 text-[12px] text-slate-400">
-            Feed unificado · same-CNP · DCI-equivalente · saúde do read-model
+            Sugestões de transferência entre farmácias
           </p>
         </section>
 
@@ -190,17 +185,6 @@ export default async function OportunidadesPage() {
             forma: c.formaFarmaceutica,
             atc5: c.atc5,
           }))}
-          ipfFreshness={
-            freshness
-              ? {
-                  healthy: freshness.healthy,
-                  ageHours: freshness.ageHours,
-                  coverage: freshness.coverage,
-                  reasons: freshness.reasons,
-                  totalRows: freshness.totalIpfRows,
-                }
-              : null
-          }
         />
       </div>
     </MainShell>
