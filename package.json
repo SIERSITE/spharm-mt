@@ -219,6 +219,8 @@
     "test:margens-custo-cnp8322628": "tsx scripts/tests/test-margens-custo-cnp8322628.ts",
     "test:vendas-pdf-layout": "tsx scripts/tests/test-vendas-pdf-layout.ts",
     "test:fabricante-renomear": "tsx scripts/tests/test-fabricante-renomear.ts",
+    "e2e:dados-atualizados": "tsx scripts/e2e/dados-atualizados.e2e.ts",
+    "test:dados-atualizados": "tsx scripts/tests/test-dados-atualizados.ts",
     "e2e:fabricante-renomear": "tsx scripts/e2e/fabricante-renomear.e2e.ts",
     "test:vendas-mapa-visual": "tsx scripts/tests/test-vendas-mapa-visual.ts",
     "test:vendas-impressao-hierarquia": "tsx scripts/tests/test-vendas-impressao-hierarquia.ts",

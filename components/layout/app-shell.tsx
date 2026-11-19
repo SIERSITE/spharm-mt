@@ -25,6 +25,7 @@ import { Suspense } from "react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
+import { DadosAtualizadosCabecalho } from "@/components/layout/dados-atualizados";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import { ArtigoPanel } from "@/components/stock/artigo-panel";
@@ -335,10 +336,11 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
               filter="url(#ecg-glow)"/>
           </svg>
 
-          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[rgba(165,190,196,0.25)] bg-[rgba(255,255,255,0.55)] px-6 backdrop-blur-xl">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-[rgba(165,190,196,0.25)] bg-[rgba(255,255,255,0.55)] px-3 sm:px-6 backdrop-blur-xl">
             <div className="text-sm font-medium text-slate-500">Dashboard</div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 sm:gap-3">
+              {utilizador ? <DadosAtualizadosCabecalho /> : null}
               <form action={logoutAction} onSubmit={handleLogoutSubmit}>
                 <button
                   type="submit"
