@@ -20,6 +20,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { buildTransferenciasReport } from "@/lib/reporting/adapters/transferencias";
+import { hojeIsoLisboa } from "@/lib/relatorio-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { FiltroFabricante, rotuloChipFabricante } from "@/components/reporting/filtro-fabricante";
@@ -602,6 +603,13 @@ export function TransferenciasClient({
     }));
   }, [orderedRows]);
 
+  // Cabeçalho e data da «Vista relatório» — os MESMOS que Imprimir/PDF/Excel/Email (nunca texto fixo).
+  const organizacaoRelatorio = formatFarmaciaHeader(
+    Array.from(new Set([...farmaciasOrigemSelecionadas, ...farmaciasDestinoSelecionadas])),
+    farmaciasInfo,
+  );
+  const dataGeracaoRelatorio = hojeIsoLisboa();
+
   return (
     <AppShell>
       <div className="space-y-3">
@@ -650,15 +658,7 @@ export function TransferenciasClient({
                   quantidadeMinima,
                 },
                 universe: { farmacias, fornecedores, fabricantes, laboratorios, formas: filterOptions.formas, categorias, prioridades },
-                organization: formatFarmaciaHeader(
-                  Array.from(
-                    new Set([
-                      ...farmaciasOrigemSelecionadas,
-                      ...farmaciasDestinoSelecionadas,
-                    ])
-                  ),
-                  farmaciasInfo
-                ),
+                organization: organizacaoRelatorio,
               })
             }
           />
@@ -1293,9 +1293,7 @@ export function TransferenciasClient({
                   <div className="border-b border-dashed border-slate-300 pb-3">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-[11px] text-slate-500">
-                          Farmácia Silveirense, Lda. (NIF: 507529930)
-                        </div>
+                        <div className="text-[11px] text-slate-500">{organizacaoRelatorio}</div>
                         <div className="mt-2 text-[15px] font-semibold text-slate-900">
                           Relatório de Transferências Sugeridas
                         </div>
@@ -1306,7 +1304,7 @@ export function TransferenciasClient({
                       </div>
 
                       <div className="text-right text-[12px] text-slate-500">
-                        <div>{formatDatePt("2026-04-10")}</div>
+                        <div>{formatDatePt(dataGeracaoRelatorio)}</div>
                         <div className="mt-1">Moeda: Euro</div>
                       </div>
                     </div>
@@ -1394,11 +1392,6 @@ export function TransferenciasClient({
                         )}
                       </tbody>
                     </table>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400">
-                    <div>SoftReis Informática</div>
-                    <div>Página 1 de 1</div>
                   </div>
                 </div>
 

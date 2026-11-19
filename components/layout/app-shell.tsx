@@ -26,6 +26,7 @@ import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { resolverRota } from "@/lib/workspace/rotas";
 import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import { ArtigoPanel } from "@/components/stock/artigo-panel";
 
@@ -132,6 +133,24 @@ type NavGroup = {
   section: string | null;
   items: NavItem[];
 };
+
+/**
+ * Título do cabeçalho: o do ecrã onde o utilizador está (mesma tabela das
+ * barras de separadores). Rotas sem entrada na tabela usam o rótulo do menu.
+ */
+const TITULOS_EXTRA: Array<[string, string]> = [
+  ["/configuracoes/utilizadores", "Utilizadores"],
+  ["/configuracoes/email", "Email"],
+  ["/alterar-password", "Alterar password"],
+  ["/produtos/criar", "Criar produto"],
+  ["/oportunidades", "Oportunidades"],
+];
+function tituloDoEcra(pathname: string | null): string {
+  if (!pathname) return "";
+  const extra = TITULOS_EXTRA.find(([p]) => pathname === p || pathname.startsWith(`${p}/`));
+  if (extra) return extra[1];
+  return resolverRota(pathname)?.titulo ?? "SPharm.MT";
+}
 
 /** "Ana Maria Sousa" -> "A". Vazio nao produz inicial nenhuma. */
 function inicial(nome: string): string {
@@ -336,7 +355,7 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
           </svg>
 
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[rgba(165,190,196,0.25)] bg-[rgba(255,255,255,0.55)] px-6 backdrop-blur-xl">
-            <div className="text-sm font-medium text-slate-500">Dashboard</div>
+            <div className="text-sm font-medium text-slate-500" data-testid="titulo-cabecalho">{tituloDoEcra(pathname)}</div>
 
             <div className="flex items-center gap-3">
               <form action={logoutAction} onSubmit={handleLogoutSubmit}>

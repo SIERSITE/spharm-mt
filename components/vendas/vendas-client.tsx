@@ -29,7 +29,6 @@ import {
   ToggleRow,
 } from "@/components/reporting/filter-panel";
 import {
-  Eye,
   Filter,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -1335,10 +1334,6 @@ export function VendasClient({
               >
                 {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
               </button>
-              <ActionButton
-                icon={<Eye className="h-3.5 w-3.5" />}
-                label="Ver em ecrã"
-              />
               {semArtigosParaImprimir && (
                 <span role="alert" data-testid="vendas-sem-selecao" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-medium text-amber-800">
                   Selecione pelo menos um artigo para imprimir ou gerar PDF.
@@ -2067,30 +2062,6 @@ function CompactSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function ActionButton({
-  icon,
-  label,
-  primary = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      className={[
-        "inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition",
-        primary
-          ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-          : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800",
-      ].join(" ")}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 
