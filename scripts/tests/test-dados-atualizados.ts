@@ -111,6 +111,9 @@ async function main() {
     const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.TEST_DB_DADOS }) });
     const { carregarDadosAtualizadosCom } = await import("../../lib/dados-atualizados");
     await prisma.pipelineRun.deleteMany();
+    await prisma.syncRequest.deleteMany();
+    await prisma.auditLog.deleteMany();
+    await prisma.utilizadorFarmacia.deleteMany();
     await prisma.utilizador.deleteMany();
     await prisma.farmacia.deleteMany();
     const A = await prisma.farmacia.create({ data: { nome: "Farm A" } });
