@@ -2,7 +2,7 @@
 
 Regra: só entra no manual o que foi **confirmado no browser** (build integrada, dados sintéticos). O que só foi lido no código ficou de fora.
 
-## Documentadas (15 capítulos)
+## Documentadas (15 capítulos, 41 páginas)
 1. **Entrar, navegar e «Última atualização»** — entrar/sair, mensagens de erro, menu e secções, comportamento por perfil, bloco «Última atualização» por farmácia, menu em telemóvel, alterar password (regras validadas).
 2. **Dashboard** — mosaicos clicáveis, tendência, cartões, detalhe por farmácia.
 3. **Stock e ficha do artigo** — pesquisa, filtros, cartões, colunas e estados, ficha em painel e em página, extrato de movimentos.
@@ -23,8 +23,8 @@ Regra: só entra no manual o que foi **confirmado no browser** (build integrada,
 
 ## Excluídas (de propósito)
 - **Integração** e **Admin** (técnicos) e o ecrã técnico de **Email** (SMTP).
-- Informação técnica de integração, agent, chaves, endpoints, filas, infraestrutura e bases de dados — incluindo textos técnicos que ainda aparecem no ecrã (aviso «StagingCompraRawLine» em Margens/Inventário, «pipeline de movimentos» no extrato, microtexto de «Sincronizar agora»); as imagens foram recortadas/ocultadas e o texto não os reproduz.
-- **Sincronizar agora** (o texto do ecrã é técnico nesta versão).
+- Informação técnica de integração, agent, chaves, endpoints, filas, infraestrutura e bases de dados. Os textos técnicos que ainda apareciam no ecrã foram removidos da aplicação na branch `release/textos-tecnicos-restritos`.
+- **Sincronizar agora** (o resultado depende de resposta da farmácia; não verificável em base de teste).
 - **Utilizadores** (gestão de contas): só referida como «só o Administrador».
 - Oportunidades — bloco «DCI-equivalente» (não exercitado com dados) e cartão técnico do estado dos dados; valores em euros (ambíguos).
 - Limiar de excesso: nenhum número é citado (o ecrã não o mostra e Dashboard, Stock e política do grupo usam valores diferentes).

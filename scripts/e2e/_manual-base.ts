@@ -84,7 +84,7 @@ export async function iniciar(nome: string): Promise<Amb> {
     new SignJWT({ sub: seed.userId, email: "utilizador@exemplo.pt", nome: "Utilizador Exemplo", perfil, farmaciaId, tenant: amb.slug })
       .setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("8h").sign(new TextEncoder().encode(SECRET));
   const novoCtx = async (perfil: string, farmaciaId: string | null = null, viewport?: { width: number; height: number }) => {
-    const c = await browser.newContext(viewport ? { viewport } : { viewport: { width: 1440, height: 900 } });
+    const c = await browser.newContext({ viewport: viewport ?? { width: 1440, height: 900 }, deviceScaleFactor: 2 });
     await c.addCookies([{ name: "session", value: await tok(perfil, farmaciaId), url: baseFor(amb.slug) }]);
     await c.addInitScript("window.__name = (f) => f;");
     return c;

@@ -1,24 +1,25 @@
-# Validação do manual
+# Validação do manual (v1.0, revisão 2)
 
-## Base usada nas capturas e validações
-Build de produção local = `feat/atualizacao-por-farmacia-menu` (d72ce1f) + `fix/relatorios-cabecalho-ver-em-ecra` (b63ceac), integradas em `integ/manual-capturas` (287bede, só local). Base comum: `e7db04071af7edbedc001bf75c73ef3e0bc4e808`. Verificação da integração: E2E `relatorios-cabecalho` 62 OK, E2E `ultima-atualizacao` 56 OK, E2E `vendas-opcoes-browser` 128 OK.
+## Base das capturas
+Branch candidata **`release/textos-tecnicos-restritos`** (e873cff): `d72ce1f` (atualização por farmácia + menu móvel) → `8bc6e04` (correções dos relatórios) → `123b693` (informação técnica só para técnicos) → `e873cff` (textos em linguagem corrente). Base comum: `e7db04071af7edbedc001bf75c73ef3e0bc4e808`. Build de produção local, PostgreSQL descartável, dados sintéticos.
 
-## PDF (`python validar_pdf.py SPharmMT-Manual-v1.0.pdf`)
-- 32 páginas.
-- Índice clicável: 15 entradas, cada uma leva à página do capítulo (conferido com os marcadores).
-- Marcadores laterais: 50 (partes, 15 capítulos e secções), sem títulos duplicados.
-- Ligações internas: 46, todas com destino válido, das quais 31 são as referências «ver capítulo N» do texto.
-- Texto selecionável e pesquisável (31 499 caracteres; PDF etiquetado).
-- Sem termos técnicos nem nomes de clientes no texto (verificado por expressão regular).
-- Imagens: 25 no corpo; resolução efetiva mínima 106 dpi, mediana 128 dpi. A 100 % em A4, o texto de 12 px da aplicação mede ≈ 6,7 pt (tabelas densas ≈ 6 pt). Todas as páginas conferidas em miniatura; amostra a 100 % (96 dpi): página 16 (tabela de Vendas), legível.
+## PDF (`python -X utf8 validar_pdf.py SPharmMT-Manual-v1.0.pdf`)
+- 41 páginas: 27 verticais e 14 horizontais (A4 horizontal só para ecrãs largos).
+- Índice clicável: 15 entradas, cada uma leva à página do capítulo.
+- 50 marcadores laterais (partes, 15 capítulos, secções), sem títulos duplicados.
+- 46 ligações internas válidas (31 são «ver capítulo N» no texto).
+- Texto selecionável e pesquisável (PDF etiquetado).
+- Sem termos técnicos nem nomes de clientes no texto (expressão regular).
+- Imagens: 26 no corpo, resolução efetiva mínima **211 dpi**. Texto de interface de 12 px CSS: **≥ 8,1 pt** no papel (imagens de ecrã largo); nas 4 imagens estreitas (entrada e menus) o texto é de 14 px e mede ≥ 7,9 pt.
+- Páginas conferidas em miniatura (todas) e a 100 % (amostra: páginas com figuras largas), legíveis.
 
-## Instruções validadas no browser (dados sintéticos, base local)
-Ver `scripts/e2e/manual-fase1..4.ts` e `manual-capturas-final.ts`. Resumo do que se confirmou: erros de entrada; menu por perfil e acesso direto a 9 rotas por 3 perfis; regras da password; mosaicos do Dashboard (ligações); pesquisa/filtros/cartões do Stock; ficha em painel, «Manter como tarefa» e extrato; Catálogo, editar designação (Administrador e Gestor de grupo sim; Gestor de farmácia e Operador não); Criar produto (validações, estado, pesquisa, CNP existente); Vendas (opções, «Agrupar por», encomenda, manutenção a somar ao mapa: 63 → 105 unidades); Margens (alterações por aplicar, CNPEM); Inventário; Excessos (limiar por omissão no browser); Transferências (criar, manutenção) e Oportunidades (criar); Encomendas (rascunho, finalizar); Devoluções; PDF e Excel descarregados; janela de email; filtros (Genérico 158→60, Forma 30, Ético/NETT 30, Fabricante 30, lista 4→3); separadores, Nova análise e F5.
+## Instruções validadas no browser
+`scripts/e2e/manual-fase1..4.ts` e `manual-capturas-v2.ts`. Confirmado, entre outros: erros de entrada; menu e acesso direto por perfil; regras da password; Dashboard; Stock (pesquisa, filtros, cartões), ficha e extrato; Catálogo, editar designação (Administrador e Gestor de grupo), Criar produto; Vendas («Agrupar por» só com âmbito Grupo; manutenção a somar ao mapa, 63 → 105 unidades; encomenda a partir das vendas), Margens, Inventário, Excessos, Transferências e Oportunidades (criar), Encomendas (rascunho, finalizar), Devoluções; PDF e Excel descarregados; janela de email; filtros (Genérico 158→60, Forma 30, Ético/NETT 30, Fabricante 30, lista 4→3); separadores, «Nova análise» e F5.
 
 ## Dados de clientes reais
-Nenhum nome, NIF, utilizador ou dado de cliente real: todas as imagens vêm de uma base local descartável com farmácias «Farmácia Central/do Mercado/Jardim», utilizador «Utilizador Exemplo», fabricantes «Laboratório Alfa…», distribuidoras «Norte/Sul» e produtos «… EXEMPLO …». Os textos técnicos que o ecrã ainda mostra foram ocultados nas capturas. As imagens foram revistas em folhas de contacto e nas páginas do PDF (25 usadas, de 27 capturadas); o texto do PDF foi varrido automaticamente.
+Nenhum nome, NIF, utilizador ou dado de cliente real: base local descartável com «Farmácia Central/do Mercado/Jardim», «Utilizador Exemplo», «Laboratório Alfa…», «Distribuidora Norte/Sul» e «… EXEMPLO …». Já não é preciso ocultar texto técnico nas imagens: foi removido da aplicação (branch `release/textos-tecnicos-restritos`).
 
 ## Limitações assumidas
-- A paginação das imagens depende do tamanho da janela de captura (1120 px de largura); a aplicação em janelas maiores tem mais colunas por linha.
-- O menu mostrado nas figuras 1.2 e 1.3 não inclui «Integração» nem «Manutenção do catálogo» (ocultados nas capturas: a primeira é técnica e a segunda depende do grupo).
-- A identificação institucional da capa («SoftReis · SIER») é texto simples; não foi acrescentado logótipo.
+- O menu das figuras não inclui «Manutenção do catálogo» (depende do grupo) — o item não aparece na zona recortada.
+- A capa usa a identificação em texto «SoftReis | SIER Group»: não existem no repositório logótipos oficiais da SoftReis/SIER (só o ícone do produto), por isso não foi usado nenhum.
+- «Sincronizar agora» não está documentado (o resultado depende de resposta da farmácia, não verificável numa base de teste).

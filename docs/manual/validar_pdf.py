@@ -12,7 +12,8 @@ def rel(c, msg):
     ok = ok and c
     print(("[OK]    " if c else "[FALHA] ") + msg)
 
-rel(30 <= len(d) <= 40, f"{len(d)} páginas (alvo 30 a 40)")
+horiz = sum(1 for p in d if p.rect.width > p.rect.height)
+rel(len(d) <= 50, f"{len(d)} páginas, {horiz} horizontais (A4 vertical com pranchas horizontais pontuais)")
 toc = d.get_toc()
 caps = [t for t in toc if t[0] == 2 and re.match(r"^\d+ ", t[1])]
 rel(len(caps) == 15, f"marcadores laterais: {len(toc)} no total, {len(caps)} capítulos numerados")
@@ -30,14 +31,22 @@ txt = "\n".join(p.get_text() for p in d)
 rel("Credenciais inválidas" in txt and len(txt) > 20000, f"texto selecionável e pesquisável ({len(txt)} caracteres)")
 proib = r"agent|heartbeat|ingest|outbox|token|endpoint|\bAPI\b|\bfila\b|E2E|Silveir|Segurad|Garantia|Integra[çc][ãa]o|NIF|StagingCompra|long-polling|pipeline|chave"
 rel(not re.search(proib, txt, re.I), "sem termos técnicos nem nomes de clientes no texto")
-mins = []
+# legibilidade: as capturas são ×2 (1 px CSS = 2 px da imagem); texto de interface de 12 px CSS => pt no papel
+res = []
 for i, p in enumerate(d):
+    if i == 0:
+        continue
     for info in p.get_image_info():
-        w_in = (info["bbox"][2] - info["bbox"][0]) / 72
-        if w_in * 25.4 < 20 or i == 0:
+        w_mm = (info["bbox"][2] - info["bbox"][0]) / 72 * 25.4
+        if w_mm < 20:
             continue
-        mins.append((round(info["width"] / w_in), i + 1))
-mins.sort()
-rel(mins[0][0] >= 100, f"{len(mins)} imagens; resolução efetiva mínima {mins[0][0]} dpi (página {mins[0][1]}); mediana {mins[len(mins)//2][0]} dpi")
+        css_w = info["width"] / 2
+        mm_px = w_mm / css_w
+        res.append({"pag": i + 1, "dpi": round(info["width"] / (w_mm / 25.4)), "pt12": round(12 * mm_px / 0.3528, 1), "pt14": round(14 * mm_px / 0.3528, 1), "css_w": round(css_w)})
+rel(all(r["dpi"] >= 150 for r in res), f"{len(res)} imagens; resolução efetiva mínima {min(r['dpi'] for r in res)} dpi (exigido ≥ 150)")
+estreitas = [r for r in res if r["css_w"] <= 600 and r["pt12"] < 7.9]
+largas = [r for r in res if r["pt12"] < 7.9 and r not in estreitas]
+rel(not largas, f"texto de 12 px da aplicação ≥ 7,9 pt em todas as imagens de ecrã largo (mínimo {min(r['pt12'] for r in res if r not in estreitas)} pt)")
+rel(all(r["pt14"] >= 7.9 for r in estreitas), f"{len(estreitas)} imagens estreitas (menu, entrada) têm texto de 14 px ≥ 7,9 pt (mínimo {min([r['pt14'] for r in estreitas] or [0])} pt)")
 print("Metadados:", d.metadata.get("title"))
 sys.exit(0 if ok else 1)

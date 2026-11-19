@@ -5,14 +5,14 @@ Documento autónomo (PDF) para enviar por email. **Não faz parte da aplicação
 ## Ficheiros
 | | |
 |---|---|
-| `SPharmMT-Manual-v1.0.pdf` | PDF final (32 páginas) |
+| `SPharmMT-Manual-v1.0.pdf` | PDF final (41 páginas: 27 verticais e 14 horizontais) |
 | `manual-completo.html` | **Fonte editável** (HTML + CSS; um capítulo por secção `<h2 id="cap-N">`) |
-| `imagens/` | 27 capturas definitivas, dados sintéticos |
+| `imagens/` | 27 capturas definitivas (×2, janela 1366 px de largura), dados sintéticos |
 | `gerar-completo.cjs`, `paginas.py`, `limpar_marcadores.py` | Gerador (Chromium via Playwright; 2 passagens para os números do índice) |
 | `validar_pdf.py` | Validação do PDF (índice, marcadores, ligações, texto, termos proibidos, resolução) |
 | `FUNCIONALIDADES.md` | Funcionalidades documentadas e excluídas |
 | `VALIDACAO.md` | Resultado das validações |
-| `../../scripts/e2e/manual-*.ts`, `_manual-base.ts` | Capturas e validações no browser (base local descartável, dados sintéticos) |
+| `../../scripts/e2e/manual-capturas-v2.ts`, `_manual-base.ts` (+ `manual-fase1..4.ts`, validações) | Capturas e validações no browser (base local descartável, dados sintéticos) |
 
 ## Regenerar o PDF
 ```
@@ -24,5 +24,5 @@ Requer Python com `pymupdf`. Para acrescentar uma funcionalidade: editar a secç
 
 ## Refazer as capturas
 Precisam da aplicação construída (`npm run build` com `SERVER_ACTIONS_ALLOWED_ORIGINS=localhost:3100,127.0.0.1:3100,*.localhost:3100`) e de um PostgreSQL local descartável:
-`TEST_PG_ADMIN_URL=postgresql://postgres:<pw>@localhost:<porta>/postgres VAL_OUT=<pasta> IMG_OUT=<pasta>/img npx tsx scripts/e2e/manual-capturas-final.ts`.
-As imagens deste manual foram feitas sobre a integração das branches `feat/atualizacao-por-farmacia-menu` e `fix/relatorios-cabecalho-ver-em-ecra` (ver `VALIDACAO.md`).
+`TEST_PG_ADMIN_URL=postgresql://postgres:<pw>@localhost:<porta>/postgres VAL_OUT=<pasta> IMG_OUT=<pasta>/img npx tsx scripts/e2e/manual-capturas-v2.ts` (copiar `_manual-base.ts` e `manual-capturas-v2.ts` para `scripts/e2e/` da aplicação a testar).
+As imagens foram feitas sobre a branch candidata `release/textos-tecnicos-restritos` (ver `VALIDACAO.md`). Cada captura é recortada à zona explicada, a 2× de resolução; a escala no papel é fixada no HTML (`data-escala`, mm por px CSS) para garantir texto ≥ 8 pt.

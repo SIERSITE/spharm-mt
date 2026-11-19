@@ -20,6 +20,7 @@ async function render(html, pdf) {
   const b = await chromium.launch();
   const pg = await b.newPage();
   await pg.goto(pathToFileURL(html).href, { waitUntil: "load" });
+  await pg.waitForSelector("body[data-pronto]", { timeout: 30000 });
   await pg.evaluate(() => document.fonts.ready);
   await pg.pdf({ path: pdf, preferCSSPageSize: true, printBackground: true, outline: true, tagged: true });
   await b.close();
