@@ -29,6 +29,7 @@ import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
 import { UltimaAtualizacaoMenu } from "@/components/layout/ultima-atualizacao";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { resolverRota } from "@/lib/workspace/rotas";
 import { catalogoManutencaoAtiva } from "@/lib/tenant-constants";
 import { ArtigoPanel } from "@/components/stock/artigo-panel";
 
@@ -135,6 +136,24 @@ type NavGroup = {
   section: string | null;
   items: NavItem[];
 };
+
+/**
+ * Título do cabeçalho: o do ecrã onde o utilizador está (mesma tabela das
+ * barras de separadores). Rotas sem entrada na tabela usam o rótulo do menu.
+ */
+const TITULOS_EXTRA: Array<[string, string]> = [
+  ["/configuracoes/utilizadores", "Utilizadores"],
+  ["/configuracoes/email", "Email"],
+  ["/alterar-password", "Alterar password"],
+  ["/produtos/criar", "Criar produto"],
+  ["/oportunidades", "Oportunidades"],
+];
+function tituloDoEcra(pathname: string | null): string {
+  if (!pathname) return "";
+  const extra = TITULOS_EXTRA.find(([p]) => pathname === p || pathname.startsWith(`${p}/`));
+  if (extra) return extra[1];
+  return resolverRota(pathname)?.titulo ?? "SPharm.MT";
+}
 
 /** "Ana Maria Sousa" -> "A". Vazio nao produz inicial nenhuma. */
 function inicial(nome: string): string {
@@ -384,7 +403,7 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
               >
                 <MenuIcon className="h-5 w-5" />
               </button>
-              <div className="text-sm font-medium text-slate-500">Dashboard</div>
+              <div className="text-sm font-medium text-slate-500" data-testid="titulo-cabecalho">{tituloDoEcra(pathname)}</div>
             </div>
 
             <div className="flex items-center gap-3">

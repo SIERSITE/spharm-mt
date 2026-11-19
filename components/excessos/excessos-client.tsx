@@ -28,6 +28,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { buildExcessosReport } from "@/lib/reporting/adapters/excessos";
+import { hojeIsoLisboa } from "@/lib/relatorio-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { ChipsFormaFarmaceutica, FiltroFormaFarmaceutica } from "@/components/reporting/filtro-forma-farmaceutica";
@@ -541,6 +542,13 @@ export function ExcessosClient({
     }));
   }, [orderedRows]);
 
+  // Cabeçalho e data da «Vista relatório» — os MESMOS que Imprimir/PDF/Excel/Email (nunca texto fixo).
+  const organizacaoRelatorio = formatFarmaciaHeader(
+    Array.from(new Set([...farmaciasOrigemSelecionadas, ...farmaciasDestinoSelecionadas])),
+    farmaciasInfo,
+  );
+  const dataGeracaoRelatorio = hojeIsoLisboa();
+
   return (
     <AppShell>
       <div className="space-y-3">
@@ -590,15 +598,7 @@ export function ExcessosClient({
                   quantidadeMinima,
                 },
                 universe: { farmacias, fornecedores, fabricantes, laboratorios, formas: filterOptions.formas, categorias, prioridades },
-                organization: formatFarmaciaHeader(
-                  Array.from(
-                    new Set([
-                      ...farmaciasOrigemSelecionadas,
-                      ...farmaciasDestinoSelecionadas,
-                    ])
-                  ),
-                  farmaciasInfo
-                ),
+                organization: organizacaoRelatorio,
               })
             }
           />
@@ -968,14 +968,14 @@ export function ExcessosClient({
                   <div className="border-b border-dashed border-slate-300 pb-3">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-[11px] text-slate-500">Farmácia Silveirense, Lda. (NIF: 507529930)</div>
+                        <div className="text-[11px] text-slate-500">{organizacaoRelatorio}</div>
                         <div className="mt-2 text-[15px] font-semibold text-slate-900">Relatório de Excessos de Stock</div>
                         <div className="mt-1 text-[12px] text-slate-600">
                           Período: De {formatDatePt(snapshot.dataInicio)} até {formatDatePt(snapshot.dataFim)}
                         </div>
                       </div>
                       <div className="text-right text-[12px] text-slate-500">
-                        <div>{formatDatePt("2026-04-13")}</div>
+                        <div>{formatDatePt(dataGeracaoRelatorio)}</div>
                         <div className="mt-1">Moeda: Euro</div>
                       </div>
                     </div>
@@ -1042,11 +1042,6 @@ export function ExcessosClient({
                         )}
                       </tbody>
                     </table>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400">
-                    <div>SoftReis Informática</div>
-                    <div>Página 1 de 1</div>
                   </div>
                 </div>
 
