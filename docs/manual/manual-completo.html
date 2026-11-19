@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<title>SPharm.MT — Manual de utilização</title>
+<style>
+  :root { --verde:#2f8f6f; --verde-esc:#1f6a52; --verde-claro:#e6f4ee; --tinta:#18323a; --suave:#55707a; --linha:#d5e1e5; --fundo:#f4f8f9; --atencao:#c27a0e; }
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm;
+    @bottom-left   { content: "SPharm.MT · Manual de utilização"; font: 8.5pt 'Segoe UI', Arial, sans-serif; color:#7f99a1; }
+    @bottom-center { content: "Versão 1.0 · novembro de 2026"; font: 8.5pt 'Segoe UI', Arial, sans-serif; color:#7f99a1; }
+    @bottom-right  { content: "Página " counter(page) " de " counter(pages); font: 8.5pt 'Segoe UI', Arial, sans-serif; color:#7f99a1; } }
+  @page :first { margin:0; @bottom-left{content:none} @bottom-center{content:none} @bottom-right{content:none} }
+  * { box-sizing: border-box; }
+  html { font: 10.2pt/1.45 'Segoe UI', Arial, sans-serif; color: var(--tinta); }
+  body { margin: 0; }
+  a { color: var(--verde-esc); text-decoration: none; font-weight: 600; }
+  h1,h2,h3 { margin:0; line-height:1.2; break-after: avoid; }
+  h2 { font-size: 16pt; color: var(--verde-esc); margin: 9mm 0 3mm; padding-bottom: 1.8mm; border-bottom: 2px solid var(--verde-claro); }
+  h3 { font-size: 11.5pt; margin: 5.5mm 0 1.8mm; }
+  p { margin: 0 0 2.6mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; } li { margin: .7mm 0; }
+  .pag { break-after: page; }
+  h2 + p { break-after: avoid; }
+  h3 + p, h3 + ol, h3 + ul { break-before: avoid; }
+
+  .capa { height: 297mm; position: relative; background: linear-gradient(180deg,#fff,var(--fundo)); break-after: page; }
+  .capa .faixa { height: 64mm; background: linear-gradient(120deg,var(--verde-esc),var(--verde)); color:#fff; padding: 20mm 22mm 0; }
+  .capa .marca { display:flex; align-items:center; gap:5mm; font-size:15pt; font-weight:600; }
+  .capa .logo { width:14mm; height:14mm; border-radius:4mm; background:#fff; color:var(--verde-esc); font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .capa h1 { font-size: 36pt; margin: 20mm 22mm 3mm; letter-spacing:-.5px; }
+  .capa .sub { margin: 0 22mm; font-size: 14pt; color: var(--suave); }
+  .capa .moldura { margin: 13mm 22mm 0; border:1px solid var(--linha); border-radius:4mm; overflow:hidden; box-shadow:0 6px 18px rgba(24,50,58,.12); height: 112mm; }
+  .capa .moldura img { display:block; width:100%; }
+  .capa .rodape { position:absolute; left:22mm; right:22mm; bottom:15mm; display:flex; justify-content:space-between; font-size:9.5pt; color:var(--suave); border-top:1px solid var(--linha); padding-top:4mm; }
+  .capa .rodape b { color: var(--tinta); }
+
+  .indice h1 { font-size: 18pt; color: var(--verde-esc); margin-bottom: 4mm; padding-bottom: 2mm; border-bottom: 2px solid var(--verde-claro); }
+  .indice .parte-t { margin: 3.2mm 0 .6mm; font-size: 8.6pt; letter-spacing:.8px; text-transform:uppercase; color:#7f99a1; font-weight:700; }
+  .indice .it { display:flex; gap:3mm; padding: 1.4mm 0; border-bottom: 1px dotted var(--linha); font-size: 10.5pt; }
+  .indice .it .n { width: 8mm; font-weight:700; color: var(--verde); }
+  .indice .it .t { flex:1; } .indice .it .t a { color: var(--tinta); font-weight: 500; }
+  .indice .it .p { color: var(--suave); }
+
+  .parte { break-before: page; break-after: page; height: 255mm; display:flex; flex-direction:column; }
+  .parte .letra { font-size: 110pt; line-height:1; font-weight:700; color: var(--verde-claro); margin-top: 22mm; letter-spacing:-4px; }
+  .parte h1 { font-size: 30pt; color: var(--verde-esc); margin: -3mm 0 4mm; }
+  .parte .lead { font-size: 12.5pt; color: var(--suave); max-width: 140mm; margin-bottom: 9mm; }
+  .parte .neste { background: var(--fundo); border-left: 3px solid var(--verde); padding: 5mm 6mm; border-radius: 0 3mm 3mm 0; max-width: 140mm; margin-bottom: 8mm; }
+  .parte .neste b { display:block; margin-bottom:2mm; } .parte .neste ol { margin:0; padding-left:5mm; } .parte .neste li { margin: 1.2mm 0; }
+
+  .caixa { border-radius: 2.5mm; padding: 3.2mm 5mm; margin: 3.5mm 0; border:1px solid; break-inside: avoid; }
+  .caixa .rotulo { display:block; font-weight:700; font-size:9pt; letter-spacing:.6px; text-transform:uppercase; margin-bottom:.8mm; }
+  .caixa p:last-child, .caixa ul:last-child { margin-bottom:0; }
+  .dica { background:#eef8f3; border-color:#bfe3d2; border-left:4px solid var(--verde); } .dica .rotulo { color: var(--verde-esc); }
+  .atencao { background:#fff6e8; border-color:#f2d6a6; border-left:4px solid var(--atencao); } .atencao .rotulo { color:#8a5508; }
+  .perfil { background:#f1f4f6; border-color:#d3dde1; border-left:4px solid var(--suave); } .perfil .rotulo { color: var(--suave); }
+  ol.passos { list-style:none; counter-reset:p; padding:0; margin: 0 0 3mm; }
+  ol.passos > li { counter-increment:p; position:relative; padding-left: 8.5mm; margin-bottom: 2.2mm; }
+  ol.passos > li::before { content:counter(p); position:absolute; left:0; top:.2mm; width:5.6mm; height:5.6mm; border-radius:50%; background:var(--verde); color:#fff; font-size:8.5pt; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  figure { margin: 3.5mm 0; break-inside: avoid; }
+  figure .img { border:1px solid var(--linha); border-radius:2mm; overflow:hidden; background:#fff; }
+  figure img { display:block; width:100%; }
+  figcaption { font-size:8.8pt; color:var(--suave); margin-top:1.3mm; } figcaption b { color:var(--tinta); }
+  .fig-c { margin-left:auto; margin-right:auto; }
+  .lado { display:flex; gap:6mm; align-items:flex-start; } .lado > .txt { flex:1; }
+  .bt { display:inline-block; padding:0 1.5mm; border:1px solid var(--linha); border-bottom-width:2px; border-radius:1.2mm; background:#fff; font-size:9.3pt; font-weight:600; }
+  table.t { border-collapse:collapse; width:100%; font-size:9.3pt; margin: 2mm 0 3.5mm; break-inside: avoid; }
+  table.t th, table.t td { border:1px solid var(--linha); padding: 1.4mm 2.3mm; text-align:left; vertical-align:top; }
+  table.t th { background: var(--fundo); }
+  .ref { color: var(--suave); font-size: 9.3pt; }
+  .gl { font-size: 9.6pt; line-height:1.35; } .gl dt { font-weight:700; margin-top:1.4mm; } .gl dd { margin:0 0 .6mm; }
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="faixa"><div class="marca"><div class="logo">SP</div>SPharm.MT</div></div>
+  <h1>Manual de utilização</h1>
+  <div class="sub">Para utilizadores de farmácias e de grupos</div>
+  <div class="moldura"><img src="imagens/cap2-dashboard.png" alt="Dashboard do SPharm.MT (dados de exemplo)"></div>
+  <div class="rodape"><span><b>Versão 1.0</b> · novembro de 2026</span><span>SoftReis · SIER</span></div>
+</section>
+
+<section class="indice pag">
+  <h1>Índice</h1>
+  <div class="parte-t">Primeiros passos</div>
+  <div class="it"><span class="n">1</span><span class="t"><a href="#cap-1">Entrar, navegar e «Última atualização»</a></span><span class="p"><!--p:cap-1--></span></div>
+  <div class="it"><span class="n">2</span><span class="t"><a href="#cap-2">Dashboard</a></span><span class="p"><!--p:cap-2--></span></div>
+  <div class="parte-t">Operação</div>
+  <div class="it"><span class="n">3</span><span class="t"><a href="#cap-3">Stock e ficha do artigo</a></span><span class="p"><!--p:cap-3--></span></div>
+  <div class="it"><span class="n">4</span><span class="t"><a href="#cap-4">Devoluções</a></span><span class="p"><!--p:cap-4--></span></div>
+  <div class="it"><span class="n">5</span><span class="t"><a href="#cap-5">Catálogo e criar produto</a></span><span class="p"><!--p:cap-5--></span></div>
+  <div class="parte-t">Relatórios</div>
+  <div class="it"><span class="n">6</span><span class="t"><a href="#cap-6">Vendas e Manutenção de Vendas</a></span><span class="p"><!--p:cap-6--></span></div>
+  <div class="it"><span class="n">7</span><span class="t"><a href="#cap-7">Margens</a></span><span class="p"><!--p:cap-7--></span></div>
+  <div class="it"><span class="n">8</span><span class="t"><a href="#cap-8">Inventário</a></span><span class="p"><!--p:cap-8--></span></div>
+  <div class="parte-t">Decisão</div>
+  <div class="it"><span class="n">9</span><span class="t"><a href="#cap-9">Excessos</a></span><span class="p"><!--p:cap-9--></span></div>
+  <div class="it"><span class="n">10</span><span class="t"><a href="#cap-10">Transferências (inclui Oportunidades)</a></span><span class="p"><!--p:cap-10--></span></div>
+  <div class="it"><span class="n">11</span><span class="t"><a href="#cap-11">Encomendas e propostas</a></span><span class="p"><!--p:cap-11--></span></div>
+  <div class="parte-t">Funcionalidades comuns</div>
+  <div class="it"><span class="n">12</span><span class="t"><a href="#cap-12">Imprimir, PDF, Excel e email</a></span><span class="p"><!--p:cap-12--></span></div>
+  <div class="it"><span class="n">13</span><span class="t"><a href="#cap-13">Filtros comuns</a></span><span class="p"><!--p:cap-13--></span></div>
+  <div class="it"><span class="n">14</span><span class="t"><a href="#cap-14">Espaços de trabalho e separadores</a></span><span class="p"><!--p:cap-14--></span></div>
+  <div class="it"><span class="n">15</span><span class="t"><a href="#cap-15">Perguntas frequentes e glossário</a></span><span class="p"><!--p:cap-15--></span></div>
+</section>
+
+<section class="parte" id="parte-a">
+  <div class="letra">A</div>
+  <h1>Primeiros passos</h1>
+  <p class="lead">Como entrar, como se organiza o menu e o que mostra o ecrã inicial.</p>
+  <div class="neste"><b>Neste bloco</b><ol><li><a href="#cap-1">Entrar, navegar e «Última atualização»</a></li><li><a href="#cap-2">Dashboard</a></li></ol></div>
+  <h3>Como ler este manual</h3>
+  <p>As instruções são numeradas. Os <b>números vermelhos</b> sobre as imagens indicam os campos a que o texto se refere. Os nomes de botões e campos aparecem em <b>negrito</b>, tal como no ecrã. Todas as imagens usam dados de exemplo.</p>
+  <div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Esta caixa aparece quando uma função só está disponível a alguns perfis (Administrador, Gestor de grupo, Gestor de farmácia, Operador) ou a alguns grupos de farmácias.</p></div>
+  <div class="caixa dica"><span class="rotulo">Dica</span><p>Sugestão para trabalhar mais depressa.</p></div>
+  <div class="caixa atencao"><span class="rotulo">Atenção</span><p>Aviso sobre algo que pode induzir em erro.</p></div>
+</section>
+
+<h2 id="cap-1">1 Entrar, navegar e «Última atualização»</h2>
+<p><b>Para que serve.</b> Entrar na aplicação, perceber o menu e saber até quando os dados de cada farmácia estão atualizados.</p>
+<h3>1.1 Entrar e sair</h3>
+<div class="lado"><div class="txt">
+<ol class="passos">
+  <li>Abra o endereço do SPharm.MT do seu grupo.</li>
+  <li>Escreva o <b>Email</b> e a <b>Password</b> e clique em <b>Entrar</b>.</li>
+  <li>Para terminar a sessão, clique em <b>Sair</b>, no canto superior direito. Volta ao ecrã de entrada.</li>
+</ol>
+<p>Se faltar um dos campos, aparece «Preencha o email e a password.». Se os dados não estiverem certos, aparece «Credenciais inválidas.».</p></div>
+<figure class="fig-c" style="width:62mm"><div class="img"><img src="imagens/cap1-login.png" alt="Ecrã de entrada"></div><figcaption><b>Figura 1.1</b> — Ecrã de entrada.</figcaption></figure></div>
+<h3>1.2 O menu lateral</h3>
+<div class="lado"><div class="txt">
+<p>O menu está à esquerda e organiza-se em secções: <b>Operação</b> (Stock, Devoluções), <b>Relatórios</b> (Vendas, Manutenção de Vendas, Inventário, Margens), <b>Decisão</b> (Encomendas, Transferências, Excessos), <b>Catálogo</b>, <b>Configurações</b> e <b>A minha conta</b>. O ecrã onde está fica destacado, e o seu nome aparece no cabeçalho.</p>
+<p>No fundo do menu está o bloco <b>Última atualização</b> (secção 1.3) e, por baixo, o seu nome e perfil.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><ul>
+<li>O menu mostra as mesmas opções a todos os perfis, exceto <b>Utilizadores</b>, que só o Administrador vê.</li>
+<li><b>Manutenção do catálogo</b> só existe em alguns grupos.</li>
+<li>Se clicar num ecrã a que o seu perfil não tem acesso, volta ao Dashboard. Por exemplo, o Operador não abre Encomendas, Transferências nem Manutenção de Vendas.</li></ul></div></div>
+<figure class="fig-c" style="width:30mm"><div class="img"><img src="imagens/cap1-menu.png" alt="Menu lateral"></div><figcaption><b>Figura 1.2</b> — Menu lateral.</figcaption></figure></div>
+<h3>1.3 Última atualização</h3>
+<p>Mostra, para cada farmácia a que tem acesso, o nome e a data e hora da <b>última atualização concluída</b> dos dados dessa farmácia. É a data em que os dados chegaram, não a hora a que abriu o programa.</p>
+<ul>
+  <li>Se a farmácia ainda não teve nenhuma atualização concluída, aparece «Sem atualização disponível».</li>
+  <li>Cada farmácia mostra a sua data. Não existe uma data única do grupo.</li>
+</ul>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>O Administrador e o Gestor de grupo veem todas as farmácias. O Gestor de farmácia e o Operador veem só a sua.</p></div>
+<h3>1.4 Em telemóvel</h3>
+<div class="lado"><div class="txt"><p>Em ecrãs pequenos o menu fica escondido. Toque no botão de menu, no canto superior esquerdo, para o abrir. O menu abre com as mesmas opções e com o bloco «Última atualização» no fundo. Fecha com a tecla Esc e fecha-se sozinho quando escolhe um ecrã. Se o menu for comprido, desloque-o na vertical.</p></div>
+<figure class="fig-c" style="width:36mm"><div class="img"><img src="imagens/cap1-menu-movel.png" alt="Menu aberto em telemóvel"></div><figcaption><b>Figura 1.3</b> — Menu em telemóvel.</figcaption></figure></div>
+<h3>1.5 Alterar a password</h3>
+<ol class="passos">
+  <li>No menu, abra <b>Alterar password</b> (secção «A minha conta»).</li>
+  <li>Preencha <b>Password actual</b>, <b>Nova password</b> e <b>Confirmar nova password</b>.</li>
+  <li>Clique em <b>Guardar nova password</b>.</li>
+</ol>
+<p>A nova password tem de ter pelo menos 10 caracteres e a confirmação tem de ser igual. Caso contrário, o ecrã explica o que falta.</p>
+
+<h2 id="cap-2">2 Dashboard</h2>
+<p><b>Para que serve.</b> Ver de relance o estado do stock do grupo e saltar para o ecrã onde tratar cada situação.</p>
+<figure><div class="img"><img src="imagens/cap2-dashboard.png" alt="Dashboard"></div><figcaption><b>Figura 2.1</b> — Dashboard (dados de exemplo).</figcaption></figure>
+<ul>
+  <li><b>Mosaicos do «Estado operacional».</b> <b>Sem stock</b>, <b>Transferências</b> (sugeridas), <b>Produtos em risco</b> (cobertura inferior a 7 dias) e <b>Valor em excesso</b>. Clique num mosaico para abrir o ecrã correspondente: Stock com o filtro aplicado, Transferências ou Excessos.</li>
+  <li><b>Tendência operacional.</b> Gráfico das vendas dos últimos 12 meses. Os botões <b>Grupo</b> e o nome de cada farmácia escolhem o que o gráfico mostra.</li>
+  <li><b>Alertas críticos, Transferências, Excessos / stock parado e Encomendas evitáveis.</b> Cartões com as situações mais importantes. «Encomendas evitáveis» abre o ecrã de Oportunidades (ver <a href="#cap-10">capítulo 10</a>).</li>
+  <li><b>Detalhe por farmácia.</b> Clique para mostrar, por farmácia, as vendas do mês, a margem, o stock parado e os alertas. Clique de novo para ocultar.</li>
+</ul>
+<p class="ref">Cobertura é o número de dias de vendas que o stock atual cobre (ver glossário no <a href="#cap-15">capítulo 15</a>).</p>
+
+<section class="parte" id="parte-b">
+  <div class="letra">B</div>
+  <h1>Operação</h1>
+  <p class="lead">O trabalho do dia a dia: consultar stock, tratar devoluções e manter o catálogo de produtos.</p>
+  <div class="neste"><b>Neste bloco</b><ol start="3"><li><a href="#cap-3">Stock e ficha do artigo</a></li><li><a href="#cap-4">Devoluções</a></li><li><a href="#cap-5">Catálogo e criar produto</a></li></ol></div>
+</section>
+
+<h2 id="cap-3">3 Stock e ficha do artigo</h2>
+<p><b>Para que serve.</b> Consultar o stock atual de cada artigo, por farmácia, e abrir a ficha completa do artigo.</p>
+<h3>3.1 Pesquisar no Stock</h3>
+<figure><div class="img"><img src="imagens/cap3-stock.png" alt="Ecrã de Stock com a pesquisa a decorrer"></div><figcaption><b>Figura 3.1</b> — Stock: ① pesquisa, ② filtros, ③ resultado.</figcaption></figure>
+<ol class="passos">
+  <li>Escreva no campo de pesquisa um produto, CNP, farmácia, DCI ou ATC e carregue em <b>Pesquisar</b> (ou na tecla Enter).</li>
+  <li>Para restringir, abra <b>Filtros</b>: Farmácia, Cobertura (0-5 dias, 6-15 dias, 16+ dias), Estado, Categoria, Subcategoria, Utilização, Forma farmacêutica, Ético / NETT e Genérico (ver <a href="#cap-13">capítulo 13</a>).</li>
+  <li>Clique no nome de um produto para abrir a ficha (secção 3.2).</li>
+</ol>
+<p>O ecrã abre vazio («Pesquise ou filtre para ver os artigos»). Os quatro cartões do topo (<b>Referências analisadas</b>, <b>Baixa cobertura</b>, <b>Stock parado</b>, <b>Transferências sugeridas</b>) resumem o universo e, ao clicar em «Baixa cobertura», a lista fica filtrada por esse estado.</p>
+<p>Cada linha mostra o produto, a farmácia, o <b>Stock</b> (unidades), a <b>Cobertura</b>, a <b>Rotação</b>, o <b>Último mov.</b>, o <b>Estado</b> (Estável, Baixa cobertura, Parado ou Transferência sugerida) e a <b>Sugestão</b>.</p>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>O stock mostrado é sempre o stock atual, não o de uma data passada.</p></div>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>O botão <b>Criar produto</b> só aparece ao Administrador e ao Gestor de grupo (ver <a href="#cap-5">capítulo 5</a>).</p></div>
+<h3>3.2 A ficha do artigo</h3>
+<div class="lado"><div class="txt">
+<p>Ao clicar num produto, a ficha abre num painel à direita, sem sair do ecrã onde está. Para a ver em página inteira, clique em <b>Manter como tarefa</b>.</p>
+<ul>
+  <li><b>Identificação:</b> designação, categoria, fabricante, princípio ativo, ATC, forma, CNP, subcategoria, tipo de produto, dosagem, embalagem, PVP, utilizações e se é genérico.</li>
+  <li><b>Resumo:</b> stock total, número de farmácias com o artigo, última venda, PVP de referência e custo de referência.</li>
+  <li><b>Classificação Ético/NETT</b> por farmácia. Quando as farmácias não coincidem, aparece «Divergente» e a indicação de quais têm cada classificação.</li>
+  <li><b>Stock por farmácia:</b> PVP, custo, stock, mínimo, última venda e validade mais antiga.</li>
+</ul>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Os botões <b>Editar designação</b>, <b>Editar</b> (fabricante) e <b>Editar nome do fabricante</b> só existem para o Administrador e o Gestor de grupo. O último só existe em alguns grupos.</p></div></div>
+<figure class="fig-c" style="width:64mm"><div class="img"><img src="imagens/cap3-ficha.png" alt="Ficha do artigo em painel"></div><figcaption><b>Figura 3.2</b> — Ficha do artigo.</figcaption></figure></div>
+<h3>3.3 Extrato de movimentos</h3>
+<p>Na ficha em página inteira, o <b>Extrato de movimentos</b> lista os movimentos do artigo: <b>Data</b>, <b>Documento</b>, <b>Tipo</b> (por exemplo Venda, Compra / Recepção ou Acerto de stock), <b>Cliente / Fornecedor</b>, <b>Qtd</b> e <b>Stock depois</b>. Use os botões de tipo, o filtro de farmácia e os campos <b>Desde</b> e <b>Até</b>, e clique em <b>Atualizar</b>. No fim aparece o total do período.</p>
+<figure><div class="img"><img src="imagens/cap3-extrato.png" alt="Extrato de movimentos"></div><figcaption><b>Figura 3.3</b> — Extrato de movimentos.</figcaption></figure>
+
+<h2 id="cap-4">4 Devoluções</h2>
+<p><b>Para que serve.</b> Ver as devoluções a fornecedores, agrupadas por fornecedor.</p>
+<figure><div class="img"><img src="imagens/cap4-devolucoes.png" alt="Ecrã de Devoluções"></div><figcaption><b>Figura 4.1</b> — Devoluções: ① período, ② gerar/atualizar.</figcaption></figure>
+<ol class="passos">
+  <li>Defina o período nos campos de data e, se quiser, filtre por Farmácia, Fornecedor, Fabricante, Categoria ou Forma farmacêutica, ou pesquise por produto, CNP, fornecedor ou fabricante.</li>
+  <li>Clique em <b>Atualizar</b> (antes de gerar, o botão chama-se <b>Gerar</b>).</li>
+</ol>
+<p>O resultado mostra quatro totais — <b>Fornecedores</b>, <b>Linhas</b>, <b>Unidades</b> e <b>Valor</b> — e, a seguir, um bloco por fornecedor com <b>Data</b>, <b>Produto</b>, <b>Farmácia</b>, <b>Fabricante</b>, <b>Qtd.</b>, <b>Valor</b> e <b>Motivo</b>. Para imprimir ou exportar, ver o <a href="#cap-12">capítulo 12</a>.</p>
+
+<h2 id="cap-5">5 Catálogo e criar produto</h2>
+<p><b>Para que serve.</b> Consultar os dados de cada produto, independentemente do stock de cada farmácia, e criar fichas de produto novas.</p>
+<h3>5.1 Consultar o Catálogo</h3>
+<figure><div class="img"><img src="imagens/cap5-catalogo.png" alt="Catálogo"></div><figcaption><b>Figura 5.1</b> — Catálogo.</figcaption></figure>
+<p>No topo, quatro cartões resumem a classificação dos produtos: <b>Classificados específicos</b>, <b>Classificados na família</b>, <b>Por classificar</b> e <b>Provisórias</b>. Por baixo, os filtros: <b>Pesquisa</b> (CNP, designação, princípio ativo ou ATC), Fabricante, Classificação N1, Tipo, Verificação, Estado, Origem da classificação, Forma farmacêutica, Ético / NETT e Genérico. A tabela mostra CNP, produto, fabricante, classificação, tipo, ATC, PVP mínimo e verificação. Clique num produto para abrir a respetiva ficha.</p>
+<h3>5.2 Corrigir a designação de um produto</h3>
+<ol class="passos">
+  <li>Abra a ficha do produto e clique em <b>Editar designação</b>.</li>
+  <li>Escreva a <b>Nova designação</b> e clique em <b>Continuar</b>.</li>
+  <li>Leia a confirmação e clique em <b>Confirmar e aplicar</b> (ou em <b>Voltar</b>).</li>
+</ol>
+<p>A nova designação passa a ser usada em todas as farmácias do grupo, e a atualização automática do ERP (o programa de gestão da farmácia) deixa de a substituir.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Só o Administrador e o Gestor de grupo podem editar. Os outros perfis não veem o botão.</p></div>
+<h3>5.3 Criar um produto</h3>
+<ol class="passos">
+  <li>No ecrã Stock, clique em <b>Criar produto</b>.</li>
+  <li>Preencha o <b>CNP</b> e a <b>Designação</b>, que são obrigatórios. Os restantes campos (DCI, ATC, dosagem, forma farmacêutica, embalagem, fabricante / titular, categoria, subcategoria, grupo homogéneo e genérico) são opcionais.</li>
+  <li>Clique em <b>Criar produto</b>.</li>
+</ol>
+<figure><div class="img"><img src="imagens/cap5-criar-produto.png" alt="Formulário Criar produto"></div><figcaption><b>Figura 5.2</b> — Criar produto: ① CNP, ② designação, ③ criar.</figcaption></figure>
+<p>Se faltar um campo obrigatório, o ecrã avisa («CNP em falta ou inválido.», «Designação obrigatória.»). Ao criar, abre a ficha do produto no Catálogo, com o estado <b>Pendente</b> e a indicação de que não está registado em nenhuma farmácia. O produto passa a aparecer na pesquisa do Catálogo, mas só aparece no Stock quando uma farmácia o tiver. Se o CNP já existir, abre-se o produto existente, sem alterar a sua designação.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Só o Administrador e o Gestor de grupo podem criar produtos.</p></div>
+
+<section class="parte" id="parte-c">
+  <div class="letra">C</div>
+  <h1>Relatórios</h1>
+  <p class="lead">Vendas, margens e inventário: gere o relatório, veja o resultado e, se precisar, imprima ou exporte.</p>
+  <div class="neste"><b>Neste bloco</b><ol start="6"><li><a href="#cap-6">Vendas e Manutenção de Vendas</a></li><li><a href="#cap-7">Margens</a></li><li><a href="#cap-8">Inventário</a></li></ol></div>
+  <h3>Como funcionam os relatórios</h3>
+  <p>Todos seguem o mesmo caminho: escolher o período e os filtros, clicar em <b>Gerar</b> e consultar o resultado. Depois de gerado, o botão passa a <b>Atualizar</b> e aparecem <span class="bt">Imprimir</span> <span class="bt">PDF</span> <span class="bt">Excel</span> <span class="bt">Email</span>. Estes botões, e os filtros comuns, estão explicados uma só vez nos <a href="#cap-12">capítulos 12</a> e <a href="#cap-13">13</a>.</p>
+</section>
+
+<h2 id="cap-6">6 Vendas e Manutenção de Vendas</h2>
+<p><b>Para que serve.</b> Ver, artigo a artigo, as unidades vendidas mês a mês, o stock atual e o custo estimado, para uma farmácia, várias ou o grupo todo.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Qualquer perfil gera o relatório. Com o âmbito «Grupo», o botão «Criar encomenda com estes produtos» só está ativo para o Administrador e o Gestor de grupo.</p></div>
+<h3>6.1 Gerar o relatório</h3>
+<ol class="passos">
+  <li>Em <b>Âmbito da análise</b>, escolha <b>Farmácia</b>, <b>Grupo</b> ou <b>Comparativo</b>.</li>
+  <li>Defina <b>Data início</b> e <b>Data fim</b>. Por omissão, o início é 1 de janeiro do ano corrente e o fim é hoje.</li>
+  <li>Se quiser agrupar o resultado, escolha em <b>Agrupar por</b>: Artigo, Grupo, Distribuidor, Fabricante, Categoria ou Farmácia.</li>
+  <li>Para restringir o resultado, abra <b>Filtros</b> (ver <a href="#cap-13">capítulo 13</a>).</li>
+  <li>Clique em <b>Gerar</b>. Depois de gerado, o botão passa a <b>Atualizar</b>.</li>
+</ol>
+<figure class="fig-c" style="width:140mm"><div class="img"><img src="imagens/cap6-vendas-form.png" alt="Formulário do relatório de Vendas"></div><figcaption><b>Figura 6.1</b> — Formulário do relatório de Vendas.</figcaption></figure>
+<p><b>Opções rápidas.</b> Por omissão estão ligadas <b>Apenas com vendas</b>, <b>Incluir stock sem vendas</b> e <b>Incluir totais</b>. Estão desligadas <b>Incluir manutenção de vendas</b> (soma ao relatório as quantidades registadas em Manutenção de Vendas, ver 6.5) e <b>Apenas artigos com PVP diferente entre farmácias</b>.</p>
+<h3>6.2 O que vê no relatório</h3>
+<p>Aparece um resumo (linhas, unidades, valor, stock total, custo estimado e média diária) e uma tabela com uma linha por artigo e farmácia, com uma coluna por mês. Quando um artigo existe em várias farmácias, a seguir às suas linhas aparece o total do artigo; o total geral fica no fim.</p>
+<figure><div class="img"><img src="imagens/cap6-vendas-tabela.png" alt="Tabela do relatório de Vendas"></div><figcaption><b>Figura 6.2</b> — ① <b>Total Unid.</b>: unidades vendidas no período. ② <b>Stock</b>: stock atual na farmácia. ③ <b>Vendas s/IVA (€)</b>: valor das vendas sem IVA.</figcaption></figure>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>A coluna <b>Stock</b> mostra o stock atual, à data em que gerou o relatório, não o stock do período. Quando o custo de um artigo não é conhecido, aparece «—» e o resumo indica «parcial · N sem custo».</p></div>
+<h3>6.3 Agrupar por Grupo ou Categoria</h3>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>O campo <b>Agrupar por</b> só agrupa quando o <b>Âmbito da análise</b> está em <b>Grupo</b>. Com o âmbito em Farmácia, a tabela continua a mostrar uma linha por artigo.</p></div>
+<p>Com o âmbito em Grupo, <b>Categoria</b> soma as vendas por categoria; <b>Grupo</b> soma por subcategoria e, se o artigo não tiver subcategoria, usa a categoria. Os artigos sem classificação ficam em <b>Por Classificar</b>. Exemplo, num grupo com 10 artigos só com a categoria «Analgésicos», 10 com a categoria «Analgésicos» e a subcategoria «Anti-inflamatórios», e os restantes sem classificação: «Grupo» mostra Analgésicos (10 artigos), Anti-inflamatórios (10) e Por Classificar; «Categoria» mostra Analgésicos (20) e Por Classificar.</p>
+<h3>6.4 Criar uma encomenda a partir das vendas</h3>
+<div class="lado"><div class="txt">
+<ol class="passos">
+  <li>Gere o relatório.</li>
+  <li>Clique em <b>Criar encomenda com estes produtos</b>.</li>
+  <li>Indique <b>Pretendo encomendar para (dias)</b>. O valor por omissão é 15.</li>
+  <li>Clique em <b>Continuar</b>. Abre o ecrã Nova encomenda, com os produtos do relatório.</li>
+</ol>
+<div class="caixa dica"><span class="rotulo">Dica</span><p>São enviados os produtos que estão <b>visíveis nesse momento</b>, já com os filtros e as opções aplicados. A quantidade a encomendar é calculada no ecrã Encomendas.</p></div></div>
+<figure class="fig-c" style="width:62mm"><div class="img"><img src="imagens/cap6-vendas-modal.png" alt="Janela de confirmação"></div><figcaption><b>Figura 6.3</b> — Confirmação.</figcaption></figure></div>
+<h3>6.5 Manutenção de Vendas</h3>
+<p>Serve para registar quantidades adicionais de um artigo, distribuídas por farmácia e por mês, separadas das vendas reais. Só entram no relatório de Vendas se ligar <b>Incluir manutenção de vendas</b>.</p>
+<ol class="passos">
+  <li>Em <b>Manutenção de Vendas</b>, clique em <b>Nova manutenção</b>.</li>
+  <li>Em <b>Artigo</b>, procure por CNP, designação ou fabricante e escolha o artigo.</li>
+  <li>Indique a <b>Quantidade total</b>, o <b>Nº de meses</b>, o <b>Mês inicial</b> e o <b>Ano inicial</b>.</li>
+  <li>Clique em <b>Calcular distribuição</b>. A tabela reparte a quantidade por farmácia e por mês, e confirma «bate certo» quando a soma é igual à quantidade total. Pode corrigir os valores.</li>
+  <li>Clique em <b>Gravar</b>.</li>
+</ol>
+<figure><div class="img"><img src="imagens/cap6-mv-form.png" alt="Formulário de Manutenção de Vendas"></div><figcaption><b>Figura 6.4</b> — Nova manutenção: ① artigo, ② quantidade total, ③ número de meses, ④ recalcular, ⑤ gravar.</figcaption></figure>
+<p>A manutenção gravada aparece na lista (separadores <b>Ativas</b>, <b>Anuladas</b> e <b>Todas</b>), com as ações <b>Editar</b> e <b>Anular</b>.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Manutenção de Vendas está disponível ao Administrador, ao Gestor de grupo e ao Gestor de farmácia. O Operador volta ao Dashboard.</p></div>
+
+<h2 id="cap-7">7 Margens</h2>
+<p><b>Para que serve.</b> Calcular a margem das vendas de um período, por produto, categoria, farmácia, grupo ou fabricante. A margem é calculada sem IVA: preço de venda sem IVA menos o preço médio de compra (PMC).</p>
+<figure><div class="img"><img src="imagens/cap7-margens.png" alt="Relatório de Margens"></div><figcaption><b>Figura 7.1</b> — Margens: ① período, ② Gerar/Atualizar, ③ níveis de totais, ④ estado dos artigos.</figcaption></figure>
+<ol class="passos">
+  <li>Escolha o período (por omissão, de 1 de janeiro até hoje) e os filtros (<a href="#cap-13">capítulo 13</a>). Por omissão, estão ligadas «Incluir vendas a crédito» e desligadas «Apenas produtos sem classificação» e «Incluir guias de transferência».</li>
+  <li>Clique em <b>Gerar</b>.</li>
+  <li>Escolha o nível: <b>Detalhe por produto</b>, <b>Totais por categoria</b>, <b>por farmácia</b>, <b>por grupo</b> ou <b>por fabricante</b>.</li>
+</ol>
+<p>Os indicadores do topo são <b>Vendas € (c/ IVA)</b>, <b>Vendas € (s/ IVA)</b>, <b>Stock total</b>, <b>Custo €</b>, <b>Margem €</b>, <b>Margem %</b> e <b>Cobertura</b>. Os botões de estado filtram a tabela: <b>Fiável</b>, <b>Parcial</b>, <b>Sem custo</b> e <b>IVA por apurar</b>. Este último aparece quando a taxa de IVA do artigo não é 6%, 13% ou 23%: nesse caso a margem não é calculada.</p>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>Se mudar o período ou um filtro depois de gerar, aparece «Existem alterações por aplicar». O relatório só muda quando clicar em <b>Atualizar</b>. O <b>Stock</b> é o stock atual, não o histórico.</p></div>
+<h3>Comparar com o mesmo CNPEM</h3>
+<p>Clique no símbolo à esquerda de um artigo para ver os outros artigos com o mesmo <b>CNPEM</b>. CNPEM é o <i>Código Nacional para a Prescrição Eletrónica de Medicamentos</i>, definido na Portaria n.º 224/2015, de 27 de julho. Aparece a indicação «Mesmo CNPEM … — N outros artigos nas farmácias selecionadas» e a opção <b>Mostrar todos os artigos do mesmo CNPEM</b>, que inclui os que não tiveram vendas no período.</p>
+
+<h2 id="cap-8">8 Inventário</h2>
+<p><b>Para que serve.</b> Ver o stock atual valorizado, por produto, farmácia, grupo ou taxa de IVA. Não tem datas: é um retrato do stock de agora.</p>
+<figure><div class="img"><img src="imagens/cap8-inventario.png" alt="Relatório de Inventário"></div><figcaption><b>Figura 8.1</b> — Inventário: ① Gerar, ② vistas, ③ estado do artigo.</figcaption></figure>
+<ol class="passos">
+  <li>Aplique filtros, se quiser (<a href="#cap-13">capítulo 13</a>), e clique em <b>Gerar</b>.</li>
+  <li>Escolha a vista: <b>Por produto</b>, <b>Por farmácia</b>, <b>Por grupo</b> ou <b>Por taxa IVA</b>.</li>
+  <li>Em «Por produto», filtre por estado — <b>Normal</b>, <b>Rotura</b>, <b>Excesso</b>, <b>Sem movimento</b>, <b>Sem custo</b> ou <b>Sem stock</b> — e escolha <b>Agrupar por</b> Artigo ou Farmácia.</li>
+</ol>
+<p>A tabela mostra o stock, o PMC, o PVP, o IVA, o valor do stock sem IVA (stock × PMC), o IVA, o valor com IVA, a cobertura e o estado. Quando a taxa de IVA do artigo não é 6%, 13% ou 23%, o valor com IVA não é calculado e o artigo fica em «IVA por apurar».</p>
+
+<section class="parte" id="parte-d">
+  <div class="letra">D</div>
+  <h1>Decisão</h1>
+  <p class="lead">Onde decide o que fazer ao stock: onde há excesso, o que transferir entre farmácias e o que encomendar.</p>
+  <div class="neste"><b>Neste bloco</b><ol start="9"><li><a href="#cap-9">Excessos</a></li><li><a href="#cap-10">Transferências (inclui Oportunidades)</a></li><li><a href="#cap-11">Encomendas e propostas</a></li></ol></div>
+</section>
+
+<h2 id="cap-9">9 Excessos</h2>
+<p><b>Para que serve.</b> Identificar stock acima da necessidade estimada de cada farmácia, mesmo quando nenhuma outra farmácia precisa dele.</p>
+<figure><div class="img"><img src="imagens/cap9-excessos.png" alt="Relatório de Excessos"></div><figcaption><b>Figura 9.1</b> — Excessos: ① período, ② filtros, ③ Gerar relatório.</figcaption></figure>
+<ol class="passos">
+  <li>Defina <b>Data início</b> e <b>Data fim</b>. Por omissão, é a janela dos últimos 12 meses completos.</li>
+  <li>Se quiser, escreva um <b>Artigo</b>, escolha <b>Ordenar por</b> (Prioridade, Quantidade sugerida, Descrição do artigo, Farmácia origem ou Farmácia destino), indique a <b>Qtd. mínima sugerida</b> e use os <b>Filtros</b> (<a href="#cap-13">capítulo 13</a>).</li>
+  <li>Ajuste os filtros rápidos: <b>Apenas com necessidade</b>, <b>Apenas com excesso</b> (ligado por omissão), <b>Só alta prioridade</b> e <b>Incluir totais</b> (ligado por omissão).</li>
+  <li>Clique em <b>Gerar relatório</b>.</li>
+</ol>
+<p>O resumo indica o número de excessos, unidades e referências. A tabela tem, por artigo e farmácia de origem: <b>St. O.</b> (stock na origem), <b>Vendas 6M</b>, <b>Méd./mês</b>, <b>Cob. O.</b> (cobertura na origem), <b>Excesso</b>, <b>PVP</b>, <b>Custo</b>, <b>€ custo exc.</b> (capital imobilizado na sobra), <b>€ PVP exc.</b> (quanto a sobra valeria vendida) e, quando existe, o destino possível (<b>Destino poss.</b>, <b>St. D.</b>, <b>Cob. D.</b>, <b>Necess.</b>, <b>Sug.</b>). O separador <b>Relatório</b> mostra a mesma informação em formato de documento, com a(s) farmácia(s) selecionada(s) e a data de hoje.</p>
+
+<h2 id="cap-10">10 Transferências (inclui Oportunidades)</h2>
+<p><b>Para que serve.</b> Sugerir redistribuições de stock entre farmácias quando há excesso numa e necessidade noutra, e registar essas transferências.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Transferências está disponível ao Administrador, ao Gestor de grupo e ao Gestor de farmácia. O Operador volta ao Dashboard.</p></div>
+<h3>10.1 Gerar sugestões e criar uma transferência</h3>
+<figure><div class="img"><img src="imagens/cap10-transferencias.png" alt="Relatório de Transferências"></div><figcaption><b>Figura 10.1</b> — Transferências: ① Gerar/Atualizar.</figcaption></figure>
+<ol class="passos">
+  <li>Defina o período e os filtros (os de Excessos, mais <b>Farmácia origem</b> e <b>Farmácia destino</b>) e clique em <b>Gerar relatório</b>.</li>
+  <li>A tabela lista, por sugestão, o produto, a <b>Origem</b>, o <b>Destino</b>, os stocks e coberturas de ambas as farmácias, a quantidade sugerida (<b>Sug.</b>), o <b>Preço un.</b> e o <b>Valor</b>.</li>
+  <li>Numa linha, clique em <b>Criar</b> e confirme a pergunta «Criar transferência interna?».</li>
+</ol>
+<figure><div class="img"><img src="imagens/cap10-transferencias-tabela.png" alt="Tabela de sugestões de transferência"></div><figcaption><b>Figura 10.2</b> — Sugestões de transferência: ① criar.</figcaption></figure>
+<p>A transferência fica registada com o estado <b>Finalizada</b> e passa a constar em <b>Transferências registadas</b>, no topo do ecrã, e na <b>Manutenção de transferências</b>.</p>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>O <b>Preço un.</b> é o custo na farmácia de origem, não o PVP: uma transferência interna não é uma venda.</p></div>
+<h3>10.2 Manutenção de transferências</h3>
+<p>Clique em <b>Manutenção de transferências</b> para ver as transferências já criadas, com número (por exemplo TR-000001), origem e destino, estado, quem criou, datas, referências e unidades. Pode procurar por número e filtrar por origem, destino, estado (Rascunho, Finalizada, Anulada, Eliminada) e datas. Cada linha tem as ações <b>Consultar</b>, <b>Documento</b>, <b>Duplicar</b> e <b>Anular</b>.</p>
+<h3>10.3 Oportunidades</h3>
+<p>O ecrã <b>Oportunidades</b> abre-se pelo cartão <b>Encomendas evitáveis</b> do Dashboard. Lista as situações em que um artigo está quase sem stock numa farmácia e há stock a mais do mesmo artigo (mesmo CNP) noutra, indicando o destino, a origem e as unidades. Clique em <b>Criar transferência</b> e confirme: a transferência é criada e abre-se o ecrã Transferências.</p>
+
+<h2 id="cap-11">11 Encomendas e propostas</h2>
+<p><b>Para que serve.</b> Gerar uma proposta de encomenda a partir das vendas, rever as quantidades e finalizar.</p>
+<div class="caixa perfil"><span class="rotulo">Depende do perfil ou do grupo</span><p>Encomendas está disponível ao Administrador, ao Gestor de grupo e ao Gestor de farmácia. O Operador volta ao Dashboard.</p></div>
+<h3>11.1 A lista de encomendas</h3>
+<figure><div class="img"><img src="imagens/cap11-lista.png" alt="Lista de encomendas"></div><figcaption><b>Figura 11.1</b> — Lista de encomendas.</figcaption></figure>
+<p>Pode procurar por nome e filtrar por farmácia, estado (Rascunho, Finalizada, Exportada, Anulada), datas e pelos filtros comuns (Forma farmacêutica, Ético / NETT, Genérico). As encomendas anuladas ficam escondidas, a menos que marque <b>Mostrar encomendas anuladas</b>. Num <b>Rascunho</b> existem as ações <b>Continuar</b>, <b>Finalizar</b> e <b>Eliminar</b>; nas encomendas já finalizadas, <b>Documentos</b>, <b>Duplicar</b> e <b>Anular</b>.</p>
+<h3>11.2 Nova encomenda</h3>
+<figure><div class="img"><img src="imagens/cap11-proposta.png" alt="Nova encomenda com proposta gerada"></div><figcaption><b>Figura 11.2</b> — Nova encomenda: ① período, ② gerar proposta.</figcaption></figure>
+<ol class="passos">
+  <li>Clique em <b>+ Nova encomenda</b>. Escolha a modalidade: <b>Farmácia</b>, <b>Grupo</b> ou <b>Consolidação</b>.</li>
+  <li>Em <b>Critérios</b>, escolha a <b>Farmácia</b>, as datas, a <b>Regra de cálculo</b> («Média diária × cobertura» ou «Total de vendas no período»), a <b>Cobertura alvo (dias)</b> e se deve <b>Considerar stock e pendentes</b>. Pode ainda aplicar <b>Filtros</b> e importar uma lista de CNP (<a href="#cap-13">capítulo 13</a>).</li>
+  <li>Clique em <b>Gerar proposta</b>. Aparecem os totais <b>A comprar</b>, <b>Transferência</b> e <b>Adequado</b> e a tabela da proposta, com vendas, média diária, stock, cobertura, pendentes, quantidade <b>Sugerida</b>, notas, fornecedor e quantidade <b>Final</b>.</li>
+  <li>Reveja e ajuste as quantidades. Pode atribuir fornecedor a várias linhas de uma vez e usar <b>Adicionar produto manual</b> para produtos sem vendas no período.</li>
+  <li>Escreva o <b>Nome da encomenda</b> e clique em <b>Guardar rascunho</b> («Rascunho guardado.») ou no botão de finalizar, no fundo da página. Ao finalizar, aparece «Encomenda finalizada» com os botões <span class="bt">Imprimir</span> <span class="bt">PDF</span> <span class="bt">Excel</span> <span class="bt">Email</span> e <b>Concluir</b>.</li>
+</ol>
+<div class="caixa atencao"><span class="rotulo">Atenção</span><p>As sugestões baseiam-se em vendas reais e não contemplam descontos, MOQ (quantidade mínima de encomenda), campanhas nem prazos. Valide as condições comerciais antes de finalizar.</p></div>
+
+<section class="parte" id="parte-e">
+  <div class="letra">E</div>
+  <h1>Funcionalidades comuns</h1>
+  <p class="lead">O que se repete em vários ecrãs: imprimir e exportar, filtrar e trabalhar com vários separadores.</p>
+  <div class="neste"><b>Neste bloco</b><ol start="12"><li><a href="#cap-12">Imprimir, PDF, Excel e email</a></li><li><a href="#cap-13">Filtros comuns</a></li><li><a href="#cap-14">Espaços de trabalho e separadores</a></li><li><a href="#cap-15">Perguntas frequentes e glossário</a></li></ol></div>
+</section>
+
+<h2 id="cap-12">12 Imprimir, PDF, Excel e email</h2>
+<p><b>Para que serve.</b> Levar um relatório para fora do ecrã. Os quatro botões existem em Vendas, Margens, Inventário, Excessos, Transferências e Devoluções, e ficam disponíveis depois de gerar o relatório.</p>
+<figure><div class="img"><img src="imagens/cap12-saidas.png" alt="Botões de saída do relatório"></div><figcaption><b>Figura 12.1</b> — ① Imprimir, ② PDF, ③ Excel, ④ Email, ⑤ opções de preços (só em Vendas), ⑥ Criar encomenda.</figcaption></figure>
+<ul>
+  <li><b>Imprimir</b> — abre o relatório para impressão, com a mesma informação que o separador «Relatório».</li>
+  <li><b>PDF</b> — descarrega um ficheiro PDF. O nome inclui o relatório, a data e a hora (por exemplo, <i>vendas-20261119-1307.pdf</i>).</li>
+  <li><b>Excel</b> — descarrega um ficheiro de folha de cálculo (<i>.xlsx</i>) com os dados do relatório.</li>
+  <li><b>Email</b> — abre uma janela para enviar o relatório por email (abaixo).</li>
+</ul>
+<h3>Enviar por email</h3>
+<div class="lado"><div class="txt">
+<ol class="passos">
+  <li>Clique em <b>Email</b>.</li>
+  <li>Escreva os <b>Destinatários</b>, separados por vírgula. O <b>Assunto</b> e a <b>Mensagem</b> são opcionais; sem assunto, é usado o título do relatório.</li>
+  <li>Escolha se anexa o PDF e o Excel (<b>Anexar PDF</b> e <b>Anexar Excel</b>). A janela indica a informação incluída nos anexos.</li>
+  <li>Clique em <b>Enviar</b>.</li>
+</ol></div>
+<figure class="fig-c" style="width:70mm"><div class="img"><img src="imagens/cap12-email.png" alt="Janela de envio por email"></div><figcaption><b>Figura 12.2</b> — Enviar relatório por email.</figcaption></figure></div>
+<h3>Preços de venda e de compra (só em Vendas)</h3>
+<p>No relatório de Vendas, as caixas <b>Incluir preços de venda</b> e <b>Incluir preços de compra</b> aparecem depois de gerar. Se desligar uma delas, o relatório impresso, o PDF, o Excel e o email saem sem os preços de venda ou sem os custos. A tabela no ecrã não muda.</p>
+<div class="caixa dica"><span class="rotulo">Dica</span><p>Antes de enviar um relatório a alguém de fora da farmácia, desligue «Incluir preços de compra». A janela de email confirma o que vai nos anexos («Preços de compra (custos): incluídos / não incluídos»).</p></div>
+<p>Os documentos das encomendas e das transferências têm os seus próprios botões (Imprimir, PDF e Email, e Excel nas encomendas), descritos nos <a href="#cap-10">capítulos 10</a> e <a href="#cap-11">11</a>.</p>
+
+<h2 id="cap-13">13 Filtros comuns</h2>
+<p><b>Para que serve.</b> Restringir um relatório ou uma lista. O botão <b>Filtros</b> abre o painel; o número ao lado indica quantos filtros estão ativos.</p>
+<figure><div class="img"><img src="imagens/cap13-filtros.png" alt="Painel de filtros do relatório de Vendas"></div><figcaption><b>Figura 13.1</b> — Painel de filtros (Vendas): ① lista de códigos, ② farmácia, ③ fabricante, ④ forma farmacêutica, ⑤ Ético / NETT, ⑥ Genérico.</figcaption></figure>
+<ol class="passos">
+  <li>Clique em <b>Filtros</b> e escolha os valores. Cada escolha aparece como um rótulo, por exemplo «Genérico: Apenas genéricos», «Forma: Xarope» ou «Ético/NETT: NETT».</li>
+  <li>Clique em <b>Atualizar</b> (ou <b>Gerar</b>) para aplicar. O número de linhas do resumo muda.</li>
+  <li>Para voltar ao início, clique em <b>Limpar filtros</b>.</li>
+</ol>
+<table class="t">
+<tr><th style="width:32mm">Filtro</th><th>O que faz</th></tr>
+<tr><td><b>Farmácia</b></td><td>Escolhe as farmácias incluídas. Por omissão estão todas. Em Excessos e Transferências há <b>Farmácia origem</b> e <b>Farmácia destino</b>.</td></tr>
+<tr><td><b>Fabricante</b>, <b>Distribuidor</b>, <b>Categoria</b>, <b>Subcategoria</b>, <b>Utilização</b></td><td>Restringem aos produtos dos valores escolhidos. A lista mostra só os valores existentes.</td></tr>
+<tr><td><b>Forma farmacêutica</b></td><td>Por exemplo Cápsula, Comprimido ou Xarope. Cada valor mostra quantos produtos tem.</td></tr>
+<tr><td><b>Ético / NETT</b></td><td>Ético, NETT, Sem classificação ou Divergente (as farmácias do grupo têm classificações diferentes).</td></tr>
+<tr><td><b>Genérico</b></td><td>Todos, Apenas genéricos ou Apenas não genéricos, com a contagem de cada um.</td></tr>
+<tr><td><b>Importar lista de CNP/Códigos</b></td><td>Restringe o relatório aos códigos de um ficheiro (.txt, .csv, .xlsx ou .xls), com um código por linha ou separados por «;», «,» ou tabulação. O ecrã diz quantos códigos leu, quantos produtos encontrou, quantos duplicados e quantos não encontrou. <b>Limpar lista</b> remove-a.</td></tr>
+</table>
+<div class="caixa dica"><span class="rotulo">Dica</span><p>Com a lista de códigos pode analisar só os produtos de uma campanha ou de um fornecedor sem os escolher um a um. Exemplo: uma lista de 4 códigos, em que 3 existem, gera um relatório com 3 produtos e o ecrã avisa que 1 código não foi encontrado.</p></div>
+<p><b>Onde existe cada filtro.</b> Vendas, Margens, Inventário, Excessos, Transferências e Nova encomenda têm o painel completo (a lista de códigos existe em Vendas, Margens, Inventário e Nova encomenda). O Stock tem Farmácia, Cobertura, Estado, Categoria, Subcategoria, Utilização, Forma farmacêutica, Ético / NETT e Genérico. As Devoluções têm Farmácia, Fornecedor, Fabricante, Categoria e Forma farmacêutica. A lista de Encomendas tem Forma farmacêutica, Ético / NETT e Genérico.</p>
+
+<h2 id="cap-14">14 Espaços de trabalho e separadores</h2>
+<p><b>Para que serve.</b> Trabalhar em vários ecrãs, ou em várias análises do mesmo relatório, sem perder o que tem aberto.</p>
+<figure><div class="img"><img src="imagens/cap14-separadores.png" alt="Barra de separadores"></div><figcaption><b>Figura 14.1</b> — Barra de separadores: ① fechar um separador, ② Nova análise.</figcaption></figure>
+<ul>
+  <li><b>Separadores.</b> Cada ecrã que abre cria um separador numa barra por baixo do cabeçalho. Clique num separador para voltar a esse ecrã. Para fechar, use o <b>X</b> do separador.</li>
+  <li><b>Nova análise.</b> Em Vendas, Margens, Inventário, Transferências e Excessos, o botão <b>Nova análise</b> abre outro separador do mesmo relatório. Cada análise tem os seus próprios filtros e resultados: pode comparar dois períodos lado a lado.</li>
+  <li><b>Se recarregar a página</b> (F5), as datas e os critérios mantêm-se, mas o relatório gerado desaparece e tem de voltar a clicar em <b>Gerar</b>.</li>
+</ul>
+<div class="caixa dica"><span class="rotulo">Dica</span><p>Use «Nova análise» para ver, por exemplo, as vendas do trimestre atual e do trimestre anterior em separadores diferentes, sem repetir os filtros.</p></div>
+
+<h2 id="cap-15">15 Perguntas frequentes e glossário</h2>
+<h3>Perguntas frequentes</h3>
+<dl class="gl">
+<dt>Cliquei em «Encomendas» e voltei ao Dashboard. Porquê?</dt><dd>O seu perfil não tem acesso a esse ecrã (por exemplo, o Operador não abre Encomendas, Transferências nem Manutenção de Vendas). Peça ao Administrador do seu grupo, se precisar.</dd>
+<dt>Porque aparece «Sem atualização disponível» numa farmácia?</dt><dd>Essa farmácia ainda não teve nenhuma atualização concluída. Assim que chegar uma, o bloco «Última atualização» mostra a data.</dd>
+<dt>Mudei um filtro e o relatório não mudou.</dt><dd>Clique em <b>Atualizar</b>. O relatório só muda depois disso.</dd>
+<dt>Recarreguei a página e o relatório desapareceu.</dt><dd>É normal: os critérios mantêm-se, mas tem de voltar a clicar em <b>Gerar</b>.</dd>
+<dt>O stock do relatório é o do período que escolhi?</dt><dd>Não. É o stock atual, à data em que gerou o relatório.</dd>
+<dt>Porque aparece «—» no custo?</dt><dd>O custo desse artigo não é conhecido. O resumo indica quantos artigos ficaram sem custo.</dd>
+<dt>Como analiso só alguns produtos?</dt><dd>Use a lista de códigos (<a href="#cap-13">capítulo 13</a>).</dd>
+<dt>Como levo um relatório para o Excel ou o email?</dt><dd>Gere o relatório e use os botões do <a href="#cap-12">capítulo 12</a>.</dd>
+<dt>Quem pode criar produtos ou corrigir designações?</dt><dd>O Administrador e o Gestor de grupo.</dd>
+</dl>
+<h3>Glossário</h3>
+<dl class="gl">
+<dt>ATC</dt><dd>Classificação Anatómica, Terapêutica e Química dos medicamentos.</dd>
+<dt>CNP</dt><dd>Código que identifica cada artigo na farmácia.</dd>
+<dt>CNPEM</dt><dd>Código Nacional para a Prescrição Eletrónica de Medicamentos (Portaria n.º 224/2015, de 27 de julho). Permite comparar artigos com o mesmo código (ver capítulo 7).</dd>
+<dt>Cobertura</dt><dd>Número de dias de vendas que o stock atual cobre, ao ritmo de vendas do período analisado.</dd>
+<dt>DCI</dt><dd>Denominação Comum Internacional: o nome da substância ativa.</dd>
+<dt>ERP</dt><dd>O programa de gestão da farmácia, de onde vêm os dados.</dd>
+<dt>MOQ</dt><dd>Quantidade mínima de encomenda.</dd>
+<dt>PMC</dt><dd>Preço médio de compra.</dd>
+<dt>PVP</dt><dd>Preço de venda ao público.</dd>
+</dl>
+
+</body>
+</html>
